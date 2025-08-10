@@ -1,0 +1,247 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  extensions = [vector, uuidOssp(map: "uuid-ossp")]
+}
+
+model User {
+  id                String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email             String      @unique @db.VarChar(255)
+  passwordHash      String      @map("password_hash") @db.VarChar(255)
+  name              String?     @db.VarChar(255)
+  emailVerified     Boolean     @default(false) @map("email_verified")
+  emailVerificationToken String? @unique @map("email_verification_token") @db.VarChar(255)
+  resetPasswordToken     String? @unique @map("reset_password_token") @db.VarChar(255)
+  resetPasswordExpires   DateTime? @map("reset_password_expires") @db.Timestamptz(6)
+  twoFactorSecret   String?     @map("two_factor_secret") @db.VarChar(255)
+  twoFactorEnabled  Boolean     @default(false) @map("two_factor_enabled")
+  failedLoginAttempts Int      @default(0) @map("failed_login_attempts")
+  lockoutUntil      DateTime?   @map("lockout_until") @db.Timestamptz(6)
+  lastLoginAt       DateTime?   @map("last_login_at") @db.Timestamptz(6)
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  documents         Document[]
+  queries           Query[]
+  sessions          Session[]
+  refreshTokens     RefreshToken[]
+  userWorkspaces    UserWorkspace[]
+  auditLogs         AuditLog[]
+
+  @@index([email])
+  @@index([emailVerificationToken])
+  @@index([resetPasswordToken])
+  @@map("users")
+}
+
+model Workspace {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String      @db.VarChar(255)
+  slug        String      @unique @db.VarChar(255)
+  description String?     @db.Text
+  settings    Json?       @db.JsonB
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  userWorkspaces UserWorkspace[]
+  pages          Page[]
+
+  @@index([slug])
+  @@map("workspaces")
+}
+
+model Role {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String      @unique @db.VarChar(50)
+  displayName String      @map("display_name") @db.VarChar(100)
+  description String?     @db.Text
+  isSystem    Boolean     @default(false) @map("is_system")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  permissions      RolePermission[]
+  userWorkspaces   UserWorkspace[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  resource    String      @db.VarChar(100)
+  action      String      @db.VarChar(100)
+  description String?     @db.Text
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@index([resource])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  roleId       String      @map("role_id") @db.Uuid
+  permissionId String      @map("permission_id") @db.Uuid
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserWorkspace {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String      @map("user_id") @db.Uuid
+  workspaceId String      @map("workspace_id") @db.Uuid
+  roleId      String      @map("role_id") @db.Uuid
+  joinedAt    DateTime    @default(now()) @map("joined_at") @db.Timestamptz(6)
+  
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, workspaceId])
+  @@index([userId])
+  @@index([workspaceId])
+  @@map("user_workspaces")
+}
+
+model Page {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workspaceId String      @map("workspace_id") @db.Uuid
+  title       String      @db.VarChar(500)
+  slug        String      @db.VarChar(500)
+  content     String?     @db.Text
+  metadata    Json?       @db.JsonB
+  isPublic    Boolean     @default(false) @map("is_public")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId])
+  @@map("pages")
+}
+
+model Session {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique @db.VarChar(500)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.Text
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique @db.VarChar(500)
+  family    String   @db.VarChar(255)
+  browserInfo String? @map("browser_info") @db.Text
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  replacedBy String? @map("replaced_by") @db.VarChar(500)
+  replacedAt DateTime? @map("replaced_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([family])
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String   @db.VarChar(100)
+  resource   String   @db.VarChar(100)
+  resourceId String?  @map("resource_id") @db.VarChar(255)
+  details    Json?    @db.JsonB
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Document {
+  id         String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId     String      @map("user_id") @db.Uuid
+  title      String      @db.VarChar(500)
+  content    String?     @db.Text
+  filePath   String?     @map("file_path") @db.VarChar(500)
+  fileType   String?     @map("file_type") @db.VarChar(50)
+  metadata   Json?       @db.JsonB
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  embeddings Embedding[]
+
+  @@index([userId])
+  @@map("documents")
+}
+
+model Embedding {
+  id         String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  documentId String                   @map("document_id") @db.Uuid
+  chunkText  String                   @map("chunk_text") @db.Text
+  chunkIndex Int                      @map("chunk_index")
+  embedding  Unsupported("vector(1536)")?
+  metadata   Json?                    @db.JsonB
+  createdAt  DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  document   Document                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("embeddings")
+}
+
+model Query {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  queryText      String   @map("query_text") @db.Text
+  responseText   String?  @map("response_text") @db.Text
+  contextUsed    Json?    @map("context_used") @db.JsonB
+  modelUsed      String?  @map("model_used") @db.VarChar(100)
+  tokensUsed     Int?     @map("tokens_used")
+  responseTimeMs Int?     @map("response_time_ms")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("queries")
+}

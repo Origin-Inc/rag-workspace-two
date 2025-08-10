@@ -1,0 +1,564 @@
+# RAG Workspace MVP - Product Requirements Document
+
+## Executive Summary
+Build a production-ready Notion-like page-centric workspace with a persistent RAG LLM AI Controller Sidebar. The system will support real-time collaboration, handle 50k+ rows per database block, and provide AI-powered assistance through natural language commands. Target completion: 6 weeks.
+
+## Technical Requirements
+
+### Core Tech Stack
+- Node.js >=20.19.4 <21
+- Remix framework (^2.16.8) with Vite build
+- React 18.2.0 with TypeScript 5.1.6
+- PostgreSQL 15+ with pgvector extension
+- Redis 7.x with BullMQ (^5.49.1)
+- Yjs CRDT for real-time collaboration
+- OpenAI API (^5.10.1) for embeddings and AI
+
+### System Architecture Requirements
+1. Implement page-centric workspace where pages contain blocks
+2. Create drag-and-drop block system using @dnd-kit/core (^6.3.1)
+3. Build database blocks supporting 50k rows × 40 columns
+4. Implement server-side cursor pagination for performance
+5. Create AI Controller sidebar with dry-run preview capability
+6. Build hybrid RAG retrieval using pgvector + full-text search
+7. Implement real-time collaboration with Yjs CRDT
+8. Create background workers for async tasks using BullMQ
+
+## Feature Requirements
+
+### 1. Page and Block Management
+- Create workspace with unlimited pages
+- Implement block types: Text, Heading, List, Image, Button, Database
+- Build drag-and-drop block positioning with snap-to-grid
+- Create block persistence with auto-save
+- Implement undo/redo functionality
+
+### 2. Database Block Features
+- Support column types: text, number, date, select, multi-select, user, formula
+- Implement add/delete/reorder columns via UI
+- Build server-side cursor pagination for large datasets
+- Create formula builder with AI assistance
+- Implement server-side sandboxed formula execution
+- Build incremental formula recomputation system
+
+### 3. AI Controller Sidebar
+- Create persistent right-hand sidebar interface
+- Implement natural language command input
+- Build command parsing and action generation
+- Create dry-run preview with human-readable summary
+- Implement action validation with Zod schemas
+- Build action execution with audit logging
+- Create undo capability for AI actions
+
+### 4. RAG System Implementation
+- Implement document chunking with 500-1500 token chunks
+- Create embedding generation using OpenAI text-embedding-3
+- Build pgvector storage with HNSW indexing
+- Implement hybrid search: vector similarity + FTS re-ranking
+- Create context retrieval pipeline
+- Build prompt engineering system for LLM
+
+### 5. Real-time Collaboration
+- Implement Yjs document synchronization
+- Create WebSocket server with y-websocket
+- Build awareness system for cursor tracking
+- Implement conflict resolution
+- Create snapshot persistence to PostgreSQL
+- Build offline support with IndexedDB
+
+### 6. Background Workers
+- Create embed-upsert worker for embedding generation
+- Build recompute-formulas worker for formula execution
+- Implement snapshot-yjs worker for persistence
+- Create reindex-documents worker for search optimization
+- Build job queuing with priority levels
+- Implement error handling and retries
+
+## Database Schema Requirements
+
+### Core Tables
+1. workspaces - Workspace metadata
+2. pages - Page information and hierarchy
+3. blocks - Block content and positioning
+4. db_blocks - Database block schemas
+5. db_block_rows - Database block data
+6. documents - RAG document chunks with embeddings
+7. action_logs - AI action audit trail
+8. yjs_snapshots - Collaboration snapshots
+
+### Indexes and Performance
+- Create HNSW index on embedding columns
+- Implement GIN indexes for full-text search
+- Add B-tree indexes for foreign keys
+- Create composite indexes for common queries
+
+## API Endpoints
+
+### Workspace and Pages
+- POST /api/workspaces - Create workspace
+- GET /api/workspaces/:wid/pages - List pages
+- POST /api/workspaces/:wid/pages - Create page
+- GET /api/workspaces/:wid/pages/:pid - Get page with blocks
+
+### Blocks
+- POST /api/pages/:pid/blocks - Create block
+- PATCH /api/pages/:pid/blocks/:bid - Update block
+- DELETE /api/pages/:pid/blocks/:bid - Delete block
+- POST /api/pages/:pid/blocks/reorder - Reorder blocks
+
+### Database Blocks
+- GET /api/dbblocks/:blockId/rows - Get rows with pagination
+- POST /api/dbblocks/:blockId/rows - Create row
+- PATCH /api/dbblocks/:blockId/rows/:rowId - Update row
+- DELETE /api/dbblocks/:blockId/rows/:rowId - Delete row
+- POST /api/dbblocks/:blockId/schema - Update schema
+- POST /api/dbblocks/:blockId/query - Complex queries
+
+### AI Controller
+- POST /api/ai/command - Process natural language command
+- POST /api/ai/execute - Execute validated actions
+- GET /api/ai/actions/:aid - Get action details
+- POST /api/ai/undo/:aid - Undo action
+
+### Collaboration
+- WebSocket /ws/collaborate/:pageId - Real-time sync
+- GET /api/pages/:pid/collaborators - Active users
+- POST /api/pages/:pid/snapshots - Create snapshot
+
+## Security Requirements
+
+### Authentication and Authorization
+- Implement JWT-based authentication
+- Create role-based access control (RBAC)
+- Build workspace-level permissions
+- Implement page-level sharing controls
+
+### Data Security
+- Validate all AI actions server-side
+- Sanitize and parameterize SQL queries
+- Implement rate limiting for AI calls
+- Encrypt sensitive data at rest
+- Create audit logging for all mutations
+
+### Input Validation
+- Use Zod schemas for all API inputs
+- Validate formula AST before execution
+- Sanitize user-generated content
+- Implement CSRF protection
+
+## Performance Requirements
+
+### Response Times
+- Page load: < 500ms for initial render
+- Block operations: < 100ms for UI feedback
+- Database queries: < 200ms for 50k rows
+- AI commands: < 2s for dry-run preview
+- Formula computation: < 500ms for 1000 rows
+
+### Scalability Targets
+- Support 50k rows per database block
+- Handle 40 columns per database
+- Support 100 concurrent users per workspace
+- Process 1000 embedding generations per minute
+- Handle 10k WebSocket connections
+
+### Optimization Strategies
+- Implement React virtualization for large lists
+- Use cursor-based pagination
+- Create database connection pooling with PgBouncer
+- Implement Redis caching for hot data
+- Use CDN for static assets
+
+## Testing Requirements
+
+### Unit Testing
+- Write tests for all utility functions
+- Test formula parser and evaluator
+- Test action validators
+- Test embedding generation
+- Cover 80% code coverage minimum
+
+### Integration Testing
+- Test API endpoints with database
+- Test WebSocket collaboration
+- Test background workers
+- Test RAG retrieval pipeline
+- Test formula recomputation
+
+### End-to-End Testing
+- Create page and add blocks
+- Drag and drop blocks
+- Create database with 50k rows
+- Execute AI commands
+- Test collaborative editing
+- Test formula creation and updates
+
+### Performance Testing
+- Load test with 50k database rows
+- Stress test WebSocket connections
+- Test concurrent AI commands
+- Benchmark embedding generation
+- Test formula computation at scale
+
+## Development Setup Requirements
+
+### Local Environment (macOS)
+1. Install PostgreSQL 15+ with pgvector
+2. Install Redis 7.x
+3. Install Node.js 20.19.4
+4. Configure environment variables
+5. Run database migrations
+6. Start background workers
+7. Start development server
+
+### Environment Variables
+- DATABASE_URL - PostgreSQL connection
+- REDIS_URL - Redis connection
+- OPENAI_API_KEY - OpenAI API access
+- JWT_SECRET - Authentication secret
+- WS_URL - WebSocket server URL
+
+## Monitoring and Observability
+
+### Metrics Collection
+- Database query performance
+- Worker queue lengths
+- AI API latencies
+- WebSocket connection counts
+- Memory and CPU usage
+
+### Error Tracking
+- Implement Sentry integration
+- Log all API errors
+- Track worker failures
+- Monitor AI action failures
+
+### Alerting
+- Database connection failures
+- Worker queue backup
+- High error rates
+- Performance degradation
+
+## Deployment Requirements
+
+### Infrastructure
+- PostgreSQL with pgvector extension
+- Redis for queuing
+- Node.js application servers
+- WebSocket servers
+- CDN for static assets
+
+### CI/CD Pipeline
+1. Run linting and type checking
+2. Execute unit tests
+3. Run integration tests
+4. Build production bundle
+5. Run database migrations
+6. Deploy to staging
+7. Run E2E tests
+8. Deploy to production
+
+## Acceptance Criteria
+
+### MVP Features
+1. Users can create and edit pages with blocks
+2. Drag-and-drop works smoothly for all block types
+3. Database blocks handle 50k rows efficiently
+4. AI commands generate accurate actions
+5. Formula engine computes correctly
+6. Real-time collaboration works without conflicts
+7. System remains responsive under load
+
+### User Stories Validation
+1. Non-technical users can create pages visually
+2. Operations specialists can create databases via AI
+3. Marketing leads can add formulas with AI help
+4. Project managers can reorganize content easily
+5. Power users can manually edit formulas
+6. Team leads can get AI-powered summaries
+
+## Milestone Schedule
+
+### Week 0-1: Foundation
+- Set up development environment
+- Create project structure
+- Implement authentication
+- Build basic page CRUD
+- Create block system architecture
+
+### Week 2: Core Editor
+- Implement drag-and-drop
+- Build block types
+- Create auto-save system
+- Implement undo/redo
+- Build block persistence
+
+### Week 3: Database Blocks
+- Create database schema
+- Build CRUD operations
+- Implement pagination
+- Create column management
+- Build basic UI
+
+### Week 4: AI Integration
+- Set up OpenAI integration
+- Build command parser
+- Create action validator
+- Implement dry-run preview
+- Build execution engine
+
+### Week 5: RAG System
+- Implement embedding generation
+- Build vector search
+- Create re-ranking system
+- Implement context retrieval
+- Build prompt engineering
+
+### Week 6: Polish and Testing
+- Implement collaboration
+- Create formula engine
+- Build background workers
+- Write comprehensive tests
+- Performance optimization
+- Bug fixes and polish
+
+## Success Metrics
+
+### Technical Metrics
+- 99.9% uptime
+- < 500ms average response time
+- Zero data loss incidents
+- 80% test coverage
+- < 1% error rate
+
+### User Metrics
+- 90% user task completion rate
+- < 30s to create first block
+- < 2min to create database via AI
+- 95% AI command success rate
+- Zero collaboration conflicts
+
+## Risk Mitigation
+
+### Technical Risks
+- pgvector performance issues → Implement fallback to FTS
+- Formula computation bottlenecks → Use incremental computation
+- WebSocket scaling issues → Implement horizontal scaling
+- AI cost overruns → Implement rate limiting and caching
+
+### Operational Risks
+- Database failures → Implement replication and backups
+- Worker queue backup → Add worker auto-scaling
+- Memory leaks → Implement monitoring and restarts
+- Security vulnerabilities → Regular security audits
+
+## Future Enhancements (Post-MVP)
+- Mobile responsive design
+- Advanced formula functions
+- Custom block types
+- API for third-party integrations
+- Advanced permissions system
+- Multi-workspace support
+- Export/import functionality
+- Advanced AI capabilities
+- Performance analytics dashboard
+- Template marketplace
+
+## Test Specifications
+
+### Component Test Requirements
+
+#### 1. Page Editor Component Tests
+- Test block creation and deletion
+- Test drag-and-drop functionality
+- Test auto-save mechanism
+- Test undo/redo operations
+- Test keyboard shortcuts
+- Test responsive layout
+
+#### 2. Database Block Component Tests
+- Test row CRUD operations
+- Test column management
+- Test pagination controls
+- Test sorting and filtering
+- Test formula cells
+- Test cell editing
+
+#### 3. AI Sidebar Component Tests
+- Test command input handling
+- Test preview rendering
+- Test action execution
+- Test error display
+- Test loading states
+- Test history display
+
+#### 4. Collaboration Component Tests
+- Test cursor tracking
+- Test real-time updates
+- Test conflict resolution
+- Test offline mode
+- Test reconnection handling
+- Test user awareness
+
+### API Integration Tests
+
+#### 1. Workspace API Tests
+- Test workspace creation with valid/invalid data
+- Test permission checks
+- Test pagination
+- Test filtering
+- Test error handling
+
+#### 2. Block API Tests
+- Test block CRUD with various types
+- Test position updates
+- Test batch operations
+- Test transaction rollback
+- Test concurrent updates
+
+#### 3. AI API Tests
+- Test command parsing
+- Test action validation
+- Test execution flow
+- Test undo operations
+- Test rate limiting
+
+#### 4. Database Block API Tests
+- Test large dataset handling
+- Test cursor pagination
+- Test schema updates
+- Test formula updates
+- Test concurrent row updates
+
+### Performance Test Scenarios
+
+#### 1. Database Block Performance
+- Load 50k rows progressively
+- Scroll through large datasets
+- Sort and filter operations
+- Formula recalculation
+- Concurrent user edits
+
+#### 2. AI System Performance
+- Concurrent command processing
+- Large document embedding
+- Complex query handling
+- Rate limit testing
+- Cache effectiveness
+
+#### 3. Collaboration Performance
+- 100 concurrent users
+- Large document sync
+- Conflict resolution speed
+- Reconnection handling
+- Snapshot creation
+
+### Security Test Cases
+
+#### 1. Authentication Tests
+- JWT validation
+- Session management
+- Password security
+- OAuth flow
+- Multi-factor authentication
+
+#### 2. Authorization Tests
+- RBAC enforcement
+- Resource access control
+- API permission checks
+- Cross-workspace isolation
+- Admin privileges
+
+#### 3. Input Validation Tests
+- SQL injection prevention
+- XSS protection
+- CSRF token validation
+- File upload validation
+- Formula injection prevention
+
+### End-to-End Test Flows
+
+#### 1. Complete Workspace Setup
+- Create account
+- Create workspace
+- Add first page
+- Add various blocks
+- Invite collaborators
+- Test permissions
+
+#### 2. Database Creation Flow
+- Use AI to create database
+- Add sample data
+- Create formulas
+- Test sorting/filtering
+- Export data
+- Test performance
+
+#### 3. Collaborative Editing Flow
+- Multiple users editing
+- Real-time sync
+- Conflict handling
+- Cursor tracking
+- Chat/comments
+- Version history
+
+#### 4. AI Assistant Flow
+- Natural language commands
+- Preview generation
+- Action execution
+- Undo operations
+- Error recovery
+- Learning from feedback
+
+## Code Quality Standards
+
+### TypeScript Standards
+- Strict mode enabled
+- No any types without justification
+- Comprehensive type definitions
+- Proper error types
+- Generic constraints
+
+### React Best Practices
+- Functional components only
+- Custom hooks for logic
+- Proper memoization
+- Error boundaries
+- Suspense for loading
+
+### Database Patterns
+- Connection pooling
+- Transaction management
+- Prepared statements
+- Index optimization
+- Query monitoring
+
+### Testing Standards
+- AAA pattern (Arrange, Act, Assert)
+- Isolated test cases
+- Mock external dependencies
+- Deterministic tests
+- Performance benchmarks
+
+## Documentation Requirements
+
+### Technical Documentation
+- API documentation with examples
+- Database schema documentation
+- Architecture decision records
+- Deployment procedures
+- Troubleshooting guides
+
+### User Documentation
+- Getting started guide
+- Feature tutorials
+- Video walkthroughs
+- FAQ section
+- Best practices guide
+
+### Developer Documentation
+- Setup instructions
+- Contribution guidelines
+- Code style guide
+- Testing procedures
+- Release process

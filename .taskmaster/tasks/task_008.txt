@@ -1,0 +1,112 @@
+# Task ID: 8
+# Title: Build Background Workers and Job Queue System
+# Status: pending
+# Dependencies: 7
+# Priority: medium
+# Description: Implement Supabase Edge Functions for async tasks including embedding generation, formula computation, and document indexing with database-backed job tracking
+# Details:
+1. Set up Supabase Edge Functions for async processing:
+```typescript
+// supabase/functions/embed-upsert/index.ts
+export async function handler(req: Request) {
+  const { documentId, content } = await req.json();
+  const embedding = await generateEmbedding(content);
+  await supabase.from('documents').update({ embedding }).eq('id', documentId);
+}
+```
+2. Create job tracking tables in Supabase:
+```sql
+CREATE TABLE job_queue (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  function_name TEXT NOT NULL,
+  payload JSONB,
+  status TEXT DEFAULT 'pending',
+  priority INT DEFAULT 0,
+  attempts INT DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+3. Implement Edge Function for formula computation with dependency tracking
+4. Create document snapshot Edge Function with periodic triggers via pg_cron
+5. Build document indexing Edge Function triggered by database webhooks
+6. Add job priority and retry logic using database functions:
+```sql
+CREATE OR REPLACE FUNCTION process_job_with_retry()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.attempts < 3 THEN
+    -- Exponential backoff logic
+    PERFORM pg_sleep(power(2, NEW.attempts));
+    -- Invoke Edge Function
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+7. Implement job monitoring via Supabase dashboard and database views
+8. Configure auto-scaling through Supabase's built-in Edge Function scaling
+
+# Test Strategy:
+Test Edge Functions process requests correctly. Verify database retry logic works for failures. Test priority-based job processing. Benchmark embedding generation throughput. Test webhook triggers and pg_cron scheduling. Verify Edge Function auto-scaling under load.
+
+# Subtasks:
+## 1. Set up Supabase job tracking tables [pending]
+### Dependencies: None
+### Description: Create database tables for job queue management and tracking in Supabase
+### Details:
+Design and create job_queue table with fields for function_name, payload, status, priority, attempts, and timestamps. Add indexes for efficient job polling and status queries. Create job_history table for completed/failed job archival
+
+## 2. Implement embedding generation Edge Function [pending]
+### Dependencies: 8.1
+### Description: Create Supabase Edge Function for generating embeddings from document content
+### Details:
+Build embed-upsert Edge Function that processes document content, generates embeddings using OpenAI API, updates pgvector column in documents table. Include error handling and job status updates in job_queue table
+
+## 3. Build formula computation Edge Function [pending]
+### Dependencies: 8.1
+### Description: Implement Edge Function for processing formula calculations and updates
+### Details:
+Create recompute-formulas Edge Function that handles formula evaluation, dependency resolution using recursive CTEs, and updates database with computed results including cascading updates via database triggers
+
+## 4. Create snapshot persistence Edge Function [pending]
+### Dependencies: 8.1
+### Description: Develop Edge Function for persisting Yjs document snapshots to database
+### Details:
+Build snapshot-yjs Edge Function that processes Yjs document states, compresses data, stores snapshots in Supabase Storage. Configure pg_cron for periodic invocation and cleanup of old snapshots
+
+## 5. Implement document indexing Edge Function [pending]
+### Dependencies: 8.1
+### Description: Create Edge Function for processing and indexing document content for search
+### Details:
+Build document indexing Edge Function triggered by Supabase webhooks on document updates. Processes content, updates tsvector columns for full-text search, maintains document metadata and search indices
+
+## 6. Add database-based priority and retry logic [pending]
+### Dependencies: 8.2, 8.3, 8.4, 8.5
+### Description: Implement priority queuing and retry mechanisms using PostgreSQL functions
+### Details:
+Create PostgreSQL functions for job prioritization, implement exponential backoff retry strategy using pg_sleep, dead letter queue logic for failed jobs, and job deduplication using unique constraints
+
+## 7. Configure webhook triggers and pg_cron scheduling [pending]
+### Dependencies: 8.6
+### Description: Set up database webhooks and scheduled tasks for automatic job processing
+### Details:
+Configure Supabase database webhooks for real-time triggers, set up pg_cron jobs for periodic tasks like snapshots and cleanup, implement webhook handlers for document changes and formula updates
+
+## 8. Build monitoring views and dashboard queries [pending]
+### Dependencies: 8.7
+### Description: Create database views and queries for job monitoring and analytics
+### Details:
+Create materialized views for job statistics, build monitoring queries for queue depth and processing rates, set up alerts using Supabase webhooks for failures, implement dashboard queries for job status visualization
+
+## 9. Implement job management RPC functions [pending]
+### Dependencies: 8.8
+### Description: Create Supabase RPC functions for job lifecycle management
+### Details:
+Build RPC functions for manual job retry, bulk job operations, job cancellation logic, priority adjustment, and queue management. Include proper permission checks and audit logging
+
+## 10. Create Edge Function configuration and deployment [pending]
+### Dependencies: 8.9
+### Description: Set up configuration and deployment pipeline for Edge Functions
+### Details:
+Configure environment variables for Edge Functions, set up CI/CD pipeline for function deployment, create function versioning strategy, document Edge Function endpoints and usage patterns for production deployment
+

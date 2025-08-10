@@ -1,0 +1,131 @@
+# Task ID: 5
+# Title: Build AI Controller Sidebar with Command Processing
+# Status: pending
+# Dependencies: 4
+# Priority: high
+# Description: Create the persistent AI sidebar interface with natural language command processing, dry-run preview, and action execution capabilities integrated with Supabase backend
+# Details:
+1. Create AI sidebar React component with fixed right-hand positioning
+2. Integrate OpenAI API for command parsing with Supabase storage:
+```typescript
+const completion = await openai.chat.completions.create({
+  model: "gpt-4",
+  messages: [
+    {role: "system", content: "Parse user commands into structured actions..."},
+    {role: "user", content: userCommand}
+  ],
+  functions: actionSchemas
+});
+// Store parsed result in Supabase
+await supabase.from('action_logs').insert({
+  user_id: user.id,
+  command: userCommand,
+  actions: completion.choices[0].message
+});
+```
+3. Define Zod schemas for all possible actions:
+```typescript
+const CreateBlockAction = z.object({
+  type: z.literal('createBlock'),
+  blockType: z.enum(['text', 'heading', 'database']),
+  content: z.string().optional()
+});
+```
+4. Build dry-run preview component with Supabase Realtime progress updates
+5. Create action validation pipeline using Zod and Supabase RPC functions
+6. Implement action execution engine with Supabase transactions
+7. Create action_logs table in Supabase with RLS policies:
+```sql
+CREATE TABLE action_logs (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  command TEXT NOT NULL,
+  actions JSONB NOT NULL,
+  status VARCHAR(50),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+-- Enable RLS
+ALTER TABLE action_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own logs" ON action_logs
+  FOR SELECT USING (auth.uid() = user_id);
+```
+8. Use Supabase Storage for command artifacts and temporary files
+9. Implement Supabase Edge Functions for performance-critical parsing
+10. Build undo functionality with Supabase-stored action reversals
+
+# Test Strategy:
+Test various natural language commands generate correct actions. Verify dry-run previews with Realtime updates work correctly. Test Supabase RLS policies restrict access appropriately. Test Edge Functions handle parsing efficiently. Verify action validation through RPC functions catches invalid operations. Test execution and undo work with Supabase transactions. Verify audit logs capture all actions in Supabase tables. Test Storage integration for command artifacts.
+
+# Subtasks:
+## 1. Create AI sidebar UI component [pending]
+### Dependencies: None
+### Description: Build the persistent right-hand sidebar React component with input field, command history, and action preview area
+### Details:
+Implement fixed positioning sidebar with chat-like interface, command input, history display, and preview section for dry-run results
+
+## 2. Set up OpenAI API integration with Supabase storage [pending]
+### Dependencies: None
+### Description: Configure OpenAI client and implement API call wrapper that stores results in Supabase
+### Details:
+Install OpenAI SDK, configure API key, create chat completion service that stores parsed commands and results in Supabase action_logs table with proper error handling
+
+## 3. Define Zod schemas for all action types [pending]
+### Dependencies: None
+### Description: Create comprehensive Zod validation schemas for block creation, editing, deletion, and database operations
+### Details:
+Define schemas for CreateBlockAction, EditBlockAction, DeleteBlockAction, DatabaseAction, and other workspace operations with proper validation rules
+
+## 4. Setup Supabase tables and RLS policies [pending]
+### Dependencies: None
+### Description: Create action_logs table with proper RLS policies for user-specific command access
+### Details:
+Create action_logs table with user_id reference to auth.users, implement RLS policies for user access control, create indexes for performance
+
+## 5. Implement Supabase Edge Function for command parsing [pending]
+### Dependencies: 5.3
+### Description: Create Edge Function for performance-critical command parsing operations
+### Details:
+Build supabase.functions.invoke('parse-command') Edge Function that handles complex parsing logic server-side for better performance
+
+## 6. Integrate Supabase Auth for permissions [pending]
+### Dependencies: 5.4
+### Description: Use Supabase Auth to check user permissions before executing commands
+### Details:
+Implement permission checks using supabase.auth.getUser(), validate user has necessary workspace access for requested commands
+
+## 7. Build dry-run preview with Realtime updates [pending]
+### Dependencies: 5.5, 5.6
+### Description: Implement preview functionality with Supabase Realtime for progress updates
+### Details:
+Create preview renderer using supabase.channel() for real-time progress updates during command validation and dry-run execution
+
+## 8. Create RPC functions for command validation [pending]
+### Dependencies: 5.3, 5.4
+### Description: Build Supabase RPC functions for complex validation workflows
+### Details:
+Implement Supabase RPC functions that validate parsed actions against business rules, check permissions, and ensure data integrity
+
+## 9. Setup Supabase Storage for artifacts [pending]
+### Dependencies: None
+### Description: Configure Supabase Storage buckets for command artifacts and temporary files
+### Details:
+Create command-artifacts bucket using supabase.storage.from('command-artifacts'), implement file upload/download for command-related files
+
+## 10. Implement action execution with Supabase transactions [pending]
+### Dependencies: 5.8
+### Description: Build execution engine using Supabase transactions for atomic operations
+### Details:
+Create execution engine that uses Supabase transactions for atomic operations, proper error handling, and state consistency
+
+## 11. Build audit logging with Supabase [pending]
+### Dependencies: 5.4, 5.10
+### Description: Implement comprehensive logging using Supabase tables
+### Details:
+Use supabase.from('action_logs').insert() for audit logging, capture all commands, actions, execution results with proper indexing
+
+## 12. Implement undo with Supabase storage [pending]
+### Dependencies: 5.10, 5.11
+### Description: Build undo system storing action reversals in Supabase
+### Details:
+Create undo mechanism that stores action reversal data in Supabase, maintain history stack, implement selective undo with proper state management
+

@@ -1,0 +1,1429 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Development Environment and Project Structure",
+        "description": "Initialize the project with Remix framework, configure TypeScript, set up PostgreSQL with pgvector extension, Redis, and create the base project structure with all necessary dependencies",
+        "details": "1. Initialize Remix app with Vite: `npx create-remix@latest --template remix-run/remix/templates/vite-express`\n2. Install core dependencies: `npm install react@18.2.0 @remix-run/node@^2.16.8 @remix-run/react@^2.16.8 @remix-run/serve@^2.16.8`\n3. Configure TypeScript 5.1.6 with strict mode in tsconfig.json\n4. Install PostgreSQL 15+ and enable pgvector extension: `CREATE EXTENSION vector;`\n5. Install Redis 7.x and configure connection\n6. Set up environment variables: DATABASE_URL, REDIS_URL, OPENAI_API_KEY, JWT_SECRET, WS_URL\n7. Install additional dependencies: `npm install pg@^8.11.0 @node-redis/client@^1.0.0 bullmq@^5.49.1 openai@^5.10.1 jsonwebtoken bcrypt zod`\n8. Create folder structure: /app/routes, /app/components, /app/services, /app/models, /app/workers, /app/utils\n9. Configure Vite for development with proper aliases and environment variable handling",
+        "testStrategy": "Verify all dependencies are installed correctly, PostgreSQL has pgvector extension enabled, Redis is running, environment variables are loaded, and the development server starts without errors. Create a simple health check endpoint to test database and Redis connections.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Initialize Remix Application with Vite Template",
+            "description": "Create new Remix project using the official Vite template and verify basic structure is created",
+            "dependencies": [],
+            "details": "Run `npx create-remix@latest --template remix-run/remix/templates/vite-express` to initialize the project. Verify the basic Remix structure with app/, public/, and configuration files are created. Test that the development server can start successfully.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Install Core Dependencies and Remix Packages",
+            "description": "Install all required Remix and React dependencies with specific versions",
+            "dependencies": [],
+            "details": "Install core packages: `npm install react@18.2.0 @remix-run/node@^2.16.8 @remix-run/react@^2.16.8 @remix-run/serve@^2.16.8`. Also install development dependencies and additional packages needed for the application. Verify all packages install without conflicts.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Configure PostgreSQL Database with pgvector Extension",
+            "description": "Set up PostgreSQL 15+ database instance and enable the pgvector extension for vector operations",
+            "dependencies": [],
+            "details": "Install PostgreSQL 15+ locally or configure connection to hosted instance. Connect to database and run `CREATE EXTENSION vector;` to enable pgvector support. Create initial database and verify vector extension is properly installed and functional.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Install and Configure Redis Server",
+            "description": "Set up Redis 7.x instance for caching and session management",
+            "dependencies": [],
+            "details": "Install Redis 7.x locally or configure connection to hosted Redis instance. Start Redis server and verify it's running on default port 6379. Test basic Redis operations (SET/GET) to ensure proper functionality. Configure Redis for persistence if needed.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Configure Environment Variables and Secrets",
+            "description": "Set up all required environment variables for database, Redis, and API connections",
+            "dependencies": [],
+            "details": "Create .env file with DATABASE_URL, REDIS_URL, OPENAI_API_KEY, SESSION_SECRET, and other required environment variables. Set up .env.example template. Configure different environments (development, test, production) and ensure proper secret management practices.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Configure TypeScript with Strict Mode",
+            "description": "Set up TypeScript 5.1.6 configuration with strict mode and project-specific settings",
+            "dependencies": [],
+            "details": "Update tsconfig.json to use TypeScript 5.1.6 with strict mode enabled. Configure path mapping, target ES2022, and proper module resolution. Set up type checking scripts and ensure all Remix-specific TypeScript configurations are properly applied. Install @types packages as needed.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Create Base Folder Structure and Organize Code",
+            "description": "Establish the project folder structure with proper separation of concerns",
+            "dependencies": [],
+            "details": "Create organized folder structure: app/components/, app/routes/, app/lib/, app/services/, app/types/, app/utils/, etc. Set up proper imports and exports. Create index files for clean imports. Establish coding conventions and folder naming standards.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Implement Health Check Endpoint and System Verification",
+            "description": "Create health check endpoint to verify all systems are working and implement comprehensive system verification",
+            "dependencies": [],
+            "details": "Create /health endpoint that checks database connectivity, Redis connection, environment variables loading, and overall system health. Implement comprehensive verification tests for all configured services. Add logging and monitoring setup. Verify development server starts without errors and all integrations work properly.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Implement Authentication and Authorization System",
+        "description": "Build JWT-based authentication with role-based access control (RBAC) for workspaces and pages, including user registration, login, and permission management",
+        "details": "1. Create database schema for users, roles, and permissions:\n```sql\nCREATE TABLE users (\n  id SERIAL PRIMARY KEY,\n  email VARCHAR(255) UNIQUE NOT NULL,\n  password_hash VARCHAR(255) NOT NULL,\n  created_at TIMESTAMP DEFAULT NOW()\n);\nCREATE TABLE roles (\n  id SERIAL PRIMARY KEY,\n  name VARCHAR(50) UNIQUE NOT NULL\n);\nCREATE TABLE user_roles (\n  user_id INT REFERENCES users(id),\n  role_id INT REFERENCES roles(id),\n  workspace_id INT REFERENCES workspaces(id)\n);\n```\n2. Implement JWT token generation and validation using jsonwebtoken\n3. Create authentication middleware for protected routes\n4. Build registration endpoint with bcrypt password hashing\n5. Implement login endpoint with JWT token generation\n6. Create RBAC middleware to check permissions\n7. Add CSRF protection using double-submit cookie pattern\n8. Implement rate limiting for auth endpoints using Redis\n9. Create session management with refresh tokens",
+        "testStrategy": "Test user registration with valid/invalid data, test login flow, verify JWT tokens are properly generated and validated, test RBAC permissions for different roles, test rate limiting, verify CSRF protection, test token refresh flow",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Database Schema for Authentication",
+            "description": "Design and implement database tables for users, roles, permissions, and workspace associations with proper constraints and indexes",
+            "dependencies": [],
+            "details": "Create users table with email, password_hash, created_at fields. Create roles table for permission management. Create user_roles junction table linking users to roles per workspace. Add proper foreign key constraints, unique indexes, and performance indexes for common queries.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement Password Hashing System",
+            "description": "Build secure password hashing using bcrypt with proper salt rounds and validation functions",
+            "dependencies": [
+              "2.1"
+            ],
+            "details": "Implement password hashing with bcrypt using 12+ salt rounds. Create password validation functions with strength requirements. Add password comparison utilities for login verification. Include timing-safe comparison to prevent timing attacks.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Build JWT Token Management System",
+            "description": "Implement JWT token generation, validation, and refresh functionality with proper security measures",
+            "dependencies": [
+              "2.2"
+            ],
+            "details": "Create JWT token generation with user claims and expiration. Implement token validation middleware with signature verification. Build refresh token system with rotation. Add token blacklisting for logout. Use secure signing algorithms (RS256 or HS256 with strong secrets).",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Create Authentication Middleware",
+            "description": "Build middleware for request authentication, token validation, and user context injection",
+            "dependencies": [
+              "2.3"
+            ],
+            "details": "Create Express/Fastify middleware for JWT validation. Extract user information from valid tokens. Handle authentication errors gracefully. Provide optional authentication for public endpoints. Include request logging for security monitoring.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement Role-Based Access Control (RBAC)",
+            "description": "Build comprehensive permission system with roles, permissions, and workspace-level access control",
+            "dependencies": [
+              "2.4"
+            ],
+            "details": "Define role hierarchy (owner, admin, member, viewer). Create permission checking functions for resources. Implement workspace-level role assignments. Build permission inheritance system. Create authorization middleware for route protection.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Add CSRF Protection",
+            "description": "Implement Cross-Site Request Forgery protection with token generation and validation",
+            "dependencies": [
+              "2.4"
+            ],
+            "details": "Generate CSRF tokens for authenticated sessions. Validate CSRF tokens on state-changing requests. Implement double-submit cookie pattern. Add CSRF token to API responses. Configure proper SameSite cookie attributes.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Build Rate Limiting System",
+            "description": "Implement rate limiting for authentication endpoints to prevent brute force attacks",
+            "dependencies": [
+              "2.4"
+            ],
+            "details": "Create rate limiting for login attempts (5 attempts per 15 minutes). Implement account lockout after repeated failures. Add rate limiting for registration endpoints. Use Redis or in-memory store for counters. Include IP-based and user-based limiting.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Implement Session Management",
+            "description": "Build secure session handling with proper cookie configuration and session storage",
+            "dependencies": [
+              "2.6"
+            ],
+            "details": "Configure secure session cookies with HttpOnly, Secure, SameSite flags. Implement session storage with Redis or database. Add session cleanup for expired sessions. Build session invalidation for logout. Include concurrent session limits per user.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Create User Registration and Login Flow",
+            "description": "Build complete user onboarding with registration, email verification, and secure login process",
+            "dependencies": [
+              "2.5",
+              "2.7"
+            ],
+            "details": "Create user registration endpoint with input validation. Implement email verification system. Build secure login flow with proper error handling. Add password reset functionality. Include account activation/deactivation features.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Comprehensive Security Testing Suite",
+            "description": "Create extensive test suite covering all authentication security scenarios and vulnerability testing",
+            "dependencies": [
+              "2.8",
+              "2.9"
+            ],
+            "details": "Write unit tests for all auth functions. Create integration tests for complete auth flows. Add security tests for common vulnerabilities (SQL injection, XSS, timing attacks). Test rate limiting and CSRF protection. Include load testing for auth endpoints. Add penetration testing scenarios.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Build Core Page and Block Management System",
+        "description": "Create the foundational page-centric workspace with CRUD operations for pages and implement the block system architecture with drag-and-drop functionality using Supabase backend",
+        "status": "in-progress",
+        "dependencies": [
+          2
+        ],
+        "priority": "high",
+        "details": "1. Set up local Supabase development environment using Docker\n2. Create Supabase tables with RLS policies:\n```sql\n-- Enable RLS\nALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;\nALTER TABLE pages ENABLE ROW LEVEL SECURITY;\nALTER TABLE blocks ENABLE ROW LEVEL SECURITY;\n\n-- Workspace policies\nCREATE POLICY \"Users can view workspaces they own or are members of\"\n  ON workspaces FOR SELECT\n  USING (auth.uid() = owner_id OR auth.uid() IN (\n    SELECT user_id FROM workspace_members WHERE workspace_id = id\n  ));\n\nCREATE POLICY \"Users can update their own workspaces\"\n  ON workspaces FOR UPDATE\n  USING (auth.uid() = owner_id);\n\n-- Page policies\nCREATE POLICY \"Users can CRUD pages in their workspaces\"\n  ON pages FOR ALL\n  USING (workspace_id IN (\n    SELECT id FROM workspaces WHERE auth.uid() = owner_id\n    OR auth.uid() IN (SELECT user_id FROM workspace_members WHERE workspace_id = id)\n  ));\n\n-- Block policies  \nCREATE POLICY \"Users can CRUD blocks in their pages\"\n  ON blocks FOR ALL\n  USING (page_id IN (\n    SELECT id FROM pages WHERE workspace_id IN (\n      SELECT id FROM workspaces WHERE auth.uid() = owner_id\n      OR auth.uid() IN (SELECT user_id FROM workspace_members WHERE workspace_id = id)\n    )\n  ));\n```\n3. Initialize Supabase client with auth context:\n```typescript\nimport { createClient } from '@supabase/supabase-js'\nconst supabase = createClient(url, anonKey)\n```\n4. Implement CRUD operations using Supabase client:\n```typescript\n// Workspaces\nsupabase.from('workspaces').select('*')\nsupabase.from('pages').insert({ title, workspace_id })\nsupabase.from('blocks').update({ content }).eq('id', blockId)\n```\n5. Set up Supabase Realtime for live updates:\n```typescript\nconst channel = supabase.channel('page-changes')\n  .on('postgres_changes', {\n    event: '*',\n    schema: 'public',\n    table: 'blocks',\n    filter: `page_id=eq.${pageId}`\n  }, handleBlockChange)\n  .subscribe()\n```\n6. Install and configure @dnd-kit/core@^6.3.1 for drag-and-drop\n7. Implement block types enum: Text, Heading, List, Image, Button, Database\n8. Build React components for each block type with proper TypeScript interfaces\n9. Implement drag-and-drop with snap-to-grid positioning and Supabase persistence\n10. Create auto-save functionality with debouncing using Supabase upsert\n11. Implement undo/redo using command pattern with Redux or Zustand, syncing with Supabase",
+        "testStrategy": "Test Supabase connection and RLS policies work correctly. Test CRUD operations through Supabase client. Verify real-time updates propagate across clients. Test drag-and-drop functionality with database persistence. Verify auto-save works with Supabase upsert. Test undo/redo maintains correct state in both local and database. Test block positioning and reordering with real-time sync.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up local Supabase development environment",
+            "description": "Initialize Supabase project locally using Docker and configure development environment with proper authentication setup",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Install Supabase CLI, run supabase init to create project config, start local Supabase with supabase start. Configure environment variables for SUPABASE_URL and SUPABASE_ANON_KEY. Set up local database migrations folder structure.",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Create Supabase tables and RLS policies",
+            "description": "Design and create database tables in Supabase with proper Row Level Security policies for multi-tenant workspace access",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Create tables: workspaces (id, name, owner_id), pages (id, workspace_id, title, parent_id, position), blocks (id, page_id, type, content, position). Enable RLS on all tables. Create policies for workspace membership-based access control. Add indexes for performance.",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Initialize Supabase client with authentication",
+            "description": "Set up Supabase JavaScript client with proper authentication context and session management",
+            "status": "pending",
+            "dependencies": [
+              2
+            ],
+            "details": "Install @supabase/supabase-js. Create Supabase client singleton with auth helpers. Implement session persistence and refresh token handling. Create authenticated API wrapper functions. Set up auth state management with React context.",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement workspace CRUD with Supabase client",
+            "description": "Create workspace management functions using Supabase client with proper error handling and optimistic updates",
+            "status": "pending",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement functions: createWorkspace using supabase.from('workspaces').insert(), getWorkspace with .select(), updateWorkspace with .update(), deleteWorkspace with .delete(). Add error handling, loading states, and optimistic UI updates.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement page CRUD with Supabase client",
+            "description": "Create page management functions with hierarchical support using Supabase client operations",
+            "status": "pending",
+            "dependencies": [
+              4
+            ],
+            "details": "Implement functions using supabase.from('pages'). Support parent-child relationships with recursive queries. Handle position updates for reordering. Implement bulk operations for moving page trees. Add cascade delete handling.",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Design and implement block type system architecture",
+            "description": "Create extensible block type system with base interfaces and type definitions for different block types",
+            "status": "pending",
+            "dependencies": [
+              2
+            ],
+            "details": "Define BlockType enum, BaseBlock interface, and specific block types (text, heading, image, database). Create block registry system and type validation. Implement block serialization/deserialization for JSONB storage in Supabase.",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Implement block CRUD with Supabase client",
+            "description": "Create block management functions using Supabase client with type-specific handling and batch operations",
+            "status": "pending",
+            "dependencies": [
+              6
+            ],
+            "details": "Implement functions using supabase.from('blocks'). Support type-specific validation before insert/update. Implement batch operations with supabase.rpc() for performance. Handle position updates and reordering.",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Set up Supabase Realtime for live updates",
+            "description": "Configure Supabase Realtime channels for live synchronization of workspace, page, and block changes",
+            "status": "pending",
+            "dependencies": [
+              7
+            ],
+            "details": "Create Supabase channels for workspace-level changes. Set up postgres_changes listeners for blocks, pages tables. Implement change handlers for optimistic UI updates. Handle connection state and reconnection logic. Add presence features for collaborative indicators.",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Build drag-and-drop with Supabase persistence",
+            "description": "Implement client-side drag-and-drop system that persists changes to Supabase in real-time",
+            "status": "pending",
+            "dependencies": [
+              8
+            ],
+            "details": "Use @dnd-kit/core for drag functionality. On drop, update block positions using supabase.from('blocks').update(). Implement optimistic updates during drag. Handle collision detection and position conflicts. Sync changes via Realtime to other users.",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Implement auto-save with Supabase upsert",
+            "description": "Create debounced auto-save mechanism that uses Supabase upsert operations for efficient updates",
+            "status": "pending",
+            "dependencies": [
+              9
+            ],
+            "details": "Create debounced save hook (500ms delay). Use supabase.from('blocks').upsert() for efficient updates. Queue multiple changes and batch with RPC function. Show save status indicators. Handle conflict resolution for concurrent edits.",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Implement undo/redo with Supabase sync",
+            "description": "Create command pattern undo/redo system that maintains consistency with Supabase database",
+            "status": "pending",
+            "dependencies": [
+              10
+            ],
+            "details": "Implement Command interface for Supabase operations. Maintain local command history (50 actions). On undo, reverse Supabase operation. On redo, replay Supabase operation. Handle conflicts when remote changes occur. Support keyboard shortcuts (Ctrl+Z, Ctrl+Y).",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Create React components for all block types",
+            "description": "Build reusable React components for text, heading, image, and other block types with Supabase integration",
+            "status": "pending",
+            "dependencies": [
+              6
+            ],
+            "details": "Create TextBlock, HeadingBlock, ImageBlock components. Implement inline editing with auto-save to Supabase. Add formatting toolbars and markdown support. Handle image uploads to Supabase Storage. Ensure all changes sync via Realtime.",
+            "testStrategy": ""
+          },
+          {
+            "id": 13,
+            "title": "Integrate state management with Supabase sync",
+            "description": "Set up centralized state management that stays synchronized with Supabase backend",
+            "status": "pending",
+            "dependencies": [
+              12
+            ],
+            "details": "Implement Redux/Zustand store for local state. Create middleware for Supabase sync. Handle optimistic updates with rollback on error. Implement cache invalidation on Realtime updates. Support offline mode with sync queue.",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Implement Database Block with Advanced Features",
+        "description": "Build the database block component supporting 50k rows with Supabase integration, multiple column types, real-time collaboration, and schema management",
+        "status": "pending",
+        "dependencies": [
+          3
+        ],
+        "priority": "high",
+        "details": "1. Create Supabase tables for database blocks with RLS policies:\n```sql\n-- Enable RLS\nALTER TABLE db_blocks ENABLE ROW LEVEL SECURITY;\nALTER TABLE db_block_rows ENABLE ROW LEVEL SECURITY;\n\n-- Create tables\nCREATE TABLE db_blocks (\n  id SERIAL PRIMARY KEY,\n  block_id INT REFERENCES blocks(id),\n  schema JSONB NOT NULL,\n  created_at TIMESTAMP DEFAULT NOW()\n);\n\nCREATE TABLE db_block_rows (\n  id SERIAL PRIMARY KEY,\n  db_block_id INT REFERENCES db_blocks(id),\n  data JSONB NOT NULL,\n  position INT NOT NULL,\n  version INT DEFAULT 1,\n  created_at TIMESTAMP DEFAULT NOW(),\n  updated_at TIMESTAMP DEFAULT NOW()\n);\n\n-- Create RLS policies\nCREATE POLICY \"Users can view database blocks in their workspace\"\n  ON db_blocks FOR SELECT\n  USING (block_id IN (\n    SELECT b.id FROM blocks b\n    JOIN pages p ON b.page_id = p.id\n    JOIN workspaces w ON p.workspace_id = w.id\n    WHERE w.id IN (SELECT workspace_id FROM user_workspaces WHERE user_id = auth.uid())\n  ));\n```\n2. Use Supabase pagination: `supabase.from('db_block_rows').select().range(start, end)`\n3. Implement Supabase Storage for CSV/Excel imports: `supabase.storage.from('database-files')`\n4. Create RPC functions for bulk operations:\n```sql\nCREATE OR REPLACE FUNCTION bulk_update_rows(updates JSONB[])\nRETURNS void AS $$\nBEGIN\n  -- Bulk update logic\nEND;\n$$ LANGUAGE plpgsql;\n```\n5. Use Supabase Realtime for live updates: `supabase.channel('db-changes').on('postgres_changes', ...)`\n6. Implement column types: text, number, date, select, multi-select, user, formula\n7. Use `supabase.from().count()` for efficient row counting\n8. Use `supabase.rpc()` for complex filtering and aggregations",
+        "testStrategy": "Load test with 50k rows using Supabase pagination and verify performance < 200ms. Test Supabase Storage file uploads/downloads. Test real-time updates across multiple clients. Verify RLS policies enforce proper access control. Test RPC functions for bulk operations. Test all column types with various data. Verify sorting and filtering work with Supabase queries.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Supabase tables with RLS policies",
+            "description": "Create db_blocks and db_block_rows tables in Supabase with proper RLS policies for workspace-based access control",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Create tables with row-level security enabled, implement RLS policies based on workspace membership, add indexes for performance, and set up foreign key relationships with existing tables.",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement column type system with Supabase validation",
+            "description": "Build column type implementations with Supabase-compatible validation for text, number, date, select types",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Create TypeScript interfaces matching Supabase column types, implement validation using Supabase's built-in constraints, and handle type serialization for JSONB storage.",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Integrate Supabase pagination with range queries",
+            "description": "Implement efficient pagination using Supabase's .range() method for navigating large datasets",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Use supabase.from('db_block_rows').select().range(start, end).order('position') for pagination, implement page size configuration, and handle pagination state management.",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement virtualization with Supabase data fetching",
+            "description": "Create client-side virtualization that efficiently fetches data from Supabase as needed",
+            "status": "pending",
+            "dependencies": [
+              3
+            ],
+            "details": "Build virtual scrolling with on-demand data fetching from Supabase, implement intelligent prefetching using range queries, and cache management for smooth scrolling.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Build CRUD operations using Supabase client",
+            "description": "Implement create, read, update, delete operations using Supabase JavaScript client",
+            "status": "pending",
+            "dependencies": [
+              2
+            ],
+            "details": "Use supabase.from('db_block_rows').insert/update/delete/select methods with proper error handling, implement optimistic updates, and handle RLS policy violations gracefully.",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Create Supabase RPC functions for bulk operations",
+            "description": "Build PostgreSQL functions in Supabase for efficient bulk updates with transaction support",
+            "status": "pending",
+            "dependencies": [
+              5
+            ],
+            "details": "Create RPC function bulk_update_rows() for batch updates, implement transaction handling, add progress tracking via Supabase Realtime, and optimize with prepared statements.",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Implement sorting using Supabase .order() method",
+            "description": "Build server-side sorting with Supabase's built-in ordering capabilities",
+            "status": "pending",
+            "dependencies": [
+              3
+            ],
+            "details": "Use supabase.from().select().order(column, { ascending: boolean }) for sorting, support multi-column sorting with chained .order() calls, and maintain sort state with pagination.",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Build filtering with Supabase query builders",
+            "description": "Implement comprehensive filtering using Supabase's filter methods and RPC functions",
+            "status": "pending",
+            "dependencies": [
+              2,
+              7
+            ],
+            "details": "Use Supabase filter methods (.eq, .like, .gte, etc.) for simple filters, create RPC functions for complex filtering logic, and implement filter combination with .or() and .and().",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Integrate Supabase Realtime for live updates",
+            "description": "Implement real-time synchronization using Supabase Realtime subscriptions",
+            "status": "pending",
+            "dependencies": [
+              4,
+              5
+            ],
+            "details": "Set up supabase.channel() subscriptions for row changes, implement optimistic UI updates with rollback on conflicts, handle presence for collaborative cursor tracking, and manage reconnection logic.",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Set up Supabase Storage for file imports/exports",
+            "description": "Configure Supabase Storage buckets for handling CSV and Excel file operations",
+            "status": "pending",
+            "dependencies": [
+              6
+            ],
+            "details": "Create 'database-files' bucket with proper policies, implement streaming upload for large files using supabase.storage.from().upload(), handle file parsing with progress tracking, and implement download with format conversion.",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Implement row counting with Supabase .count()",
+            "description": "Build efficient row counting using Supabase's count functionality",
+            "status": "pending",
+            "dependencies": [
+              1,
+              8
+            ],
+            "details": "Use supabase.from().select('*', { count: 'exact', head: true }) for total counts, implement filtered counts with query builders, and cache count results for performance.",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Build RPC functions for complex aggregations",
+            "description": "Create Supabase RPC functions for advanced database operations and analytics",
+            "status": "pending",
+            "dependencies": [
+              11,
+              8
+            ],
+            "details": "Implement aggregate_columns() RPC for SUM, AVG, MIN, MAX operations, create pivot_table() function for data transformation, and build statistical analysis functions with performance optimization.",
+            "testStrategy": ""
+          },
+          {
+            "id": 13,
+            "title": "Implement optimistic locking with Supabase",
+            "description": "Build concurrency control using version columns and Supabase update conditions",
+            "status": "pending",
+            "dependencies": [
+              9,
+              5
+            ],
+            "details": "Add version column to db_block_rows, use .match({ version }) in updates for optimistic locking, implement conflict resolution with Realtime notifications, and handle merge strategies for concurrent edits.",
+            "testStrategy": ""
+          },
+          {
+            "id": 14,
+            "title": "Create comprehensive Supabase integration tests",
+            "description": "Build test suite covering all Supabase operations including real-time, storage, and RPC functions",
+            "status": "pending",
+            "dependencies": [
+              13,
+              10,
+              12
+            ],
+            "details": "Test 50k row pagination performance with Supabase, verify Realtime updates across multiple clients, test Storage file operations with large datasets, validate RPC function performance, and test RLS policies enforcement.",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Build AI Controller Sidebar with Command Processing",
+        "description": "Create the persistent AI sidebar interface with natural language command processing, dry-run preview, and action execution capabilities integrated with Supabase backend",
+        "status": "pending",
+        "dependencies": [
+          4
+        ],
+        "priority": "high",
+        "details": "1. Create AI sidebar React component with fixed right-hand positioning\n2. Integrate OpenAI API for command parsing with Supabase storage:\n```typescript\nconst completion = await openai.chat.completions.create({\n  model: \"gpt-4\",\n  messages: [\n    {role: \"system\", content: \"Parse user commands into structured actions...\"},\n    {role: \"user\", content: userCommand}\n  ],\n  functions: actionSchemas\n});\n// Store parsed result in Supabase\nawait supabase.from('action_logs').insert({\n  user_id: user.id,\n  command: userCommand,\n  actions: completion.choices[0].message\n});\n```\n3. Define Zod schemas for all possible actions:\n```typescript\nconst CreateBlockAction = z.object({\n  type: z.literal('createBlock'),\n  blockType: z.enum(['text', 'heading', 'database']),\n  content: z.string().optional()\n});\n```\n4. Build dry-run preview component with Supabase Realtime progress updates\n5. Create action validation pipeline using Zod and Supabase RPC functions\n6. Implement action execution engine with Supabase transactions\n7. Create action_logs table in Supabase with RLS policies:\n```sql\nCREATE TABLE action_logs (\n  id SERIAL PRIMARY KEY,\n  user_id UUID REFERENCES auth.users(id),\n  command TEXT NOT NULL,\n  actions JSONB NOT NULL,\n  status VARCHAR(50),\n  created_at TIMESTAMP DEFAULT NOW()\n);\n-- Enable RLS\nALTER TABLE action_logs ENABLE ROW LEVEL SECURITY;\nCREATE POLICY \"Users can view own logs\" ON action_logs\n  FOR SELECT USING (auth.uid() = user_id);\n```\n8. Use Supabase Storage for command artifacts and temporary files\n9. Implement Supabase Edge Functions for performance-critical parsing\n10. Build undo functionality with Supabase-stored action reversals",
+        "testStrategy": "Test various natural language commands generate correct actions. Verify dry-run previews with Realtime updates work correctly. Test Supabase RLS policies restrict access appropriately. Test Edge Functions handle parsing efficiently. Verify action validation through RPC functions catches invalid operations. Test execution and undo work with Supabase transactions. Verify audit logs capture all actions in Supabase tables. Test Storage integration for command artifacts.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create AI sidebar UI component",
+            "description": "Build the persistent right-hand sidebar React component with input field, command history, and action preview area",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Implement fixed positioning sidebar with chat-like interface, command input, history display, and preview section for dry-run results",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Set up OpenAI API integration with Supabase storage",
+            "description": "Configure OpenAI client and implement API call wrapper that stores results in Supabase",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Install OpenAI SDK, configure API key, create chat completion service that stores parsed commands and results in Supabase action_logs table with proper error handling",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Define Zod schemas for all action types",
+            "description": "Create comprehensive Zod validation schemas for block creation, editing, deletion, and database operations",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Define schemas for CreateBlockAction, EditBlockAction, DeleteBlockAction, DatabaseAction, and other workspace operations with proper validation rules",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Setup Supabase tables and RLS policies",
+            "description": "Create action_logs table with proper RLS policies for user-specific command access",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Create action_logs table with user_id reference to auth.users, implement RLS policies for user access control, create indexes for performance",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement Supabase Edge Function for command parsing",
+            "description": "Create Edge Function for performance-critical command parsing operations",
+            "status": "pending",
+            "dependencies": [
+              3
+            ],
+            "details": "Build supabase.functions.invoke('parse-command') Edge Function that handles complex parsing logic server-side for better performance",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Integrate Supabase Auth for permissions",
+            "description": "Use Supabase Auth to check user permissions before executing commands",
+            "status": "pending",
+            "dependencies": [
+              4
+            ],
+            "details": "Implement permission checks using supabase.auth.getUser(), validate user has necessary workspace access for requested commands",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Build dry-run preview with Realtime updates",
+            "description": "Implement preview functionality with Supabase Realtime for progress updates",
+            "status": "pending",
+            "dependencies": [
+              5,
+              6
+            ],
+            "details": "Create preview renderer using supabase.channel() for real-time progress updates during command validation and dry-run execution",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Create RPC functions for command validation",
+            "description": "Build Supabase RPC functions for complex validation workflows",
+            "status": "pending",
+            "dependencies": [
+              3,
+              4
+            ],
+            "details": "Implement Supabase RPC functions that validate parsed actions against business rules, check permissions, and ensure data integrity",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Setup Supabase Storage for artifacts",
+            "description": "Configure Supabase Storage buckets for command artifacts and temporary files",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Create command-artifacts bucket using supabase.storage.from('command-artifacts'), implement file upload/download for command-related files",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Implement action execution with Supabase transactions",
+            "description": "Build execution engine using Supabase transactions for atomic operations",
+            "status": "pending",
+            "dependencies": [
+              8
+            ],
+            "details": "Create execution engine that uses Supabase transactions for atomic operations, proper error handling, and state consistency",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Build audit logging with Supabase",
+            "description": "Implement comprehensive logging using Supabase tables",
+            "status": "pending",
+            "dependencies": [
+              4,
+              10
+            ],
+            "details": "Use supabase.from('action_logs').insert() for audit logging, capture all commands, actions, execution results with proper indexing",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Implement undo with Supabase storage",
+            "description": "Build undo system storing action reversals in Supabase",
+            "status": "pending",
+            "dependencies": [
+              10,
+              11
+            ],
+            "details": "Create undo mechanism that stores action reversal data in Supabase, maintain history stack, implement selective undo with proper state management",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Implement RAG System with Vector Search",
+        "description": "Build the retrieval-augmented generation system with document chunking, embedding generation, Supabase pgvector storage, and hybrid search capabilities",
+        "status": "pending",
+        "dependencies": [
+          5
+        ],
+        "priority": "medium",
+        "details": "1. Enable pgvector extension in Supabase:\n```sql\nCREATE EXTENSION IF NOT EXISTS vector;\n\nCREATE TABLE documents (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  content TEXT NOT NULL,\n  embedding vector(1536),\n  metadata JSONB,\n  storage_path TEXT,\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\n-- Create HNSW index for vector similarity\nCREATE INDEX documents_embedding_idx ON documents \nUSING hnsw (embedding vector_cosine_ops);\n\n-- Enable RLS\nALTER TABLE documents ENABLE ROW LEVEL SECURITY;\n\n-- RLS policies based on workspace membership\nCREATE POLICY \"Users can view documents in their workspace\"\n  ON documents FOR SELECT\n  USING (workspace_id IN (\n    SELECT workspace_id FROM workspace_members \n    WHERE user_id = auth.uid()\n  ));\n```\n2. Use Supabase Storage for document uploads:\n```typescript\nconst { data, error } = await supabase.storage\n  .from('documents')\n  .upload(`workspace-${workspaceId}/${filename}`, file);\n```\n3. Create Supabase Edge Function for embedding generation:\n```typescript\n// supabase/functions/generate-embeddings/index.ts\nconst embedding = await openai.embeddings.create({\n  model: \"text-embedding-3-small\",\n  input: chunkText\n});\n\nawait supabase.from('documents').insert({\n  workspace_id,\n  content: chunkText,\n  embedding: embedding.data[0].embedding,\n  storage_path\n});\n```\n4. Implement Supabase RPC function for hybrid search:\n```sql\nCREATE OR REPLACE FUNCTION hybrid_search(\n  query_embedding vector(1536),\n  query_text text,\n  workspace_uuid uuid,\n  match_count int DEFAULT 20\n)\nRETURNS TABLE (\n  id uuid,\n  content text,\n  similarity float,\n  rank float\n)\nLANGUAGE plpgsql\nAS $$\nBEGIN\n  RETURN QUERY\n  WITH vector_search AS (\n    SELECT \n      d.id,\n      d.content,\n      1 - (d.embedding <=> query_embedding) as similarity\n    FROM documents d\n    WHERE d.workspace_id = workspace_uuid\n    ORDER BY d.embedding <=> query_embedding\n    LIMIT match_count\n  ),\n  fts_search AS (\n    SELECT \n      d.id,\n      ts_rank(to_tsvector('english', d.content), \n              plainto_tsquery('english', query_text)) as rank\n    FROM documents d\n    WHERE d.workspace_id = workspace_uuid \n      AND to_tsvector('english', d.content) @@ plainto_tsquery('english', query_text)\n  )\n  SELECT \n    v.id,\n    v.content,\n    v.similarity,\n    COALESCE(f.rank, 0) as rank\n  FROM vector_search v\n  LEFT JOIN fts_search f ON v.id = f.id\n  ORDER BY (v.similarity + COALESCE(f.rank, 0)) DESC;\nEND;\n$$;\n```\n5. Use Supabase client for searches:\n```typescript\n// Vector similarity search\nconst { data } = await supabase.rpc('hybrid_search', {\n  query_embedding: embedding,\n  query_text: searchText,\n  workspace_uuid: workspaceId\n});\n\n// Full-text search\nconst { data } = await supabase\n  .from('documents')\n  .select()\n  .textSearch('content', searchQuery);\n```",
+        "testStrategy": "Test document uploads to Supabase Storage. Verify Edge Functions generate embeddings correctly. Test RPC hybrid search function returns relevant results. Verify RLS policies enforce workspace access. Test full-text search integration. Benchmark retrieval performance < 500ms.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Enable pgvector and create document schema in Supabase",
+            "description": "Enable pgvector extension and create documents table with vector columns, RLS policies, and HNSW indexes",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Enable pgvector extension in Supabase dashboard or via SQL. Create documents table with vector(1536) column, workspace references, metadata JSONB, and storage_path for file references. Set up RLS policies based on workspace membership.",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Configure Supabase Storage buckets for documents",
+            "description": "Set up Supabase Storage buckets with appropriate policies for document uploads and retrieval",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Create 'documents' bucket in Supabase Storage. Configure RLS policies for upload/download based on workspace membership. Set up file size limits and allowed MIME types (PDF, DOCX, TXT, MD).",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement document chunking Edge Function",
+            "description": "Create Supabase Edge Function for intelligent text chunking with token-aware splitting",
+            "status": "pending",
+            "dependencies": [
+              2
+            ],
+            "details": "Build Edge Function that processes uploaded documents, chunks them into 500-1500 tokens with 100 token overlap using tiktoken. Handle different file formats and preserve context boundaries.",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Build embedding generation Edge Function",
+            "description": "Create Edge Function for generating embeddings using OpenAI's API with batch processing",
+            "status": "pending",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement Edge Function that generates embeddings for document chunks using OpenAI's text-embedding-3-small model. Include rate limiting, error handling, and batch processing. Store embeddings directly in Supabase tables.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create hybrid search RPC function",
+            "description": "Build Supabase RPC function combining vector similarity and full-text search",
+            "status": "pending",
+            "dependencies": [
+              1,
+              4
+            ],
+            "details": "Create PostgreSQL RPC function in Supabase that combines pgvector cosine similarity with PostgreSQL full-text search. Support configurable weights and result limits. Return combined relevance scores.",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Implement Supabase full-text search indexes",
+            "description": "Set up PostgreSQL full-text search with tsvector columns and GIN indexes",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Add tsvector column to documents table with GIN index. Create triggers to automatically update tsvector on content changes. Configure text search configuration for English with proper stemming.",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Build document upload API with Supabase Storage",
+            "description": "Create API endpoints that handle file uploads to Supabase Storage and trigger processing",
+            "status": "pending",
+            "dependencies": [
+              2,
+              4
+            ],
+            "details": "Implement upload endpoints using Supabase Storage client. Support resumable uploads for large files. Trigger Edge Function for processing after successful upload. Track upload progress and handle errors.",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Create search API using Supabase client",
+            "description": "Build search endpoints leveraging Supabase RPC functions and text search",
+            "status": "pending",
+            "dependencies": [
+              5,
+              6
+            ],
+            "details": "Create API endpoints that call Supabase RPC hybrid_search function. Implement fallback to textSearch for simple queries. Add result caching and pagination using Supabase's built-in features.",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Implement RLS policies for document access",
+            "description": "Create comprehensive Row Level Security policies for document operations",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Set up RLS policies for SELECT, INSERT, UPDATE, DELETE operations based on workspace membership. Create policies for document sharing and public access. Ensure policies work with vector search operations.",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Build context retrieval with Supabase functions",
+            "description": "Create optimized context retrieval using Supabase database functions",
+            "status": "pending",
+            "dependencies": [
+              8
+            ],
+            "details": "Implement database functions for query expansion, document re-ranking, and context window optimization. Use Supabase's compute for efficient processing. Include relevance scoring adjustments.",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Create prompt templates with Supabase integration",
+            "description": "Design prompt templates that efficiently use retrieved context from Supabase",
+            "status": "pending",
+            "dependencies": [
+              10
+            ],
+            "details": "Build prompt templates stored in Supabase tables. Support dynamic context injection from search results. Include token counting and truncation strategies. Store templates with versioning.",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Implement monitoring with Supabase observability",
+            "description": "Set up performance monitoring using Supabase's built-in analytics and logging",
+            "status": "pending",
+            "dependencies": [
+              8
+            ],
+            "details": "Use Supabase's query performance insights for vector search optimization. Monitor Edge Function execution times. Track Storage usage and API call patterns. Set up alerts for performance degradation.",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Implement Real-time Collaboration with Yjs",
+        "description": "Build the real-time collaboration system using Supabase Realtime for conflict-free collaborative editing with built-in synchronization and presence features",
+        "status": "pending",
+        "dependencies": [
+          6
+        ],
+        "priority": "medium",
+        "details": "1. Set up Supabase Realtime channels for collaboration:\n```typescript\nconst channel = supabase.channel(`page:${pageId}`);\n```\n2. Configure postgres_changes for real-time data sync:\n```typescript\nchannel.on(\n  'postgres_changes',\n  { event: '*', schema: 'public', table: 'blocks' },\n  (payload) => handleBlockChange(payload)\n);\n```\n3. Implement broadcast for cursor tracking:\n```typescript\nchannel.on(\n  'broadcast',\n  { event: 'cursor' },\n  ({ payload }) => updateRemoteCursor(payload)\n);\n```\n4. Set up presence tracking for user awareness:\n```typescript\nconst presenceState = await channel.track({\n  user_id: userId,\n  cursor_position: null,\n  selection: null\n});\n```\n5. Create collaboration state tables with RLS:\n```sql\nCREATE TABLE collaboration_state (\n  id SERIAL PRIMARY KEY,\n  page_id INT REFERENCES pages(id),\n  user_id UUID REFERENCES auth.users(id),\n  state JSONB NOT NULL,\n  version INT DEFAULT 0,\n  updated_at TIMESTAMP DEFAULT NOW()\n);\n\nALTER TABLE collaboration_state ENABLE ROW LEVEL SECURITY;\n```\n6. Implement Supabase Edge Functions for conflict resolution:\n```typescript\n// Edge Function: resolve-conflicts\nexport async function handler(req: Request) {\n  const { changes, baseVersion } = await req.json();\n  // Implement operational transformation logic\n  return new Response(JSON.stringify(resolvedChanges));\n}\n```\n7. Configure offline support with Supabase local storage sync\n8. Use Supabase's built-in reconnection handling\n9. Implement real-time subscriptions for collaborative updates",
+        "testStrategy": "Test multiple users editing simultaneously using Supabase Realtime. Verify postgres_changes sync correctly. Test broadcast events for cursor tracking. Test presence features across clients. Verify Edge Functions resolve conflicts properly. Test offline editing with local storage sync. Test Supabase's reconnection handling.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Supabase Realtime channels",
+            "description": "Create and configure Supabase Realtime channels for collaborative editing",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Initialize Supabase client, create channel instances for each page, configure channel subscription options, implement proper channel cleanup on unmount",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Configure postgres_changes subscriptions",
+            "description": "Set up real-time database change subscriptions for block synchronization",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Subscribe to postgres_changes events for blocks table, handle INSERT/UPDATE/DELETE events, implement change batching for performance, ensure proper filtering by page_id",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement broadcast for cursor tracking",
+            "description": "Build cursor and selection broadcasting system using Supabase broadcast",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Send cursor position updates via broadcast, implement throttling for cursor events, handle remote cursor rendering, ensure smooth cursor animations",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Build presence system with Supabase",
+            "description": "Implement user presence tracking using Supabase's presence features",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Use channel.track() for presence state, handle presence_state events, display active users list, implement user color assignment for collaboration",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create collaboration state tables",
+            "description": "Design and implement database schema for collaboration state persistence",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Create collaboration_state table with proper indexes, implement RLS policies for workspace access control, add version tracking for conflict resolution, create audit trail for changes",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Develop Edge Functions for conflict resolution",
+            "description": "Implement Supabase Edge Functions to handle operational transformation and conflict resolution",
+            "status": "pending",
+            "dependencies": [
+              5
+            ],
+            "details": "Create resolve-conflicts Edge Function, implement operational transformation algorithms, handle concurrent edit scenarios, ensure idempotent conflict resolution",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Implement offline support with local sync",
+            "description": "Add offline editing capabilities using Supabase's local storage synchronization",
+            "status": "pending",
+            "dependencies": [
+              2
+            ],
+            "details": "Configure Supabase local storage sync, implement offline queue for pending changes, handle sync on reconnection, ensure data consistency between local and remote",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Configure Supabase reconnection handling",
+            "description": "Leverage Supabase's built-in reconnection logic for network interruptions",
+            "status": "pending",
+            "dependencies": [
+              7
+            ],
+            "details": "Monitor connection state changes, handle reconnection events properly, re-establish subscriptions on reconnect, sync missed changes during offline period",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Build real-time state synchronization",
+            "description": "Ensure proper synchronization between application state and Supabase Realtime updates",
+            "status": "pending",
+            "dependencies": [
+              8
+            ],
+            "details": "Implement state reconciliation logic, handle optimistic updates with rollback, ensure UI consistency during updates, manage state versioning for consistency",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Create collaborative editing UI components",
+            "description": "Build UI components that integrate with Supabase Realtime collaboration",
+            "status": "pending",
+            "dependencies": [
+              3,
+              4,
+              9
+            ],
+            "details": "Create collaborative text editors with Realtime integration, implement user avatars and presence indicators, build conflict resolution UI notifications, ensure responsive editing experience",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Optimize Realtime performance for scale",
+            "description": "Optimize collaboration performance for many concurrent users using Supabase features",
+            "status": "pending",
+            "dependencies": [
+              10
+            ],
+            "details": "Implement message batching strategies, optimize subscription filters, use Supabase connection pooling, implement rate limiting for broadcast events",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Build comprehensive Realtime testing suite",
+            "description": "Create thorough tests for all Supabase Realtime collaboration scenarios",
+            "status": "pending",
+            "dependencies": [
+              11
+            ],
+            "details": "Test concurrent editing with postgres_changes, verify broadcast event delivery, test presence tracking accuracy, test Edge Function conflict resolution, verify offline/online sync integrity",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Build Background Workers and Job Queue System",
+        "description": "Implement Supabase Edge Functions for async tasks including embedding generation, formula computation, and document indexing with database-backed job tracking",
+        "status": "pending",
+        "dependencies": [
+          7
+        ],
+        "priority": "medium",
+        "details": "1. Set up Supabase Edge Functions for async processing:\n```typescript\n// supabase/functions/embed-upsert/index.ts\nexport async function handler(req: Request) {\n  const { documentId, content } = await req.json();\n  const embedding = await generateEmbedding(content);\n  await supabase.from('documents').update({ embedding }).eq('id', documentId);\n}\n```\n2. Create job tracking tables in Supabase:\n```sql\nCREATE TABLE job_queue (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  function_name TEXT NOT NULL,\n  payload JSONB,\n  status TEXT DEFAULT 'pending',\n  priority INT DEFAULT 0,\n  attempts INT DEFAULT 0,\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n```\n3. Implement Edge Function for formula computation with dependency tracking\n4. Create document snapshot Edge Function with periodic triggers via pg_cron\n5. Build document indexing Edge Function triggered by database webhooks\n6. Add job priority and retry logic using database functions:\n```sql\nCREATE OR REPLACE FUNCTION process_job_with_retry()\nRETURNS TRIGGER AS $$\nBEGIN\n  IF NEW.attempts < 3 THEN\n    -- Exponential backoff logic\n    PERFORM pg_sleep(power(2, NEW.attempts));\n    -- Invoke Edge Function\n  END IF;\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\n```\n7. Implement job monitoring via Supabase dashboard and database views\n8. Configure auto-scaling through Supabase's built-in Edge Function scaling",
+        "testStrategy": "Test Edge Functions process requests correctly. Verify database retry logic works for failures. Test priority-based job processing. Benchmark embedding generation throughput. Test webhook triggers and pg_cron scheduling. Verify Edge Function auto-scaling under load.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Supabase job tracking tables",
+            "description": "Create database tables for job queue management and tracking in Supabase",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Design and create job_queue table with fields for function_name, payload, status, priority, attempts, and timestamps. Add indexes for efficient job polling and status queries. Create job_history table for completed/failed job archival",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement embedding generation Edge Function",
+            "description": "Create Supabase Edge Function for generating embeddings from document content",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Build embed-upsert Edge Function that processes document content, generates embeddings using OpenAI API, updates pgvector column in documents table. Include error handling and job status updates in job_queue table",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Build formula computation Edge Function",
+            "description": "Implement Edge Function for processing formula calculations and updates",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Create recompute-formulas Edge Function that handles formula evaluation, dependency resolution using recursive CTEs, and updates database with computed results including cascading updates via database triggers",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Create snapshot persistence Edge Function",
+            "description": "Develop Edge Function for persisting Yjs document snapshots to database",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Build snapshot-yjs Edge Function that processes Yjs document states, compresses data, stores snapshots in Supabase Storage. Configure pg_cron for periodic invocation and cleanup of old snapshots",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement document indexing Edge Function",
+            "description": "Create Edge Function for processing and indexing document content for search",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Build document indexing Edge Function triggered by Supabase webhooks on document updates. Processes content, updates tsvector columns for full-text search, maintains document metadata and search indices",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Add database-based priority and retry logic",
+            "description": "Implement priority queuing and retry mechanisms using PostgreSQL functions",
+            "status": "pending",
+            "dependencies": [
+              2,
+              3,
+              4,
+              5
+            ],
+            "details": "Create PostgreSQL functions for job prioritization, implement exponential backoff retry strategy using pg_sleep, dead letter queue logic for failed jobs, and job deduplication using unique constraints",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Configure webhook triggers and pg_cron scheduling",
+            "description": "Set up database webhooks and scheduled tasks for automatic job processing",
+            "status": "pending",
+            "dependencies": [
+              6
+            ],
+            "details": "Configure Supabase database webhooks for real-time triggers, set up pg_cron jobs for periodic tasks like snapshots and cleanup, implement webhook handlers for document changes and formula updates",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Build monitoring views and dashboard queries",
+            "description": "Create database views and queries for job monitoring and analytics",
+            "status": "pending",
+            "dependencies": [
+              7
+            ],
+            "details": "Create materialized views for job statistics, build monitoring queries for queue depth and processing rates, set up alerts using Supabase webhooks for failures, implement dashboard queries for job status visualization",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Implement job management RPC functions",
+            "description": "Create Supabase RPC functions for job lifecycle management",
+            "status": "pending",
+            "dependencies": [
+              8
+            ],
+            "details": "Build RPC functions for manual job retry, bulk job operations, job cancellation logic, priority adjustment, and queue management. Include proper permission checks and audit logging",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Create Edge Function configuration and deployment",
+            "description": "Set up configuration and deployment pipeline for Edge Functions",
+            "status": "pending",
+            "dependencies": [
+              9
+            ],
+            "details": "Configure environment variables for Edge Functions, set up CI/CD pipeline for function deployment, create function versioning strategy, document Edge Function endpoints and usage patterns for production deployment",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Implement Formula Engine with AI Assistance",
+        "description": "Build the formula system with parser, Supabase-backed evaluator, incremental computation using database functions, and AI-powered formula builder via Edge Functions",
+        "status": "pending",
+        "dependencies": [
+          8
+        ],
+        "priority": "low",
+        "details": "1. Create formula parser using a parsing library like Ohm.js or hand-written recursive descent parser:\n```typescript\ninterface FormulaAST {\n  type: 'binary' | 'unary' | 'function' | 'reference' | 'literal';\n  operator?: string;\n  function?: string;\n  args?: FormulaAST[];\n  value?: any;\n}\n```\n2. Store formula definitions and dependencies in Supabase:\n```sql\nCREATE TABLE formulas (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  cell_id TEXT NOT NULL,\n  formula_text TEXT NOT NULL,\n  ast JSONB NOT NULL,\n  dependencies TEXT[] DEFAULT '{}',\n  created_at TIMESTAMP DEFAULT NOW()\n);\n\nCREATE TABLE formula_results (\n  formula_id UUID REFERENCES formulas(id),\n  result JSONB,\n  computed_at TIMESTAMP DEFAULT NOW()\n);\n\n-- Enable RLS\nALTER TABLE formulas ENABLE ROW LEVEL SECURITY;\nALTER TABLE formula_results ENABLE ROW LEVEL SECURITY;\n```\n3. Implement PostgreSQL functions for formula evaluation:\n```sql\nCREATE OR REPLACE FUNCTION evaluate_formula(ast JSONB, context JSONB)\nRETURNS JSONB AS $$\nBEGIN\n  -- Secure formula evaluation logic\n  RETURN evaluate_ast(ast, context);\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;\n```\n4. Create dependency graph using Supabase:\n```sql\nCREATE TABLE formula_dependencies (\n  formula_id UUID REFERENCES formulas(id),\n  depends_on_cell TEXT NOT NULL,\n  PRIMARY KEY (formula_id, depends_on_cell)\n);\n```\n5. Build AI formula builder using Supabase Edge Functions:\n```typescript\n// Edge Function for AI formula generation\nDeno.serve(async (req) => {\n  const { description, context } = await req.json();\n  const completion = await openai.chat.completions.create({\n    model: \"gpt-4\",\n    messages: [\n      {role: \"system\", content: \"Generate spreadsheet formulas...\"},\n      {role: \"user\", content: `${description}\\nColumns: ${JSON.stringify(context)}`}\n    ]\n  });\n  return new Response(JSON.stringify({\n    formula: completion.choices[0].message.content\n  }));\n});\n```\n6. Use Supabase Realtime for live formula updates:\n```typescript\nconst channel = supabase.channel('formulas');\nchannel.on(\n  'postgres_changes',\n  { event: '*', schema: 'public', table: 'formula_results' },\n  (payload) => updateFormulaDisplay(payload)\n);\n```\n7. Implement formula caching using Supabase database",
+        "testStrategy": "Test formula parser with complex expressions. Verify PostgreSQL functions prevent code injection. Test incremental computation using database triggers. Test Edge Function AI formula suggestions. Verify Realtime updates propagate formula results. Test RLS policies enforce proper access. Benchmark formula computation for 1000 rows < 500ms using database functions.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Formula Parser with AST Generation",
+            "description": "Create a formula parser that converts formula strings into Abstract Syntax Trees using recursive descent parsing or a parsing library like Ohm.js",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Build parser for mathematical expressions, cell references, functions, and operators. Generate AST nodes for binary operations, unary operations, function calls, cell references, and literals. Handle operator precedence and parentheses correctly. Store AST as JSONB in Supabase formulas table.",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Design Supabase Formula Schema and Tables",
+            "description": "Create Supabase database schema for storing formulas, dependencies, and results with proper RLS policies",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Create formulas table for formula definitions with AST storage. Create formula_results table for cached computation results. Create formula_dependencies table for dependency tracking. Implement RLS policies for workspace-level access control. Add indexes for performance optimization.",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Build PostgreSQL Formula Evaluation Functions",
+            "description": "Implement secure formula execution using PostgreSQL functions for performance-critical calculations",
+            "status": "pending",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create PL/pgSQL functions for AST evaluation. Implement mathematical operations and type coercion. Handle cell reference resolution within database. Create security-definer functions to prevent SQL injection. Implement timeout mechanism using statement_timeout.",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Create Built-in Function Library in PostgreSQL",
+            "description": "Implement comprehensive library of built-in functions as PostgreSQL stored procedures",
+            "status": "pending",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement functions like SUM, AVERAGE, COUNT, IF, VLOOKUP as PL/pgSQL functions. Create aggregate functions for range operations. Ensure type safety using PostgreSQL's type system. Create function registry table for dynamic function lookup.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Build Dependency Graph System with Database Triggers",
+            "description": "Create dependency tracking system using Supabase tables and PostgreSQL triggers for automatic updates",
+            "status": "pending",
+            "dependencies": [
+              2
+            ],
+            "details": "Parse cell references and store in formula_dependencies table. Create database triggers for cascade updates when dependencies change. Implement recursive CTE queries for dependency traversal. Handle circular dependency detection using PostgreSQL's cycle detection.",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Implement Incremental Computation with Database Functions",
+            "description": "Build system using PostgreSQL triggers and functions to recalculate only affected formulas",
+            "status": "pending",
+            "dependencies": [
+              5,
+              4
+            ],
+            "details": "Create triggers on cell value changes to mark formulas dirty. Use PostgreSQL NOTIFY/LISTEN for change propagation. Implement batch processing using database functions. Store computation results in formula_results table with timestamps.",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Create Formula Result Caching in Supabase",
+            "description": "Implement intelligent caching system using Supabase tables with automatic invalidation",
+            "status": "pending",
+            "dependencies": [
+              6
+            ],
+            "details": "Store computed results in formula_results table with TTL. Implement cache invalidation triggers on dependency changes. Use PostgreSQL's VACUUM for automatic cleanup. Create materialized views for frequently accessed formulas.",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Build AI Formula Suggestion with Edge Functions",
+            "description": "Create Supabase Edge Function for AI-powered formula generation and suggestions",
+            "status": "pending",
+            "dependencies": [
+              4
+            ],
+            "details": "Deploy Edge Function for natural language to formula conversion. Store prompt templates in Supabase for customization. Implement context analysis using database metadata. Cache AI suggestions in Supabase for performance. Create feedback loop for improving suggestions.",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Implement Formula Validation with Database Constraints",
+            "description": "Create comprehensive validation system using PostgreSQL constraints and functions",
+            "status": "pending",
+            "dependencies": [
+              3,
+              4
+            ],
+            "details": "Create CHECK constraints for formula syntax validation. Implement custom validation functions for semantic checks. Use database transactions for atomic formula updates. Return detailed error messages using RAISE statements.",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Build Supabase Realtime Formula Updates",
+            "description": "Implement real-time formula result propagation using Supabase Realtime channels",
+            "status": "pending",
+            "dependencies": [
+              7,
+              6
+            ],
+            "details": "Configure postgres_changes for formula_results table. Implement broadcast for collaborative formula editing. Create presence features for showing who's editing formulas. Handle offline formula computation with sync on reconnect.",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Create Formula RPC Functions for Bulk Operations",
+            "description": "Build Supabase RPC functions for efficient bulk formula operations",
+            "status": "pending",
+            "dependencies": [
+              9,
+              8
+            ],
+            "details": "Create RPC function for bulk formula updates. Implement batch formula evaluation function. Create export function for formula extraction. Build import function with validation. Optimize for 50k+ row operations.",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Implement Formula Import/Export with Supabase Storage",
+            "description": "Create system to import/export formulas using Supabase Storage and Edge Functions",
+            "status": "pending",
+            "dependencies": [
+              1,
+              4
+            ],
+            "details": "Store formula templates in Supabase Storage. Create Edge Function for Excel formula parsing. Export formulas to CSV/Excel formats via Edge Functions. Support formula backup/restore using Storage buckets.",
+            "testStrategy": ""
+          },
+          {
+            "id": 13,
+            "title": "Integrate Formula Engine with Database Blocks",
+            "description": "Connect formula engine to database block system using Supabase's unified data model",
+            "status": "pending",
+            "dependencies": [
+              11,
+              10
+            ],
+            "details": "Link formulas table with db_blocks table. Handle formula references across paginated data using CTEs. Implement efficient joins for formula evaluation. Ensure formula performance with 50k+ rows meets < 500ms target using database optimization.",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Performance Optimization and Production Readiness",
+        "description": "Implement performance optimizations, monitoring, testing suite, and prepare the application for Supabase production deployment",
+        "status": "pending",
+        "dependencies": [
+          9
+        ],
+        "priority": "low",
+        "details": "1. Implement React virtualization for large lists using react-window:\n```typescript\nimport { FixedSizeList } from 'react-window';\n<FixedSizeList height={600} itemCount={50000} itemSize={35}>\n  {Row}\n</FixedSizeList>\n```\n2. Leverage Supabase's built-in connection pooling and PgBouncer configuration\n3. Utilize Supabase's built-in caching with proper cache headers:\n```typescript\n// Use Supabase's built-in caching\nconst { data, error } = await supabase\n  .from('table')\n  .select('*')\n  .abortSignal(signal); // Automatic caching handled by Supabase\n```\n4. Configure Supabase CDN for static assets and storage buckets\n5. Implement comprehensive test suite:\n   - Unit tests with Jest/Vitest (80% coverage)\n   - Integration tests for Supabase functions and RLS policies\n   - E2E tests with Playwright\n   - Performance tests with k6 for Supabase endpoints\n6. Set up monitoring with Supabase Analytics and custom metrics:\n```typescript\n// Use Supabase Analytics\nimport { analytics } from '@supabase/analytics-js';\nanalytics.track('api_request', { duration: ms, endpoint: '/api/data' });\n```\n7. Deploy Edge Functions using Supabase CLI\n8. Write deployment documentation for Supabase hosting\n9. Implement health checks using Supabase Edge Functions\n10. Configure auto-scaling with Supabase's infrastructure",
+        "testStrategy": "Run full test suite with >80% coverage. Load test Supabase endpoints with 100 concurrent users and 50k row databases. Verify Supabase Analytics captures all metrics. Test Edge Function deployment pipeline. Verify Supabase's built-in monitoring and alerting work correctly.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement React virtualization for large lists",
+            "description": "Set up react-window for handling large datasets with virtual scrolling to improve rendering performance",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Install react-window and implement FixedSizeList for database blocks with 50k+ rows. Configure item height, container dimensions, and row renderer components.",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Configure Supabase connection pooling",
+            "description": "Optimize Supabase's built-in PgBouncer connection pooling for production workloads",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Configure Supabase dashboard pooling settings, optimize connection limits based on expected traffic, and implement connection retry logic in the client.",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement Supabase caching strategies",
+            "description": "Configure and optimize Supabase's built-in caching and CDN for frequently accessed data",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Set up proper cache headers for Supabase Storage, configure client-side caching for database queries, implement stale-while-revalidate patterns for optimal performance.",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Configure Supabase Storage CDN",
+            "description": "Set up Supabase Storage buckets with CDN configuration for static assets",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Create public and private storage buckets, configure CORS policies, set up image transformation policies, and optimize asset delivery through Supabase's global CDN.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement comprehensive unit testing suite",
+            "description": "Create unit tests for all core components and utilities with >80% coverage target",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Write Jest tests for React components, utility functions, API endpoints, and business logic. Set up coverage reporting and quality gates.",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Implement Supabase integration testing",
+            "description": "Create integration tests for Supabase RLS policies, Edge Functions, and database operations",
+            "status": "pending",
+            "dependencies": [
+              5
+            ],
+            "details": "Set up test project in Supabase, write tests for RLS policies, test Edge Functions locally and remotely, verify database triggers and functions work correctly.",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Implement end-to-end testing suite",
+            "description": "Create E2E tests for critical user workflows using Playwright or Cypress",
+            "status": "pending",
+            "dependencies": [
+              6
+            ],
+            "details": "Set up E2E testing framework, write tests for user registration, login, workspace creation, and database block operations with real browser automation.",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Set up Supabase Analytics monitoring",
+            "description": "Configure Supabase Analytics for performance monitoring and error tracking",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Enable Supabase Analytics, configure custom events tracking, set up performance metrics, create dashboards for key metrics, and configure alert notifications.",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Implement Edge Functions deployment pipeline",
+            "description": "Set up automated deployment for Supabase Edge Functions",
+            "status": "pending",
+            "dependencies": [
+              7
+            ],
+            "details": "Configure GitHub Actions for Edge Functions deployment, set up Supabase CLI in CI/CD, implement automated testing before deployment, and configure staging/production environments.",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Create Supabase deployment documentation",
+            "description": "Document Supabase-specific deployment procedures and configurations",
+            "status": "pending",
+            "dependencies": [
+              9
+            ],
+            "details": "Write Edge Functions deployment guide, document environment variables for Supabase, create database migration procedures, and document Supabase project settings.",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Implement health checks with Edge Functions",
+            "description": "Create health check Edge Functions for application monitoring",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Create Edge Function for /health endpoint, implement database connectivity checks, verify Realtime connection status, and return detailed health status for monitoring.",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Configure Supabase auto-scaling",
+            "description": "Set up and optimize Supabase's infrastructure auto-scaling",
+            "status": "pending",
+            "dependencies": [
+              11
+            ],
+            "details": "Configure Supabase project for appropriate compute size, set up database read replicas if needed, optimize connection pooling for scale, and configure rate limiting.",
+            "testStrategy": ""
+          },
+          {
+            "id": 13,
+            "title": "Implement Supabase performance benchmarking",
+            "description": "Create performance benchmarks for Supabase endpoints and Edge Functions",
+            "status": "pending",
+            "dependencies": [
+              3
+            ],
+            "details": "Set up load testing for Supabase RPC functions, benchmark Edge Function response times, test Realtime performance with concurrent connections, and validate storage CDN performance.",
+            "testStrategy": ""
+          },
+          {
+            "id": 14,
+            "title": "Configure Supabase observability",
+            "description": "Set up comprehensive observability using Supabase's built-in tools",
+            "status": "pending",
+            "dependencies": [
+              8
+            ],
+            "details": "Configure Supabase Logs for structured logging, set up query performance monitoring, create custom metrics in Supabase Analytics, and build observability dashboards.",
+            "testStrategy": ""
+          },
+          {
+            "id": 15,
+            "title": "Perform Supabase production readiness validation",
+            "description": "Execute comprehensive testing for Supabase production deployment",
+            "status": "pending",
+            "dependencies": [
+              13,
+              14
+            ],
+            "details": "Run full test suite including Supabase integration tests, execute load tests against Edge Functions, verify Supabase Analytics captures all events, validate auto-scaling configuration, and review security settings.",
+            "testStrategy": ""
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "created": "2025-08-10T00:15:37.852Z",
+      "updated": "2025-08-10T01:53:49.178Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

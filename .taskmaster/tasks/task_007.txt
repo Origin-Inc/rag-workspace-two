@@ -1,0 +1,137 @@
+# Task ID: 7
+# Title: Implement Real-time Collaboration with Yjs
+# Status: pending
+# Dependencies: 6
+# Priority: medium
+# Description: Build the real-time collaboration system using Supabase Realtime for conflict-free collaborative editing with built-in synchronization and presence features
+# Details:
+1. Set up Supabase Realtime channels for collaboration:
+```typescript
+const channel = supabase.channel(`page:${pageId}`);
+```
+2. Configure postgres_changes for real-time data sync:
+```typescript
+channel.on(
+  'postgres_changes',
+  { event: '*', schema: 'public', table: 'blocks' },
+  (payload) => handleBlockChange(payload)
+);
+```
+3. Implement broadcast for cursor tracking:
+```typescript
+channel.on(
+  'broadcast',
+  { event: 'cursor' },
+  ({ payload }) => updateRemoteCursor(payload)
+);
+```
+4. Set up presence tracking for user awareness:
+```typescript
+const presenceState = await channel.track({
+  user_id: userId,
+  cursor_position: null,
+  selection: null
+});
+```
+5. Create collaboration state tables with RLS:
+```sql
+CREATE TABLE collaboration_state (
+  id SERIAL PRIMARY KEY,
+  page_id INT REFERENCES pages(id),
+  user_id UUID REFERENCES auth.users(id),
+  state JSONB NOT NULL,
+  version INT DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+ALTER TABLE collaboration_state ENABLE ROW LEVEL SECURITY;
+```
+6. Implement Supabase Edge Functions for conflict resolution:
+```typescript
+// Edge Function: resolve-conflicts
+export async function handler(req: Request) {
+  const { changes, baseVersion } = await req.json();
+  // Implement operational transformation logic
+  return new Response(JSON.stringify(resolvedChanges));
+}
+```
+7. Configure offline support with Supabase local storage sync
+8. Use Supabase's built-in reconnection handling
+9. Implement real-time subscriptions for collaborative updates
+
+# Test Strategy:
+Test multiple users editing simultaneously using Supabase Realtime. Verify postgres_changes sync correctly. Test broadcast events for cursor tracking. Test presence features across clients. Verify Edge Functions resolve conflicts properly. Test offline editing with local storage sync. Test Supabase's reconnection handling.
+
+# Subtasks:
+## 1. Set up Supabase Realtime channels [pending]
+### Dependencies: None
+### Description: Create and configure Supabase Realtime channels for collaborative editing
+### Details:
+Initialize Supabase client, create channel instances for each page, configure channel subscription options, implement proper channel cleanup on unmount
+
+## 2. Configure postgres_changes subscriptions [pending]
+### Dependencies: 7.1
+### Description: Set up real-time database change subscriptions for block synchronization
+### Details:
+Subscribe to postgres_changes events for blocks table, handle INSERT/UPDATE/DELETE events, implement change batching for performance, ensure proper filtering by page_id
+
+## 3. Implement broadcast for cursor tracking [pending]
+### Dependencies: 7.1
+### Description: Build cursor and selection broadcasting system using Supabase broadcast
+### Details:
+Send cursor position updates via broadcast, implement throttling for cursor events, handle remote cursor rendering, ensure smooth cursor animations
+
+## 4. Build presence system with Supabase [pending]
+### Dependencies: 7.1
+### Description: Implement user presence tracking using Supabase's presence features
+### Details:
+Use channel.track() for presence state, handle presence_state events, display active users list, implement user color assignment for collaboration
+
+## 5. Create collaboration state tables [pending]
+### Dependencies: None
+### Description: Design and implement database schema for collaboration state persistence
+### Details:
+Create collaboration_state table with proper indexes, implement RLS policies for workspace access control, add version tracking for conflict resolution, create audit trail for changes
+
+## 6. Develop Edge Functions for conflict resolution [pending]
+### Dependencies: 7.5
+### Description: Implement Supabase Edge Functions to handle operational transformation and conflict resolution
+### Details:
+Create resolve-conflicts Edge Function, implement operational transformation algorithms, handle concurrent edit scenarios, ensure idempotent conflict resolution
+
+## 7. Implement offline support with local sync [pending]
+### Dependencies: 7.2
+### Description: Add offline editing capabilities using Supabase's local storage synchronization
+### Details:
+Configure Supabase local storage sync, implement offline queue for pending changes, handle sync on reconnection, ensure data consistency between local and remote
+
+## 8. Configure Supabase reconnection handling [pending]
+### Dependencies: 7.7
+### Description: Leverage Supabase's built-in reconnection logic for network interruptions
+### Details:
+Monitor connection state changes, handle reconnection events properly, re-establish subscriptions on reconnect, sync missed changes during offline period
+
+## 9. Build real-time state synchronization [pending]
+### Dependencies: 7.8
+### Description: Ensure proper synchronization between application state and Supabase Realtime updates
+### Details:
+Implement state reconciliation logic, handle optimistic updates with rollback, ensure UI consistency during updates, manage state versioning for consistency
+
+## 10. Create collaborative editing UI components [pending]
+### Dependencies: 7.3, 7.4, 7.9
+### Description: Build UI components that integrate with Supabase Realtime collaboration
+### Details:
+Create collaborative text editors with Realtime integration, implement user avatars and presence indicators, build conflict resolution UI notifications, ensure responsive editing experience
+
+## 11. Optimize Realtime performance for scale [pending]
+### Dependencies: 7.10
+### Description: Optimize collaboration performance for many concurrent users using Supabase features
+### Details:
+Implement message batching strategies, optimize subscription filters, use Supabase connection pooling, implement rate limiting for broadcast events
+
+## 12. Build comprehensive Realtime testing suite [pending]
+### Dependencies: 7.11
+### Description: Create thorough tests for all Supabase Realtime collaboration scenarios
+### Details:
+Test concurrent editing with postgres_changes, verify broadcast event delivery, test presence tracking accuracy, test Edge Function conflict resolution, verify offline/online sync integrity
+

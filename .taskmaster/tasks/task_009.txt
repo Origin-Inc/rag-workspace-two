@@ -1,0 +1,166 @@
+# Task ID: 9
+# Title: Implement Formula Engine with AI Assistance
+# Status: pending
+# Dependencies: 8
+# Priority: low
+# Description: Build the formula system with parser, Supabase-backed evaluator, incremental computation using database functions, and AI-powered formula builder via Edge Functions
+# Details:
+1. Create formula parser using a parsing library like Ohm.js or hand-written recursive descent parser:
+```typescript
+interface FormulaAST {
+  type: 'binary' | 'unary' | 'function' | 'reference' | 'literal';
+  operator?: string;
+  function?: string;
+  args?: FormulaAST[];
+  value?: any;
+}
+```
+2. Store formula definitions and dependencies in Supabase:
+```sql
+CREATE TABLE formulas (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  cell_id TEXT NOT NULL,
+  formula_text TEXT NOT NULL,
+  ast JSONB NOT NULL,
+  dependencies TEXT[] DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE formula_results (
+  formula_id UUID REFERENCES formulas(id),
+  result JSONB,
+  computed_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE formulas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE formula_results ENABLE ROW LEVEL SECURITY;
+```
+3. Implement PostgreSQL functions for formula evaluation:
+```sql
+CREATE OR REPLACE FUNCTION evaluate_formula(ast JSONB, context JSONB)
+RETURNS JSONB AS $$
+BEGIN
+  -- Secure formula evaluation logic
+  RETURN evaluate_ast(ast, context);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+4. Create dependency graph using Supabase:
+```sql
+CREATE TABLE formula_dependencies (
+  formula_id UUID REFERENCES formulas(id),
+  depends_on_cell TEXT NOT NULL,
+  PRIMARY KEY (formula_id, depends_on_cell)
+);
+```
+5. Build AI formula builder using Supabase Edge Functions:
+```typescript
+// Edge Function for AI formula generation
+Deno.serve(async (req) => {
+  const { description, context } = await req.json();
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4",
+    messages: [
+      {role: "system", content: "Generate spreadsheet formulas..."},
+      {role: "user", content: `${description}\nColumns: ${JSON.stringify(context)}`}
+    ]
+  });
+  return new Response(JSON.stringify({
+    formula: completion.choices[0].message.content
+  }));
+});
+```
+6. Use Supabase Realtime for live formula updates:
+```typescript
+const channel = supabase.channel('formulas');
+channel.on(
+  'postgres_changes',
+  { event: '*', schema: 'public', table: 'formula_results' },
+  (payload) => updateFormulaDisplay(payload)
+);
+```
+7. Implement formula caching using Supabase database
+
+# Test Strategy:
+Test formula parser with complex expressions. Verify PostgreSQL functions prevent code injection. Test incremental computation using database triggers. Test Edge Function AI formula suggestions. Verify Realtime updates propagate formula results. Test RLS policies enforce proper access. Benchmark formula computation for 1000 rows < 500ms using database functions.
+
+# Subtasks:
+## 1. Implement Formula Parser with AST Generation [pending]
+### Dependencies: None
+### Description: Create a formula parser that converts formula strings into Abstract Syntax Trees using recursive descent parsing or a parsing library like Ohm.js
+### Details:
+Build parser for mathematical expressions, cell references, functions, and operators. Generate AST nodes for binary operations, unary operations, function calls, cell references, and literals. Handle operator precedence and parentheses correctly. Store AST as JSONB in Supabase formulas table.
+
+## 2. Design Supabase Formula Schema and Tables [pending]
+### Dependencies: None
+### Description: Create Supabase database schema for storing formulas, dependencies, and results with proper RLS policies
+### Details:
+Create formulas table for formula definitions with AST storage. Create formula_results table for cached computation results. Create formula_dependencies table for dependency tracking. Implement RLS policies for workspace-level access control. Add indexes for performance optimization.
+
+## 3. Build PostgreSQL Formula Evaluation Functions [pending]
+### Dependencies: 9.1, 9.2
+### Description: Implement secure formula execution using PostgreSQL functions for performance-critical calculations
+### Details:
+Create PL/pgSQL functions for AST evaluation. Implement mathematical operations and type coercion. Handle cell reference resolution within database. Create security-definer functions to prevent SQL injection. Implement timeout mechanism using statement_timeout.
+
+## 4. Create Built-in Function Library in PostgreSQL [pending]
+### Dependencies: 9.3
+### Description: Implement comprehensive library of built-in functions as PostgreSQL stored procedures
+### Details:
+Implement functions like SUM, AVERAGE, COUNT, IF, VLOOKUP as PL/pgSQL functions. Create aggregate functions for range operations. Ensure type safety using PostgreSQL's type system. Create function registry table for dynamic function lookup.
+
+## 5. Build Dependency Graph System with Database Triggers [pending]
+### Dependencies: 9.2
+### Description: Create dependency tracking system using Supabase tables and PostgreSQL triggers for automatic updates
+### Details:
+Parse cell references and store in formula_dependencies table. Create database triggers for cascade updates when dependencies change. Implement recursive CTE queries for dependency traversal. Handle circular dependency detection using PostgreSQL's cycle detection.
+
+## 6. Implement Incremental Computation with Database Functions [pending]
+### Dependencies: 9.5, 9.4
+### Description: Build system using PostgreSQL triggers and functions to recalculate only affected formulas
+### Details:
+Create triggers on cell value changes to mark formulas dirty. Use PostgreSQL NOTIFY/LISTEN for change propagation. Implement batch processing using database functions. Store computation results in formula_results table with timestamps.
+
+## 7. Create Formula Result Caching in Supabase [pending]
+### Dependencies: 9.6
+### Description: Implement intelligent caching system using Supabase tables with automatic invalidation
+### Details:
+Store computed results in formula_results table with TTL. Implement cache invalidation triggers on dependency changes. Use PostgreSQL's VACUUM for automatic cleanup. Create materialized views for frequently accessed formulas.
+
+## 8. Build AI Formula Suggestion with Edge Functions [pending]
+### Dependencies: 9.4
+### Description: Create Supabase Edge Function for AI-powered formula generation and suggestions
+### Details:
+Deploy Edge Function for natural language to formula conversion. Store prompt templates in Supabase for customization. Implement context analysis using database metadata. Cache AI suggestions in Supabase for performance. Create feedback loop for improving suggestions.
+
+## 9. Implement Formula Validation with Database Constraints [pending]
+### Dependencies: 9.3, 9.4
+### Description: Create comprehensive validation system using PostgreSQL constraints and functions
+### Details:
+Create CHECK constraints for formula syntax validation. Implement custom validation functions for semantic checks. Use database transactions for atomic formula updates. Return detailed error messages using RAISE statements.
+
+## 10. Build Supabase Realtime Formula Updates [pending]
+### Dependencies: 9.7, 9.6
+### Description: Implement real-time formula result propagation using Supabase Realtime channels
+### Details:
+Configure postgres_changes for formula_results table. Implement broadcast for collaborative formula editing. Create presence features for showing who's editing formulas. Handle offline formula computation with sync on reconnect.
+
+## 11. Create Formula RPC Functions for Bulk Operations [pending]
+### Dependencies: 9.9, 9.8
+### Description: Build Supabase RPC functions for efficient bulk formula operations
+### Details:
+Create RPC function for bulk formula updates. Implement batch formula evaluation function. Create export function for formula extraction. Build import function with validation. Optimize for 50k+ row operations.
+
+## 12. Implement Formula Import/Export with Supabase Storage [pending]
+### Dependencies: 9.1, 9.4
+### Description: Create system to import/export formulas using Supabase Storage and Edge Functions
+### Details:
+Store formula templates in Supabase Storage. Create Edge Function for Excel formula parsing. Export formulas to CSV/Excel formats via Edge Functions. Support formula backup/restore using Storage buckets.
+
+## 13. Integrate Formula Engine with Database Blocks [pending]
+### Dependencies: 9.11, 9.10
+### Description: Connect formula engine to database block system using Supabase's unified data model
+### Details:
+Link formulas table with db_blocks table. Handle formula references across paginated data using CTEs. Implement efficient joins for formula evaluation. Ensure formula performance with 50k+ rows meets < 500ms target using database optimization.
+

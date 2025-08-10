@@ -1,0 +1,197 @@
+# Task ID: 6
+# Title: Implement RAG System with Vector Search
+# Status: pending
+# Dependencies: 5
+# Priority: medium
+# Description: Build the retrieval-augmented generation system with document chunking, embedding generation, Supabase pgvector storage, and hybrid search capabilities
+# Details:
+1. Enable pgvector extension in Supabase:
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE documents (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  workspace_id UUID REFERENCES workspaces(id),
+  content TEXT NOT NULL,
+  embedding vector(1536),
+  metadata JSONB,
+  storage_path TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create HNSW index for vector similarity
+CREATE INDEX documents_embedding_idx ON documents 
+USING hnsw (embedding vector_cosine_ops);
+
+-- Enable RLS
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+
+-- RLS policies based on workspace membership
+CREATE POLICY "Users can view documents in their workspace"
+  ON documents FOR SELECT
+  USING (workspace_id IN (
+    SELECT workspace_id FROM workspace_members 
+    WHERE user_id = auth.uid()
+  ));
+```
+2. Use Supabase Storage for document uploads:
+```typescript
+const { data, error } = await supabase.storage
+  .from('documents')
+  .upload(`workspace-${workspaceId}/${filename}`, file);
+```
+3. Create Supabase Edge Function for embedding generation:
+```typescript
+// supabase/functions/generate-embeddings/index.ts
+const embedding = await openai.embeddings.create({
+  model: "text-embedding-3-small",
+  input: chunkText
+});
+
+await supabase.from('documents').insert({
+  workspace_id,
+  content: chunkText,
+  embedding: embedding.data[0].embedding,
+  storage_path
+});
+```
+4. Implement Supabase RPC function for hybrid search:
+```sql
+CREATE OR REPLACE FUNCTION hybrid_search(
+  query_embedding vector(1536),
+  query_text text,
+  workspace_uuid uuid,
+  match_count int DEFAULT 20
+)
+RETURNS TABLE (
+  id uuid,
+  content text,
+  similarity float,
+  rank float
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH vector_search AS (
+    SELECT 
+      d.id,
+      d.content,
+      1 - (d.embedding <=> query_embedding) as similarity
+    FROM documents d
+    WHERE d.workspace_id = workspace_uuid
+    ORDER BY d.embedding <=> query_embedding
+    LIMIT match_count
+  ),
+  fts_search AS (
+    SELECT 
+      d.id,
+      ts_rank(to_tsvector('english', d.content), 
+              plainto_tsquery('english', query_text)) as rank
+    FROM documents d
+    WHERE d.workspace_id = workspace_uuid 
+      AND to_tsvector('english', d.content) @@ plainto_tsquery('english', query_text)
+  )
+  SELECT 
+    v.id,
+    v.content,
+    v.similarity,
+    COALESCE(f.rank, 0) as rank
+  FROM vector_search v
+  LEFT JOIN fts_search f ON v.id = f.id
+  ORDER BY (v.similarity + COALESCE(f.rank, 0)) DESC;
+END;
+$$;
+```
+5. Use Supabase client for searches:
+```typescript
+// Vector similarity search
+const { data } = await supabase.rpc('hybrid_search', {
+  query_embedding: embedding,
+  query_text: searchText,
+  workspace_uuid: workspaceId
+});
+
+// Full-text search
+const { data } = await supabase
+  .from('documents')
+  .select()
+  .textSearch('content', searchQuery);
+```
+
+# Test Strategy:
+Test document uploads to Supabase Storage. Verify Edge Functions generate embeddings correctly. Test RPC hybrid search function returns relevant results. Verify RLS policies enforce workspace access. Test full-text search integration. Benchmark retrieval performance < 500ms.
+
+# Subtasks:
+## 1. Enable pgvector and create document schema in Supabase [pending]
+### Dependencies: None
+### Description: Enable pgvector extension and create documents table with vector columns, RLS policies, and HNSW indexes
+### Details:
+Enable pgvector extension in Supabase dashboard or via SQL. Create documents table with vector(1536) column, workspace references, metadata JSONB, and storage_path for file references. Set up RLS policies based on workspace membership.
+
+## 2. Configure Supabase Storage buckets for documents [pending]
+### Dependencies: 6.1
+### Description: Set up Supabase Storage buckets with appropriate policies for document uploads and retrieval
+### Details:
+Create 'documents' bucket in Supabase Storage. Configure RLS policies for upload/download based on workspace membership. Set up file size limits and allowed MIME types (PDF, DOCX, TXT, MD).
+
+## 3. Implement document chunking Edge Function [pending]
+### Dependencies: 6.2
+### Description: Create Supabase Edge Function for intelligent text chunking with token-aware splitting
+### Details:
+Build Edge Function that processes uploaded documents, chunks them into 500-1500 tokens with 100 token overlap using tiktoken. Handle different file formats and preserve context boundaries.
+
+## 4. Build embedding generation Edge Function [pending]
+### Dependencies: 6.3
+### Description: Create Edge Function for generating embeddings using OpenAI's API with batch processing
+### Details:
+Implement Edge Function that generates embeddings for document chunks using OpenAI's text-embedding-3-small model. Include rate limiting, error handling, and batch processing. Store embeddings directly in Supabase tables.
+
+## 5. Create hybrid search RPC function [pending]
+### Dependencies: 6.1, 6.4
+### Description: Build Supabase RPC function combining vector similarity and full-text search
+### Details:
+Create PostgreSQL RPC function in Supabase that combines pgvector cosine similarity with PostgreSQL full-text search. Support configurable weights and result limits. Return combined relevance scores.
+
+## 6. Implement Supabase full-text search indexes [pending]
+### Dependencies: 6.1
+### Description: Set up PostgreSQL full-text search with tsvector columns and GIN indexes
+### Details:
+Add tsvector column to documents table with GIN index. Create triggers to automatically update tsvector on content changes. Configure text search configuration for English with proper stemming.
+
+## 7. Build document upload API with Supabase Storage [pending]
+### Dependencies: 6.2, 6.4
+### Description: Create API endpoints that handle file uploads to Supabase Storage and trigger processing
+### Details:
+Implement upload endpoints using Supabase Storage client. Support resumable uploads for large files. Trigger Edge Function for processing after successful upload. Track upload progress and handle errors.
+
+## 8. Create search API using Supabase client [pending]
+### Dependencies: 6.5, 6.6
+### Description: Build search endpoints leveraging Supabase RPC functions and text search
+### Details:
+Create API endpoints that call Supabase RPC hybrid_search function. Implement fallback to textSearch for simple queries. Add result caching and pagination using Supabase's built-in features.
+
+## 9. Implement RLS policies for document access [pending]
+### Dependencies: 6.1
+### Description: Create comprehensive Row Level Security policies for document operations
+### Details:
+Set up RLS policies for SELECT, INSERT, UPDATE, DELETE operations based on workspace membership. Create policies for document sharing and public access. Ensure policies work with vector search operations.
+
+## 10. Build context retrieval with Supabase functions [pending]
+### Dependencies: 6.8
+### Description: Create optimized context retrieval using Supabase database functions
+### Details:
+Implement database functions for query expansion, document re-ranking, and context window optimization. Use Supabase's compute for efficient processing. Include relevance scoring adjustments.
+
+## 11. Create prompt templates with Supabase integration [pending]
+### Dependencies: 6.10
+### Description: Design prompt templates that efficiently use retrieved context from Supabase
+### Details:
+Build prompt templates stored in Supabase tables. Support dynamic context injection from search results. Include token counting and truncation strategies. Store templates with versioning.
+
+## 12. Implement monitoring with Supabase observability [pending]
+### Dependencies: 6.8
+### Description: Set up performance monitoring using Supabase's built-in analytics and logging
+### Details:
+Use Supabase's query performance insights for vector search optimization. Monitor Edge Function execution times. Track Storage usage and API call patterns. Set up alerts for performance degradation.
+
