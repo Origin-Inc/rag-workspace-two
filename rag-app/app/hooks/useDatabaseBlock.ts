@@ -196,31 +196,54 @@ export function useDatabaseBlock(
         // Handle column response
         const response = fetcher.data as any;
         if (response.success && response.column) {
-          setColumns(prev => [...prev, response.column]);
-          
-          // Re-fetch the database block to get the updated schema
-          fetcher.submit(
-            {
-              action: 'getDatabaseBlock',
-              databaseBlockId
-            },
-            { method: 'post', action: `/api/database-block` }
-          );
+          // Replace the temporary column with the server's response
+          setColumns(prev => {
+            // Check if we have a temporary column (starts with col-temp-)
+            const tempIndex = prev.findIndex(col => col.id.startsWith('col-temp-'));
+            if (tempIndex !== -1) {
+              // Replace temporary column with server response
+              const newColumns = [...prev];
+              newColumns[tempIndex] = response.column;
+              return newColumns;
+            } else {
+              // If no temp column found, just add it (shouldn't happen with optimistic updates)
+              return [...prev, response.column];
+            }
+          });
         }
       } else if (action === 'addRow') {
         // Handle add row response
         const response = fetcher.data as any;
         if (response.success && response.row) {
-          console.log('[useDatabaseBlock] Adding new row to state:', response.row);
+          console.log('[useDatabaseBlock] Replacing temporary row with server response:', response.row);
           setDataState(prev => {
             const newRows = new Map(prev.rows);
-            // Add the new row at the end
-            const newRowIndex = prev.totalCount;
-            newRows.set(newRowIndex, response.row);
+            
+            // Find and replace the temporary row
+            let foundTemp = false;
+            for (const [index, row] of newRows.entries()) {
+              if (row.id.startsWith('row-temp-')) {
+                // Replace temporary row with server response
+                newRows.set(index, response.row);
+                foundTemp = true;
+                break;
+              }
+            }
+            
+            // If no temp row found, add it at the end (shouldn't happen with optimistic updates)
+            if (!foundTemp) {
+              const newRowIndex = prev.totalCount || 0;
+              newRows.set(newRowIndex, response.row);
+              return {
+                ...prev,
+                rows: newRows,
+                totalCount: (prev.totalCount || 0) + 1
+              };
+            }
+            
             return {
               ...prev,
-              rows: newRows,
-              totalCount: prev.totalCount + 1
+              rows: newRows
             };
           });
         }
@@ -451,6 +474,29 @@ export function useDatabaseBlock(
   // ==================== Row Operations ====================
 
   const addRow = useCallback(async (data: Record<string, any> = {}) => {
+    // Create a new row with temporary ID
+    const newRow: DatabaseRow = {
+      id: `row-temp-${Date.now()}`, // Temporary ID until server responds
+      databaseBlockId: databaseBlockId,
+      data: data,
+      position: dataState.totalCount || 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    // Optimistic update - add the row immediately
+    setDataState(prev => {
+      const newRows = new Map(prev.rows);
+      // Add to the end of the current data
+      newRows.set(prev.totalCount || 0, newRow);
+      
+      return {
+        ...prev,
+        rows: newRows,
+        totalCount: (prev.totalCount || 0) + 1
+      };
+    });
+
     fetcher.submit(
       {
         action: 'addRow',
@@ -459,7 +505,7 @@ export function useDatabaseBlock(
       },
       { method: 'post', action: `/api/database-block` }
     );
-  }, [databaseBlockId, fetcher]);
+  }, [databaseBlockId, dataState.totalCount, fetcher]);
 
   const deleteRow = useCallback(async (rowId: string) => {
     // Optimistic delete
@@ -500,6 +546,21 @@ export function useDatabaseBlock(
   // ==================== Column Operations ====================
 
   const addColumn = useCallback(async (column: Partial<DatabaseColumn>) => {
+    // Create a new column with defaults
+    const newColumn: DatabaseColumn = {
+      id: `col-temp-${Date.now()}`, // Temporary ID until server responds
+      databaseBlockId: databaseBlockId,
+      columnId: column.columnId || `column-${Date.now()}`,
+      name: column.name || 'New Column',
+      type: column.type || 'text',
+      position: columns.length,
+      width: column.width || 150,
+      ...column
+    };
+
+    // Optimistic update - add the column immediately
+    setColumns(prev => [...prev, newColumn]);
+
     fetcher.submit(
       {
         action: 'addColumn',
@@ -508,7 +569,7 @@ export function useDatabaseBlock(
       },
       { method: 'post', action: `/api/database-block` }
     );
-  }, [databaseBlockId, fetcher]);
+  }, [databaseBlockId, columns.length, fetcher]);
 
   const updateColumn = useCallback(async (
     columnId: string,
