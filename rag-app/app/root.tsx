@@ -25,7 +25,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const data = useLoaderData<typeof loader>();
+  // useLoaderData cannot be used in error boundary, so handle gracefully
+  let data: any = {};
+  try {
+    data = useLoaderData<typeof loader>();
+  } catch (e) {
+    // In error boundary, loader data is not available
+  }
   
   return (
     <html lang="en" className="h-full">
@@ -35,11 +41,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body className="h-full">
+      <body className="h-full" suppressHydrationWarning>
         {children}
         <script
           dangerouslySetInnerHTML={{
-            __html: `window.ENV = ${JSON.stringify(data?.env || {})}`,
+            __html: `window.ENV = ${JSON.stringify(data?.env || {})};`,
           }}
         />
         <ScrollRestoration />

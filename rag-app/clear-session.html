@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Session - Fix Authentication</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        code {
+            background: #f8f9fa;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        .actions {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Fix Authentication Issue</h1>
+        
+        <div class="status error" id="problem">
+            <strong>Problem Detected:</strong><br>
+            Your browser session contains an invalid user ID (<code>660d0519-bb28-49bc-98fc-aa2af5e6fb6c</code>) that doesn't exist in the database.
+        </div>
+
+        <div class="status success" id="solution" style="display: none;">
+            <strong>✅ Session Cleared!</strong><br>
+            All cookies and local storage have been cleared. You can now login with the test account.
+        </div>
+
+        <div class="actions">
+            <h3>Click to fix the issue:</h3>
+            <button onclick="clearAllData()">Clear Session & Fix Authentication</button>
+            
+            <div id="afterClear" style="display: none; margin-top: 20px;">
+                <h3>Next steps:</h3>
+                <ol>
+                    <li>Go to <a href="http://localhost:3001/auth/login-simple">Login Page</a></li>
+                    <li>Login with:
+                        <ul>
+                            <li>Email: <code>test@example.com</code></li>
+                            <li>Password: <code>test123456</code></li>
+                        </ul>
+                    </li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function clearAllData() {
+            try {
+                // Clear all cookies
+                document.cookie.split(";").forEach(function(c) { 
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                });
+                
+                // Clear localStorage
+                localStorage.clear();
+                
+                // Clear sessionStorage
+                sessionStorage.clear();
+                
+                // Clear IndexedDB
+                if (window.indexedDB) {
+                    indexedDB.databases().then(databases => {
+                        databases.forEach(db => indexedDB.deleteDatabase(db.name));
+                    }).catch(e => console.log('Could not clear IndexedDB:', e));
+                }
+                
+                // Show success message
+                document.getElementById('problem').style.display = 'none';
+                document.getElementById('solution').style.display = 'block';
+                document.getElementById('afterClear').style.display = 'block';
+                
+                console.log('✅ All session data cleared successfully!');
+                
+                // Optional: Auto-redirect after 3 seconds
+                setTimeout(() => {
+                    window.location.href = 'http://localhost:3001/auth/login-simple';
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Error clearing data:', error);
+                alert('Error clearing session. Please try manually clearing your browser data.');
+            }
+        }
+    </script>
+</body>
+</html>

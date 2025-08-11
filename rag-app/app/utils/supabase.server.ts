@@ -3,10 +3,11 @@ import type { Database } from '~/types/supabase';
 
 // Server-side Supabase client with service key (full access)
 export function createSupabaseAdmin() {
-  const supabaseUrl = process.env["SUPABASE_URL"];
-  const supabaseServiceKey = process.env["SUPABASE_SERVICE_KEY"];
+  const supabaseUrl = process.env["VITE_SUPABASE_URL"] || process.env["SUPABASE_URL"] || 'http://127.0.0.1:54321';
+  const supabaseServiceKey = process.env["SUPABASE_SERVICE_ROLE_KEY"] || process.env["SUPABASE_SERVICE_KEY"] || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 
   if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('Supabase environment variables:', { supabaseUrl, hasServiceKey: !!supabaseServiceKey });
     throw new Error('Missing Supabase environment variables');
   }
 
@@ -20,10 +21,11 @@ export function createSupabaseAdmin() {
 
 // Server-side Supabase client with user context
 export function createSupabaseServerClient(accessToken?: string) {
-  const supabaseUrl = process.env["SUPABASE_URL"];
-  const supabaseAnonKey = process.env["SUPABASE_ANON_KEY"];
+  const supabaseUrl = process.env["VITE_SUPABASE_URL"] || process.env["SUPABASE_URL"] || 'http://127.0.0.1:54321';
+  const supabaseAnonKey = process.env["VITE_SUPABASE_ANON_KEY"] || process.env["SUPABASE_ANON_KEY"] || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 
   if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Supabase environment variables:', { supabaseUrl, hasAnonKey: !!supabaseAnonKey });
     throw new Error('Missing Supabase environment variables');
   }
 
@@ -67,5 +69,5 @@ export async function getSupabaseWithAuth(request: Request) {
 async function createSupabaseToken(user: any) {
   // This would typically create a JWT that Supabase understands
   // For now, we'll use the service key since we control access via our auth
-  return process.env["SUPABASE_SERVICE_KEY"];
+  return process.env["SUPABASE_SERVICE_ROLE_KEY"] || process.env["SUPABASE_SERVICE_KEY"];
 }

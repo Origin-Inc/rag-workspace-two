@@ -145,8 +145,13 @@ class RealtimeService {
         });
     }
 
-    // Subscribe to the channel
-    channel.subscribe();
+    // Subscribe to the channel with error handling
+    channel.subscribe((status, error) => {
+      if (error) {
+        console.warn(`WebSocket connection issue for ${channelName}:`, error?.message || 'Connection failed');
+        // Continue without real-time features
+      }
+    });
 
     // Store channel reference
     this.channels.set(channelName, channel);
@@ -223,8 +228,13 @@ class RealtimeService {
         });
     }
 
-    // Subscribe to the channel
-    channel.subscribe();
+    // Subscribe to the channel with error handling
+    channel.subscribe((status, error) => {
+      if (error) {
+        console.warn(`WebSocket connection issue for ${channelName}:`, error?.message || 'Connection failed');
+        // Continue without real-time features
+      }
+    });
 
     // Store channel reference
     this.channels.set(channelName, channel);

@@ -51,6 +51,22 @@ export async function getUser(
       request.headers.get("Cookie")
     );
     
+    // Check for simple session (from login-simple)
+    const simpleUserId = cookieSession.get("userId");
+    const simpleEmail = cookieSession.get("email");
+    if (simpleUserId && simpleEmail) {
+      // For demo purposes, use the userId directly as the user ID
+      return {
+        id: simpleUserId,
+        email: simpleEmail,
+        name: null,
+        workspaceId: undefined,
+        roleId: undefined,
+        permissions: undefined,
+      };
+    }
+    
+    // Check for regular session token
     const sessionToken = cookieSession.get("sessionToken");
     if (!sessionToken) {
       return null;
@@ -87,7 +103,7 @@ export async function getUser(
  */
 export async function requireUser(
   request: Request,
-  redirectTo = "/login"
+  redirectTo = "/auth/login-simple"
 ): Promise<AuthenticatedUser> {
   const user = await getUser(request);
   
