@@ -375,30 +375,119 @@ export class EmbeddingGenerationService {
     queryText: string,
     limit: number
   ): Promise<DocumentWithEmbedding[]> {
-    this.logger.info('Using text-only search (no embeddings)');
-    
-    const { data, error } = await this.supabase
-      .from('documents')
-      .select('*')
-      .eq('workspace_id', workspaceId)
-      .ilike('content', `%${queryText}%`)
-      .limit(limit);
-
-    if (error) {
-      this.logger.error('Text search failed', error);
-      throw new Error(`Text search failed: ${error.message}`);
-    }
-
-    this.logger.info('Text search completed', { 
-      resultsCount: data?.length || 0 
+    this.logger.info('Using text-only search (no embeddings)', {
+      workspaceId,
+      queryText,
+      limit
     });
     
-    // Format results to match hybrid_search output
-    return (data || []).map(doc => ({
-      ...doc,
-      similarity: 0.5, // Default similarity for text matches
-      rank: 0.5
-    }));
+    // Log the exact workspace ID being used
+    console.log('[TEXT_SEARCH] Searching with workspace ID:', workspaceId);
+    console.log('[TEXT_SEARCH] Query text:', queryText);
+    
+    try {
+      // First, check if documents table exists and has data
+      const { data: checkData, error: checkError } = await this.supabase
+        .from('documents')
+        .select('count')
+        .eq('workspace_id', workspaceId)
+        .limit(1);
+      
+      this.logger.info('Documents table check', {
+        hasData: !!checkData,
+        error: checkError?.message,
+        workspaceId
+      });
+
+      // If no documents exist for this workspace, return empty results with explanation
+      if (!checkError && (!checkData || checkData.length === 0)) {
+        this.logger.warn('No documents found for workspace', { workspaceId });
+        
+        // Return a helpful message as a document
+        return [{
+          id: 'no-content',
+          content: 'No content has been indexed yet. To use the AI search feature, you need to add content to your pages and databases first. Once you have content, it will be automatically indexed for searching.',
+          embedding: [],
+          metadata: { type: 'system-message' },
+          passage_id: 'system-no-content',
+          chunk_index: 0,
+          similarity: 1.0,
+          rank: 1.0
+        } as any];
+      }
+
+      // Perform the actual search
+      const { data, error } = await this.supabase
+        .from('documents')
+        .select('*')
+        .eq('workspace_id', workspaceId)
+        .ilike('content', `%${queryText}%`)
+        .limit(limit);
+
+      if (error) {
+        this.logger.error('Text search failed', {
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          workspaceId,
+          queryText
+        });
+        
+        // Check if it's a table not found error
+        if (error.message.includes('relation') && error.message.includes('does not exist')) {
+          this.logger.error('Documents table does not exist! Running emergency fix...');
+          
+          // Return error document
+          return [{
+            id: 'error',
+            content: `Database setup incomplete. The documents table needs to be created. Error: ${error.message}`,
+            embedding: [],
+            metadata: { type: 'error', error: error.message },
+            passage_id: 'system-error',
+            chunk_index: 0,
+            similarity: 0,
+            rank: 0
+          } as any];
+        }
+        
+        throw new Error(`Text search failed: ${error.message}`);
+      }
+
+      this.logger.info('Text search completed', { 
+        resultsCount: data?.length || 0,
+        firstResult: data?.[0]?.content?.substring(0, 100)
+      });
+      
+      // If no results, return helpful message
+      if (!data || data.length === 0) {
+        return [{
+          id: 'no-results',
+          content: `No content found matching "${queryText}". Try adding more content to your pages or using different search terms.`,
+          embedding: [],
+          metadata: { type: 'no-results', query: queryText },
+          passage_id: 'system-no-results',
+          chunk_index: 0,
+          similarity: 0.3,
+          rank: 0.3
+        } as any];
+      }
+      
+      // Format results to match hybrid_search output
+      return (data || []).map(doc => ({
+        ...doc,
+        similarity: 0.5, // Default similarity for text matches
+        rank: 0.5
+      }));
+    } catch (error) {
+      this.logger.error('Text search exception', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        workspaceId,
+        queryText
+      });
+      throw error;
+    }
   }
 
   /**

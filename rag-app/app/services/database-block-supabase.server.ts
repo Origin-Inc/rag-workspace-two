@@ -10,6 +10,7 @@ import type {
   Sort,
   DatabaseColumnType
 } from '~/types/database-block';
+import { autoIndexerService } from './auto-indexer.server';
 
 /**
  * Production-ready Database Block Service using Supabase
@@ -50,6 +51,12 @@ export class DatabaseBlockSupabaseService {
 
     // Create initial rows with sample data
     await this.createInitialRows(data.id);
+
+    // Auto-index the database for RAG
+    const workspace = await this.getWorkspaceForBlock(blockId);
+    if (workspace) {
+      await autoIndexerService.onDatabaseChange(data.id, workspace.id, 'create');
+    }
 
     return this.mapDatabaseBlock(data);
   }
@@ -113,6 +120,12 @@ export class DatabaseBlockSupabaseService {
     if (error) {
       console.error('Error updating database block:', error);
       throw new Error(`Failed to update database block: ${error.message}`);
+    }
+
+    // Auto-index the updated database
+    const workspace = await this.getWorkspaceForDatabaseBlock(id);
+    if (workspace) {
+      await autoIndexerService.onDatabaseChange(id, workspace.id, 'update');
     }
 
     return this.mapDatabaseBlock(data);
@@ -449,6 +462,12 @@ export class DatabaseBlockSupabaseService {
       throw new Error(`Failed to create row: ${error.message}`);
     }
 
+    // Auto-index the database after row changes
+    const workspace = await this.getWorkspaceForDatabaseBlock(dbBlock.id);
+    if (workspace) {
+      await autoIndexerService.onDatabaseChange(dbBlock.id, workspace.id, 'update');
+    }
+
     return this.mapRow(row);
   }
 
@@ -484,6 +503,20 @@ export class DatabaseBlockSupabaseService {
     if (error) {
       console.error('Error updating row:', error);
       throw new Error(`Failed to update row: ${error.message}`);
+    }
+
+    // Auto-index the database after row changes
+    const { data: dbRow } = await this.supabase
+      .from('db_block_rows')
+      .select('db_block_id')
+      .eq('id', id)
+      .single();
+    
+    if (dbRow) {
+      const workspace = await this.getWorkspaceForDatabaseBlock(dbRow.db_block_id);
+      if (workspace) {
+        await autoIndexerService.onDatabaseChange(dbRow.db_block_id, workspace.id, 'update');
+      }
     }
 
     return this.mapRow(row);
@@ -811,6 +844,44 @@ export class DatabaseBlockSupabaseService {
       createdAt: data.created_at,
       updatedAt: data.updated_at
     };
+  }
+
+  // Helper to get workspace for a block
+  private async getWorkspaceForBlock(blockId: string): Promise<{ id: string } | null> {
+    const { data, error } = await this.supabase
+      .from('blocks')
+      .select(`
+        page:pages(workspace_id)
+      `)
+      .eq('id', blockId)
+      .single();
+
+    if (error || !data?.page) {
+      console.error('Error getting workspace for block:', error);
+      return null;
+    }
+
+    return { id: data.page.workspace_id };
+  }
+
+  // Helper to get workspace for a database block
+  private async getWorkspaceForDatabaseBlock(dbBlockId: string): Promise<{ id: string } | null> {
+    const { data, error } = await this.supabase
+      .from('db_blocks')
+      .select(`
+        block:blocks(
+          page:pages(workspace_id)
+        )
+      `)
+      .eq('id', dbBlockId)
+      .single();
+
+    if (error || !data?.block?.page) {
+      console.error('Error getting workspace for database block:', error);
+      return null;
+    }
+
+    return { id: data.block.page.workspace_id };
   }
 }
 

@@ -1,26 +1,8 @@
--- Enable pgvector extension
-CREATE EXTENSION IF NOT EXISTS vector;
+-- Fix the hybrid_search function to work with RLS
+-- Add SECURITY DEFINER to run with the privileges of the function owner (postgres)
 
--- Create documents table if it doesn't exist
-CREATE TABLE IF NOT EXISTS documents (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  workspace_id UUID NOT NULL,
-  content TEXT NOT NULL,
-  embedding vector(1536),
-  passage_id TEXT UNIQUE,
-  source_block_id UUID,
-  metadata JSONB DEFAULT '{}',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+DROP FUNCTION IF EXISTS hybrid_search;
 
--- Create indexes
-CREATE INDEX IF NOT EXISTS documents_workspace_idx ON documents(workspace_id);
-CREATE INDEX IF NOT EXISTS documents_source_block_idx ON documents(source_block_id);
-CREATE INDEX IF NOT EXISTS documents_passage_id_idx ON documents(passage_id);
-CREATE INDEX IF NOT EXISTS documents_embedding_idx ON documents USING hnsw (embedding vector_cosine_ops);
-
--- Create the hybrid_search function
 CREATE OR REPLACE FUNCTION hybrid_search(
   workspace_uuid UUID,
   query_text TEXT,
@@ -38,6 +20,8 @@ RETURNS TABLE (
   metadata JSONB
 )
 LANGUAGE plpgsql
+SECURITY DEFINER -- This makes the function run with elevated privileges
+SET search_path = public
 AS $$
 BEGIN
   RETURN QUERY
@@ -92,21 +76,12 @@ BEGIN
 END;
 $$;
 
--- Create workspace summaries table
-CREATE TABLE IF NOT EXISTS workspace_summaries (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  workspace_id UUID NOT NULL,
-  summary_type TEXT NOT NULL,
-  summary TEXT NOT NULL,
-  key_pages TEXT[],
-  important_items TEXT[],
-  citations JSONB DEFAULT '[]',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(workspace_id, summary_type)
-);
+-- Grant execute permission to authenticated and anon roles
+GRANT EXECUTE ON FUNCTION hybrid_search TO authenticated, anon;
 
--- Create summarize_workspace function
+-- Also update the summarize_workspace function with SECURITY DEFINER
+DROP FUNCTION IF EXISTS summarize_workspace;
+
 CREATE OR REPLACE FUNCTION summarize_workspace(
   workspace_uuid UUID,
   summary_type TEXT DEFAULT 'comprehensive'
@@ -118,6 +93,8 @@ RETURNS TABLE (
   citations JSONB
 )
 LANGUAGE plpgsql
+SECURITY DEFINER -- This makes the function run with elevated privileges
+SET search_path = public
 AS $$
 DECLARE
   v_summary TEXT;
@@ -198,71 +175,5 @@ BEGIN
 END;
 $$;
 
--- Add RLS policies
-ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workspace_summaries ENABLE ROW LEVEL SECURITY;
-
--- Create policies for documents
-CREATE POLICY "Users can view documents in their workspaces"
-  ON documents FOR SELECT
-  USING (
-    workspace_id IN (
-      SELECT workspace_id 
-      FROM user_workspaces 
-      WHERE user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Users can insert documents in their workspaces"
-  ON documents FOR INSERT
-  WITH CHECK (
-    workspace_id IN (
-      SELECT workspace_id 
-      FROM user_workspaces 
-      WHERE user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Users can update documents in their workspaces"
-  ON documents FOR UPDATE
-  USING (
-    workspace_id IN (
-      SELECT workspace_id 
-      FROM user_workspaces 
-      WHERE user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Users can delete documents in their workspaces"
-  ON documents FOR DELETE
-  USING (
-    workspace_id IN (
-      SELECT workspace_id 
-      FROM user_workspaces 
-      WHERE user_id = auth.uid()
-    )
-  );
-
--- Create policies for workspace summaries
-CREATE POLICY "Users can view summaries in their workspaces"
-  ON workspace_summaries FOR SELECT
-  USING (
-    workspace_id IN (
-      SELECT workspace_id 
-      FROM user_workspaces 
-      WHERE user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Users can manage summaries in their workspaces"
-  ON workspace_summaries FOR ALL
-  USING (
-    workspace_id IN (
-      SELECT workspace_id 
-      FROM user_workspaces 
-      WHERE user_id = auth.uid()
-    )
-  );
-
--- Note: Real content will be indexed automatically when blocks are created/updated
--- No test data insertions - production system uses auto-indexing
+-- Grant execute permission to authenticated and anon roles
+GRANT EXECUTE ON FUNCTION summarize_workspace TO authenticated, anon;

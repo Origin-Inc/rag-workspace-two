@@ -23,6 +23,14 @@ export async function action({ request }: ActionFunctionArgs) {
         const command = formData.get('command') as string;
         const workspaceId = formData.get('workspaceId') as string;
         
+        // Add extensive debugging
+        console.log('[AI_CONTROLLER] Raw form data:', {
+          command,
+          workspaceId,
+          user: user?.id,
+          userEmail: user?.email
+        });
+        
         logger.debug('Parse action parameters', { 
           command, 
           workspaceId,
@@ -80,6 +88,12 @@ export async function action({ request }: ActionFunctionArgs) {
             
             // Perform RAG search and answer
             logger.info('Starting RAG search', { workspaceId, command });
+            console.log('[DEBUG] About to search with:', {
+              workspaceId,
+              command,
+              expectedWorkspace: '550e8400-e29b-41d4-a716-446655440000',
+              workspaceMatch: workspaceId === '550e8400-e29b-41d4-a716-446655440000'
+            });
             
             const searchResults = await embeddingGenerationService.searchSimilarDocuments(
               workspaceId,
