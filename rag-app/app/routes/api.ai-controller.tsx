@@ -35,38 +35,52 @@ export async function action({ request }: ActionFunctionArgs) {
         }
 
         // Check if this is a question/query command rather than an action command
+        const commandLower = command.trim().toLowerCase();
         const isQuestion = /^(what|where|when|who|why|how|summarize|list|find|show|tell|explain|describe)/i.test(command.trim());
         const isSummarization = /summarize|summary|overview|describe/i.test(command.trim());
+        
+        logger.info('Command analysis', {
+          command: command.trim(),
+          isQuestion,
+          isSummarization,
+          startsWithSummarize: commandLower.startsWith('summarize')
+        });
         
         if (isQuestion || isSummarization) {
           logger.info('Detected question/query command, routing to RAG system');
           
           try {
-            // Handle workspace summarization
-            if (isSummarization && /workspace|everything|all/i.test(command)) {
-              const summary = await ragService.generateWorkspaceSummary(
-                workspaceId,
-                'comprehensive'
-              );
+            // Handle summarization requests
+            if (isSummarization) {
+              logger.info('Handling summarization request');
               
-              return json({
-                success: true,
-                isQuestion: true,
-                answer: summary.summary,
-                citations: summary.citations,
-                parseResult: {
-                  actions: [],
-                  confidence: 1,
-                  reasoning: 'Workspace summary requested'
-                },
-                preview: [{
-                  type: 'answer',
-                  description: summary.summary.substring(0, 200) + '...'
-                }]
-              });
+              // Check if workspace or page summarization
+              if (/workspace|everything|all my pages/i.test(command)) {
+                const summary = await ragService.generateWorkspaceSummary(
+                  workspaceId,
+                  'comprehensive'
+                );
+                
+                return json({
+                  success: true,
+                  isQuestion: true,
+                  answer: summary.summary,
+                  citations: summary.citations,
+                  parseResult: {
+                    actions: [],
+                    confidence: 1,
+                    reasoning: 'Workspace summary requested'
+                  }
+                });
+              }
+              
+              // For "summarize this page" or general summarization, use RAG search
+              // Fall through to regular RAG processing
             }
             
             // Perform RAG search and answer
+            logger.info('Starting RAG search', { workspaceId, command });
+            
             const searchResults = await embeddingGenerationService.searchSimilarDocuments(
               workspaceId,
               command,
@@ -74,22 +88,33 @@ export async function action({ request }: ActionFunctionArgs) {
               0.5
             );
             
+            logger.info('Search results', {
+              count: searchResults.length,
+              hasResults: searchResults.length > 0,
+              firstResult: searchResults[0] ? {
+                id: searchResults[0].id,
+                similarity: searchResults[0].similarity,
+                contentPreview: searchResults[0].content?.substring(0, 100)
+              } : null
+            });
+            
             if (searchResults.length === 0) {
+              logger.warn('No search results found', { workspaceId, command });
               return json({
                 success: true,
                 isQuestion: true,
-                answer: "I couldn't find any relevant information in your workspace to answer this question. Try adding more content or rephrasing your question.",
+                answer: "I couldn't find any relevant information in your workspace to answer this question. Try adding more content or rephrasing your question. Make sure content has been indexed.",
                 citations: [],
                 parseResult: {
                   actions: [],
                   confidence: 0.3,
                   reasoning: 'No relevant content found'
-                },
-                preview: []
+                }
               });
             }
             
             // Build context and generate answer
+            logger.info('Building augmented context');
             const context = await ragService.buildAugmentedContext(
               command,
               searchResults,
@@ -99,10 +124,23 @@ export async function action({ request }: ActionFunctionArgs) {
               }
             );
             
+            logger.info('Context built', {
+              textLength: context.text.length,
+              citationCount: context.citations.length,
+              totalTokens: context.totalTokens
+            });
+            
+            logger.info('Generating answer with citations');
             const result = await ragService.generateAnswerWithCitations(
               command,
               context
             );
+            
+            logger.info('Answer generated', {
+              answerLength: result.answer.length,
+              citationCount: result.citations.length,
+              confidence: result.confidence
+            });
             
             return json({
               success: true,
@@ -114,15 +152,28 @@ export async function action({ request }: ActionFunctionArgs) {
                 actions: [],
                 confidence: result.confidence,
                 reasoning: 'Question answered using RAG'
-              },
-              preview: [{
-                type: 'answer',
-                description: result.answer.substring(0, 200) + '...'
-              }]
+              }
             });
           } catch (error) {
-            logger.error('RAG processing failed', error);
-            // Fall back to action parsing if RAG fails
+            logger.error('RAG processing failed', {
+              error: error instanceof Error ? error.message : 'Unknown error',
+              stack: error instanceof Error ? error.stack : undefined,
+              command,
+              workspaceId
+            });
+            
+            // Return error response for questions instead of falling back
+            return json({
+              success: false,
+              isQuestion: true,
+              error: error instanceof Error ? error.message : 'Failed to process question',
+              answer: `I encountered an error while processing your question: ${error instanceof Error ? error.message : 'Unknown error'}. Please make sure OpenAI API is configured and try again.`,
+              parseResult: {
+                actions: [],
+                confidence: 0,
+                reasoning: 'Error occurred'
+              }
+            });
           }
         }
 
