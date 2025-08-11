@@ -314,37 +314,91 @@ export class EmbeddingGenerationService {
       workspaceId,
       queryLength: queryText.length,
       limit,
-      similarityThreshold
+      similarityThreshold,
+      openaiConfigured: !!openai
     });
 
     try {
-      // Generate embedding for query
-      const { embedding } = await this.generateEmbedding(queryText);
-
-      // Use the hybrid_search function
-      const { data, error } = await this.supabase
-        .rpc('hybrid_search', {
-          query_embedding: embedding,
-          query_text: queryText,
-          workspace_uuid: workspaceId,
-          match_count: limit,
-          similarity_threshold: similarityThreshold
-        });
-
-      if (error) {
-        this.logger.error('Search failed', error);
-        throw new Error(`Search failed: ${error.message}`);
+      let embedding = null;
+      
+      // Try to generate embedding if OpenAI is configured
+      if (openai) {
+        try {
+          const result = await this.generateEmbedding(queryText);
+          embedding = result.embedding;
+          this.logger.info('Embedding generated successfully');
+        } catch (embError) {
+          this.logger.warn('Failed to generate embedding, falling back to text search', embError);
+        }
+      } else {
+        this.logger.warn('OpenAI not configured, using text-only search');
       }
 
-      this.logger.info('Search completed', { 
-        resultsCount: data?.length || 0 
-      });
+      // If we have an embedding, use hybrid search
+      if (embedding) {
+        // Use the hybrid_search function with proper parameter order
+        const { data, error } = await this.supabase
+          .rpc('hybrid_search', {
+            workspace_uuid: workspaceId,
+            query_text: queryText,
+            query_embedding: embedding,
+            match_count: limit,
+            similarity_threshold: similarityThreshold
+          });
 
-      return data || [];
+        if (error) {
+          this.logger.error('Hybrid search failed', error);
+          // Fall back to text search if hybrid search fails
+          return this.textOnlySearch(workspaceId, queryText, limit);
+        }
+
+        this.logger.info('Hybrid search completed', { 
+          resultsCount: data?.length || 0 
+        });
+
+        return data || [];
+      } else {
+        // Use text-only search
+        return this.textOnlySearch(workspaceId, queryText, limit);
+      }
     } catch (error) {
       this.logger.error('Similar documents search failed', error);
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Perform text-only search without embeddings
+   */
+  private async textOnlySearch(
+    workspaceId: string,
+    queryText: string,
+    limit: number
+  ): Promise<DocumentWithEmbedding[]> {
+    this.logger.info('Using text-only search (no embeddings)');
+    
+    const { data, error } = await this.supabase
+      .from('documents')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .ilike('content', `%${queryText}%`)
+      .limit(limit);
+
+    if (error) {
+      this.logger.error('Text search failed', error);
+      throw new Error(`Text search failed: ${error.message}`);
+    }
+
+    this.logger.info('Text search completed', { 
+      resultsCount: data?.length || 0 
+    });
+    
+    // Format results to match hybrid_search output
+    return (data || []).map(doc => ({
+      ...doc,
+      similarity: 0.5, // Default similarity for text matches
+      rank: 0.5
+    }));
   }
 
   /**
