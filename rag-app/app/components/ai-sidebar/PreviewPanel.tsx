@@ -50,9 +50,49 @@ export const PreviewPanel = memo(function PreviewPanel({
         <p className="text-sm font-medium text-gray-900 mt-1">"{parseResult.command}"</p>
       </div>
 
-      {/* Actions to be performed */}
+      {/* Actions to be performed or Answer display */}
       {preview.map((action) => (
-        <div key={action.actionId} className="border border-gray-200 rounded-lg overflow-hidden">
+        action.type === 'answer' ? (
+          // Display answer from RAG system
+          <div key="answer" className="border border-blue-200 rounded-lg overflow-hidden bg-blue-50">
+            <div className="bg-blue-100 px-4 py-3 border-b border-blue-200">
+              <h4 className="text-sm font-medium text-blue-900">Answer</h4>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="text-sm text-gray-800 whitespace-pre-wrap">
+                {action.description}
+              </div>
+              
+              {/* Citations if available */}
+              {action.details?.citations && action.details.citations.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-blue-200">
+                  <h5 className="text-xs font-medium text-gray-600 mb-2">Sources:</h5>
+                  <div className="space-y-2">
+                    {action.details.citations.map((citation: any, i: number) => (
+                      <div key={i} className="text-xs text-gray-600 bg-white p-2 rounded">
+                        <span className="font-mono bg-gray-200 px-1 rounded">
+                          [{citation.passage_id}]
+                        </span>
+                        {citation.excerpt && (
+                          <span className="ml-2">{citation.excerpt}...</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Confidence score */}
+              {action.details?.confidence && (
+                <div className="text-xs text-gray-600">
+                  Confidence: {(action.details.confidence * 100).toFixed(1)}%
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          // Display action preview
+          <div key={action.actionId} className="border border-gray-200 rounded-lg overflow-hidden">
           {/* Action header */}
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
             <h4 className="text-sm font-medium text-gray-900">{action.title}</h4>
@@ -170,6 +210,7 @@ export const PreviewPanel = memo(function PreviewPanel({
             )}
           </div>
         </div>
+        )
       ))}
 
       {/* Suggestions */}
@@ -191,30 +232,49 @@ export const PreviewPanel = memo(function PreviewPanel({
 
       {/* Action buttons */}
       <div className="flex space-x-3 pt-4 border-t border-gray-200">
-        <button
-          onClick={onConfirm}
-          disabled={isProcessing}
-          className={cn(
-            'flex-1 py-2 px-4 rounded-lg font-medium transition-all',
-            'bg-green-600 text-white hover:bg-green-700',
-            'disabled:bg-gray-300 disabled:cursor-not-allowed',
-            'focus:outline-none focus:ring-2 focus:ring-green-500'
-          )}
-        >
-          {isProcessing ? 'Executing...' : 'Confirm & Execute'}
-        </button>
-        <button
-          onClick={onCancel}
-          disabled={isProcessing}
-          className={cn(
-            'flex-1 py-2 px-4 rounded-lg font-medium transition-all',
-            'bg-gray-200 text-gray-700 hover:bg-gray-300',
-            'disabled:opacity-50 disabled:cursor-not-allowed',
-            'focus:outline-none focus:ring-2 focus:ring-gray-500'
-          )}
-        >
-          Cancel
-        </button>
+        {/* Only show Confirm & Execute for actions, not answers */}
+        {preview[0]?.type !== 'answer' ? (
+          <>
+            <button
+              onClick={onConfirm}
+              disabled={isProcessing}
+              className={cn(
+                'flex-1 py-2 px-4 rounded-lg font-medium transition-all',
+                'bg-green-600 text-white hover:bg-green-700',
+                'disabled:bg-gray-300 disabled:cursor-not-allowed',
+                'focus:outline-none focus:ring-2 focus:ring-green-500'
+              )}
+            >
+              {isProcessing ? 'Executing...' : 'Confirm & Execute'}
+            </button>
+            <button
+              onClick={onCancel}
+              disabled={isProcessing}
+              className={cn(
+                'flex-1 py-2 px-4 rounded-lg font-medium transition-all',
+                'bg-gray-200 text-gray-700 hover:bg-gray-300',
+                'disabled:opacity-50 disabled:cursor-not-allowed',
+                'focus:outline-none focus:ring-2 focus:ring-gray-500'
+              )}
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          // For answers, just show a Close button
+          <button
+            onClick={onCancel}
+            disabled={isProcessing}
+            className={cn(
+              'w-full py-2 px-4 rounded-lg font-medium transition-all',
+              'bg-blue-600 text-white hover:bg-blue-700',
+              'disabled:opacity-50 disabled:cursor-not-allowed',
+              'focus:outline-none focus:ring-2 focus:ring-blue-500'
+            )}
+          >
+            Close
+          </button>
+        )}
       </div>
     </div>
   );

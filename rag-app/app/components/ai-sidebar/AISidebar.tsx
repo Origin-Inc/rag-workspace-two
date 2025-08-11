@@ -31,11 +31,40 @@ export const AISidebar = memo(function AISidebar({
   useEffect(() => {
     if (fetcher.data) {
       const data = fetcher.data as any;
-      if (data.preview) {
+      
+      // Handle question/answer responses
+      if (data.isQuestion && data.answer) {
+        // Show answer in the preview panel or create a special answer display
+        setCurrentPreview([{
+          type: 'answer',
+          description: data.answer,
+          details: {
+            citations: data.citations,
+            confidence: data.confidence
+          }
+        }]);
+        setParseResult(data.parseResult || {
+          actions: [],
+          confidence: data.confidence || 1,
+          reasoning: 'Question answered'
+        });
+        // Don't set actionLogId for questions - nothing to execute
+        setActionLogId(null);
+        
+        // Add to history
+        setHistory(prev => [{
+          command: command,
+          timestamp: new Date().toISOString(),
+          isQuestion: true,
+          answer: data.answer
+        }, ...prev].slice(0, 10));
+      } else if (data.preview) {
+        // Handle action commands
         setCurrentPreview(data.preview);
         setParseResult(data.parseResult);
         setActionLogId(data.actionLogId);
       }
+      
       if (data.executed) {
         // Clear preview after successful execution
         setCurrentPreview(null);
@@ -50,7 +79,7 @@ export const AISidebar = memo(function AISidebar({
       }
       setIsProcessing(false);
     }
-  }, [fetcher.data]);
+  }, [fetcher.data, command]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

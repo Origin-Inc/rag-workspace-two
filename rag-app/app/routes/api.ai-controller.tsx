@@ -2,6 +2,8 @@ import { json, type ActionFunctionArgs } from '@remix-run/node';
 import { aiControllerService } from '~/services/ai-controller.server';
 import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
+import { embeddingGenerationService } from '~/services/embedding-generation.server';
+import { ragService } from '~/services/rag.server';
 
 const logger = new DebugLogger('API:AIController');
 
@@ -32,8 +34,100 @@ export async function action({ request }: ActionFunctionArgs) {
           return json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Parse the command
-        logger.info('Parsing command');
+        // Check if this is a question/query command rather than an action command
+        const isQuestion = /^(what|where|when|who|why|how|summarize|list|find|show|tell|explain|describe)/i.test(command.trim());
+        const isSummarization = /summarize|summary|overview|describe/i.test(command.trim());
+        
+        if (isQuestion || isSummarization) {
+          logger.info('Detected question/query command, routing to RAG system');
+          
+          try {
+            // Handle workspace summarization
+            if (isSummarization && /workspace|everything|all/i.test(command)) {
+              const summary = await ragService.generateWorkspaceSummary(
+                workspaceId,
+                'comprehensive'
+              );
+              
+              return json({
+                success: true,
+                isQuestion: true,
+                answer: summary.summary,
+                citations: summary.citations,
+                parseResult: {
+                  actions: [],
+                  confidence: 1,
+                  reasoning: 'Workspace summary requested'
+                },
+                preview: [{
+                  type: 'answer',
+                  description: summary.summary.substring(0, 200) + '...'
+                }]
+              });
+            }
+            
+            // Perform RAG search and answer
+            const searchResults = await embeddingGenerationService.searchSimilarDocuments(
+              workspaceId,
+              command,
+              10,
+              0.5
+            );
+            
+            if (searchResults.length === 0) {
+              return json({
+                success: true,
+                isQuestion: true,
+                answer: "I couldn't find any relevant information in your workspace to answer this question. Try adding more content or rephrasing your question.",
+                citations: [],
+                parseResult: {
+                  actions: [],
+                  confidence: 0.3,
+                  reasoning: 'No relevant content found'
+                },
+                preview: []
+              });
+            }
+            
+            // Build context and generate answer
+            const context = await ragService.buildAugmentedContext(
+              command,
+              searchResults,
+              {
+                maxTokens: 2000,
+                includeCitations: true
+              }
+            );
+            
+            const result = await ragService.generateAnswerWithCitations(
+              command,
+              context
+            );
+            
+            return json({
+              success: true,
+              isQuestion: true,
+              answer: result.answer,
+              citations: result.citations,
+              confidence: result.confidence,
+              parseResult: {
+                actions: [],
+                confidence: result.confidence,
+                reasoning: 'Question answered using RAG'
+              },
+              preview: [{
+                type: 'answer',
+                description: result.answer.substring(0, 200) + '...'
+              }]
+            });
+          } catch (error) {
+            logger.error('RAG processing failed', error);
+            // Fall back to action parsing if RAG fails
+          }
+        }
+
+        // Parse as action command
+        logger.info('Parsing as action command');
         const parseResult = await logger.timeOperation(
           'parseCommand',
           () => aiControllerService.parseCommand(
