@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { json, redirect } from "@remix-run/node";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { Form, useLoaderData, useNavigate, useActionData } from "@remix-run/react";
+import { Form, useLoaderData, useNavigate, useActionData, useNavigation } from "@remix-run/react";
 import { getUser } from "~/services/auth/auth.server";
 import { prisma } from "~/utils/db.server";
 import { FolderIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
@@ -30,15 +30,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
+  console.log("Action called!");
+  
   const user = await getUser(request);
   
   if (!user) {
+    console.log("No user found, redirecting to login");
     return redirect("/auth/login");
   }
 
   const formData = await request.formData();
   const name = formData.get("name") as string;
   const description = formData.get("description") as string;
+  
+  console.log("Form data received:", { name, description });
 
   if (!name || name.trim().length === 0) {
     return json({ error: "Project name is required" }, { status: 400 });
@@ -58,9 +63,28 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   try {
+    // Generate a slug from the project name
+    const slug = name.trim().toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 100);
+    
+    // Ensure slug is unique within workspace
+    const existingProject = await prisma.project.findFirst({
+      where: {
+        workspaceId: currentWorkspace.id,
+        slug: slug
+      }
+    });
+    
+    const finalSlug = existingProject 
+      ? `${slug}-${Date.now().toString(36)}`
+      : slug;
+    
     const project = await prisma.project.create({
       data: {
         name: name.trim(),
+        slug: finalSlug,
         description: description?.trim() || null,
         workspaceId: currentWorkspace.id,
       }
@@ -77,7 +101,8 @@ export default function NewProject() {
   const { currentWorkspace } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigate = useNavigate();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state === "submitting";
 
   return (
     <div className="p-6 lg:p-8 max-w-2xl mx-auto">
@@ -155,7 +180,6 @@ export default function NewProject() {
             <button
               type="submit"
               disabled={isSubmitting}
-              onClick={() => setIsSubmitting(true)}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               {isSubmitting ? "Creating..." : "Create Project"}

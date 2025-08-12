@@ -15,7 +15,7 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS starred_by UUID[] DEFAULT '{}';
 
 -- Create project_collaborators table for fine-grained permissions
 CREATE TABLE IF NOT EXISTS project_collaborators (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('owner', 'admin', 'editor', 'viewer', 'commenter')),
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS project_collaborators (
 
 -- Create project_pages junction table for better page organization
 CREATE TABLE IF NOT EXISTS project_pages (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   page_id UUID NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
   position INTEGER DEFAULT 0,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS project_pages (
 
 -- Create project_templates table
 CREATE TABLE IF NOT EXISTS project_templates (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
   slug VARCHAR(255) NOT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS project_templates (
 
 -- Create project_activity table for tracking changes
 CREATE TABLE IF NOT EXISTS project_activity (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   user_id UUID REFERENCES auth.users(id),
   action VARCHAR(100) NOT NULL,
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS project_activity (
 
 -- Create project_folders for organizing pages
 CREATE TABLE IF NOT EXISTS project_folders (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   parent_id UUID REFERENCES project_folders(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS project_folders (
 
 -- Create project_views for saved views/filters
 CREATE TABLE IF NOT EXISTS project_views (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
   type VARCHAR(50) DEFAULT 'list' CHECK (type IN ('list', 'board', 'calendar', 'timeline', 'gallery', 'table')),

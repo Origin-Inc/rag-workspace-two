@@ -71,3 +71,6 @@ async function createSupabaseToken(user: any) {
   // For now, we'll use the service key since we control access via our auth
   return process.env["SUPABASE_SERVICE_ROLE_KEY"] || process.env["SUPABASE_SERVICE_KEY"];
 }
+
+// Export a default supabase instance for server-side usage
+export const supabase = createSupabaseAdmin();
