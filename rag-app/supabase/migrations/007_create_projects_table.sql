@@ -1,3 +1,14 @@
+-- First create workspaces table if it doesn't exist
+CREATE TABLE IF NOT EXISTS workspaces (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(255) UNIQUE NOT NULL,
+  description TEXT,
+  settings JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Create projects table
 CREATE TABLE IF NOT EXISTS projects (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -20,6 +31,19 @@ CREATE INDEX idx_projects_workspace_id ON projects(workspace_id);
 CREATE INDEX idx_projects_is_archived ON projects(is_archived);
 CREATE INDEX idx_projects_created_at ON projects(created_at DESC);
 
+-- Create pages table if it doesn't exist
+CREATE TABLE IF NOT EXISTS pages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  title VARCHAR(500),
+  slug VARCHAR(500),
+  content TEXT,
+  metadata JSONB DEFAULT '{}',
+  is_public BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Update pages table to add project relationship
 ALTER TABLE pages 
   ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
@@ -38,6 +62,32 @@ CREATE INDEX IF NOT EXISTS idx_pages_is_archived ON pages(is_archived);
 -- Enable RLS for projects
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 
+-- Create user_workspaces table if it doesn't exist
+CREATE TABLE IF NOT EXISTS user_workspaces (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL,
+  workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  role VARCHAR(50) DEFAULT 'member',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, workspace_id)
+);
+
+-- Create roles table if it doesn't exist
+CREATE TABLE IF NOT EXISTS roles (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(50) UNIQUE NOT NULL,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insert default roles if they don't exist
+INSERT INTO roles (name, description) VALUES
+  ('owner', 'Full control over workspace'),
+  ('admin', 'Administrative access'),
+  ('editor', 'Can edit content'),
+  ('viewer', 'Read-only access')
+ON CONFLICT (name) DO NOTHING;
+
 -- RLS policies for projects
 CREATE POLICY "Users can view projects in their workspaces" ON projects
   FOR SELECT
@@ -52,12 +102,10 @@ CREATE POLICY "Users can create projects in their workspaces" ON projects
   FOR INSERT
   WITH CHECK (
     workspace_id IN (
-      SELECT workspace_id FROM user_workspaces 
-      WHERE user_id = auth.uid() 
-        AND role_id IN (
-          SELECT id FROM roles 
-          WHERE name IN ('owner', 'admin', 'editor')
-        )
+      SELECT uw.workspace_id FROM user_workspaces uw
+      JOIN roles r ON r.name = uw.role
+      WHERE uw.user_id = auth.uid() 
+        AND r.name IN ('owner', 'admin', 'editor')
     )
   );
 
@@ -65,12 +113,10 @@ CREATE POLICY "Users can update projects in their workspaces" ON projects
   FOR UPDATE
   USING (
     workspace_id IN (
-      SELECT workspace_id FROM user_workspaces 
-      WHERE user_id = auth.uid() 
-        AND role_id IN (
-          SELECT id FROM roles 
-          WHERE name IN ('owner', 'admin', 'editor')
-        )
+      SELECT uw.workspace_id FROM user_workspaces uw
+      JOIN roles r ON r.name = uw.role
+      WHERE uw.user_id = auth.uid() 
+        AND r.name IN ('owner', 'admin', 'editor')
     )
   );
 
@@ -78,12 +124,10 @@ CREATE POLICY "Users can delete projects in their workspaces" ON projects
   FOR DELETE
   USING (
     workspace_id IN (
-      SELECT workspace_id FROM user_workspaces 
-      WHERE user_id = auth.uid() 
-        AND role_id IN (
-          SELECT id FROM roles 
-          WHERE name IN ('owner', 'admin')
-        )
+      SELECT uw.workspace_id FROM user_workspaces uw
+      JOIN roles r ON r.name = uw.role
+      WHERE uw.user_id = auth.uid() 
+        AND r.name IN ('owner', 'admin')
     )
   );
 
@@ -135,7 +179,7 @@ UPDATE pages
 SET project_id = (
   SELECT p.id 
   FROM projects p 
-  WHERE p.workspace_id = pages.workspace_id 
+  WHERE p.workspace_id::text = pages.workspace_id::text 
   AND p.slug = 'default-project'
   LIMIT 1
 )
