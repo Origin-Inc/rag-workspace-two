@@ -176,6 +176,16 @@ CREATE TABLE templates (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- User workspace membership table
+CREATE TABLE user_workspaces (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  workspace_id UUID NOT NULL REFERENCES workspaces_extended(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member', 'viewer')),
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, workspace_id)
+);
+
 -- Embeddings for AI/RAG features
 CREATE TABLE embeddings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -189,6 +199,8 @@ CREATE TABLE embeddings (
 );
 
 -- Create indexes for performance
+CREATE INDEX idx_user_workspaces_user_id ON user_workspaces(user_id);
+CREATE INDEX idx_user_workspaces_workspace_id ON user_workspaces(workspace_id);
 CREATE INDEX idx_pages_workspace ON pages(workspace_id);
 CREATE INDEX idx_pages_parent ON pages(parent_id);
 CREATE INDEX idx_pages_created_by ON pages(created_by);
@@ -439,15 +451,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger for storage tracking
+-- Trigger for storage tracking (simplified without WHEN clause)
 CREATE TRIGGER track_storage_usage
   AFTER INSERT OR UPDATE OR DELETE ON blocks
   FOR EACH ROW
-  WHEN (
-    (NEW.type IN ('image', 'video', 'file') AND NEW.metadata ? 'file_size')
-    OR
-    (OLD.type IN ('image', 'video', 'file') AND OLD.metadata ? 'file_size')
-  )
   EXECUTE FUNCTION update_workspace_storage();
 
 -- Function to track page activity

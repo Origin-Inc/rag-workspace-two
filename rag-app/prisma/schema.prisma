@@ -10,7 +10,7 @@ datasource db {
 }
 
 model User {
-  id                String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email             String      @unique @db.VarChar(255)
   passwordHash      String      @map("password_hash") @db.VarChar(255)
   name              String?     @db.VarChar(255)
@@ -41,7 +41,7 @@ model User {
 }
 
 model Workspace {
-  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String      @db.VarChar(255)
   slug        String      @unique @db.VarChar(255)
   description String?     @db.Text
@@ -52,13 +52,14 @@ model Workspace {
   // Relations
   userWorkspaces UserWorkspace[]
   pages          Page[]
+  projects       Project[]
 
   @@index([slug])
   @@map("workspaces")
 }
 
 model Role {
-  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String      @unique @db.VarChar(50)
   displayName String      @map("display_name") @db.VarChar(100)
   description String?     @db.Text
@@ -74,7 +75,7 @@ model Role {
 }
 
 model Permission {
-  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   resource    String      @db.VarChar(100)
   action      String      @db.VarChar(100)
   description String?     @db.Text
@@ -89,7 +90,7 @@ model Permission {
 }
 
 model RolePermission {
-  id           String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   roleId       String      @map("role_id") @db.Uuid
   permissionId String      @map("permission_id") @db.Uuid
   createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -103,7 +104,7 @@ model RolePermission {
 }
 
 model UserWorkspace {
-  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId      String      @map("user_id") @db.Uuid
   workspaceId String      @map("workspace_id") @db.Uuid
   roleId      String      @map("role_id") @db.Uuid
@@ -120,27 +121,64 @@ model UserWorkspace {
   @@map("user_workspaces")
 }
 
-model Page {
-  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+model Project {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workspaceId String      @map("workspace_id") @db.Uuid
-  title       String      @db.VarChar(500)
-  slug        String      @db.VarChar(500)
-  content     String?     @db.Text
-  metadata    Json?       @db.JsonB
-  isPublic    Boolean     @default(false) @map("is_public")
+  name        String      @db.VarChar(255)
+  slug        String      @db.VarChar(255)
+  description String?     @db.Text
+  icon        String?     @db.VarChar(100)
+  color       String?     @db.VarChar(7)
+  settings    Json?       @db.JsonB
+  isArchived  Boolean     @default(false) @map("is_archived")
   createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
   
   // Relations
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pages       Page[]
 
   @@unique([workspaceId, slug])
+  @@index([workspaceId])
+  @@index([isArchived])
+  @@map("projects")
+}
+
+model Page {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId   String      @map("project_id") @db.Uuid
+  title       String      @db.VarChar(500)
+  slug        String      @db.VarChar(500)
+  content     String?     @db.Text
+  icon        String?     @db.VarChar(100)
+  coverImage  String?     @map("cover_image") @db.Text
+  metadata    Json?       @db.JsonB
+  parentId    String?     @map("parent_id") @db.Uuid
+  position    Int         @default(0)
+  isPublic    Boolean     @default(false) @map("is_public")
+  isArchived  Boolean     @default(false) @map("is_archived")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent      Page?    @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Page[]   @relation("PageHierarchy")
+
+  // For backward compatibility - will remove later
+  workspaceId String?     @map("workspace_id") @db.Uuid
+  workspace   Workspace?  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, slug])
+  @@index([projectId])
+  @@index([parentId])
+  @@index([position])
   @@index([workspaceId])
   @@map("pages")
 }
 
 model Session {
-  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   token     String   @unique @db.VarChar(500)
   ipAddress String?  @map("ip_address") @db.VarChar(45)
@@ -158,7 +196,7 @@ model Session {
 }
 
 model RefreshToken {
-  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   token     String   @unique @db.VarChar(500)
   family    String   @db.VarChar(255)
@@ -179,7 +217,7 @@ model RefreshToken {
 }
 
 model AuditLog {
-  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId     String?  @map("user_id") @db.Uuid
   action     String   @db.VarChar(100)
   resource   String   @db.VarChar(100)
@@ -200,7 +238,7 @@ model AuditLog {
 }
 
 model Document {
-  id         String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId     String      @map("user_id") @db.Uuid
   title      String      @db.VarChar(500)
   content    String?     @db.Text
@@ -217,7 +255,7 @@ model Document {
 }
 
 model Embedding {
-  id         String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id         String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   documentId String                   @map("document_id") @db.Uuid
   chunkText  String                   @map("chunk_text") @db.Text
   chunkIndex Int                      @map("chunk_index")
@@ -231,7 +269,7 @@ model Embedding {
 }
 
 model Query {
-  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId         String   @map("user_id") @db.Uuid
   queryText      String   @map("query_text") @db.Text
   responseText   String?  @map("response_text") @db.Text

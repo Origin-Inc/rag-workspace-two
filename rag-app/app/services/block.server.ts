@@ -2,6 +2,7 @@ import { createSupabaseAdmin } from '~/utils/supabase.server';
 import type { Block, NewBlock, UpdateBlock, BlockType } from '~/types/supabase';
 import type { BlockContent, BlockPosition, BlockMetadata } from '~/types/blocks';
 import { getDefaultContent } from '~/types/blocks';
+import { autoIndexerService } from './auto-indexer.server';
 
 export interface CreateBlockInput {
   pageId: string;
@@ -67,6 +68,12 @@ export class BlockService {
     // Update page's last edited time
     await this.updatePageTimestamp(input.pageId, input.createdBy);
 
+    // Auto-index the new block content
+    const workspace = await this.getWorkspaceForPage(input.pageId);
+    if (workspace) {
+      await autoIndexerService.onBlockChange(data.id, workspace.id, 'create');
+    }
+
     return data;
   }
 
@@ -100,6 +107,14 @@ export class BlockService {
     // Update page timestamp
     if (blocks.length > 0) {
       await this.updatePageTimestamp(blocks[0].pageId, blocks[0].createdBy);
+      
+      // Auto-index the new blocks
+      const workspace = await this.getWorkspaceForPage(blocks[0].pageId);
+      if (workspace && data) {
+        for (const block of data) {
+          await autoIndexerService.onBlockChange(block.id, workspace.id, 'create');
+        }
+      }
     }
 
     return data || [];
@@ -165,6 +180,12 @@ export class BlockService {
     // Update page timestamp
     if (updates.updatedBy) {
       await this.updatePageTimestamp(data.page_id, updates.updatedBy);
+      
+      // Auto-index the updated block content
+      const workspace = await this.getWorkspaceForPage(data.page_id);
+      if (workspace) {
+        await autoIndexerService.onBlockChange(blockId, workspace.id, 'update');
+      }
     }
 
     return data;
@@ -286,6 +307,12 @@ export class BlockService {
 
     // Update page timestamp
     await this.updatePageTimestamp(block.page_id, userId);
+    
+    // Auto-index deletion (removes from index)
+    const workspace = await this.getWorkspaceForPage(block.page_id);
+    if (workspace) {
+      await autoIndexerService.onBlockChange(blockId, workspace.id, 'delete');
+    }
 
     return true;
   }
@@ -492,6 +519,22 @@ export class BlockService {
         updated_at: new Date().toISOString(),
       })
       .eq('id', pageId);
+  }
+
+  // Helper to get workspace for a page
+  private async getWorkspaceForPage(pageId: string): Promise<{ id: string } | null> {
+    const { data, error } = await this.supabase
+      .from('pages')
+      .select('workspace_id')
+      .eq('id', pageId)
+      .single();
+
+    if (error || !data) {
+      console.error('Error getting workspace for page:', error);
+      return null;
+    }
+
+    return { id: data.workspace_id };
   }
 
   // Get block version history (if implementing versioning)
