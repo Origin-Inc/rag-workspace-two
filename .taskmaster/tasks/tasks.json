@@ -571,7 +571,7 @@
             "id": 3,
             "title": "Define Zod schemas for database-focused actions",
             "description": "Create comprehensive Zod validation schemas emphasizing database and formula column operations",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "Define schemas for CreateDatabaseBlockAction with intelligent column suggestions, formula column creation, EditBlockAction, DeleteBlockAction, with proper validation rules and preview requirements",
             "testStrategy": ""
@@ -580,7 +580,7 @@
             "id": 4,
             "title": "Setup enhanced Supabase tables with preview tracking",
             "description": "Create action_logs table with preview and confirmation tracking fields",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "Create action_logs table with preview JSONB field, preview_shown boolean, confirmed_at timestamp, implement RLS policies for user access control, create indexes for performance",
             "testStrategy": ""
@@ -589,7 +589,7 @@
             "id": 5,
             "title": "Build mandatory dry-run preview system",
             "description": "Create comprehensive preview component that shows exactly what will be created/modified",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               3,
               4
@@ -601,7 +601,7 @@
             "id": 6,
             "title": "Implement intelligent column suggestion Edge Function",
             "description": "Create Edge Function that suggests appropriate columns based on database context",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               3
             ],
@@ -612,7 +612,7 @@
             "id": 7,
             "title": "Create formula column parser",
             "description": "Build natural language to formula column converter",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               2,
               3
@@ -624,7 +624,7 @@
             "id": 8,
             "title": "Integrate Supabase Auth with confirmation requirements",
             "description": "Use Supabase Auth to check permissions and enforce confirmation workflow",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               4
             ],
@@ -647,7 +647,7 @@
             "id": 10,
             "title": "Create RPC functions for preview generation",
             "description": "Build Supabase RPC functions that generate accurate previews without executing",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               3,
               4
@@ -668,7 +668,7 @@
             "id": 12,
             "title": "Implement confirmation-gated execution engine",
             "description": "Build execution engine that only runs after explicit user confirmation",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               10
             ],
@@ -679,7 +679,7 @@
             "id": 13,
             "title": "Build audit logging with preview history",
             "description": "Implement comprehensive logging including preview and confirmation data",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               4,
               12
@@ -705,7 +705,7 @@
         "id": 6,
         "title": "Implement RAG System with Vector Search",
         "description": "Build the retrieval-augmented generation system with document chunking, embedding generation, Supabase pgvector storage, hybrid search capabilities, and workspace summarization features",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           5
         ],
@@ -717,7 +717,7 @@
             "id": 1,
             "title": "Enable pgvector and create document schema in Supabase",
             "description": "Enable pgvector extension and create documents table with vector columns, RLS policies, HNSW indexes, and citation tracking fields",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "Enable pgvector extension in Supabase dashboard or via SQL. Create documents table with vector(1536) column, workspace references, metadata JSONB, storage_path for file references, source_block_id for block references, and passage_id for citation tracking. Set up RLS policies based on workspace membership. Add indexes for passage retrieval.",
             "testStrategy": ""
@@ -726,7 +726,7 @@
             "id": 2,
             "title": "Configure Supabase Storage buckets for documents",
             "description": "Set up Supabase Storage buckets with appropriate policies for document uploads and retrieval",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               1
             ],
@@ -737,7 +737,7 @@
             "id": 3,
             "title": "Implement document chunking Edge Function with metadata extraction",
             "description": "Create Supabase Edge Function for intelligent text chunking with token-aware splitting and importance scoring",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               2
             ],
@@ -748,7 +748,7 @@
             "id": 4,
             "title": "Build embedding generation Edge Function with citation support",
             "description": "Create Edge Function for generating embeddings using OpenAI's API with batch processing and passage tracking",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               3
             ],
@@ -759,7 +759,7 @@
             "id": 5,
             "title": "Create hybrid search RPC function with citation retrieval",
             "description": "Build Supabase RPC function combining vector similarity and full-text search with source attribution",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               1,
               4
@@ -771,7 +771,7 @@
             "id": 6,
             "title": "Implement Supabase full-text search indexes",
             "description": "Set up PostgreSQL full-text search with tsvector columns and GIN indexes",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               1
             ],
@@ -782,7 +782,7 @@
             "id": 7,
             "title": "Build document upload API with Supabase Storage",
             "description": "Create API endpoints that handle file uploads to Supabase Storage and trigger processing",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               2,
               4
@@ -794,7 +794,7 @@
             "id": 8,
             "title": "Create search API using Supabase client",
             "description": "Build search endpoints leveraging Supabase RPC functions and text search",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               5,
               6
@@ -806,7 +806,7 @@
             "id": 9,
             "title": "Implement RLS policies for document access",
             "description": "Create comprehensive Row Level Security policies for document operations",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               1
             ],
@@ -817,7 +817,7 @@
             "id": 10,
             "title": "Build context retrieval with Supabase functions",
             "description": "Create optimized context retrieval using Supabase database functions",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               8
             ],
@@ -828,7 +828,7 @@
             "id": 11,
             "title": "Create prompt templates with Supabase integration",
             "description": "Design prompt templates that efficiently use retrieved context from Supabase",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               10
             ],
@@ -839,7 +839,7 @@
             "id": 12,
             "title": "Implement monitoring with Supabase observability",
             "description": "Set up performance monitoring using Supabase's built-in analytics and logging",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               8
             ],
@@ -850,7 +850,7 @@
             "id": 13,
             "title": "Build workspace summarization RPC function",
             "description": "Create Supabase RPC function that generates comprehensive workspace summaries with key page identification",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               5
             ],
@@ -861,7 +861,7 @@
             "id": 14,
             "title": "Implement summarization command handler",
             "description": "Create API endpoint and frontend handler for 'Summarize this workspace' command",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               13
             ],
@@ -872,7 +872,7 @@
             "id": 15,
             "title": "Create citation formatting system",
             "description": "Build system to format and display citations with passage IDs and block references",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               14
             ],
@@ -1476,11 +1476,795 @@
             "testStrategy": ""
           }
         ]
+      },
+      {
+        "id": 11,
+        "title": "Core Application Layout & Navigation",
+        "description": "Build the main application shell with root layout, persistent left sidebar navigation showing hierarchical workspace > projects > pages tree structure, workspace switcher dropdown, breadcrumb navigation, responsive design, global search, user profile menu, notification center, keyboard shortcuts, and dark/light theme toggle",
+        "details": "1. Create root layout with persistent sidebar using Next.js App Router:\n```typescript\n// app/layout.tsx\nimport { Sidebar } from '@/components/navigation/Sidebar';\nimport { Header } from '@/components/navigation/Header';\n\nexport default function RootLayout({ children }) {\n  return (\n    <html>\n      <body>\n        <div className=\"flex h-screen\">\n          <Sidebar className=\"w-64 flex-shrink-0\" />\n          <div className=\"flex-1 flex flex-col\">\n            <Header />\n            <main className=\"flex-1 overflow-auto\">\n              {children}\n            </main>\n          </div>\n        </div>\n      </body>\n    </html>\n  );\n}\n```\n\n2. Implement hierarchical tree navigation with Supabase data:\n```typescript\ninterface TreeNode {\n  id: string;\n  type: 'workspace' | 'project' | 'page';\n  name: string;\n  children: TreeNode[];\n  icon: React.ComponentType;\n  path: string;\n}\n\n// Fetch tree structure from Supabase\nconst { data: workspaces } = await supabase\n  .from('workspaces')\n  .select(`\n    id, name,\n    projects (\n      id, name,\n      pages (id, title, slug)\n    )\n  `);\n```\n\n3. Build collapsible sidebar with Radix UI primitives:\n```typescript\nimport * as Collapsible from '@radix-ui/react-collapsible';\nimport { ChevronRight, Menu } from 'lucide-react';\n\nfunction TreeItem({ node, level = 0 }) {\n  const [isOpen, setIsOpen] = useState(false);\n  \n  return (\n    <Collapsible.Root open={isOpen} onOpenChange={setIsOpen}>\n      <Collapsible.Trigger className=\"flex items-center w-full\">\n        <ChevronRight className={cn('transition-transform', isOpen && 'rotate-90')} />\n        {node.icon && <node.icon className=\"mr-2\" />}\n        <span>{node.name}</span>\n      </Collapsible.Trigger>\n      <Collapsible.Content>\n        {node.children?.map(child => (\n          <TreeItem key={child.id} node={child} level={level + 1} />\n        ))}\n      </Collapsible.Content>\n    </Collapsible.Root>\n  );\n}\n```\n\n4. Workspace switcher with Supabase RLS:\n```typescript\nfunction WorkspaceSwitcher() {\n  const { data: workspaces } = await supabase\n    .from('workspaces')\n    .select('id, name, logo_url')\n    .order('name');\n    \n  return (\n    <Select onValueChange={switchWorkspace}>\n      <SelectTrigger>\n        <SelectValue placeholder=\"Select workspace\" />\n      </SelectTrigger>\n      <SelectContent>\n        {workspaces?.map(workspace => (\n          <SelectItem key={workspace.id} value={workspace.id}>\n            <img src={workspace.logo_url} className=\"w-4 h-4 mr-2\" />\n            {workspace.name}\n          </SelectItem>\n        ))}\n      </SelectContent>\n    </Select>\n  );\n}\n```\n\n5. Breadcrumb navigation with Next.js router:\n```typescript\nimport { usePathname } from 'next/navigation';\n\nfunction Breadcrumbs() {\n  const pathname = usePathname();\n  const segments = pathname.split('/').filter(Boolean);\n  \n  return (\n    <nav aria-label=\"Breadcrumb\">\n      <ol className=\"flex items-center space-x-2\">\n        {segments.map((segment, index) => (\n          <li key={index} className=\"flex items-center\">\n            {index > 0 && <ChevronRight className=\"mx-2\" />}\n            <Link href={`/${segments.slice(0, index + 1).join('/')}`}>\n              {segment}\n            </Link>\n          </li>\n        ))}\n      </ol>\n    </nav>\n  );\n}\n```\n\n6. Global search with Command palette (cmdk):\n```typescript\nimport { Command } from 'cmdk';\n\nfunction GlobalSearch() {\n  const [open, setOpen] = useState(false);\n  \n  useEffect(() => {\n    const down = (e: KeyboardEvent) => {\n      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {\n        e.preventDefault();\n        setOpen(open => !open);\n      }\n    };\n    \n    document.addEventListener('keydown', down);\n    return () => document.removeEventListener('keydown', down);\n  }, []);\n  \n  return (\n    <Command.Dialog open={open} onOpenChange={setOpen}>\n      <Command.Input placeholder=\"Search pages, projects, or run commands...\" />\n      <Command.List>\n        <Command.Group heading=\"Pages\">\n          {/* Search results from Supabase */}\n        </Command.Group>\n      </Command.List>\n    </Command.Dialog>\n  );\n}\n```\n\n7. User profile menu with Supabase Auth:\n```typescript\nfunction UserMenu() {\n  const { data: { user } } = await supabase.auth.getUser();\n  \n  return (\n    <DropdownMenu>\n      <DropdownMenuTrigger>\n        <Avatar>\n          <AvatarImage src={user?.user_metadata?.avatar_url} />\n          <AvatarFallback>{user?.email?.[0]?.toUpperCase()}</AvatarFallback>\n        </Avatar>\n      </DropdownMenuTrigger>\n      <DropdownMenuContent>\n        <DropdownMenuItem onClick={() => router.push('/settings')}>\n          Settings\n        </DropdownMenuItem>\n        <DropdownMenuItem onClick={() => supabase.auth.signOut()}>\n          Logout\n        </DropdownMenuItem>\n      </DropdownMenuContent>\n    </DropdownMenu>\n  );\n}\n```\n\n8. Notification center with Supabase Realtime:\n```typescript\nfunction NotificationCenter() {\n  const [notifications, setNotifications] = useState([]);\n  \n  useEffect(() => {\n    const channel = supabase\n      .channel('notifications')\n      .on('postgres_changes', \n        { event: 'INSERT', schema: 'public', table: 'notifications' },\n        payload => setNotifications(prev => [payload.new, ...prev])\n      )\n      .subscribe();\n      \n    return () => supabase.removeChannel(channel);\n  }, []);\n  \n  return (\n    <Popover>\n      <PopoverTrigger>\n        <Bell className=\"w-5 h-5\" />\n        {notifications.length > 0 && (\n          <span className=\"badge\">{notifications.length}</span>\n        )}\n      </PopoverTrigger>\n      <PopoverContent>\n        {notifications.map(notification => (\n          <NotificationItem key={notification.id} {...notification} />\n        ))}\n      </PopoverContent>\n    </Popover>\n  );\n}\n```\n\n9. Keyboard shortcuts with react-hotkeys-hook:\n```typescript\nimport { useHotkeys } from 'react-hotkeys-hook';\n\nfunction useNavigationShortcuts() {\n  useHotkeys('cmd+k', () => openCommandPalette());\n  useHotkeys('cmd+/', () => toggleSidebar());\n  useHotkeys('cmd+shift+d', () => toggleTheme());\n  useHotkeys('g h', () => router.push('/'));\n  useHotkeys('g p', () => router.push('/projects'));\n  useHotkeys('g s', () => router.push('/settings'));\n}\n```\n\n10. Theme toggle with next-themes:\n```typescript\nimport { useTheme } from 'next-themes';\n\nfunction ThemeToggle() {\n  const { theme, setTheme } = useTheme();\n  \n  return (\n    <Button\n      variant=\"ghost\"\n      size=\"icon\"\n      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}\n    >\n      {theme === 'dark' ? <Sun /> : <Moon />}\n    </Button>\n  );\n}\n```\n\n11. Responsive sidebar with CSS container queries:\n```css\n.sidebar {\n  @container (max-width: 768px) {\n    position: fixed;\n    transform: translateX(-100%);\n    transition: transform 0.3s;\n    \n    &.open {\n      transform: translateX(0);\n    }\n  }\n}\n```\n\n12. Persist navigation state in localStorage:\n```typescript\nconst [expandedNodes, setExpandedNodes] = useLocalStorage('nav-expanded', []);\nconst [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage('sidebar-collapsed', false);\n```",
+        "testStrategy": "1. Test sidebar navigation renders workspace > project > page hierarchy correctly with mock Supabase data. 2. Verify workspace switcher changes active workspace and updates navigation tree. 3. Test breadcrumb navigation reflects current route and all links work. 4. Verify sidebar collapses/expands on mobile breakpoints using ResizeObserver. 5. Test global search with Cmd+K shortcut opens command palette and searches across all entities. 6. Verify user profile menu shows correct user data and logout works. 7. Test notification center receives real-time updates via Supabase channels. 8. Verify all keyboard shortcuts work: Cmd+K (search), Cmd+/ (toggle sidebar), Cmd+Shift+D (toggle theme), g+h (go home), g+p (go to projects), g+s (go to settings). 9. Test theme toggle persists selection and applies correct styles. 10. Verify navigation state persists across page refreshes using localStorage. 11. Test accessibility: keyboard navigation through tree, ARIA labels, focus management. 12. Performance test: navigation tree with 1000+ nodes renders efficiently with virtualization",
+        "status": "in-progress",
+        "dependencies": [],
+        "priority": "medium",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Remix root layout structure with TypeScript",
+            "description": "Create the root.tsx layout file with proper TypeScript types, configure HTML structure, meta tags, links, and implement the main application shell with flex layout for sidebar and main content area",
+            "dependencies": [],
+            "details": "Implement root.tsx with proper Remix conventions including Links, LiveReload, Meta, Outlet, Scripts, ScrollRestoration components. Set up the base HTML structure with flex layout container, configure viewport meta tags, add global CSS imports, implement error boundaries for production error handling, and ensure proper TypeScript types for loader and action functions",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Build persistent sidebar navigation component",
+            "description": "Create a reusable Sidebar component with collapsible functionality, fixed positioning, smooth transitions, and proper responsive behavior including mobile drawer mode",
+            "dependencies": [
+              "11.1"
+            ],
+            "details": "Implement Sidebar component using Radix UI Collapsible primitives, add collapse/expand toggle button with icon rotation, implement CSS transitions for smooth open/close animations, add container queries for responsive behavior, create mobile drawer variant with overlay backdrop, persist collapsed state in localStorage, and ensure proper z-index layering for mobile mode",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement hierarchical tree navigation with Supabase data",
+            "description": "Build the workspace > project > page tree structure component that fetches data from Supabase, renders nested items recursively, and handles expand/collapse states for each node",
+            "dependencies": [
+              "11.2"
+            ],
+            "details": "Create TreeNode TypeScript interface for workspace/project/page hierarchy, implement Supabase query with nested selects for full tree structure, build recursive TreeItem component with Radix UI Collapsible, add proper indentation based on tree depth level, implement expand/collapse icons with smooth rotations, persist expanded node states in localStorage, handle loading and error states gracefully",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Create workspace switcher dropdown with Supabase RLS",
+            "description": "Build a workspace selector dropdown that fetches available workspaces from Supabase with proper RLS policies, displays workspace logos/names, and handles workspace switching with router navigation",
+            "dependencies": [
+              "11.3"
+            ],
+            "details": "Implement WorkspaceSwitcher using Radix UI Select components, fetch workspaces with Supabase client respecting RLS policies, display workspace logos with fallback avatars, handle workspace selection with Remix navigation, update active workspace in context/session, show loading state during workspace switch, implement search/filter for many workspaces, add create new workspace option",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Build breadcrumb navigation system",
+            "description": "Create a breadcrumb component that parses the current URL path, generates clickable segments, fetches human-readable names from Supabase, and provides proper navigation hierarchy",
+            "dependencies": [
+              "11.1"
+            ],
+            "details": "Parse pathname using Remix useLocation hook, split URL into meaningful segments, fetch display names from Supabase for IDs in path, render breadcrumb items with separator icons, implement overflow handling for long paths with ellipsis, add home icon for root navigation, ensure proper aria-labels for accessibility, handle async name resolution with loading states",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Implement responsive design with mobile menu",
+            "description": "Add responsive behavior to the layout including hamburger menu for mobile, touch gestures for sidebar drawer, breakpoint-based layout adjustments, and proper viewport handling",
+            "dependencies": [
+              "11.2"
+            ],
+            "details": "Add hamburger menu button in header for mobile viewports, implement touch swipe gestures to open/close sidebar drawer, use CSS container queries for adaptive sidebar width, create overlay backdrop for mobile sidebar mode, ensure proper focus management when menu opens/closes, test on various device sizes and orientations, implement viewport height fixes for mobile browsers",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Build global search with cmdk command palette",
+            "description": "Implement a command palette using cmdk library that provides global search across pages/projects, command execution, and keyboard-driven navigation with Supabase full-text search",
+            "dependencies": [
+              "11.1"
+            ],
+            "details": "Install and configure cmdk library with React, implement Cmd+K keyboard shortcut listener, create search dialog with input and results list, integrate Supabase full-text search for pages/projects, add command groups for different action types, implement keyboard navigation with arrow keys, add recent searches and suggestions, show loading states during search, implement debounced search queries",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Create user profile menu with Supabase Auth",
+            "description": "Build a user dropdown menu that displays current user info from Supabase Auth, shows avatar/email, and provides options for settings, profile, and logout functionality",
+            "dependencies": [
+              "11.1"
+            ],
+            "details": "Fetch current user from Supabase Auth session, create Avatar component with image and fallback initials, implement Radix UI DropdownMenu for user options, add menu items for profile, settings, preferences, implement logout with Supabase signOut method, handle loading states during auth operations, add keyboard shortcuts for menu items, ensure proper session cleanup on logout",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Implement notification center with Supabase Realtime",
+            "description": "Build a real-time notification system that subscribes to Supabase changes, displays unread count badge, shows notification list in popover, and handles mark as read functionality",
+            "dependencies": [
+              "11.1"
+            ],
+            "details": "Set up Supabase Realtime channel for notifications table, implement notification badge with unread count, create Radix UI Popover for notification list, handle real-time INSERT events for new notifications, implement mark as read functionality with database updates, add notification types with different icons/colors, implement auto-dismiss for certain notification types, add pagination for notification history",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Add keyboard shortcuts with react-hotkeys-hook",
+            "description": "Implement global keyboard shortcuts for navigation, search, theme toggle, and common actions using react-hotkeys-hook library with customizable key bindings",
+            "dependencies": [
+              "11.7"
+            ],
+            "details": "Install and configure react-hotkeys-hook library, implement shortcuts for command palette (Cmd+K), sidebar toggle (Cmd+/), theme switch (Cmd+Shift+D), navigation shortcuts (g h for home, g p for projects), create keyboard shortcuts help modal, allow customization of key bindings in settings, handle platform-specific keys (Cmd vs Ctrl), prevent conflicts with browser shortcuts",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Implement dark/light theme toggle with persistence",
+            "description": "Create theme switching functionality using CSS custom properties, system preference detection, localStorage persistence, and smooth transitions between themes",
+            "dependencies": [
+              "11.1"
+            ],
+            "details": "Set up CSS custom properties for theme colors, implement theme context provider for Remix, detect system color scheme preference, add theme toggle button with sun/moon icons, persist theme choice in localStorage and cookies, ensure theme applies before first paint to prevent flash, add smooth color transitions when switching, test all components in both theme modes",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Add accessibility features and ARIA labels",
+            "description": "Ensure all navigation components are fully accessible with proper ARIA labels, keyboard navigation, screen reader support, and WCAG 2.1 AA compliance",
+            "dependencies": [
+              "11.1",
+              "11.2",
+              "11.3",
+              "11.4",
+              "11.5",
+              "11.6",
+              "11.7",
+              "11.8",
+              "11.9",
+              "11.10",
+              "11.11"
+            ],
+            "details": "Add proper ARIA labels to all interactive elements, implement focus visible styles for keyboard navigation, ensure proper heading hierarchy in sidebar, add skip navigation links for screen readers, test with screen readers (NVDA/JAWS/VoiceOver), implement proper focus management for modals/popovers, add aria-live regions for notifications, ensure color contrast meets WCAG standards, add keyboard navigation for tree structure",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Workspace Dashboard - Create comprehensive workspace dashboard UI with team management and analytics",
+        "description": "Build a feature-rich workspace dashboard providing centralized access to workspace overview, team management, usage analytics, recent activity, and workspace configuration with full CRUD operations and search capabilities",
+        "details": "1. Create main dashboard layout with responsive grid system:\n```typescript\n// app/dashboard/[workspaceId]/page.tsx\nimport { DashboardGrid } from '@/components/dashboard/DashboardGrid';\nimport { WorkspaceOverview } from '@/components/dashboard/WorkspaceOverview';\nimport { QuickActions } from '@/components/dashboard/QuickActions';\nimport { TeamActivityFeed } from '@/components/dashboard/TeamActivityFeed';\nimport { UsageAnalytics } from '@/components/dashboard/UsageAnalytics';\n\nexport default async function WorkspaceDashboard({ params }) {\n  const workspace = await getWorkspace(params.workspaceId);\n  return (\n    <DashboardGrid>\n      <WorkspaceOverview workspace={workspace} />\n      <QuickActions />\n      <TeamActivityFeed />\n      <UsageAnalytics />\n    </DashboardGrid>\n  );\n}\n```\n\n2. Implement workspace overview component with recent items:\n```typescript\n// components/dashboard/WorkspaceOverview.tsx\nconst { data: recentPages } = await supabase\n  .from('pages')\n  .select('id, title, updated_at, project:projects(name)')\n  .eq('workspace_id', workspaceId)\n  .order('updated_at', { ascending: false })\n  .limit(10);\n\nconst { data: projects } = await supabase\n  .from('projects')\n  .select('id, name, page_count:pages(count)')\n  .eq('workspace_id', workspaceId)\n  .order('updated_at', { ascending: false })\n  .limit(5);\n```\n\n3. Build workspace CRUD operations with Supabase:\n```typescript\n// lib/workspace-operations.ts\nexport async function createWorkspace(data: WorkspaceInput) {\n  const { data: workspace, error } = await supabase\n    .from('workspaces')\n    .insert({\n      name: data.name,\n      description: data.description,\n      owner_id: userId,\n      settings: data.settings,\n      template_id: data.templateId\n    })\n    .select()\n    .single();\n  \n  // Initialize workspace with template if provided\n  if (data.templateId) {\n    await applyWorkspaceTemplate(workspace.id, data.templateId);\n  }\n  return workspace;\n}\n\nexport async function updateWorkspace(id: string, updates: Partial<Workspace>) {\n  return await supabase\n    .from('workspaces')\n    .update(updates)\n    .eq('id', id)\n    .select();\n}\n\nexport async function deleteWorkspace(id: string) {\n  // Soft delete with archive\n  return await supabase\n    .from('workspaces')\n    .update({ archived_at: new Date().toISOString() })\n    .eq('id', id);\n}\n```\n\n4. Create quick actions widget with recent documents:\n```typescript\n// components/dashboard/QuickActions.tsx\ninterface QuickAction {\n  type: 'document' | 'template' | 'project';\n  icon: IconType;\n  title: string;\n  action: () => void;\n}\n\nconst quickActions = [\n  { type: 'document', title: 'New Page', action: createNewPage },\n  { type: 'project', title: 'New Project', action: createNewProject },\n  { type: 'template', title: 'From Template', action: openTemplateGallery }\n];\n\n// Fetch recent documents with thumbnails\nconst { data: recentDocs } = await supabase\n  .from('pages')\n  .select('id, title, thumbnail_url, last_accessed')\n  .eq('workspace_id', workspaceId)\n  .order('last_accessed', { ascending: false })\n  .limit(6);\n```\n\n5. Implement team activity feed with real-time updates:\n```typescript\n// components/dashboard/TeamActivityFeed.tsx\nconst channel = supabase\n  .channel(`workspace:${workspaceId}:activity`)\n  .on('postgres_changes', \n    { event: '*', schema: 'public', table: 'activity_log' },\n    (payload) => {\n      setActivities(prev => [payload.new, ...prev].slice(0, 50));\n    }\n  )\n  .subscribe();\n\n// Activity log schema\ninterface Activity {\n  id: string;\n  user_id: string;\n  action: 'created' | 'updated' | 'deleted' | 'shared' | 'commented';\n  resource_type: 'page' | 'project' | 'database' | 'comment';\n  resource_id: string;\n  resource_title: string;\n  timestamp: Date;\n  metadata?: Record<string, any>;\n}\n```\n\n6. Build usage analytics dashboard with charts:\n```typescript\n// components/dashboard/UsageAnalytics.tsx\nimport { LineChart, BarChart, PieChart } from 'recharts';\n\nconst UsageAnalytics = () => {\n  // Storage usage query\n  const { data: storageData } = await supabase\n    .rpc('calculate_storage_usage', { workspace_id: workspaceId });\n  \n  // Credits/API usage\n  const { data: creditsData } = await supabase\n    .from('usage_metrics')\n    .select('date, ai_credits_used, storage_gb, api_calls')\n    .eq('workspace_id', workspaceId)\n    .gte('date', thirtyDaysAgo)\n    .order('date');\n  \n  // Member activity heatmap\n  const { data: memberActivity } = await supabase\n    .from('user_activity_metrics')\n    .select('user_id, date, actions_count')\n    .eq('workspace_id', workspaceId);\n  \n  return (\n    <div className=\"grid grid-cols-2 gap-4\">\n      <LineChart data={creditsData} title=\"AI Credits Usage\" />\n      <BarChart data={storageData} title=\"Storage by Type\" />\n      <PieChart data={memberActivity} title=\"Team Activity Distribution\" />\n      <UsageTable detailed={true} />\n    </div>\n  );\n};\n```\n\n7. Create workspace settings panel:\n```typescript\n// components/dashboard/WorkspaceSettings.tsx\nconst settingsSections = [\n  {\n    id: 'general',\n    title: 'General',\n    fields: ['name', 'description', 'logo', 'timezone']\n  },\n  {\n    id: 'permissions',\n    title: 'Permissions & Access',\n    fields: ['default_role', 'guest_access', 'sharing_policy']\n  },\n  {\n    id: 'integrations',\n    title: 'Integrations',\n    component: <IntegrationsPanel />\n  },\n  {\n    id: 'billing',\n    title: 'Billing & Usage',\n    component: <BillingSettings />\n  }\n];\n```\n\n8. Implement team member invitation system:\n```typescript\n// components/dashboard/InviteMembers.tsx\nexport async function inviteTeamMembers(emails: string[], role: Role) {\n  const invitations = emails.map(email => ({\n    email,\n    workspace_id: workspaceId,\n    role_id: role.id,\n    invited_by: currentUserId,\n    token: generateInviteToken(),\n    expires_at: addDays(new Date(), 7)\n  }));\n  \n  const { data, error } = await supabase\n    .from('invitations')\n    .insert(invitations)\n    .select();\n  \n  // Send invitation emails via Edge Function\n  await supabase.functions.invoke('send-invitations', {\n    body: { invitations: data }\n  });\n}\n\n// Real-time invitation status\nconst channel = supabase\n  .channel(`invitations:${workspaceId}`)\n  .on('postgres_changes',\n    { event: 'UPDATE', schema: 'public', table: 'invitations' },\n    handleInvitationUpdate\n  );\n```\n\n9. Build workspace templates gallery:\n```typescript\n// components/dashboard/TemplatesGallery.tsx\nconst { data: templates } = await supabase\n  .from('workspace_templates')\n  .select('*')\n  .or(`public.eq.true,owner_id.eq.${userId}`);\n\nconst categories = [\n  'Project Management',\n  'Product Development', \n  'Marketing',\n  'Sales CRM',\n  'Engineering',\n  'Design System'\n];\n\n// Preview and apply template\nasync function applyTemplate(templateId: string) {\n  const { data: template } = await supabase\n    .from('workspace_templates')\n    .select('structure, default_pages, settings')\n    .eq('id', templateId)\n    .single();\n  \n  // Clone template structure\n  await supabase.rpc('clone_workspace_template', {\n    template_id: templateId,\n    target_workspace_id: workspaceId\n  });\n}\n```\n\n10. Implement global search across workspace:\n```typescript\n// components/dashboard/WorkspaceSearch.tsx\nimport { Command } from 'cmdk';\n\nexport function WorkspaceSearch() {\n  const searchAcrossWorkspace = async (query: string) => {\n    // Full-text search using Supabase\n    const results = await Promise.all([\n      supabase\n        .from('pages')\n        .select('id, title, content_preview')\n        .textSearch('title', query)\n        .eq('workspace_id', workspaceId)\n        .limit(5),\n      \n      supabase\n        .from('projects')\n        .select('id, name, description')\n        .textSearch('name', query)\n        .eq('workspace_id', workspaceId)\n        .limit(5),\n      \n      supabase\n        .from('database_blocks')\n        .select('id, title, page_id')\n        .textSearch('title', query)\n        .eq('workspace_id', workspaceId)\n        .limit(5)\n    ]);\n    \n    return combineSearchResults(results);\n  };\n  \n  // Keyboard shortcut: Cmd+K\n  useHotkeys('cmd+k', () => setSearchOpen(true));\n}\n```\n\n11. Create integrations panel for third-party tools:\n```typescript\n// components/dashboard/IntegrationsPanel.tsx\nconst integrations = [\n  { id: 'slack', name: 'Slack', status: 'connected', icon: SlackIcon },\n  { id: 'github', name: 'GitHub', status: 'available', icon: GitHubIcon },\n  { id: 'google-drive', name: 'Google Drive', status: 'available', icon: DriveIcon },\n  { id: 'figma', name: 'Figma', status: 'connected', icon: FigmaIcon }\n];\n\n// OAuth flow for integrations\nasync function connectIntegration(provider: string) {\n  const { data: { url } } = await supabase.functions.invoke('oauth-connect', {\n    body: { provider, workspace_id: workspaceId }\n  });\n  window.location.href = url;\n}\n\n// Webhook management\nconst { data: webhooks } = await supabase\n  .from('integration_webhooks')\n  .select('*')\n  .eq('workspace_id', workspaceId);\n```\n\n12. Implement responsive dashboard layout:\n```typescript\n// components/dashboard/DashboardGrid.tsx\nexport function DashboardGrid({ children }) {\n  return (\n    <div className=\"grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 p-6\">\n      <div className=\"col-span-full xl:col-span-2\">\n        <WorkspaceOverview />\n      </div>\n      <div className=\"col-span-1\">\n        <QuickActions />\n      </div>\n      <div className=\"col-span-full md:col-span-1\">\n        <TeamActivityFeed />\n      </div>\n      <div className=\"col-span-full xl:col-span-2\">\n        <UsageAnalytics />\n      </div>\n      {children}\n    </div>\n  );\n}\n```",
+        "testStrategy": "1. Test workspace overview displays correct recent pages and projects with proper sorting by updated_at timestamp. 2. Verify CRUD operations create, update, and soft-delete workspaces correctly with proper permission checks. 3. Test quick actions widget shows 6 most recent documents with working navigation links. 4. Verify team activity feed receives real-time updates via Supabase channels and displays all activity types correctly. 5. Test usage analytics charts render with accurate data for storage, credits, and API calls over 30-day period. 6. Verify workspace settings panel saves all configuration changes and validates input fields. 7. Test invitation system sends emails, generates valid tokens, and expires after 7 days. 8. Verify templates gallery filters by category and successfully clones template structure to workspace. 9. Test global search returns relevant results from pages, projects, and database blocks with proper ranking. 10. Verify integrations panel handles OAuth flows correctly and manages webhook subscriptions. 11. Test responsive layout adapts correctly for mobile, tablet, and desktop viewports. 12. Verify all dashboard components handle loading states, errors, and empty states gracefully. 13. Test role-based permissions restrict access to settings and invitation features appropriately. 14. Verify dashboard performance with large datasets (1000+ pages, 50+ team members).",
+        "status": "pending",
+        "dependencies": [
+          2,
+          11
+        ],
+        "priority": "medium",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create dashboard grid layout system with responsive breakpoints",
+            "description": "Build the main DashboardGrid component with responsive grid system supporting mobile, tablet, and desktop layouts using CSS Grid and Flexbox for optimal component arrangement",
+            "dependencies": [],
+            "details": "Implement DashboardGrid component in components/dashboard/DashboardGrid.tsx with responsive breakpoints at 768px (mobile), 1024px (tablet), and 1440px (desktop). Use CSS Grid with 12-column layout on desktop, 8 on tablet, and 4 on mobile. Include proper gap spacing and container queries for adaptive layouts.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement workspace overview component with recent items display",
+            "description": "Create WorkspaceOverview component showing workspace summary, recent pages, active projects, and quick stats with proper data fetching from Supabase",
+            "dependencies": [
+              "12.1"
+            ],
+            "details": "Build components/dashboard/WorkspaceOverview.tsx fetching recent 10 pages and 5 projects ordered by updated_at. Display workspace name, description, member count, storage usage, and creation date. Include thumbnail previews for recent pages and project cards with page counts.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Build workspace CRUD operations with Supabase integration",
+            "description": "Implement complete workspace management functions including create, read, update, and soft-delete operations with proper RLS policies and template support",
+            "dependencies": [],
+            "details": "Create lib/workspace-operations.ts with createWorkspace, updateWorkspace, deleteWorkspace (soft delete), and getWorkspace functions. Include workspace template application logic, settings management, and proper error handling. Implement workspace archiving with archived_at timestamp.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Create quick actions widget with recent documents",
+            "description": "Build QuickActions component featuring new page/project creation buttons and grid of 6 most recently accessed documents with thumbnails",
+            "dependencies": [
+              "12.1"
+            ],
+            "details": "Implement components/dashboard/QuickActions.tsx with action buttons for new page, new project, and template gallery. Fetch and display 6 recent documents with thumbnail_url and last_accessed timestamp. Include hover effects and keyboard shortcuts (Cmd+N for new page).",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement team activity feed with real-time updates",
+            "description": "Create live activity feed showing team actions using Supabase real-time subscriptions with proper activity categorization and user attribution",
+            "dependencies": [
+              "12.1"
+            ],
+            "details": "Build components/dashboard/TeamActivityFeed.tsx with Supabase channel subscription to activity_log table. Display user avatars, action types (created/updated/deleted/shared/commented), resource links, and relative timestamps. Implement 50-item limit with auto-cleanup and activity grouping.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Build usage analytics dashboard with Recharts visualization",
+            "description": "Create comprehensive analytics component displaying AI credits usage, storage consumption, API calls, and team activity using interactive charts",
+            "dependencies": [
+              "12.1"
+            ],
+            "details": "Implement components/dashboard/UsageAnalytics.tsx with LineChart for 30-day credit usage, BarChart for storage by type, PieChart for team activity distribution, and detailed usage table. Fetch data from usage_metrics and user_activity_metrics tables with proper aggregation.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Create workspace settings panel with configuration sections",
+            "description": "Build comprehensive settings interface with tabbed sections for general settings, permissions, integrations, and billing management",
+            "dependencies": [
+              "12.1",
+              "12.3"
+            ],
+            "details": "Develop components/dashboard/WorkspaceSettings.tsx with sections for general (name, description, logo, timezone), permissions (default_role, guest_access, sharing_policy), integrations panel, and billing settings. Include form validation and auto-save functionality.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Implement team member invitation system with email integration",
+            "description": "Build complete invitation flow including bulk email invites, role assignment, token generation, and Supabase Edge Function for email delivery",
+            "dependencies": [
+              "12.3"
+            ],
+            "details": "Create components/dashboard/InviteMembers.tsx with bulk email input, role selector, and invitation tracking. Generate secure invite tokens with 7-day expiration. Implement Edge Function for sending invitation emails and real-time status updates via Supabase channels.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Build workspace templates gallery with preview and cloning",
+            "description": "Create template selection interface with categorized templates, preview functionality, and one-click workspace structure cloning",
+            "dependencies": [
+              "12.1",
+              "12.3"
+            ],
+            "details": "Develop components/dashboard/TemplatesGallery.tsx displaying templates by category (Project Management, Product Development, Marketing, etc.). Include template preview modal, usage statistics, and clone_workspace_template RPC function for applying templates.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Implement global workspace search with Command palette",
+            "description": "Build universal search functionality using cmdk library with full-text search across pages, projects, and database blocks",
+            "dependencies": [
+              "12.1"
+            ],
+            "details": "Create components/dashboard/WorkspaceSearch.tsx using Command component with Cmd+K hotkey. Implement parallel full-text search queries across pages, projects, and database_blocks tables. Display categorized results with icons, previews, and keyboard navigation.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Create integrations panel for third-party tool connections",
+            "description": "Build integration management interface with OAuth flows for Slack, GitHub, Google Drive, and Figma including connection status and webhook configuration",
+            "dependencies": [
+              "12.7"
+            ],
+            "details": "Implement components/dashboard/IntegrationsPanel.tsx showing available integrations with status indicators. Create OAuth connection flow via Edge Functions, webhook management interface, and integration settings. Store tokens securely in integration_credentials table.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Implement webhook management system for integrations",
+            "description": "Create webhook configuration interface for managing incoming and outgoing webhooks with event filtering and payload transformation",
+            "dependencies": [
+              "12.11"
+            ],
+            "details": "Build webhook CRUD operations in integration_webhooks table with event type filtering, URL validation, and secret generation. Implement webhook testing functionality, delivery logs, and retry mechanism for failed webhooks.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 13,
+            "title": "Optimize dashboard performance and responsive layouts",
+            "description": "Implement performance optimizations including lazy loading, virtualization for long lists, and responsive design improvements across all dashboard components",
+            "dependencies": [
+              "12.1",
+              "12.2",
+              "12.4",
+              "12.5",
+              "12.6"
+            ],
+            "details": "Add React.lazy for code splitting dashboard sections, implement virtual scrolling for activity feed and search results, optimize Supabase queries with proper indexes, add loading skeletons, and ensure all components work smoothly on mobile devices.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 14,
+            "title": "Add performance monitoring and error tracking",
+            "description": "Integrate performance monitoring tools to track dashboard metrics, user interactions, and error rates with proper alerting and logging",
+            "dependencies": [
+              "12.13"
+            ],
+            "details": "Implement performance monitoring using Web Vitals API for LCP, FID, and CLS metrics. Add error boundary components with Sentry integration for error tracking. Create dashboard performance dashboard showing load times, API response times, and user interaction metrics.",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Project Management System - Implement comprehensive project management within workspaces",
+        "description": "Build a complete project management system with CRUD operations, hierarchical organization, dashboard views, collaboration features, and drag-and-drop functionality for organizing pages within projects",
+        "details": "1. Create project data model in Supabase:\n```sql\nCREATE TABLE projects (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,\n  parent_project_id UUID REFERENCES projects(id),\n  name TEXT NOT NULL,\n  description TEXT,\n  icon TEXT,\n  color TEXT,\n  position INTEGER DEFAULT 0,\n  metadata JSONB DEFAULT '{}',\n  tags TEXT[],\n  is_template BOOLEAN DEFAULT FALSE,\n  template_structure JSONB,\n  is_archived BOOLEAN DEFAULT FALSE,\n  archived_at TIMESTAMP WITH TIME ZONE,\n  created_by UUID REFERENCES users(id),\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE project_pages (\n  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,\n  page_id UUID REFERENCES pages(id) ON DELETE CASCADE,\n  position INTEGER DEFAULT 0,\n  folder_path TEXT,\n  PRIMARY KEY (project_id, page_id)\n);\n\nCREATE TABLE project_collaborators (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,\n  user_id UUID REFERENCES users(id),\n  role TEXT CHECK (role IN ('owner', 'editor', 'viewer')),\n  permissions JSONB DEFAULT '{}',\n  invited_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n```\n\n2. Implement project CRUD API routes:\n```typescript\n// app/api/projects/route.ts\nexport async function POST(request: Request) {\n  const { name, workspaceId, parentId, template } = await request.json();\n  \n  if (template) {\n    // Clone template structure\n    const templateData = await supabase\n      .from('projects')\n      .select('*, project_pages(*)')\n      .eq('id', template)\n      .single();\n    \n    return createProjectFromTemplate(templateData.data);\n  }\n  \n  const { data, error } = await supabase\n    .from('projects')\n    .insert({ name, workspace_id: workspaceId, parent_project_id: parentId })\n    .select()\n    .single();\n  \n  return NextResponse.json(data);\n}\n```\n\n3. Build project dashboard component with activity overview:\n```typescript\n// components/projects/ProjectDashboard.tsx\ninterface ProjectDashboard {\n  projectId: string;\n}\n\nexport function ProjectDashboard({ projectId }: ProjectDashboard) {\n  const { project, pages, activity, collaborators } = useProjectData(projectId);\n  \n  return (\n    <div className=\"grid grid-cols-12 gap-4\">\n      <div className=\"col-span-8\">\n        <ProjectOverview project={project} />\n        <RecentPages pages={pages} />\n        <ActivityFeed activities={activity} />\n      </div>\n      <div className=\"col-span-4\">\n        <ProjectStats pages={pages.length} collaborators={collaborators.length} />\n        <CollaboratorsList collaborators={collaborators} />\n        <ProjectMetadata tags={project.tags} metadata={project.metadata} />\n      </div>\n    </div>\n  );\n}\n```\n\n4. Implement drag-and-drop page organization with react-beautiful-dnd:\n```typescript\n// components/projects/PageOrganizer.tsx\nimport { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';\n\nexport function PageOrganizer({ projectId, pages }) {\n  const handleDragEnd = async (result) => {\n    if (!result.destination) return;\n    \n    const newPages = Array.from(pages);\n    const [reorderedItem] = newPages.splice(result.source.index, 1);\n    newPages.splice(result.destination.index, 0, reorderedItem);\n    \n    // Update positions in database\n    await updatePagePositions(projectId, newPages);\n  };\n  \n  return (\n    <DragDropContext onDragEnd={handleDragEnd}>\n      <Droppable droppableId=\"pages\">\n        {(provided) => (\n          <div {...provided.droppableProps} ref={provided.innerRef}>\n            {pages.map((page, index) => (\n              <Draggable key={page.id} draggableId={page.id} index={index}>\n                {(provided) => (\n                  <PageItem\n                    ref={provided.innerRef}\n                    {...provided.draggableProps}\n                    {...provided.dragHandleProps}\n                    page={page}\n                  />\n                )}\n              </Draggable>\n            ))}\n            {provided.placeholder}\n          </div>\n        )}\n      </Droppable>\n    </DragDropContext>\n  );\n}\n```\n\n5. Create project sidebar navigation with hierarchical display:\n```typescript\n// components/navigation/ProjectSidebar.tsx\nexport function ProjectSidebar({ workspaceId }) {\n  const { projects } = useProjects(workspaceId);\n  \n  const renderProjectTree = (projects: Project[], parentId: string | null = null) => {\n    return projects\n      .filter(p => p.parent_project_id === parentId)\n      .map(project => (\n        <div key={project.id}>\n          <ProjectNode project={project} />\n          {renderProjectTree(projects, project.id)}\n        </div>\n      ));\n  };\n  \n  return (\n    <div className=\"project-sidebar\">\n      <SearchInput placeholder=\"Search projects...\" />\n      <div className=\"project-tree\">\n        {renderProjectTree(projects)}\n      </div>\n    </div>\n  );\n}\n```\n\n6. Implement project search with Supabase full-text search:\n```typescript\n// app/api/projects/search/route.ts\nexport async function GET(request: Request) {\n  const { searchParams } = new URL(request.url);\n  const query = searchParams.get('q');\n  const workspaceId = searchParams.get('workspaceId');\n  \n  const { data } = await supabase\n    .from('projects')\n    .select('*, project_pages(count)')\n    .eq('workspace_id', workspaceId)\n    .textSearch('name', query, { type: 'websearch' })\n    .order('updated_at', { ascending: false });\n  \n  return NextResponse.json(data);\n}\n```\n\n7. Build project templates system:\n```typescript\n// components/projects/TemplateSelector.tsx\nconst PROJECT_TEMPLATES = [\n  { id: 'kanban', name: 'Kanban Board', structure: { columns: ['To Do', 'In Progress', 'Done'] } },\n  { id: 'docs', name: 'Documentation', structure: { folders: ['Getting Started', 'API', 'Guides'] } },\n  { id: 'roadmap', name: 'Product Roadmap', structure: { quarters: ['Q1', 'Q2', 'Q3', 'Q4'] } }\n];\n\nexport function TemplateSelector({ onSelect }) {\n  return (\n    <div className=\"grid grid-cols-3 gap-4\">\n      {PROJECT_TEMPLATES.map(template => (\n        <TemplateCard\n          key={template.id}\n          template={template}\n          onClick={() => onSelect(template)}\n        />\n      ))}\n    </div>\n  );\n}\n```\n\n8. Implement bulk operations on pages:\n```typescript\n// components/projects/BulkActions.tsx\nexport function BulkActions({ selectedPages, projectId }) {\n  const handleBulkMove = async (targetProjectId: string) => {\n    await supabase\n      .from('project_pages')\n      .update({ project_id: targetProjectId })\n      .in('page_id', selectedPages);\n  };\n  \n  const handleBulkArchive = async () => {\n    await supabase\n      .from('pages')\n      .update({ is_archived: true, archived_at: new Date() })\n      .in('id', selectedPages);\n  };\n  \n  return (\n    <div className=\"bulk-actions-toolbar\">\n      <Button onClick={handleBulkArchive}>Archive Selected</Button>\n      <Button onClick={() => setShowMoveDialog(true)}>Move to Project</Button>\n      <Button onClick={handleBulkDelete}>Delete Selected</Button>\n    </div>\n  );\n}\n```\n\n9. Create project settings and permissions management:\n```typescript\n// components/projects/ProjectSettings.tsx\nexport function ProjectSettings({ projectId }) {\n  const [settings, setSettings] = useState({\n    permissions: {\n      canInviteMembers: true,\n      defaultRole: 'viewer',\n      requireApproval: false\n    },\n    sharing: {\n      isPublic: false,\n      shareableLink: null,\n      linkExpiry: null\n    }\n  });\n  \n  return (\n    <Tabs defaultValue=\"general\">\n      <TabsList>\n        <TabsTrigger value=\"general\">General</TabsTrigger>\n        <TabsTrigger value=\"permissions\">Permissions</TabsTrigger>\n        <TabsTrigger value=\"sharing\">Sharing</TabsTrigger>\n        <TabsTrigger value=\"archive\">Archive & Delete</TabsTrigger>\n      </TabsList>\n      <TabsContent value=\"permissions\">\n        <PermissionsManager projectId={projectId} settings={settings.permissions} />\n      </TabsContent>\n    </Tabs>\n  );\n}\n```\n\n10. Implement project archiving and restoration:\n```typescript\n// app/api/projects/[id]/archive/route.ts\nexport async function POST(request: Request, { params }) {\n  const { id } = params;\n  \n  // Archive project and all its pages\n  const { error } = await supabase.rpc('archive_project', {\n    project_id: id,\n    archive_pages: true\n  });\n  \n  if (!error) {\n    // Trigger notification to collaborators\n    await notifyCollaborators(id, 'project_archived');\n  }\n  \n  return NextResponse.json({ success: !error });\n}\n\nexport async function DELETE(request: Request, { params }) {\n  const { id } = params;\n  \n  // Restore archived project\n  const { data } = await supabase\n    .from('projects')\n    .update({ is_archived: false, archived_at: null })\n    .eq('id', id)\n    .select();\n  \n  return NextResponse.json(data);\n}\n```",
+        "testStrategy": "1. Test project CRUD operations create, list, edit, and delete projects with proper workspace association and verify parent-child relationships work correctly. 2. Verify project dashboard displays accurate page count, recent activity feed updates in real-time, and collaborator list shows correct roles. 3. Test drag-and-drop functionality reorders pages correctly and persists position changes to database. 4. Verify project hierarchy displays nested projects properly with correct indentation and expand/collapse functionality. 5. Test project search returns relevant results and filters by workspace correctly. 6. Verify template creation properly clones structure and creates all default pages/folders. 7. Test bulk operations can move/archive/delete multiple pages simultaneously with proper permission checks. 8. Verify project permissions system correctly restricts actions based on user role (owner/editor/viewer). 9. Test project archiving soft-deletes project and optionally archives all associated pages. 10. Verify restoration brings back archived projects with all relationships intact. 11. Test collaborator management can add/remove users and update roles with email notifications. 12. Verify project metadata and tags are searchable and filterable in project list view.",
+        "status": "pending",
+        "dependencies": [
+          2,
+          11
+        ],
+        "priority": "medium",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create project data model and Supabase tables with RLS policies",
+            "description": "Design and implement the complete database schema for projects including main projects table, project_pages junction table, and project_collaborators table with proper foreign key relationships and row-level security policies",
+            "dependencies": [],
+            "details": "Create projects table with fields for workspace_id, parent_project_id for hierarchy, metadata JSONB, tags array, template support, and archival tracking. Implement project_pages junction table for many-to-many relationship between projects and pages with position tracking. Set up project_collaborators table with role-based permissions. Add RLS policies to ensure users can only access projects they have permission to view or edit based on workspace membership and project collaboration roles.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement project CRUD API routes with Remix actions and loaders",
+            "description": "Build comprehensive server-side API routes for creating, reading, updating, and deleting projects with proper authentication, validation, and error handling using Remix's action and loader patterns",
+            "dependencies": [
+              "13.1"
+            ],
+            "details": "Create routes/api/projects/route.ts with POST for project creation including template cloning support, GET for listing projects with filtering and pagination, PUT for updates, and DELETE for soft deletion. Implement routes/api/projects/$projectId/route.ts for individual project operations. Add support for creating projects from templates by cloning template structure and pages. Include workspace validation to ensure users can only create projects in authorized workspaces.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Build project dashboard component with activity feed and statistics",
+            "description": "Create a comprehensive project dashboard that displays project overview, recent pages, activity feed, collaborator list, and key statistics with real-time updates using Supabase subscriptions",
+            "dependencies": [
+              "13.2"
+            ],
+            "details": "Implement ProjectDashboard component with grid layout showing project overview card with name, description, and metadata. Create RecentPages component displaying last accessed pages with timestamps. Build ActivityFeed component subscribing to project changes via Supabase realtime. Add ProjectStats widget showing total pages, active collaborators, and last updated time. Include CollaboratorsList with avatars and roles. Use Supabase realtime subscriptions for live updates.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement drag-and-drop page organization with react-beautiful-dnd",
+            "description": "Create an intuitive drag-and-drop interface for organizing pages within projects, including reordering, folder creation, and nested structure support with position persistence",
+            "dependencies": [
+              "13.3"
+            ],
+            "details": "Install and configure react-beautiful-dnd library. Build PageOrganizer component with DragDropContext, Droppable, and Draggable components. Implement handleDragEnd function to update page positions in project_pages table. Add support for creating folders and nested page structures with folder_path tracking. Include visual feedback during drag operations with smooth animations. Persist position changes to Supabase with optimistic updates for responsive UI.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create hierarchical project sidebar navigation component",
+            "description": "Build a collapsible sidebar navigation that displays projects in a tree structure with parent-child relationships, search functionality, and quick actions for each project",
+            "dependencies": [
+              "13.2"
+            ],
+            "details": "Implement ProjectSidebar component with recursive renderProjectTree function for displaying nested projects. Add expand/collapse functionality for parent projects with state persistence. Include project search input with debounced filtering. Add quick action buttons for each project (new page, settings, archive). Style with indentation levels for visual hierarchy. Implement keyboard navigation support for accessibility. Cache project tree structure for performance.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Implement project search with Supabase full-text search capabilities",
+            "description": "Build advanced search functionality for projects using Supabase's full-text search, supporting queries across project names, descriptions, tags, and associated page content",
+            "dependencies": [
+              "13.1",
+              "13.2"
+            ],
+            "details": "Create search API endpoint using Supabase's textSearch function for project names and descriptions. Implement tag-based filtering with array contains operations. Add search across associated pages using joins with project_pages table. Build SearchResults component with highlighted matches and result grouping. Include search suggestions and recent searches storage. Add filters for archived status, date ranges, and collaborator involvement. Optimize with proper indexes for search performance.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Build project templates system with predefined structures",
+            "description": "Create a template management system allowing users to create projects from predefined templates like Kanban boards, documentation sites, and product roadmaps with automatic structure generation",
+            "dependencies": [
+              "13.2"
+            ],
+            "details": "Define template structures for common project types (Kanban, Documentation, Roadmap, Sprint Planning). Build TemplateSelector component with visual template previews. Implement template cloning logic that creates project structure with predefined folders and pages. Add custom template creation from existing projects. Store template definitions in template_structure JSONB column. Include template marketplace UI for browsing available templates. Support template versioning and updates.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Implement bulk operations interface for managing multiple pages",
+            "description": "Create bulk action tools for selecting and performing operations on multiple pages simultaneously, including move, archive, delete, and tag operations with undo functionality",
+            "dependencies": [
+              "13.4"
+            ],
+            "details": "Build BulkActions toolbar with checkbox selection for multiple pages. Implement bulk move to different projects with project selector dialog. Add bulk archive with confirmation and archived_at timestamp setting. Create bulk delete with soft delete option and restoration capability. Include bulk tagging interface for adding/removing tags. Implement undo/redo system for bulk operations using command pattern. Add progress indicators for long-running bulk operations.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Create project settings and permissions management interface",
+            "description": "Build comprehensive settings panel for managing project configuration, user permissions, sharing options, and collaboration settings with role-based access control",
+            "dependencies": [
+              "13.1",
+              "13.3"
+            ],
+            "details": "Implement ProjectSettings component with tabbed interface for different setting categories. Create PermissionsManager for setting user roles (owner, editor, viewer) with granular permissions. Build sharing interface with public/private toggle and shareable link generation with expiry dates. Add invitation system for adding collaborators with email notifications. Include transfer ownership functionality with confirmation. Implement audit log for permission changes. Add project export/import settings.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Implement project archiving and restoration system",
+            "description": "Build complete archiving workflow for projects including soft deletion, restoration capabilities, automatic cleanup, and archived project browsing interface",
+            "dependencies": [
+              "13.2",
+              "13.9"
+            ],
+            "details": "Create archive API endpoints for soft deleting projects with is_archived flag and archived_at timestamp. Implement cascade archiving for all associated pages using Supabase RPC function. Build archived projects view with restoration options and permanent deletion after retention period. Add archive notifications to collaborators via Edge Functions. Implement automatic cleanup job using pg_cron for old archived projects. Include archive export functionality before permanent deletion. Add archive search and filtering capabilities.",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Page Editor with Canvas System",
+        "description": "Build a Notion-style page editor with grid-based canvas for arranging blocks, drag-and-drop positioning, inline editing, slash commands, and collaborative features",
+        "details": "1. Create canvas-based page editor architecture:\n```typescript\n// components/editor/PageCanvas.tsx\ninterface CanvasGrid {\n  columns: 12;\n  rowHeight: 40;\n  gap: 8;\n  snapToGrid: boolean;\n}\n\ninterface BlockPosition {\n  x: number;\n  y: number;\n  width: number;\n  height: number;\n  zIndex: number;\n}\n\ninterface PageBlock {\n  id: string;\n  type: BlockType;\n  position: BlockPosition;\n  content: any;\n  parentId?: string;\n  children?: string[];\n  metadata: {\n    locked?: boolean;\n    hidden?: boolean;\n    permissions?: BlockPermissions;\n  };\n}\n```\n\n2. Implement block management system with Supabase:\n```sql\nCREATE TABLE page_blocks (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  page_id UUID REFERENCES pages(id) ON DELETE CASCADE,\n  type TEXT NOT NULL,\n  position JSONB NOT NULL,\n  content JSONB,\n  parent_id UUID REFERENCES page_blocks(id),\n  order_index INTEGER,\n  metadata JSONB DEFAULT '{}',\n  created_by UUID REFERENCES auth.users(id),\n  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE page_versions (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  page_id UUID REFERENCES pages(id) ON DELETE CASCADE,\n  version_number INTEGER NOT NULL,\n  blocks_snapshot JSONB NOT NULL,\n  created_by UUID REFERENCES auth.users(id),\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE page_templates (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  name TEXT NOT NULL,\n  category TEXT,\n  thumbnail_url TEXT,\n  blocks_structure JSONB NOT NULL,\n  is_public BOOLEAN DEFAULT FALSE\n);\n```\n\n3. Build drag-and-drop system using @dnd-kit/sortable:\n```typescript\nimport { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';\nimport { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';\n\nconst PageEditor = () => {\n  const sensors = useSensors(\n    useSensor(PointerSensor),\n    useSensor(KeyboardSensor)\n  );\n  \n  return (\n    <DndContext\n      sensors={sensors}\n      collisionDetection={closestCenter}\n      onDragEnd={handleDragEnd}\n    >\n      <SortableContext items={blocks} strategy={rectSortingStrategy}>\n        <CanvasGrid>\n          {blocks.map(block => (\n            <DraggableBlock key={block.id} block={block} />\n          ))}\n        </CanvasGrid>\n      </SortableContext>\n      <DragOverlay>{/* Preview */}</DragOverlay>\n    </DndContext>\n  );\n};\n```\n\n4. Implement block palette sidebar:\n```typescript\ninterface BlockPalette {\n  categories: {\n    basic: ['text', 'heading', 'divider', 'spacer'];\n    media: ['image', 'video', 'audio', 'file'];\n    embed: ['youtube', 'twitter', 'figma', 'miro'];\n    data: ['table', 'database', 'chart', 'kanban'];\n    advanced: ['code', 'math', 'mermaid', 'timeline'];\n  };\n}\n\nconst BlockPalette = () => {\n  return (\n    <aside className=\"w-64 border-l bg-gray-50\">\n      {Object.entries(blockCategories).map(([category, blocks]) => (\n        <div key={category}>\n          <h3>{category}</h3>\n          {blocks.map(blockType => (\n            <DraggableBlockTemplate\n              key={blockType}\n              type={blockType}\n              onDragStart={handleTemplateStart}\n            />\n          ))}\n        </div>\n      ))}\n    </aside>\n  );\n};\n```\n\n5. Create inline editing system with ContentEditable:\n```typescript\nconst InlineTextBlock = ({ block, onUpdate }) => {\n  const [isEditing, setIsEditing] = useState(false);\n  \n  return (\n    <ContentEditable\n      html={block.content.html}\n      disabled={!isEditing}\n      onChange={handleChange}\n      onBlur={handleSave}\n      onKeyDown={handleKeyCommands}\n      className=\"block-content\"\n    />\n  );\n};\n```\n\n6. Implement slash command system:\n```typescript\ninterface SlashCommand {\n  trigger: string;\n  label: string;\n  icon: ReactNode;\n  action: (editor: Editor) => void;\n  keywords?: string[];\n}\n\nconst slashCommands: SlashCommand[] = [\n  { trigger: '/text', label: 'Text', action: insertTextBlock },\n  { trigger: '/h1', label: 'Heading 1', action: insertHeading1 },\n  { trigger: '/table', label: 'Table', action: insertTable },\n  { trigger: '/ai', label: 'Ask AI', action: openAIAssistant }\n];\n\nconst SlashCommandMenu = () => {\n  const [query, setQuery] = useState('');\n  const filtered = useMemo(() => \n    slashCommands.filter(cmd => \n      cmd.trigger.includes(query) || \n      cmd.keywords?.some(k => k.includes(query))\n    ), [query]\n  );\n  \n  return <CommandPalette commands={filtered} />;\n};\n```\n\n7. Build block selection and multi-select:\n```typescript\nconst SelectionManager = () => {\n  const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());\n  \n  const handleBlockClick = (blockId: string, event: MouseEvent) => {\n    if (event.shiftKey) {\n      // Range select\n      selectRange(lastSelected, blockId);\n    } else if (event.metaKey || event.ctrlKey) {\n      // Multi-select\n      toggleSelection(blockId);\n    } else {\n      // Single select\n      setSelectedBlocks(new Set([blockId]));\n    }\n  };\n  \n  return { selectedBlocks, handleBlockClick };\n};\n```\n\n8. Implement copy/paste/duplicate functionality:\n```typescript\nconst useClipboard = () => {\n  const copyBlocks = async (blockIds: string[]) => {\n    const blocks = await fetchBlocks(blockIds);\n    await navigator.clipboard.writeText(\n      JSON.stringify({ type: 'blocks', data: blocks })\n    );\n  };\n  \n  const pasteBlocks = async (targetPosition: Position) => {\n    const text = await navigator.clipboard.readText();\n    try {\n      const { type, data } = JSON.parse(text);\n      if (type === 'blocks') {\n        await insertBlocks(data, targetPosition);\n      }\n    } catch (e) {\n      // Handle plain text paste\n      await insertTextBlock(text, targetPosition);\n    }\n  };\n  \n  return { copyBlocks, pasteBlocks };\n};\n```\n\n9. Create nested blocks and column layouts:\n```typescript\nconst ColumnBlock = ({ block }) => {\n  const columns = block.content.columns || 2;\n  \n  return (\n    <div className=\"grid\" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>\n      {block.children.map((childId, index) => (\n        <DropZone key={index} columnIndex={index}>\n          <BlockRenderer blockId={childId} />\n        </DropZone>\n      ))}\n    </div>\n  );\n};\n```\n\n10. Implement auto-save with debouncing:\n```typescript\nconst useAutoSave = (pageId: string, blocks: Block[]) => {\n  const debouncedSave = useMemo(\n    () => debounce(async (blocks: Block[]) => {\n      await supabase\n        .from('page_blocks')\n        .upsert(blocks.map(formatForDB));\n      \n      // Create version snapshot every 10 saves\n      if (saveCount % 10 === 0) {\n        await createVersion(pageId, blocks);\n      }\n    }, 2000),\n    [pageId]\n  );\n  \n  useEffect(() => {\n    debouncedSave(blocks);\n  }, [blocks]);\n};\n```\n\n11. Add collaborative editing with Supabase Realtime:\n```typescript\nconst useCollaboration = (pageId: string) => {\n  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);\n  \n  useEffect(() => {\n    const channel = supabase.channel(`page:${pageId}`)\n      .on('presence', { event: 'sync' }, () => {\n        const state = channel.presenceState();\n        setCollaborators(Object.values(state).flat());\n      })\n      .on('broadcast', { event: 'cursor' }, ({ payload }) => {\n        updateCursorPosition(payload.userId, payload.position);\n      })\n      .on('broadcast', { event: 'selection' }, ({ payload }) => {\n        updateUserSelection(payload.userId, payload.blockIds);\n      })\n      .subscribe();\n      \n    return () => channel.unsubscribe();\n  }, [pageId]);\n};\n```\n\n12. Implement @mentions and comments:\n```typescript\nconst MentionPlugin = () => {\n  const [showMentions, setShowMentions] = useState(false);\n  const [query, setQuery] = useState('');\n  \n  const handleInput = (text: string) => {\n    const mentionMatch = /@(\\w*)$/.exec(text);\n    if (mentionMatch) {\n      setQuery(mentionMatch[1]);\n      setShowMentions(true);\n    }\n  };\n  \n  return (\n    <MentionSuggestions\n      query={query}\n      onSelect={(user) => insertMention(user)}\n    />\n  );\n};\n```\n\n13. Create page properties editor:\n```typescript\ninterface PageProperties {\n  title: string;\n  icon?: string;\n  cover?: string;\n  tags: string[];\n  metadata: {\n    author?: string;\n    publishedAt?: Date;\n    seoDescription?: string;\n    ogImage?: string;\n  };\n}\n\nconst PagePropertiesPanel = ({ page }) => {\n  return (\n    <Sheet>\n      <SheetContent>\n        <IconPicker value={page.icon} onChange={updateIcon} />\n        <CoverImageUploader value={page.cover} onChange={updateCover} />\n        <TagInput value={page.tags} onChange={updateTags} />\n        <MetadataEditor metadata={page.metadata} onChange={updateMetadata} />\n      </SheetContent>\n    </Sheet>\n  );\n};\n```",
+        "testStrategy": "1. Test drag-and-drop functionality by dragging blocks between different grid positions and verifying position updates persist in Supabase. 2. Verify block palette displays all block types categorized correctly and dragging from palette creates new blocks on canvas. 3. Test inline editing saves content changes with debouncing and preserves formatting. 4. Verify slash commands trigger with '/' key, filter based on input, and insert correct block types. 5. Test multi-select with Shift+Click for range and Cmd/Ctrl+Click for individual selection. 6. Verify copy/paste works across pages and maintains block hierarchy and content. 7. Test nested blocks and column layouts render correctly with proper drag zones. 8. Verify auto-save triggers after 2 seconds of inactivity and creates version snapshots every 10 saves. 9. Test collaborative cursors and selections update in real-time via Supabase channels. 10. Verify @mentions autocomplete shows user list and creates proper references. 11. Test page templates apply correct block structure when selected. 12. Verify version history shows all snapshots and allows rollback to previous versions.",
+        "status": "pending",
+        "dependencies": [
+          11,
+          13,
+          6
+        ],
+        "priority": "medium",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up canvas grid architecture and block positioning system",
+            "description": "Implement the core canvas grid system with 12-column layout, snap-to-grid functionality, and block position management using TypeScript interfaces for CanvasGrid, BlockPosition, and PageBlock",
+            "dependencies": [],
+            "details": "Create PageCanvas.tsx component with grid configuration (12 columns, 40px row height, 8px gap). Define TypeScript interfaces for BlockPosition (x, y, width, height, zIndex) and PageBlock (id, type, position, content, parentId, children, metadata). Implement snap-to-grid logic and position calculation utilities.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Create Supabase database schema for page blocks",
+            "description": "Set up page_blocks, page_versions, and page_templates tables in Supabase with proper relationships, indexes, and RLS policies for block persistence",
+            "dependencies": [],
+            "details": "Execute SQL migrations to create page_blocks table with position JSONB, content JSONB, and metadata fields. Create page_versions table for version history with blocks_snapshot. Set up page_templates table for reusable templates. Add appropriate indexes for performance and RLS policies for security.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement drag-and-drop system with @dnd-kit",
+            "description": "Integrate @dnd-kit/sortable library for drag-and-drop functionality with DndContext, SortableContext, and custom drag overlay for block manipulation",
+            "dependencies": [
+              "14.1"
+            ],
+            "details": "Install and configure @dnd-kit/core and @dnd-kit/sortable. Create DraggableBlock component with PointerSensor and KeyboardSensor support. Implement handleDragEnd logic to update block positions in state and Supabase. Add visual feedback with DragOverlay component showing block preview during drag.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Build block palette sidebar with categories",
+            "description": "Create a sidebar component displaying categorized block types (basic, media, embed, data, advanced) with draggable templates for adding new blocks to the canvas",
+            "dependencies": [
+              "14.3"
+            ],
+            "details": "Design BlockPalette component with collapsible categories. Implement DraggableBlockTemplate for each block type with preview icons. Add search/filter functionality for block types. Handle template drag start events to create new blocks when dropped on canvas.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create inline editing system with ContentEditable",
+            "description": "Implement inline text editing using ContentEditable API with support for rich text formatting, keyboard shortcuts, and auto-save functionality",
+            "dependencies": [
+              "14.1"
+            ],
+            "details": "Build InlineTextBlock component with ContentEditable wrapper. Handle focus/blur events for edit mode transitions. Implement handleKeyCommands for formatting shortcuts (bold, italic, etc.). Add debounced auto-save on content changes. Support HTML sanitization and XSS prevention.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Implement slash command system and menu",
+            "description": "Build a slash command interface that appears when typing '/' to quickly insert blocks, with fuzzy search and keyboard navigation",
+            "dependencies": [
+              "14.5"
+            ],
+            "details": "Create SlashCommandMenu component with command palette UI. Define slashCommands array with triggers, labels, icons, and actions. Implement fuzzy search filtering based on trigger and keywords. Add keyboard navigation (arrow keys, enter, escape). Position menu relative to cursor position.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Build block selection and multi-select functionality",
+            "description": "Implement selection manager for single and multi-block selection with shift-click range selection and cmd/ctrl-click toggle selection",
+            "dependencies": [
+              "14.1",
+              "14.3"
+            ],
+            "details": "Create SelectionManager hook to track selectedBlocks Set. Handle click events with modifier keys (shift for range, cmd/ctrl for toggle). Add visual selection indicators (borders, backgrounds). Implement selection rectangle for drag-select. Support select-all keyboard shortcut.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Implement copy/paste/duplicate operations",
+            "description": "Create clipboard management system for copying, pasting, and duplicating blocks with support for both internal block format and plain text",
+            "dependencies": [
+              "14.7"
+            ],
+            "details": "Build useClipboard hook with copyBlocks and pasteBlocks functions. Serialize blocks to JSON for clipboard storage. Handle paste events to insert blocks at target position. Support plain text paste fallback. Implement duplicate functionality with position offset.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Create nested blocks and column layouts",
+            "description": "Build support for nested block structures and column layouts allowing blocks to contain other blocks with configurable column counts",
+            "dependencies": [
+              "14.1",
+              "14.3"
+            ],
+            "details": "Implement ColumnBlock component with dynamic grid columns. Create DropZone components for each column. Handle nested drag-and-drop with proper parent-child relationships. Support column resizing and responsive breakpoints. Manage nested block state updates.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Implement auto-save with debouncing and versioning",
+            "description": "Create auto-save system that debounces block updates to Supabase and creates version snapshots at regular intervals",
+            "dependencies": [
+              "14.2",
+              "14.5"
+            ],
+            "details": "Build useAutoSave hook with 2-second debounce. Format blocks for database storage with formatForDB utility. Create version snapshots every 10 saves. Handle save conflicts and error recovery. Show save status indicator to users.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Add collaborative editing with Supabase Realtime",
+            "description": "Implement real-time collaboration features using Supabase Realtime for presence, cursor positions, and selection synchronization",
+            "dependencies": [
+              "14.2",
+              "14.7"
+            ],
+            "details": "Set up Supabase channel for page collaboration. Implement presence tracking for active collaborators. Broadcast cursor positions and selections. Show collaborator cursors and selection highlights. Handle conflict resolution for concurrent edits.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Implement @mentions and comments system",
+            "description": "Build mention functionality with @ symbol triggering user suggestions and inline comment threads on blocks",
+            "dependencies": [
+              "14.5",
+              "14.11"
+            ],
+            "details": "Create MentionPlugin to detect @ patterns in text. Build MentionSuggestions dropdown with user search. Insert mention nodes with user references. Add comment thread UI for blocks. Store comments in Supabase with real-time updates.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 13,
+            "title": "Create page properties and metadata editor",
+            "description": "Build a properties panel for editing page metadata including title, icon, cover image, tags, and SEO settings",
+            "dependencies": [
+              "14.1",
+              "14.2"
+            ],
+            "details": "Design PagePropertiesPanel with Sheet component. Implement IconPicker with emoji/icon selection. Create CoverImageUploader with Supabase Storage. Build TagInput with autocomplete. Add MetadataEditor for SEO fields (description, OG image).",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Enhanced Block System Integration",
+        "description": "Extend the existing block system with advanced features including grid-based positioning, cross-block interactions, block collections, theming, permissions, version control, transformations, custom SDK, marketplace, real-time collaboration, performance optimization, responsive layouts, and import/export functionality",
+        "details": "1. Implement grid-based positioning system for blocks:\n```typescript\ninterface BlockGridSystem {\n  gridSize: { columns: 12, rows: 'auto' };\n  snapToGrid: boolean;\n  gridGap: number;\n  breakpoints: {\n    mobile: { columns: 4, threshold: 768 };\n    tablet: { columns: 8, threshold: 1024 };\n    desktop: { columns: 12, threshold: 1440 };\n  };\n}\n\ninterface EnhancedBlockPosition extends BlockPosition {\n  gridArea?: string; // CSS Grid area definition\n  flexOrder?: number;\n  responsivePositions?: Map<string, BlockPosition>;\n}\n```\n\n2. Create cross-block interaction system in Supabase:\n```sql\nCREATE TABLE block_references (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  source_block_id UUID REFERENCES blocks(id) ON DELETE CASCADE,\n  target_block_id UUID REFERENCES blocks(id) ON DELETE CASCADE,\n  reference_type TEXT CHECK (reference_type IN ('link', 'embed', 'sync', 'formula')),\n  reference_data JSONB,\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE synced_blocks (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  master_block_id UUID REFERENCES blocks(id) ON DELETE CASCADE,\n  sync_group_id UUID NOT NULL,\n  sync_properties TEXT[] DEFAULT ARRAY['content', 'style'],\n  last_synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n```\n\n3. Implement block collections and grouping:\n```typescript\ninterface BlockCollection {\n  id: string;\n  name: string;\n  blocks: string[];\n  layout: 'stack' | 'grid' | 'masonry' | 'carousel';\n  metadata: {\n    collapsed?: boolean;\n    locked?: boolean;\n    template?: boolean;\n  };\n}\n\nclass BlockCollectionManager {\n  async createCollection(blocks: Block[]): Promise<BlockCollection>\n  async addToCollection(collectionId: string, blockId: string): Promise<void>\n  async removeFromCollection(collectionId: string, blockId: string): Promise<void>\n  async applyCollectionTemplate(templateId: string): Promise<BlockCollection>\n}\n```\n\n4. Build consistent theming system:\n```typescript\ninterface BlockTheme {\n  id: string;\n  name: string;\n  variables: {\n    colors: Record<string, string>;\n    typography: Record<string, FontStyle>;\n    spacing: Record<string, number>;\n    borders: Record<string, BorderStyle>;\n    shadows: Record<string, string>;\n  };\n  blockOverrides: Map<BlockType, Partial<BlockStyle>>;\n}\n\nclass ThemeManager {\n  async applyTheme(themeId: string, blockIds: string[]): Promise<void>\n  async createCustomTheme(base: BlockTheme): Promise<BlockTheme>\n  async exportTheme(themeId: string): Promise<ThemeExport>\n}\n```\n\n5. Implement block permissions and access control:\n```sql\nCREATE TABLE block_permissions (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  block_id UUID REFERENCES blocks(id) ON DELETE CASCADE,\n  user_id UUID REFERENCES users(id) ON DELETE CASCADE,\n  permission_level TEXT CHECK (permission_level IN ('view', 'comment', 'edit', 'admin')),\n  granted_by UUID REFERENCES users(id),\n  granted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n  expires_at TIMESTAMP WITH TIME ZONE,\n  UNIQUE(block_id, user_id)\n);\n\nCREATE TABLE block_access_tokens (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  block_id UUID REFERENCES blocks(id) ON DELETE CASCADE,\n  token TEXT UNIQUE NOT NULL,\n  permission_level TEXT,\n  max_uses INTEGER,\n  used_count INTEGER DEFAULT 0,\n  expires_at TIMESTAMP WITH TIME ZONE\n);\n```\n\n6. Add version control and history tracking:\n```typescript\ninterface BlockVersion {\n  id: string;\n  blockId: string;\n  version: number;\n  content: any;\n  metadata: {\n    author: string;\n    timestamp: Date;\n    changeDescription?: string;\n    diff?: JsonDiff;\n  };\n}\n\nclass BlockVersionControl {\n  async saveVersion(blockId: string, content: any): Promise<BlockVersion>\n  async revertToVersion(blockId: string, versionId: string): Promise<Block>\n  async compareVersions(v1: string, v2: string): Promise<VersionDiff>\n  async getBranchHistory(blockId: string): Promise<VersionTree>\n}\n```\n\n7. Create block transformation system:\n```typescript\ninterface BlockTransformer {\n  sourceType: BlockType;\n  targetType: BlockType;\n  transform: (sourceBlock: Block) => Block;\n  canTransform: (block: Block) => boolean;\n  preserveProperties?: string[];\n}\n\nclass TransformationEngine {\n  registerTransformer(transformer: BlockTransformer): void\n  async transformBlock(blockId: string, targetType: BlockType): Promise<Block>\n  getAvailableTransformations(blockType: BlockType): BlockType[]\n  async bulkTransform(blockIds: string[], targetType: BlockType): Promise<Block[]>\n}\n```\n\n8. Build custom block development SDK:\n```typescript\n// @workspace/block-sdk\nexport interface CustomBlockDefinition {\n  type: string;\n  version: string;\n  schema: JsonSchema;\n  component: React.ComponentType<BlockProps>;\n  editor?: React.ComponentType<BlockEditorProps>;\n  migrations?: VersionMigration[];\n  capabilities: {\n    embeddable?: boolean;\n    searchable?: boolean;\n    collaborative?: boolean;\n    exportable?: ExportFormat[];\n  };\n}\n\nexport class BlockSDK {\n  static defineBlock(definition: CustomBlockDefinition): BlockRegistration\n  static useBlockData<T>(): [T, (data: T) => void]\n  static useBlockPermissions(): BlockPermissions\n  static useBlockTheme(): BlockTheme\n}\n```\n\n9. Implement block marketplace:\n```sql\nCREATE TABLE marketplace_blocks (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  publisher_id UUID REFERENCES users(id),\n  name TEXT NOT NULL,\n  description TEXT,\n  category TEXT[],\n  version TEXT NOT NULL,\n  downloads INTEGER DEFAULT 0,\n  rating DECIMAL(3,2),\n  price DECIMAL(10,2) DEFAULT 0,\n  source_url TEXT,\n  preview_url TEXT,\n  compatibility JSONB,\n  published_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n```\n\n10. Add real-time collaborative editing with Supabase Realtime:\n```typescript\nclass CollaborativeBlockEditor {\n  private realtimeChannel: RealtimeChannel;\n  private awareness: AwarenessProtocol;\n  \n  async joinSession(blockId: string): Promise<void> {\n    this.realtimeChannel = supabase.channel(`block:${blockId}`);\n    \n    this.realtimeChannel\n      .on('presence', { event: 'sync' }, () => this.syncPresence())\n      .on('broadcast', { event: 'cursor' }, (payload) => this.updateCursor(payload))\n      .on('broadcast', { event: 'selection' }, (payload) => this.updateSelection(payload))\n      .on('broadcast', { event: 'edit' }, (payload) => this.applyEdit(payload))\n      .subscribe();\n  }\n  \n  async broadcastEdit(operation: EditOperation): Promise<void>\n  async resolveConflict(local: Edit, remote: Edit): Promise<Edit>\n}\n```\n\n11. Implement performance optimization:\n```typescript\nclass BlockPerformanceOptimizer {\n  private renderCache: LRUCache<string, ReactElement>;\n  private lazyLoader: IntersectionObserver;\n  \n  async optimizeBlock(block: Block): Promise<OptimizedBlock> {\n    return {\n      ...block,\n      render: this.memoizeRender(block),\n      data: await this.compressData(block.data),\n      assets: await this.optimizeAssets(block.assets)\n    };\n  }\n  \n  virtualizeBlockList(blocks: Block[]): VirtualizedList\n  implementProgressiveLoading(blocks: Block[]): ProgressiveLoader\n  enableOffscreenRendering(blockId: string): void\n}\n```\n\n12. Create responsive block layouts:\n```typescript\ninterface ResponsiveBlockLayout {\n  breakpoints: BreakpointConfig[];\n  layouts: Map<string, BlockLayout>;\n  containerQueries?: ContainerQuery[];\n}\n\nclass ResponsiveLayoutEngine {\n  async calculateLayout(viewport: Viewport): Promise<BlockLayout>\n  async reflow(blocks: Block[]): Promise<void>\n  registerBreakpoint(breakpoint: BreakpointConfig): void\n  async adaptToContainer(container: HTMLElement): Promise<void>\n}\n```\n\n13. Build import/export functionality:\n```typescript\ninterface BlockExportOptions {\n  format: 'json' | 'html' | 'markdown' | 'pdf' | 'notion' | 'custom';\n  includeMetadata?: boolean;\n  includeHistory?: boolean;\n  includePermissions?: boolean;\n  compression?: boolean;\n}\n\nclass BlockPortability {\n  async exportBlocks(blockIds: string[], options: BlockExportOptions): Promise<Blob>\n  async importBlocks(file: File, targetPageId: string): Promise<Block[]>\n  async convertFormat(blocks: Block[], from: string, to: string): Promise<Block[]>\n  validateImport(data: any): ValidationResult\n}\n```\n\n14. Integrate with Supabase Edge Functions for advanced processing:\n```typescript\n// supabase/functions/block-processor/index.ts\nimport { serve } from 'https://deno.land/std@0.168.0/http/server.ts'\n\nserve(async (req) => {\n  const { blockId, operation } = await req.json();\n  \n  switch(operation) {\n    case 'optimize':\n      return optimizeBlockContent(blockId);\n    case 'transform':\n      return transformBlockType(blockId, req.targetType);\n    case 'analyze':\n      return analyzeBlockComplexity(blockId);\n    case 'export':\n      return generateBlockExport(blockId, req.format);\n  }\n});\n```",
+        "testStrategy": "1. Test grid-based positioning by creating blocks with different grid positions and verifying they render correctly at various breakpoints, with proper snap-to-grid behavior and responsive adjustments.\n\n2. Verify cross-block interactions by creating linked blocks, testing reference updates propagate correctly, synced blocks update simultaneously, and formula references calculate properly across blocks.\n\n3. Test block collections by grouping multiple blocks, verifying collection operations (add/remove/reorder), testing different layout modes (stack/grid/masonry), and ensuring template collections can be instantiated correctly.\n\n4. Validate theming system by applying themes to blocks, testing theme variable inheritance, verifying block-specific overrides work, and ensuring theme exports/imports maintain consistency.\n\n5. Test permissions by setting different access levels for users, verifying view/edit/admin permissions are enforced, testing access tokens work with proper expiration, and ensuring permission inheritance from parent blocks.\n\n6. Verify version control by making changes to blocks and checking version history, testing revert functionality, comparing version diffs, and ensuring branch merging works correctly.\n\n7. Test block transformations between different types (text→list, table→cards), verifying data preservation during transformation, testing bulk transformations, and ensuring transformation validation prevents data loss.\n\n8. Validate custom block SDK by creating a custom block using the SDK, testing all lifecycle hooks, verifying data persistence, and ensuring custom blocks integrate with all system features.\n\n9. Test marketplace functionality by publishing a custom block, searching and installing marketplace blocks, verifying compatibility checks, and testing version updates.\n\n10. Verify real-time collaboration by having multiple users edit the same block, testing cursor and selection synchronization, verifying conflict resolution, and ensuring presence awareness works.\n\n11. Test performance optimizations with 1000+ blocks on a page, measuring render times, verifying lazy loading and virtualization work, and testing memory usage stays within acceptable limits.\n\n12. Validate responsive layouts by testing blocks at mobile/tablet/desktop breakpoints, verifying container queries work, testing reflow on window resize, and ensuring touch interactions work on mobile.\n\n13. Test import/export by exporting blocks in various formats (JSON, HTML, Markdown), importing from different sources, verifying data integrity after round-trip import/export, and testing format conversions.\n\n14. Integration tests for the complete enhanced block system, including creating a complex page with 50+ interconnected blocks, testing all features work together without conflicts, and verifying Supabase Edge Functions process blocks correctly.",
+        "status": "pending",
+        "dependencies": [
+          14,
+          11,
+          6
+        ],
+        "priority": "medium",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement grid-based positioning system with responsive breakpoints",
+            "description": "Create the BlockGridSystem interface and EnhancedBlockPosition extending the existing BlockPosition, implementing CSS Grid-based layout with configurable grid sizes, snap-to-grid functionality, and responsive breakpoints for mobile/tablet/desktop views",
+            "dependencies": [],
+            "details": "Build the core grid system that allows blocks to be positioned using CSS Grid areas, implement snap-to-grid behavior with configurable grid gaps, create responsive position mapping for different viewport sizes, and ensure smooth transitions between breakpoints while maintaining block relationships",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Create cross-block interaction database schema and reference system",
+            "description": "Set up Supabase tables for block_references and synced_blocks with proper foreign key constraints, RLS policies, and support for different reference types (link, embed, sync, formula)",
+            "dependencies": [],
+            "details": "Design and implement the database schema for managing block relationships, create indexes for efficient querying of block references, implement cascade delete behavior, and set up sync groups for maintaining consistency across synced blocks with configurable sync properties",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Build BlockCollectionManager for grouping and organizing blocks",
+            "description": "Implement the BlockCollection interface and BlockCollectionManager class with methods for creating collections, managing block membership, applying templates, and supporting various layout modes (stack, grid, masonry, carousel)",
+            "dependencies": [
+              "15.1"
+            ],
+            "details": "Create functionality to group blocks into collections with metadata support for collapsed/locked states, implement template system for reusable collections, build layout engines for different collection display modes, and handle collection CRUD operations with proper state management",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Develop comprehensive theming system with variable management",
+            "description": "Build the BlockTheme interface and ThemeManager class supporting CSS variables for colors, typography, spacing, borders, and shadows with block-specific overrides and theme import/export capabilities",
+            "dependencies": [
+              "15.1"
+            ],
+            "details": "Create a theming engine that applies consistent visual styles across blocks, implement CSS variable injection system, build theme inheritance and override mechanisms, develop theme creation UI with live preview, and support theme export/import in various formats",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement block permissions and access control system",
+            "description": "Create Supabase tables for block_permissions and block_access_tokens with RLS policies, implementing granular permission levels (view, comment, edit, admin) and token-based access sharing",
+            "dependencies": [
+              "15.2"
+            ],
+            "details": "Build permission checking middleware for block operations, implement token generation and validation system with expiration and usage limits, create UI for managing block permissions, develop audit logging for permission changes, and ensure proper cascade behavior on user/block deletion",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Add version control with history tracking and diff visualization",
+            "description": "Implement BlockVersion interface and BlockVersionControl class with version saving, reverting, comparison, and branch history visualization using JSON diff algorithms",
+            "dependencies": [
+              "15.2"
+            ],
+            "details": "Create version storage system with efficient diff compression, implement three-way merge for conflict resolution, build version comparison UI with visual diff highlighting, develop branch/merge functionality for complex version trees, and add automatic versioning triggers on significant changes",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Create block transformation engine with type conversion",
+            "description": "Build the BlockTransformer interface and TransformationEngine class supporting registered transformers between block types with property preservation and bulk transformation capabilities",
+            "dependencies": [
+              "15.3",
+              "15.6"
+            ],
+            "details": "Implement transformer registration system with capability checking, create default transformers for common block type conversions, build property mapping and preservation logic, develop transformation preview system, and handle edge cases for incompatible transformations with fallback strategies",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Develop custom block SDK with React components and migrations",
+            "description": "Create the @workspace/block-sdk package with CustomBlockDefinition interface, BlockSDK static methods, hooks for data/permissions/theme access, and version migration support",
+            "dependencies": [
+              "15.4",
+              "15.5"
+            ],
+            "details": "Build SDK architecture with TypeScript definitions and React hooks, implement block registration system with capability declarations, create development tools for testing custom blocks, develop migration framework for block version updates, and provide comprehensive SDK documentation with examples",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Build block marketplace infrastructure with publishing system",
+            "description": "Implement marketplace_blocks table in Supabase with publisher management, ratings, pricing, compatibility checking, and download tracking for community-created blocks",
+            "dependencies": [
+              "15.8"
+            ],
+            "details": "Create marketplace backend with search/filter capabilities, implement block submission and review workflow, build rating and review system, develop licensing and payment integration for premium blocks, and create block preview and testing sandbox environment",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Implement real-time collaborative editing with conflict resolution",
+            "description": "Build CollaborativeBlockEditor class using Supabase Realtime channels for presence, cursor tracking, selection synchronization, and operational transformation for concurrent edits",
+            "dependencies": [
+              "15.2",
+              "15.6"
+            ],
+            "details": "Implement awareness protocol for user presence and cursor positions, create operational transformation algorithms for conflict-free concurrent editing, build selection synchronization with visual indicators, develop offline support with operation queuing, and implement automatic conflict resolution strategies",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Add performance optimization with caching and virtualization",
+            "description": "Create BlockPerformanceOptimizer class with LRU cache for render memoization, intersection observer for lazy loading, virtual scrolling for large lists, and progressive loading strategies",
+            "dependencies": [
+              "15.1",
+              "15.3"
+            ],
+            "details": "Implement render caching with intelligent invalidation, build virtual scrolling for handling thousands of blocks, create asset optimization pipeline for images/media, develop progressive enhancement for initial page loads, and implement offscreen rendering for complex blocks",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Create responsive layout engine with container queries",
+            "description": "Build ResponsiveBlockLayout interface and ResponsiveLayoutEngine class supporting breakpoint-based layouts, container queries, and automatic reflow calculations for adaptive block positioning",
+            "dependencies": [
+              "15.1",
+              "15.11"
+            ],
+            "details": "Implement container query polyfill for older browsers, create layout calculation engine with performance optimizations, build automatic reflow system for dynamic content, develop responsive preview mode for different viewport sizes, and implement layout persistence across breakpoints",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 13,
+            "title": "Implement import/export system with format conversion",
+            "description": "Create BlockPortability class supporting multiple export formats (JSON, HTML, Markdown, PDF, Notion), metadata preservation, compression, and validation for reliable data portability",
+            "dependencies": [
+              "15.7",
+              "15.6"
+            ],
+            "details": "Build format converters for each supported type, implement metadata and permission preservation options, create compression algorithms for large exports, develop import validation and sanitization, and build batch import/export UI with progress tracking and error recovery",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 14,
+            "title": "Integrate Supabase Edge Functions for advanced processing",
+            "description": "Deploy Edge Functions for block optimization, transformation, complexity analysis, and export generation with proper error handling and performance monitoring",
+            "dependencies": [
+              "15.7",
+              "15.11",
+              "15.13"
+            ],
+            "details": "Create Edge Function endpoints for CPU-intensive operations, implement request queuing and rate limiting, build error handling with retry logic, develop performance monitoring and logging, integrate with block system for seamless operation triggering, and implement caching strategies for repeated operations",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-08-10T21:58:52.726Z",
+      "updated": "2025-08-12T01:55:05.849Z",
       "description": "Tasks for master context"
     }
   }
