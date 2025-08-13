@@ -33,6 +33,7 @@ model User {
   refreshTokens     RefreshToken[]
   userWorkspaces    UserWorkspace[]
   auditLogs         AuditLog[]
+  invitations       Invitation[]
 
   @@index([email])
   @@index([emailVerificationToken])
@@ -53,6 +54,7 @@ model Workspace {
   userWorkspaces UserWorkspace[]
   pages          Page[]
   projects       Project[]
+  invitations    Invitation[]
 
   @@index([slug])
   @@map("workspaces")
@@ -70,6 +72,7 @@ model Role {
   // Relations
   permissions      RolePermission[]
   userWorkspaces   UserWorkspace[]
+  invitations      Invitation[]
 
   @@map("roles")
 }
@@ -235,6 +238,31 @@ model AuditLog {
   @@index([resource])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model Invitation {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String    @db.VarChar(255)
+  workspaceId  String    @map("workspace_id") @db.Uuid
+  roleId       String    @map("role_id") @db.Uuid
+  invitedById  String    @map("invited_by_id") @db.Uuid
+  token        String    @unique @db.VarChar(500)
+  status       String    @default("pending") @db.VarChar(50) // pending, accepted, expired, cancelled
+  acceptedAt   DateTime? @map("accepted_at") @db.Timestamptz(6)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  role        Role      @relation(fields: [roleId], references: [id])
+  invitedBy   User      @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([workspaceId])
+  @@index([token])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("invitations")
 }
 
 model Document {

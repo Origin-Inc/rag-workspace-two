@@ -1726,7 +1726,7 @@
               "12.3"
             ],
             "details": "Create components/dashboard/InviteMembers.tsx with bulk email input, role selector, and invitation tracking. Generate secure invite tokens with 7-day expiration. Implement Edge Function for sending invitation emails and real-time status updates via Supabase channels.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -2266,7 +2266,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-08-13T22:02:12.411Z",
+      "updated": "2025-08-13T22:40:08.143Z",
       "description": "Tasks for master context"
     }
   }
