@@ -1,56 +1,64 @@
 import { json, LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import { PageEditor } from "~/components/editor/PageEditor";
-import { supabase } from "~/utils/supabase.server";
-import { requireAuth } from "~/services/auth/auth.server";
+import { prisma } from "~/utils/db.server";
+import { requireUser } from "~/services/auth/auth.server";
 import type { Block } from "~/types/blocks";
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { pageId } = params;
   if (!pageId) throw new Response("Page ID required", { status: 400 });
 
-  const { user } = await requireAuth(request);
+  const user = await requireUser(request);
 
-  // Get page details
-  const { data: page, error: pageError } = await supabase
-    .from("pages")
-    .select(`
-      *,
-      project:projects(*),
-      blocks:page_blocks(*)
-    `)
-    .eq("id", pageId)
-    .single();
+  // Get page details with project
+  const page = await prisma.page.findUnique({
+    where: { id: pageId },
+    include: {
+      project: {
+        include: {
+          workspace: true
+        }
+      }
+    }
+  });
 
-  if (pageError || !page) {
+  if (!page) {
     throw new Response("Page not found", { status: 404 });
   }
 
-  // Check permissions
-  const { data: member } = await supabase
-    .from("project_collaborators")
-    .select("role")
-    .eq("project_id", page.project_id)
-    .eq("user_id", user.id)
-    .single();
+  // Check if user has access to this project's workspace
+  const hasAccess = await prisma.userWorkspace.findFirst({
+    where: {
+      userId: user.id,
+      workspaceId: page.project.workspaceId,
+    }
+  });
 
-  const canEdit = member && ["owner", "admin", "editor"].includes(member.role);
+  if (!hasAccess) {
+    throw new Response("Access denied", { status: 403 });
+  }
 
-  // Transform blocks
-  const blocks: Block[] = page.blocks
-    .sort((a: any, b: any) => a.position.y - b.position.y)
-    .map((block: any) => ({
-      id: block.id,
-      type: block.type,
-      content: block.content,
-      properties: block.properties,
-      position: block.position,
-      created_at: block.created_at,
-      updated_at: block.updated_at,
-    }));
+  // For now, allow editing if user has access
+  const canEdit = true;
+
+  // Extract canvas settings from metadata or use defaults
+  const metadata = typeof page.metadata === 'object' && page.metadata ? page.metadata : {};
+  const canvasSettings = (metadata as any).canvasSettings || {
+    grid: { columns: 12, rowHeight: 40, gap: 8, maxWidth: 1200 },
+    snapToGrid: true,
+    showGrid: true,
+    autoArrange: false,
+  };
+
+  // Extract blocks from metadata if they exist, otherwise empty array
+  const blocks: Block[] = (metadata as any).blocks || [];
 
   return json({
-    page,
+    page: {
+      ...page,
+      canvasSettings  // Add canvas settings to page object
+    },
     project: page.project,
     blocks,
     canEdit,
@@ -61,7 +69,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
   const { pageId } = params;
   if (!pageId) return json({ error: "Page ID required" }, { status: 400 });
 
-  const { user } = await requireAuth(request);
+  const user = await requireUser(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
 
@@ -69,42 +77,38 @@ export async function action({ params, request }: ActionFunctionArgs) {
     const blocksJson = formData.get("blocks") as string;
     const blocks = JSON.parse(blocksJson) as Block[];
 
-    // Check permissions
-    const { data: page } = await supabase
-      .from("pages")
-      .select("project_id")
-      .eq("id", pageId)
-      .single();
+    // Check permissions - verify page exists and user has access
+    const page = await prisma.page.findUnique({
+      where: { id: pageId },
+      include: {
+        project: true
+      }
+    });
 
     if (!page) {
       return json({ error: "Page not found" }, { status: 404 });
     }
 
-    const { data: member } = await supabase
-      .from("project_collaborators")
-      .select("role")
-      .eq("project_id", page.project_id)
-      .eq("user_id", user.id)
-      .single();
+    const hasAccess = await prisma.userWorkspace.findFirst({
+      where: {
+        userId: user.id,
+        workspaceId: page.project.workspaceId,
+      }
+    });
 
-    if (!member || !["owner", "admin", "editor"].includes(member.role)) {
+    if (!hasAccess) {
       return json({ error: "Permission denied" }, { status: 403 });
     }
 
-    // Delete existing blocks
-    await supabase
-      .from("page_blocks")
-      .delete()
-      .eq("page_id", pageId);
-
-    // Insert new blocks
-    if (blocks.length > 0) {
-      const { error } = await supabase
-        .from("page_blocks")
-        .insert(
-          blocks.map(block => ({
+    // TODO: Implement page_blocks table operations
+    // For now, just save the blocks data in the page's metadata
+    await prisma.page.update({
+      where: { id: pageId },
+      data: {
+        metadata: {
+          ...(typeof page.metadata === 'object' ? page.metadata : {}),
+          blocks: blocks.map(block => ({
             id: block.id,
-            page_id: pageId,
             type: block.type,
             content: block.content,
             properties: block.properties,
@@ -112,18 +116,9 @@ export async function action({ params, request }: ActionFunctionArgs) {
             created_at: block.created_at,
             updated_at: new Date().toISOString(),
           }))
-        );
-
-      if (error) {
-        return json({ error: "Failed to save blocks" }, { status: 500 });
+        }
       }
-    }
-
-    // Update page modified timestamp
-    await supabase
-      .from("pages")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", pageId);
+    });
 
     return json({ success: true });
   }
@@ -184,6 +179,7 @@ export default function EditorPage() {
           pageId={page.id}
           initialBlocks={blocks}
           isReadOnly={!canEdit}
+          canvasSettings={page.canvasSettings}
           onSave={handleSave}
           onAutoSave={canEdit ? handleAutoSave : undefined}
           autoSaveInterval={10000}

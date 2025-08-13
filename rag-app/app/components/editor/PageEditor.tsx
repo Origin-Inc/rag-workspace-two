@@ -20,6 +20,17 @@ interface PageEditorProps {
   pageId: string;
   initialBlocks?: Block[];
   isReadOnly?: boolean;
+  canvasSettings?: {
+    grid: {
+      columns: number;
+      rowHeight: number;
+      gap: number;
+      maxWidth?: number;
+    };
+    snapToGrid?: boolean;
+    showGrid?: boolean;
+    autoArrange?: boolean;
+  };
   onSave?: (blocks: Block[]) => Promise<void>;
   onAutoSave?: (blocks: Block[]) => void;
   autoSaveInterval?: number;
@@ -30,6 +41,12 @@ export const PageEditor = memo(function PageEditor({
   pageId,
   initialBlocks = [],
   isReadOnly = false,
+  canvasSettings = {
+    grid: { columns: 12, rowHeight: 40, gap: 8, maxWidth: 1200 },
+    snapToGrid: true,
+    showGrid: true,
+    autoArrange: false,
+  },
   onSave,
   onAutoSave,
   autoSaveInterval = 5000,
@@ -386,15 +403,76 @@ export const PageEditor = memo(function PageEditor({
           <div className="flex-1 overflow-auto p-8">
             <CanvasGrid
               blocks={blocks}
-              onBlocksChange={handleBlocksChange}
-              selectedBlocks={selectedBlocks}
-              onSelectionChange={setSelectedBlocks}
-              isReadOnly={isReadOnly}
-              onSlashCommand={(position, targetId) => {
-                setSlashCommandPosition(position);
-                setSlashCommandTargetId(targetId);
-                setSlashCommandOpen(true);
-                setSlashCommandQuery("");
+              pageId={pageId}
+              canvasSettings={canvasSettings}
+              editorSettings={{
+                showBlockHandles: true,
+                enableSlashCommands: true,
+                enableMarkdown: true,
+              }}
+              isEditable={!isReadOnly}
+              onBlockUpdate={(blockId, updates) => {
+                const newBlocks = blocks.map(b => 
+                  b.id === blockId ? { ...b, ...updates } : b
+                );
+                handleBlocksChange(newBlocks);
+              }}
+              onBlockCreate={(block) => {
+                const newBlock: Block = {
+                  id: uuidv4(),
+                  type: block.type || 'text',
+                  content: block.content || {},
+                  properties: block.properties || {},
+                  position: block.position || {
+                    x: 0,
+                    y: blocks.length,
+                    width: 12,
+                    height: 1,
+                  },
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                };
+                handleBlocksChange([...blocks, newBlock]);
+              }}
+              onBlockDelete={(blockId) => {
+                const newBlocks = blocks.filter(b => b.id !== blockId);
+                handleBlocksChange(newBlocks);
+              }}
+              onBlockMove={(blockId, position) => {
+                const newBlocks = blocks.map(b => 
+                  b.id === blockId ? { ...b, position } : b
+                );
+                handleBlocksChange(newBlocks);
+              }}
+              onBlocksReorder={(blockIds, positions) => {
+                const newBlocks = [...blocks];
+                blockIds.forEach((id, index) => {
+                  const blockIndex = newBlocks.findIndex(b => b.id === id);
+                  if (blockIndex >= 0) {
+                    newBlocks[blockIndex].position = positions[index];
+                  }
+                });
+                handleBlocksChange(newBlocks);
+              }}
+              selectedBlocks={Array.from(selectedBlocks)}
+              onBlockSelect={(blockId, multiSelect) => {
+                if (multiSelect) {
+                  const newSelection = new Set(selectedBlocks);
+                  if (newSelection.has(blockId)) {
+                    newSelection.delete(blockId);
+                  } else {
+                    newSelection.add(blockId);
+                  }
+                  setSelectedBlocks(newSelection);
+                } else {
+                  setSelectedBlocks(new Set([blockId]));
+                }
+              }}
+              onBlocksSelect={(blockIds) => {
+                setSelectedBlocks(new Set(blockIds));
+              }}
+              onClearSelection={() => {
+                setSelectedBlocks(new Set());
               }}
             />
           </div>
