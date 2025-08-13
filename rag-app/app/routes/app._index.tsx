@@ -12,8 +12,13 @@ import {
   MagnifyingGlassIcon,
   SparklesIcon,
   ServerIcon,
+  UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import { useState } from "react";
+import { DashboardGrid, GridItem, DashboardLayouts, DashboardSection } from "~/components/dashboard/DashboardGrid";
+import { WorkspaceOverview } from "~/components/dashboard/WorkspaceOverview";
+import { QuickActions } from "~/components/dashboard/QuickActions";
+import type { RecentDocument } from "~/components/dashboard/QuickActions";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = await getUser(request);
@@ -80,6 +85,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
     _count: true,
   });
 
+  // Get team member count
+  const teamMemberCount = await prisma.userWorkspace.count({
+    where: { workspaceId: currentWorkspace.id }
+  });
+
+  // Get storage usage (mock for now - would come from file storage service)
+  const storageUsed = 536870912; // 512 MB in bytes
+  
+  // Get AI credits (mock for now - would come from usage tracking)
+  const aiCreditsUsed = 2500;
+  const aiCreditsLimit = 10000;
+
   return json({
     user,
     workspace: currentWorkspace,
@@ -88,6 +105,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
     stats: {
       projects: stats._count,
       pages: pageStats._count,
+      teamMembers: teamMemberCount,
+      totalProjects: stats._count,
+      totalPages: pageStats._count,
+      totalMembers: teamMemberCount,
+      storageUsed,
+      aiCreditsUsed,
+      aiCreditsLimit,
     }
   });
 }
@@ -97,6 +121,17 @@ export default function AppIndex() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  
+  // Prepare recent documents for QuickActions component
+  const recentDocuments: RecentDocument[] = recentPages.map(page => ({
+    id: page.id,
+    title: page.title,
+    thumbnailUrl: page.thumbnailUrl || null,
+    lastAccessed: page.updatedAt,
+    projectId: page.project.id,
+    projectName: page.project.name,
+    type: page.type || 'page',
+  }));
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,218 +162,225 @@ export default function AppIndex() {
   };
 
   return (
-    <div className="p-6 lg:p-8">
-      {/* Welcome Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Welcome back, {user.name || user.email.split('@')[0]}
-        </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Multi-Project RAG System - <span className="font-medium">{workspace.name}</span> workspace
-        </p>
-      </div>
+    <DashboardGrid>
+      {/* Workspace Overview */}
+      <GridItem colSpan={DashboardLayouts.fullWidth.full}>
+        <WorkspaceOverview
+          workspace={workspace}
+          recentPages={recentPages}
+          recentProjects={recentProjects}
+          stats={stats}
+        />
+      </GridItem>
 
       {/* RAG Search Section */}
-      <div className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-6">
-        <div className="flex items-center mb-4">
-          <SparklesIcon className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-2" />
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            AI-Powered Semantic Search (Task 11 RAG System)
-          </h2>
-        </div>
-        <form onSubmit={handleSearch} className="space-y-4">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search across all your indexed documents using natural language..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
-            />
-            <MagnifyingGlassIcon className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
+      <GridItem colSpan={DashboardLayouts.fullWidth.full}>
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-6">
+          <div className="flex items-center mb-4">
+            <SparklesIcon className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-2" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              AI-Powered Semantic Search (Task 11 RAG System)
+            </h2>
           </div>
-          <button
-            type="submit"
-            disabled={isSearching || !searchQuery.trim()}
-            className="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-          >
-            {isSearching ? "Searching with AI..." : "Search with RAG"}
-          </button>
-        </form>
+          <form onSubmit={handleSearch} className="space-y-4">
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search across all your indexed documents using natural language..."
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+              />
+              <MagnifyingGlassIcon className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
+            </div>
+            <button
+              type="submit"
+              disabled={isSearching || !searchQuery.trim()}
+              className="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSearching ? "Searching with AI..." : "Search with RAG"}
+            </button>
+          </form>
 
-        {searchResults.length > 0 && (
-          <div className="mt-6 space-y-3">
-            <h3 className="font-medium text-gray-900 dark:text-white">Semantic Search Results</h3>
-            {searchResults.map((result, idx) => (
-              <div key={idx} className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h4 className="font-medium text-gray-900 dark:text-white">{result.title}</h4>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">from {result.projectName}</span>
+          {searchResults.length > 0 && (
+            <div className="mt-6 space-y-3">
+              <h3 className="font-medium text-gray-900 dark:text-white">Semantic Search Results</h3>
+              {searchResults.map((result, idx) => (
+                <div key={idx} className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h4 className="font-medium text-gray-900 dark:text-white">{result.title}</h4>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">from {result.projectName}</span>
+                    </div>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                      {(result.similarity * 100).toFixed(1)}% match
+                    </span>
                   </div>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                    {(result.similarity * 100).toFixed(1)}% match
-                  </span>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">{result.content}</p>
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-300">{result.content}</p>
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+            <p className="text-xs text-blue-800 dark:text-blue-300">
+              <strong>RAG Features:</strong> Vector embeddings • Supabase pgvector • OpenAI integration • Automatic chunking • Multi-project search
+            </p>
           </div>
-        )}
-
-        <div className="mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-          <p className="text-xs text-blue-800 dark:text-blue-300">
-            <strong>RAG Features:</strong> Vector embeddings • Supabase pgvector • OpenAI integration • Automatic chunking • Multi-project search
-          </p>
         </div>
-      </div>
+      </GridItem>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <button className="flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-          <PlusIcon className="h-5 w-5 mr-2" />
-          New Page
-        </button>
-        <button className="flex items-center justify-center px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-          <FolderIcon className="h-5 w-5 mr-2" />
-          New Project
-        </button>
-        <button className="flex items-center justify-center px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-          <DocumentIcon className="h-5 w-5 mr-2" />
-          Import Document
-        </button>
-      </div>
+      {/* Quick Actions Widget */}
+      <GridItem colSpan={DashboardLayouts.threeColumn.left}>
+        <QuickActions
+          workspaceSlug={workspace.slug}
+          recentDocuments={recentDocuments}
+        />
+      </GridItem>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
+      <GridItem colSpan={DashboardLayouts.fourColumn.column}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Projects</p>
-              <p className="mt-1 text-3xl font-semibold text-gray-900">{stats.projects}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Projects</p>
+              <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{stats.projects}</p>
             </div>
             <FolderIcon className="h-12 w-12 text-blue-600 opacity-20" />
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
+      </GridItem>
+      
+      <GridItem colSpan={DashboardLayouts.fourColumn.column}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Pages</p>
-              <p className="mt-1 text-3xl font-semibold text-gray-900">{stats.pages}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Pages</p>
+              <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{stats.pages}</p>
             </div>
             <DocumentIcon className="h-12 w-12 text-green-600 opacity-20" />
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
+      </GridItem>
+      
+      <GridItem colSpan={DashboardLayouts.fourColumn.column}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Team Members</p>
-              <p className="mt-1 text-3xl font-semibold text-gray-900">1</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Team Members</p>
+              <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{stats.teamMembers}</p>
             </div>
-            <div className="h-12 w-12 bg-purple-100 rounded-full opacity-50" />
+            <UserGroupIcon className="h-12 w-12 text-purple-600 opacity-20" />
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
+      </GridItem>
+      
+      <GridItem colSpan={DashboardLayouts.fourColumn.column}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Storage Used</p>
-              <p className="mt-1 text-3xl font-semibold text-gray-900">0.5GB</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Storage Used</p>
+              <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">0.5GB</p>
             </div>
-            <div className="h-12 w-12 bg-orange-100 rounded-full opacity-50" />
+            <ServerIcon className="h-12 w-12 text-orange-600 opacity-20" />
           </div>
         </div>
-      </div>
+      </GridItem>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Pages */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Pages</h2>
-            <a href="/app/pages" className="text-sm text-blue-600 hover:text-blue-700 flex items-center">
+      {/* Recent Pages */}
+      <GridItem colSpan={DashboardLayouts.halfHalf.left}>
+        <DashboardSection
+          title="Recent Pages"
+          actions={
+            <a href="/app/pages" className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center">
               View all
               <ArrowRightIcon className="ml-1 h-4 w-4" />
             </a>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-200">
-            {recentPages.length > 0 ? (
-              recentPages.map((page) => (
+          }
+        >
+          {recentPages.length > 0 ? (
+            <div className="space-y-3">
+              {recentPages.map((page) => (
                 <a
                   key={page.id}
                   href={`/app/page/${page.id}`}
-                  className="flex items-center px-4 py-3 hover:bg-gray-50 transition-colors"
+                  className="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
                   <DocumentIcon className="h-5 w-5 text-gray-400 mr-3 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                       {page.title || 'Untitled'}
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                       in {page.project.name}
                     </p>
                   </div>
-                  <div className="flex items-center text-sm text-gray-500">
+                  <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                     <ClockIcon className="h-4 w-4 mr-1" />
                     {new Date(page.updatedAt).toLocaleDateString()}
                   </div>
                 </a>
-              ))
-            ) : (
-              <div className="px-4 py-8 text-center">
-                <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-500">No pages yet</p>
-                <button className="mt-3 text-sm text-blue-600 hover:text-blue-700">
-                  Create your first page
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">No pages yet</p>
+              <button className="mt-3 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+                Create your first page
+              </button>
+            </div>
+          )}
+        </DashboardSection>
+      </GridItem>
 
-        {/* Recent Projects */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Projects</h2>
-            <a href="/app/projects" className="text-sm text-blue-600 hover:text-blue-700 flex items-center">
+      {/* Recent Projects */}
+      <GridItem colSpan={DashboardLayouts.halfHalf.right}>
+        <DashboardSection
+          title="Projects"
+          actions={
+            <a href="/app/projects" className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center">
               View all
               <ArrowRightIcon className="ml-1 h-4 w-4" />
             </a>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {recentProjects.length > 0 ? (
-              recentProjects.map((project) => (
+          }
+        >
+          {recentProjects.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {recentProjects.map((project) => (
                 <a
                   key={project.id}
                   href={`/app/project/${project.id}`}
-                  className="bg-white p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all"
+                  className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm transition-all"
                 >
                   <div className="flex items-start justify-between">
                     <FolderIcon className="h-8 w-8 text-blue-600" />
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
                       {project._count.pages} pages
                     </span>
                   </div>
-                  <h3 className="mt-3 font-medium text-gray-900 truncate">
+                  <h3 className="mt-3 font-medium text-gray-900 dark:text-white truncate">
                     {project.name}
                   </h3>
                   {project.description && (
-                    <p className="mt-1 text-sm text-gray-500 line-clamp-2">
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
                       {project.description}
                     </p>
                   )}
                 </a>
-              ))
-            ) : (
-              <div className="col-span-2 bg-white p-8 rounded-lg border border-gray-200 text-center">
-                <FolderIcon className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-500">No projects yet</p>
-                <button className="mt-3 text-sm text-blue-600 hover:text-blue-700">
-                  Create your first project
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <FolderIcon className="mx-auto h-12 w-12 text-gray-400" />
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">No projects yet</p>
+              <button className="mt-3 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+                Create your first project
+              </button>
+            </div>
+          )}
+        </DashboardSection>
+      </GridItem>
+    </DashboardGrid>
   );
 }
