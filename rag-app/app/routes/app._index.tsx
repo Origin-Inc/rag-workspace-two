@@ -18,6 +18,7 @@ import { useState } from "react";
 import { DashboardGrid, GridItem, DashboardLayouts, DashboardSection } from "~/components/dashboard/DashboardGrid";
 import { WorkspaceOverview } from "~/components/dashboard/WorkspaceOverview";
 import { QuickActions } from "~/components/dashboard/QuickActions";
+import { TeamActivityFeed } from "~/components/dashboard/TeamActivityFeed";
 import type { RecentDocument } from "~/components/dashboard/QuickActions";
 import { UsageAnalytics } from "~/components/dashboard/UsageAnalytics";
 
@@ -99,7 +100,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const aiCreditsLimit = 10000;
 
   return json({
-    user,
     workspace: currentWorkspace,
     recentPages,
     recentProjects,
@@ -107,46 +107,40 @@ export async function loader({ request }: LoaderFunctionArgs) {
       projects: stats._count,
       pages: pageStats._count,
       teamMembers: teamMemberCount,
-      totalProjects: stats._count,
-      totalPages: pageStats._count,
-      totalMembers: teamMemberCount,
-      storageUsed,
+      storageUsedGB: (storageUsed / (1024 * 1024 * 1024)).toFixed(1),
       aiCreditsUsed,
       aiCreditsLimit,
-    }
+    },
   });
 }
 
-export default function AppIndex() {
-  const { user, workspace, recentPages, recentProjects, stats } = useLoaderData<typeof loader>();
+export default function AppDashboard() {
+  const { workspace, recentPages, recentProjects, stats } = useLoaderData<typeof loader>();
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   
-  // Prepare recent documents for QuickActions component
+  // Transform recent pages for quick actions
   const recentDocuments: RecentDocument[] = recentPages.map(page => ({
     id: page.id,
     title: page.title,
-    thumbnailUrl: page.thumbnailUrl || null,
+    projectName: page.project?.name || 'Unknown Project',
     lastAccessed: page.updatedAt,
-    projectId: page.project.id,
-    projectName: page.project.name,
-    type: page.type || 'page',
-  }));
+  })).slice(0, 6);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
-
+    
     setIsSearching(true);
     
-    // Simulate RAG search
+    // Simulate RAG search - in production this would call an API
     setTimeout(() => {
       const mockResults = [
         {
-          title: "RAG System Documentation",
-          content: "The RAG system uses vector embeddings to provide semantic search across all indexed documents...",
-          similarity: 0.95,
+          title: "RAG Architecture Overview",
+          content: "RAG combines retrieval systems with generative AI for enhanced responses...",
+          similarity: 0.92,
           projectName: "Documentation",
         },
         {
@@ -163,9 +157,9 @@ export default function AppIndex() {
   };
 
   return (
-    <DashboardGrid>
-      {/* Workspace Overview */}
-      <GridItem colSpan={DashboardLayouts.fullWidth.full}>
+    <DashboardGrid id="dashboard-main">
+      {/* Workspace Overview - Full Width */}
+      <GridItem id="dashboard-workspace-overview" colSpan={DashboardLayouts.fullWidth.full}>
         <WorkspaceOverview
           workspace={workspace}
           recentPages={recentPages}
@@ -174,17 +168,33 @@ export default function AppIndex() {
         />
       </GridItem>
 
-      {/* RAG Search Section */}
-      <GridItem colSpan={DashboardLayouts.fullWidth.full}>
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-6">
-          <div className="flex items-center mb-4">
+      {/* Main Content Row - Quick Actions + Activity Feed */}
+      <GridItem id="dashboard-quick-actions" colSpan={DashboardLayouts.threeColumn.left}>
+        <QuickActions
+          workspaceSlug={workspace.slug}
+          recentDocuments={recentDocuments}
+        />
+      </GridItem>
+
+      <GridItem id="dashboard-activity-feed" colSpan={DashboardLayouts.threeColumn.right}>
+        <TeamActivityFeed
+          workspaceId={workspace.id}
+          compact={true}
+          maxItems={10}
+        />
+      </GridItem>
+
+      {/* RAG Search Section - Full Width */}
+      <GridItem id="dashboard-rag-search" colSpan={DashboardLayouts.fullWidth.full}>
+        <div id="rag-search-container" className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-6">
+          <div id="rag-search-header" className="flex items-center mb-4">
             <SparklesIcon className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-2" />
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              AI-Powered Semantic Search (Task 11 RAG System)
+              AI-Powered Semantic Search
             </h2>
           </div>
-          <form onSubmit={handleSearch} className="space-y-4">
-            <div className="relative">
+          <form id="rag-search-form" onSubmit={handleSearch} className="space-y-4">
+            <div id="rag-search-input-container" className="relative">
               <input
                 type="text"
                 value={searchQuery}
@@ -204,10 +214,10 @@ export default function AppIndex() {
           </form>
 
           {searchResults.length > 0 && (
-            <div className="mt-6 space-y-3">
+            <div id="rag-search-results" className="mt-6 space-y-3">
               <h3 className="font-medium text-gray-900 dark:text-white">Semantic Search Results</h3>
               {searchResults.map((result, idx) => (
-                <div key={idx} className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div key={idx} id={`search-result-${idx}`} className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <h4 className="font-medium text-gray-900 dark:text-white">{result.title}</h4>
@@ -223,7 +233,7 @@ export default function AppIndex() {
             </div>
           )}
 
-          <div className="mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+          <div id="rag-features-info" className="mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
             <p className="text-xs text-blue-800 dark:text-blue-300">
               <strong>RAG Features:</strong> Vector embeddings • Supabase pgvector • OpenAI integration • Automatic chunking • Multi-project search
             </p>
@@ -231,66 +241,10 @@ export default function AppIndex() {
         </div>
       </GridItem>
 
-      {/* Quick Actions Widget */}
-      <GridItem colSpan={DashboardLayouts.threeColumn.left}>
-        <QuickActions
-          workspaceSlug={workspace.slug}
-          recentDocuments={recentDocuments}
-        />
-      </GridItem>
-
-      {/* Stats Cards */}
-      <GridItem colSpan={DashboardLayouts.fourColumn.column}>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Projects</p>
-              <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{stats.projects}</p>
-            </div>
-            <FolderIcon className="h-12 w-12 text-blue-600 opacity-20" />
-          </div>
-        </div>
-      </GridItem>
-      
-      <GridItem colSpan={DashboardLayouts.fourColumn.column}>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Pages</p>
-              <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{stats.pages}</p>
-            </div>
-            <DocumentIcon className="h-12 w-12 text-green-600 opacity-20" />
-          </div>
-        </div>
-      </GridItem>
-      
-      <GridItem colSpan={DashboardLayouts.fourColumn.column}>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Team Members</p>
-              <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{stats.teamMembers}</p>
-            </div>
-            <UserGroupIcon className="h-12 w-12 text-purple-600 opacity-20" />
-          </div>
-        </div>
-      </GridItem>
-      
-      <GridItem colSpan={DashboardLayouts.fourColumn.column}>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Storage Used</p>
-              <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">0.5GB</p>
-            </div>
-            <ServerIcon className="h-12 w-12 text-orange-600 opacity-20" />
-          </div>
-        </div>
-      </GridItem>
-
-      {/* Recent Pages */}
-      <GridItem colSpan={DashboardLayouts.halfHalf.left}>
+      {/* Recent Content Row - Pages and Projects */}
+      <GridItem id="dashboard-recent-pages" colSpan={DashboardLayouts.halfHalf.left}>
         <DashboardSection
+          id="recent-pages-section"
           title="Recent Pages"
           actions={
             <a href="/app/pages" className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center">
@@ -300,44 +254,44 @@ export default function AppIndex() {
           }
         >
           {recentPages.length > 0 ? (
-            <div className="space-y-3">
-              {recentPages.map((page) => (
+            <div id="recent-pages-list" className="space-y-3">
+              {recentPages.map((page, idx) => (
                 <a
                   key={page.id}
+                  id={`recent-page-${idx}`}
                   href={`/app/page/${page.id}`}
-                  className="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  className="block p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
-                  <DocumentIcon className="h-5 w-5 text-gray-400 mr-3 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {page.title || 'Untitled'}
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      in {page.project.name}
-                    </p>
-                  </div>
-                  <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                    <ClockIcon className="h-4 w-4 mr-1" />
-                    {new Date(page.updatedAt).toLocaleDateString()}
+                  <div id={`recent-page-content-${idx}`} className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        {page.title}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        in {page.project?.name || 'Unknown Project'}
+                      </p>
+                    </div>
+                    <ClockIcon className="h-4 w-4 text-gray-400 flex-shrink-0 ml-2" />
                   </div>
                 </a>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8">
+            <div id="recent-pages-empty" className="text-center py-8">
               <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">No pages yet</p>
-              <button className="mt-3 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+              <a href="/app/pages/new" className="mt-3 inline-block text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
                 Create your first page
-              </button>
+              </a>
             </div>
           )}
         </DashboardSection>
       </GridItem>
 
-      {/* Recent Projects */}
-      <GridItem colSpan={DashboardLayouts.halfHalf.right}>
+      {/* Projects */}
+      <GridItem id="dashboard-projects" colSpan={DashboardLayouts.halfHalf.right}>
         <DashboardSection
+          id="projects-section"
           title="Projects"
           actions={
             <a href="/app/projects" className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center">
@@ -347,10 +301,11 @@ export default function AppIndex() {
           }
         >
           {recentProjects.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {recentProjects.map((project) => (
+            <div id="projects-grid" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {recentProjects.map((project, idx) => (
                 <a
                   key={project.id}
+                  id={`project-card-${idx}`}
                   href={`/app/project/${project.id}`}
                   className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm transition-all"
                 >
@@ -372,20 +327,21 @@ export default function AppIndex() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-8">
+            <div id="projects-empty" className="text-center py-8">
               <FolderIcon className="mx-auto h-12 w-12 text-gray-400" />
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">No projects yet</p>
-              <button className="mt-3 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+              <a href="/app/projects/new" className="mt-3 inline-block text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
                 Create your first project
-              </button>
+              </a>
             </div>
           )}
         </DashboardSection>
       </GridItem>
 
-      {/* Usage Analytics */}
-      <GridItem colSpan={DashboardLayouts.full}>
+      {/* Usage Analytics - Full Width */}
+      <GridItem id="dashboard-analytics" colSpan={DashboardLayouts.fullWidth.full}>
         <DashboardSection
+          id="analytics-section"
           title="Usage Analytics"
           actions={
             <a href="/app/analytics" className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center">

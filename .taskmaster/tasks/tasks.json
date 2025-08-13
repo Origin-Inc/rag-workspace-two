@@ -1715,7 +1715,7 @@
               "12.3"
             ],
             "details": "Develop components/dashboard/WorkspaceSettings.tsx with sections for general (name, description, logo, timezone), permissions (default_role, guest_access, sharing_policy), integrations panel, and billing settings. Include form validation and auto-save functionality.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1749,7 +1749,7 @@
               "12.1"
             ],
             "details": "Create components/dashboard/WorkspaceSearch.tsx using Command component with Cmd+K hotkey. Implement parallel full-text search queries across pages, projects, and database_blocks tables. Display categorized results with icons, previews, and keyboard navigation.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -2266,7 +2266,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-08-13T22:40:08.143Z",
+      "updated": "2025-08-13T23:21:05.918Z",
       "description": "Tasks for master context"
     }
   }

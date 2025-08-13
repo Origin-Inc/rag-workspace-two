@@ -272,7 +272,7 @@ export function TeamActivityFeed({
   if (compact) {
     // Compact view for dashboard widget
     return (
-      <div className={cn("space-y-3", className)}>
+      <div className={cn("space-y-3 w-full overflow-hidden", className)}>
         {activities.slice(0, 5).map((activity) => {
           const Icon = getActionIcon(activity.action);
           const colorClasses = getActionColor(activity.action);
@@ -286,7 +286,7 @@ export function TeamActivityFeed({
                 <Icon className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-900 dark:text-white">
+                <p className="text-sm text-gray-900 dark:text-white break-words">
                   <span className="font-medium">{activity.userName || "Someone"}</span>{" "}
                   <span className="text-gray-600 dark:text-gray-400">
                     {formatActivityMessage(activity)}

@@ -196,16 +196,16 @@ export function QuickActions({
   };
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn("space-y-6 w-full overflow-hidden", className)}>
       {/* Quick Actions Grid */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 w-full">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">
             Quick Actions
           </h3>
         </div>
         <div className="p-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {quickActions.map(renderActionButton)}
           </div>
         </div>

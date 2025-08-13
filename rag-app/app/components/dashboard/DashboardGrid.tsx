@@ -2,11 +2,13 @@ import { ReactNode } from 'react';
 import { cn } from '~/utils/cn';
 
 interface DashboardGridProps {
+  id?: string;
   children: ReactNode;
   className?: string;
 }
 
 interface GridItemProps {
+  id?: string;
   children: ReactNode;
   className?: string;
   colSpan?: {
@@ -25,9 +27,10 @@ interface GridItemProps {
   };
 }
 
-export function DashboardGrid({ children, className }: DashboardGridProps) {
+export function DashboardGrid({ id, children, className }: DashboardGridProps) {
   return (
     <div
+      id={id}
       className={cn(
         // Base grid setup with responsive columns
         'grid gap-4 p-4 sm:gap-6 sm:p-6 lg:gap-8 lg:p-8',
@@ -48,31 +51,66 @@ export function DashboardGrid({ children, className }: DashboardGridProps) {
 }
 
 export function GridItem({ 
+  id,
   children, 
   className,
   colSpan = {},
   rowSpan = {}
 }: GridItemProps) {
+  // Map numeric values to actual Tailwind classes
+  const getColSpanClass = (span: number | undefined, prefix = '') => {
+    if (!span) return '';
+    const classMap: Record<number, string> = {
+      1: `${prefix}col-span-1`,
+      2: `${prefix}col-span-2`,
+      3: `${prefix}col-span-3`,
+      4: `${prefix}col-span-4`,
+      5: `${prefix}col-span-5`,
+      6: `${prefix}col-span-6`,
+      7: `${prefix}col-span-7`,
+      8: `${prefix}col-span-8`,
+      9: `${prefix}col-span-9`,
+      10: `${prefix}col-span-10`,
+      11: `${prefix}col-span-11`,
+      12: `${prefix}col-span-12`,
+    };
+    return classMap[span] || '';
+  };
+
+  const getRowSpanClass = (span: number | undefined, prefix = '') => {
+    if (!span) return '';
+    const classMap: Record<number, string> = {
+      1: `${prefix}row-span-1`,
+      2: `${prefix}row-span-2`,
+      3: `${prefix}row-span-3`,
+      4: `${prefix}row-span-4`,
+      5: `${prefix}row-span-5`,
+      6: `${prefix}row-span-6`,
+    };
+    return classMap[span] || '';
+  };
+
   // Build responsive col-span classes
   const colSpanClasses = [
-    colSpan.default && `col-span-${colSpan.default}`,
-    colSpan.sm && `sm:col-span-${colSpan.sm}`,
-    colSpan.md && `md:col-span-${colSpan.md}`,
-    colSpan.lg && `lg:col-span-${colSpan.lg}`,
-    colSpan.xl && `xl:col-span-${colSpan.xl}`,
+    getColSpanClass(colSpan.default),
+    getColSpanClass(colSpan.sm, 'sm:'),
+    getColSpanClass(colSpan.md, 'md:'),
+    getColSpanClass(colSpan.lg, 'lg:'),
+    getColSpanClass(colSpan.xl, 'xl:'),
   ].filter(Boolean).join(' ');
 
   // Build responsive row-span classes
   const rowSpanClasses = [
-    rowSpan.default && `row-span-${rowSpan.default}`,
-    rowSpan.sm && `sm:row-span-${rowSpan.sm}`,
-    rowSpan.md && `md:row-span-${rowSpan.md}`,
-    rowSpan.lg && `lg:row-span-${rowSpan.lg}`,
-    rowSpan.xl && `xl:row-span-${rowSpan.xl}`,
+    getRowSpanClass(rowSpan.default),
+    getRowSpanClass(rowSpan.sm, 'sm:'),
+    getRowSpanClass(rowSpan.md, 'md:'),
+    getRowSpanClass(rowSpan.lg, 'lg:'),
+    getRowSpanClass(rowSpan.xl, 'xl:'),
   ].filter(Boolean).join(' ');
 
   return (
     <div
+      id={id}
       className={cn(
         'min-h-0', // Allow items to shrink
         colSpanClasses,
@@ -101,9 +139,10 @@ export const DashboardLayouts = {
   fullWidth: {
     full: { default: 1, sm: 2, md: 4, lg: 6, xl: 12 }
   },
-  // Three column layout
+  // Three column layout (2:1 ratio)
   threeColumn: {
-    column: { default: 1, sm: 1, md: 2, lg: 2, xl: 4 }
+    left: { default: 1, sm: 2, md: 4, lg: 4, xl: 8 },
+    right: { default: 1, sm: 2, md: 4, lg: 2, xl: 4 }
   },
   // Four column layout for stats
   fourColumn: {
@@ -138,12 +177,14 @@ export function ResponsiveGridContainer({ children, className }: DashboardGridPr
 
 // Utility component for dashboard sections
 export function DashboardSection({
+  id,
   title,
   description,
   children,
   actions,
   className
 }: {
+  id?: string;
   title: string;
   description?: string;
   children: ReactNode;
@@ -151,7 +192,7 @@ export function DashboardSection({
   className?: string;
 }) {
   return (
-    <div className={cn('bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700', className)}>
+    <div id={id} className={cn('bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700', className)}>
       <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <div>

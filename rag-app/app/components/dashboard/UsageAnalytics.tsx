@@ -167,7 +167,7 @@ export function UsageAnalytics({
                 of {metrics.totalCredits.toLocaleString()}
               </p>
             </div>
-            <div className="flex items-center justify-center w-12 h-12">
+            <div className="relative flex items-center justify-center w-12 h-12">
               <svg className="w-12 h-12 transform -rotate-90">
                 <circle
                   cx="24"
@@ -189,7 +189,7 @@ export function UsageAnalytics({
                   className="text-blue-600"
                 />
               </svg>
-              <span className="absolute text-xs font-medium">{creditPercentage}%</span>
+              <span className="absolute inset-0 flex items-center justify-center text-xs font-medium">{creditPercentage}%</span>
             </div>
           </div>
         </div>
@@ -207,7 +207,7 @@ export function UsageAnalytics({
                 of {metrics.totalStorage} GB
               </p>
             </div>
-            <div className="flex items-center justify-center w-12 h-12">
+            <div className="relative flex items-center justify-center w-12 h-12">
               <svg className="w-12 h-12 transform -rotate-90">
                 <circle
                   cx="24"
@@ -229,7 +229,7 @@ export function UsageAnalytics({
                   className="text-green-600"
                 />
               </svg>
-              <span className="absolute text-xs font-medium">{storagePercentage}%</span>
+              <span className="absolute inset-0 flex items-center justify-center text-xs font-medium">{storagePercentage}%</span>
             </div>
           </div>
         </div>
