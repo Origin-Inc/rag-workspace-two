@@ -1703,7 +1703,7 @@
               "12.1"
             ],
             "details": "Implement components/dashboard/UsageAnalytics.tsx with LineChart for 30-day credit usage, BarChart for storage by type, PieChart for team activity distribution, and detailed usage table. Fetch data from usage_metrics and user_activity_metrics tables with proper aggregation.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -2266,7 +2266,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-08-13T21:33:33.942Z",
+      "updated": "2025-08-13T22:02:12.411Z",
       "description": "Tasks for master context"
     }
   }

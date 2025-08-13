@@ -19,6 +19,7 @@ import { DashboardGrid, GridItem, DashboardLayouts, DashboardSection } from "~/c
 import { WorkspaceOverview } from "~/components/dashboard/WorkspaceOverview";
 import { QuickActions } from "~/components/dashboard/QuickActions";
 import type { RecentDocument } from "~/components/dashboard/QuickActions";
+import { UsageAnalytics } from "~/components/dashboard/UsageAnalytics";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = await getUser(request);
@@ -379,6 +380,24 @@ export default function AppIndex() {
               </button>
             </div>
           )}
+        </DashboardSection>
+      </GridItem>
+
+      {/* Usage Analytics */}
+      <GridItem colSpan={DashboardLayouts.full}>
+        <DashboardSection
+          title="Usage Analytics"
+          actions={
+            <a href="/app/analytics" className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center">
+              View detailed report
+              <ArrowRightIcon className="ml-1 h-4 w-4" />
+            </a>
+          }
+        >
+          <UsageAnalytics
+            workspaceId={workspace.id}
+            showTable={false}
+          />
         </DashboardSection>
       </GridItem>
     </DashboardGrid>
