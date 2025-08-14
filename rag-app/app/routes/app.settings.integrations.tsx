@@ -1,13 +1,14 @@
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from '@remix-run/node';
 import { useLoaderData, useActionData, useFetcher } from '@remix-run/react';
 import { useState } from 'react';
-import { requireAuth } from '~/utils/auth.server';
+import { requireUser } from '~/services/auth/auth.server';
 import { prisma } from '~/utils/prisma.server';
 import { IntegrationsPanel, type Integration, type IntegrationProvider } from '~/components/integrations/IntegrationsPanel';
 import { OAuthFlow, type OAuthConfig } from '~/components/integrations/OAuthFlow';
 import { WebhookManager, type Webhook } from '~/components/integrations/WebhookManager';
 import { encrypt, decrypt } from '~/utils/encryption.server';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import crypto from 'crypto';
 
 // OAuth configurations (these should be in environment variables)
 const oauthConfigs: Record<IntegrationProvider, Partial<OAuthConfig>> = {
@@ -53,7 +54,7 @@ const oauthConfigs: Record<IntegrationProvider, Partial<OAuthConfig>> = {
 };
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const { user } = await requireAuth(request);
+  const user = await requireUser(request);
 
   // Get user's workspace
   const userWorkspace = await prisma.userWorkspace.findFirst({
@@ -104,7 +105,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  const { user } = await requireAuth(request);
+  const user = await requireUser(request);
   const formData = await request.formData();
   const action = formData.get('action') as string;
 
