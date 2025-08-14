@@ -2,7 +2,7 @@ import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from '@remix-r
 import { useLoaderData, useActionData, useFetcher } from '@remix-run/react';
 import { useState } from 'react';
 import { requireUser } from '~/services/auth/auth.server';
-import { prisma } from '~/utils/prisma.server';
+import { prisma } from '~/utils/db.server';
 import { IntegrationsPanel, type Integration, type IntegrationProvider } from '~/components/integrations/IntegrationsPanel';
 import { OAuthFlow, type OAuthConfig } from '~/components/integrations/OAuthFlow';
 import { WebhookManager, type Webhook } from '~/components/integrations/WebhookManager';
