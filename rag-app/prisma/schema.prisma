@@ -55,6 +55,7 @@ model Workspace {
   pages          Page[]
   projects       Project[]
   invitations    Invitation[]
+  integrationCredentials IntegrationCredential[]
 
   @@index([slug])
   @@map("workspaces")
@@ -310,4 +311,48 @@ model Query {
 
   @@index([userId])
   @@map("queries")
+}
+
+model IntegrationCredential {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId   String    @map("workspace_id") @db.Uuid
+  provider      String    @db.VarChar(50) // slack, github, google_drive, figma, notion, linear
+  accessToken   String?   @map("access_token") @db.Text // Encrypted
+  refreshToken  String?   @map("refresh_token") @db.Text // Encrypted
+  tokenExpiry   DateTime? @map("token_expiry") @db.Timestamptz(6)
+  metadata      Json?     @db.JsonB // Additional provider-specific data
+  isActive      Boolean   @default(true) @map("is_active")
+  lastSyncedAt  DateTime? @map("last_synced_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  webhooks  Webhook[]
+  
+  @@unique([workspaceId, provider])
+  @@index([workspaceId])
+  @@index([provider])
+  @@map("integration_credentials")
+}
+
+model Webhook {
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  integrationId String                 @map("integration_id") @db.Uuid
+  url           String                 @db.Text
+  secret        String?                @db.Text // For webhook signature verification
+  events        String[]               // Array of event types to listen for
+  isActive      Boolean                @default(true) @map("is_active")
+  lastTriggered DateTime?              @map("last_triggered") @db.Timestamptz(6)
+  failureCount  Int                    @default(0) @map("failure_count")
+  metadata      Json?                  @db.JsonB
+  createdAt     DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  integration IntegrationCredential @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  
+  @@index([integrationId])
+  @@index([isActive])
+  @@map("webhooks")
 }
