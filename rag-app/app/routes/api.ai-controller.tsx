@@ -1,4 +1,4 @@
-import { json, type ActionFunctionArgs } from '@remix-run/node';
+import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/node';
 import { aiControllerService } from '~/services/ai-controller.server';
 import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
@@ -6,6 +6,12 @@ import { embeddingGenerationService } from '~/services/embedding-generation.serv
 import { ragService } from '~/services/rag.server';
 
 const logger = new DebugLogger('API:AIController');
+
+// Handle GET requests (fetcher might make these for revalidation)
+export async function loader({ request }: LoaderFunctionArgs) {
+  // This endpoint only accepts POST requests
+  return json({ error: 'This endpoint only accepts POST requests' }, { status: 405 });
+}
 
 export async function action({ request }: ActionFunctionArgs) {
   logger.trace('action', [request.method, request.url]);
@@ -46,18 +52,23 @@ export async function action({ request }: ActionFunctionArgs) {
         const commandLower = command.trim().toLowerCase();
         const isQuestion = /^(what|where|when|who|why|how|summarize|list|find|show|tell|explain|describe)/i.test(command.trim());
         const isSummarization = /summarize|summary|overview|describe/i.test(command.trim());
+        const isGreeting = /^(hi|hello|hey|good morning|good afternoon|good evening|greetings)$/i.test(command.trim());
+        const isConversational = isGreeting || /^(thanks|thank you|please|help|yes|no|ok|okay|sure|great|nice|cool|awesome)$/i.test(command.trim());
         
         logger.info('Command analysis', {
           command: command.trim(),
           isQuestion,
           isSummarization,
+          isGreeting,
+          isConversational,
           startsWithSummarize: commandLower.startsWith('summarize')
         });
         
-        if (isQuestion || isSummarization) {
-          logger.info('Detected question/query command, routing to RAG system');
+        if (isQuestion || isSummarization || isConversational) {
+          logger.info('Detected question/query/conversation, routing to AI system');
           
           try {
+            
             // Handle summarization requests
             if (isSummarization) {
               logger.info('Handling summarization request');
@@ -86,88 +97,95 @@ export async function action({ request }: ActionFunctionArgs) {
               // Fall through to regular RAG processing
             }
             
-            // Perform RAG search and answer
-            logger.info('Starting RAG search', { workspaceId, command });
-            console.log('[DEBUG] About to search with:', {
-              workspaceId,
-              command,
-              expectedWorkspace: '550e8400-e29b-41d4-a716-446655440000',
-              workspaceMatch: workspaceId === '550e8400-e29b-41d4-a716-446655440000'
-            });
+            // Try RAG search first if not a greeting/simple conversation
+            let searchResults = [];
+            let hasRelevantContent = false;
             
-            const searchResults = await embeddingGenerationService.searchSimilarDocuments(
-              workspaceId,
-              command,
-              10,
-              0.5
-            );
+            if (!isGreeting && !isConversational) {
+              logger.info('Starting RAG search', { workspaceId, command });
+              
+              try {
+                searchResults = await embeddingGenerationService.searchSimilarDocuments(
+                  workspaceId,
+                  command,
+                  10,
+                  0.5
+                );
+                
+                hasRelevantContent = searchResults.length > 0;
+                logger.info('Search results', {
+                  count: searchResults.length,
+                  hasRelevantContent
+                });
+              } catch (searchError) {
+                logger.warn('Search failed, will use direct AI response', searchError);
+              }
+            }
             
-            logger.info('Search results', {
-              count: searchResults.length,
-              hasResults: searchResults.length > 0,
-              firstResult: searchResults[0] ? {
-                id: searchResults[0].id,
-                similarity: searchResults[0].similarity,
-                contentPreview: searchResults[0].content?.substring(0, 100)
-              } : null
-            });
+            // Use OpenAI to generate response with or without context
+            logger.info('Generating AI response', { hasRelevantContent });
             
-            if (searchResults.length === 0) {
-              logger.warn('No search results found', { workspaceId, command });
+            if (hasRelevantContent && searchResults.length > 0) {
+              // Use RAG with context from documents
+              const context = await ragService.buildAugmentedContext(
+                command,
+                searchResults,
+                {
+                  maxTokens: 2000,
+                  includeCitations: true
+                }
+              );
+              
+              const result = await ragService.generateAnswerWithCitations(
+                command,
+                context
+              );
+              
               return json({
                 success: true,
                 isQuestion: true,
-                answer: "I couldn't find any relevant information in your workspace to answer this question. Try adding more content or rephrasing your question. Make sure content has been indexed.",
-                citations: [],
+                answer: result.answer,
+                citations: result.citations,
+                confidence: result.confidence,
                 parseResult: {
                   actions: [],
-                  confidence: 0.3,
-                  reasoning: 'No relevant content found'
+                  confidence: result.confidence,
+                  reasoning: 'Question answered using RAG'
+                }
+              });
+            } else {
+              // Use direct OpenAI response without document context
+              const { openai } = await import('~/services/openai.server');
+              
+              const systemPrompt = isGreeting 
+                ? "You are a helpful AI assistant integrated into a RAG (Retrieval-Augmented Generation) system. Respond to greetings in a friendly, professional manner and briefly explain your capabilities."
+                : "You are a helpful AI assistant. Provide clear, accurate, and helpful responses to user queries.";
+              
+              const response = await openai.chat.completions.create({
+                model: 'gpt-4-turbo-preview',
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: command }
+                ],
+                temperature: 0.7,
+                max_tokens: 500
+              });
+              
+              const answer = response.choices[0]?.message?.content || 'I apologize, but I was unable to generate a response. Please try again.';
+              
+              return json({
+                success: true,
+                isQuestion: true,
+                answer,
+                citations: [],
+                confidence: 0.8,
+                parseResult: {
+                  actions: [],
+                  confidence: 0.8,
+                  reasoning: 'Direct AI response'
                 }
               });
             }
-            
-            // Build context and generate answer
-            logger.info('Building augmented context');
-            const context = await ragService.buildAugmentedContext(
-              command,
-              searchResults,
-              {
-                maxTokens: 2000,
-                includeCitations: true
-              }
-            );
-            
-            logger.info('Context built', {
-              textLength: context.text.length,
-              citationCount: context.citations.length,
-              totalTokens: context.totalTokens
-            });
-            
-            logger.info('Generating answer with citations');
-            const result = await ragService.generateAnswerWithCitations(
-              command,
-              context
-            );
-            
-            logger.info('Answer generated', {
-              answerLength: result.answer.length,
-              citationCount: result.citations.length,
-              confidence: result.confidence
-            });
-            
-            return json({
-              success: true,
-              isQuestion: true,
-              answer: result.answer,
-              citations: result.citations,
-              confidence: result.confidence,
-              parseResult: {
-                actions: [],
-                confidence: result.confidence,
-                reasoning: 'Question answered using RAG'
-              }
-            });
           } catch (error) {
             logger.error('RAG processing failed', {
               error: error instanceof Error ? error.message : 'Unknown error',
@@ -214,19 +232,26 @@ export async function action({ request }: ActionFunctionArgs) {
         );
         logger.debug('Preview generated', { previewCount: preview.length });
 
-        // Store action log
+        // Store action log (skip if Supabase is not available)
         logger.info('Storing action log');
-        const actionLogId = await logger.timeOperation(
-          'storeActionLog',
-          () => aiControllerService.storeActionLog(
-            command,
-            parseResult,
-            preview,
-            workspaceId,
-            user.id
-          )
-        );
-        logger.info('Action log stored', { actionLogId });
+        let actionLogId = null;
+        try {
+          actionLogId = await logger.timeOperation(
+            'storeActionLog',
+            () => aiControllerService.storeActionLog(
+              command,
+              parseResult,
+              preview,
+              workspaceId,
+              user.id
+            )
+          );
+          logger.info('Action log stored', { actionLogId });
+        } catch (error) {
+          logger.warn('Failed to store action log (Supabase may be offline)', error);
+          // Continue without storing the log
+          actionLogId = `temp-${Date.now()}`;
+        }
 
         const response = {
           success: true,

@@ -1,6 +1,6 @@
 # Task ID: 3
 # Title: Build Core Page and Block Management System
-# Status: pending
+# Status: done
 # Dependencies: 2
 # Priority: high
 # Description: Create the foundational page-centric workspace with CRUD operations for pages and implement the block system architecture with drag-and-drop functionality using Supabase backend
@@ -76,79 +76,79 @@ const channel = supabase.channel('page-changes')
 Test Supabase connection and RLS policies work correctly. Test CRUD operations through Supabase client. Verify real-time updates propagate across clients. Test drag-and-drop functionality with database persistence. Verify auto-save works with Supabase upsert. Test undo/redo maintains correct state in both local and database. Test block positioning and reordering with real-time sync.
 
 # Subtasks:
-## 1. Set up local Supabase development environment [pending]
+## 1. Set up local Supabase development environment [done]
 ### Dependencies: None
 ### Description: Initialize Supabase project locally using Docker and configure development environment with proper authentication setup
 ### Details:
 Install Supabase CLI, run supabase init to create project config, start local Supabase with supabase start. Configure environment variables for SUPABASE_URL and SUPABASE_ANON_KEY. Set up local database migrations folder structure.
 
-## 2. Create Supabase tables and RLS policies [pending]
+## 2. Create Supabase tables and RLS policies [done]
 ### Dependencies: 3.1
 ### Description: Design and create database tables in Supabase with proper Row Level Security policies for multi-tenant workspace access
 ### Details:
 Create tables: workspaces (id, name, owner_id), pages (id, workspace_id, title, parent_id, position), blocks (id, page_id, type, content, position). Enable RLS on all tables. Create policies for workspace membership-based access control. Add indexes for performance.
 
-## 3. Initialize Supabase client with authentication [pending]
+## 3. Initialize Supabase client with authentication [done]
 ### Dependencies: 3.2
 ### Description: Set up Supabase JavaScript client with proper authentication context and session management
 ### Details:
 Install @supabase/supabase-js. Create Supabase client singleton with auth helpers. Implement session persistence and refresh token handling. Create authenticated API wrapper functions. Set up auth state management with React context.
 
-## 4. Implement workspace CRUD with Supabase client [pending]
+## 4. Implement workspace CRUD with Supabase client [done]
 ### Dependencies: 3.3
 ### Description: Create workspace management functions using Supabase client with proper error handling and optimistic updates
 ### Details:
 Implement functions: createWorkspace using supabase.from('workspaces').insert(), getWorkspace with .select(), updateWorkspace with .update(), deleteWorkspace with .delete(). Add error handling, loading states, and optimistic UI updates.
 
-## 5. Implement page CRUD with Supabase client [pending]
+## 5. Implement page CRUD with Supabase client [done]
 ### Dependencies: 3.4
 ### Description: Create page management functions with hierarchical support using Supabase client operations
 ### Details:
 Implement functions using supabase.from('pages'). Support parent-child relationships with recursive queries. Handle position updates for reordering. Implement bulk operations for moving page trees. Add cascade delete handling.
 
-## 6. Design and implement block type system architecture [pending]
+## 6. Design and implement block type system architecture [done]
 ### Dependencies: 3.2
 ### Description: Create extensible block type system with base interfaces and type definitions for different block types
 ### Details:
 Define BlockType enum, BaseBlock interface, and specific block types (text, heading, image, database). Create block registry system and type validation. Implement block serialization/deserialization for JSONB storage in Supabase.
 
-## 7. Implement block CRUD with Supabase client [pending]
+## 7. Implement block CRUD with Supabase client [done]
 ### Dependencies: 3.6
 ### Description: Create block management functions using Supabase client with type-specific handling and batch operations
 ### Details:
 Implement functions using supabase.from('blocks'). Support type-specific validation before insert/update. Implement batch operations with supabase.rpc() for performance. Handle position updates and reordering.
 
-## 8. Set up Supabase Realtime for live updates [pending]
+## 8. Set up Supabase Realtime for live updates [done]
 ### Dependencies: 3.7
 ### Description: Configure Supabase Realtime channels for live synchronization of workspace, page, and block changes
 ### Details:
 Create Supabase channels for workspace-level changes. Set up postgres_changes listeners for blocks, pages tables. Implement change handlers for optimistic UI updates. Handle connection state and reconnection logic. Add presence features for collaborative indicators.
 
-## 9. Build drag-and-drop with Supabase persistence [pending]
+## 9. Build drag-and-drop with Supabase persistence [done]
 ### Dependencies: 3.8
 ### Description: Implement client-side drag-and-drop system that persists changes to Supabase in real-time
 ### Details:
 Use @dnd-kit/core for drag functionality. On drop, update block positions using supabase.from('blocks').update(). Implement optimistic updates during drag. Handle collision detection and position conflicts. Sync changes via Realtime to other users.
 
-## 10. Implement auto-save with Supabase upsert [pending]
+## 10. Implement auto-save with Supabase upsert [done]
 ### Dependencies: 3.9
 ### Description: Create debounced auto-save mechanism that uses Supabase upsert operations for efficient updates
 ### Details:
 Create debounced save hook (500ms delay). Use supabase.from('blocks').upsert() for efficient updates. Queue multiple changes and batch with RPC function. Show save status indicators. Handle conflict resolution for concurrent edits.
 
-## 11. Implement undo/redo with Supabase sync [pending]
+## 11. Implement undo/redo with Supabase sync [done]
 ### Dependencies: 3.10
 ### Description: Create command pattern undo/redo system that maintains consistency with Supabase database
 ### Details:
 Implement Command interface for Supabase operations. Maintain local command history (50 actions). On undo, reverse Supabase operation. On redo, replay Supabase operation. Handle conflicts when remote changes occur. Support keyboard shortcuts (Ctrl+Z, Ctrl+Y).
 
-## 12. Create React components for all block types [pending]
+## 12. Create React components for all block types [done]
 ### Dependencies: 3.6
 ### Description: Build reusable React components for text, heading, image, and other block types with Supabase integration
 ### Details:
 Create TextBlock, HeadingBlock, ImageBlock components. Implement inline editing with auto-save to Supabase. Add formatting toolbars and markdown support. Handle image uploads to Supabase Storage. Ensure all changes sync via Realtime.
 
-## 13. Integrate state management with Supabase sync [pending]
+## 13. Integrate state management with Supabase sync [done]
 ### Dependencies: 3.12
 ### Description: Set up centralized state management that stays synchronized with Supabase backend
 ### Details:

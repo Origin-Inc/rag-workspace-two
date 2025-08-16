@@ -1,0 +1,90 @@
+-- Add content_checksum columns for incremental indexing support
+
+-- Add checksum column to pages table
+ALTER TABLE pages 
+ADD COLUMN IF NOT EXISTS content_checksum TEXT;
+
+-- Add checksum column to blocks table (if it exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'blocks') THEN
+    ALTER TABLE blocks ADD COLUMN IF NOT EXISTS content_checksum TEXT;
+  END IF;
+END $$;
+
+-- Add checksum column to documents table metadata
+-- This is already JSONB so we don't need to alter, just document usage
+COMMENT ON COLUMN documents.metadata IS 
+'Stores document metadata including content_checksum for incremental indexing';
+
+-- Create index on checksums for faster lookups
+CREATE INDEX IF NOT EXISTS idx_pages_content_checksum ON pages(content_checksum) 
+WHERE content_checksum IS NOT NULL;
+
+-- Function to calculate and update content checksums
+CREATE OR REPLACE FUNCTION update_content_checksum()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_new_checksum TEXT;
+BEGIN
+  -- Calculate SHA-256 checksum of content
+  IF TG_TABLE_NAME = 'pages' THEN
+    v_new_checksum := encode(sha256(COALESCE(NEW.content, '')::bytea), 'hex');
+    NEW.content_checksum := v_new_checksum;
+  ELSIF TG_TABLE_NAME = 'blocks' THEN
+    v_new_checksum := encode(sha256(COALESCE(NEW.content::text, '')::bytea), 'hex');
+    NEW.content_checksum := v_new_checksum;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create triggers to automatically update checksums
+CREATE TRIGGER update_pages_checksum
+BEFORE INSERT OR UPDATE OF content ON pages
+FOR EACH ROW
+EXECUTE FUNCTION update_content_checksum();
+
+-- Create trigger for blocks if table exists
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'blocks') THEN
+    CREATE TRIGGER update_blocks_checksum
+    BEFORE INSERT OR UPDATE OF content ON blocks
+    FOR EACH ROW
+    EXECUTE FUNCTION update_content_checksum();
+  END IF;
+END $$;
+
+-- Function to bulk update existing checksums
+CREATE OR REPLACE FUNCTION bulk_update_checksums()
+RETURNS TABLE (
+  updated_pages INTEGER,
+  updated_blocks INTEGER
+) AS $$
+DECLARE
+  v_pages_updated INTEGER := 0;
+  v_blocks_updated INTEGER := 0;
+BEGIN
+  -- Update pages without checksums
+  UPDATE pages 
+  SET content_checksum = encode(sha256(COALESCE(content, '')::bytea), 'hex')
+  WHERE content_checksum IS NULL;
+  
+  GET DIAGNOSTICS v_pages_updated = ROW_COUNT;
+  
+  -- Update blocks if table exists
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'blocks') THEN
+    EXECUTE 'UPDATE blocks 
+             SET content_checksum = encode(sha256(COALESCE(content::text, '''')::bytea), ''hex'')
+             WHERE content_checksum IS NULL';
+    GET DIAGNOSTICS v_blocks_updated = ROW_COUNT;
+  END IF;
+  
+  RETURN QUERY SELECT v_pages_updated, v_blocks_updated;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Run initial checksum calculation for existing content
+SELECT * FROM bulk_update_checksums();

@@ -4,10 +4,13 @@ import { DebugLogger } from '~/utils/debug-logger';
 
 interface IndexingTask {
   id: string;
-  resource_type: 'block' | 'database' | 'page' | 'row';
-  resource_id: string;
+  entity_type: 'block' | 'database' | 'page' | 'row';
+  entity_id: string;
   workspace_id: string;
-  action: 'index' | 'update' | 'delete';
+  operation: 'insert' | 'update' | 'delete';
+  metadata?: any;
+  status?: string;
+  priority?: number;
 }
 
 export class IndexingQueueWorker {
@@ -92,16 +95,16 @@ export class IndexingQueueWorker {
   private async processTask(task: IndexingTask): Promise<void> {
     this.logger.info('Processing task', {
       id: task.id,
-      type: task.resource_type,
-      action: task.action
+      type: task.entity_type,
+      operation: task.operation
     });
 
     try {
-      switch (task.action) {
+      switch (task.operation) {
         case 'delete':
           await this.handleDelete(task);
           break;
-        case 'index':
+        case 'insert':
         case 'update':
           await this.handleIndexOrUpdate(task);
           break;
@@ -128,9 +131,9 @@ export class IndexingQueueWorker {
    * Handle delete action
    */
   private async handleDelete(task: IndexingTask): Promise<void> {
-    switch (task.resource_type) {
+    switch (task.entity_type) {
       case 'block':
-        await pageContentIndexerService.removeBlockIndex(task.resource_id);
+        await pageContentIndexerService.removeBlockIndex(task.entity_id);
         break;
       
       case 'database':
@@ -138,7 +141,7 @@ export class IndexingQueueWorker {
         const { error } = await this.supabase
           .from('documents')
           .delete()
-          .eq('metadata->>storage_path', `database:${task.resource_id}`);
+          .eq('metadata->>storage_path', `database:${task.entity_id}`);
         
         if (error) {
           throw new Error(`Failed to delete database documents: ${error.message}`);
@@ -150,7 +153,7 @@ export class IndexingQueueWorker {
         const { error: pageError } = await this.supabase
           .from('documents')
           .delete()
-          .eq('metadata->>page_id', task.resource_id);
+          .eq('metadata->>page_id', task.entity_id);
         
         if (pageError) {
           throw new Error(`Failed to delete page documents: ${pageError.message}`);
@@ -163,13 +166,13 @@ export class IndexingQueueWorker {
    * Handle index or update action
    */
   private async handleIndexOrUpdate(task: IndexingTask): Promise<void> {
-    switch (task.resource_type) {
+    switch (task.entity_type) {
       case 'block':
         // Get block data
         const { data: block } = await this.supabase
           .from('blocks')
           .select('*')
-          .eq('id', task.resource_id)
+          .eq('id', task.entity_id)
           .single();
         
         if (block) {
@@ -183,14 +186,14 @@ export class IndexingQueueWorker {
       
       case 'database':
         await pageContentIndexerService.indexDatabaseBlock(
-          task.resource_id,
+          task.entity_id,
           task.workspace_id
         );
         break;
       
       case 'page':
         await pageContentIndexerService.indexPage(
-          task.resource_id,
+          task.entity_id,
           task.workspace_id
         );
         break;

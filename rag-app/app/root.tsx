@@ -9,6 +9,8 @@ import {
   useRouteError,
 } from "@remix-run/react";
 import { ThemeProvider } from "~/components/theme/ThemeProvider";
+import { ErrorBoundary as MonitoringErrorBoundary } from "~/components/monitoring/ErrorBoundary";
+import { useEffect } from "react";
 import type { 
   LinksFunction, 
   LoaderFunctionArgs,
@@ -46,6 +48,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
     env: {
       SUPABASE_URL: process.env["SUPABASE_URL"],
       SUPABASE_ANON_KEY: process.env["SUPABASE_ANON_KEY"],
+      SENTRY_DSN: process.env["SENTRY_DSN"],
+      NODE_ENV: process.env.NODE_ENV,
+      ENABLE_SENTRY_DEV: process.env["ENABLE_SENTRY_DEV"],
     },
   });
 }
@@ -103,9 +108,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      // Dynamically import monitoring to avoid SSR issues
+      import('~/services/monitoring/init.client').then(({ initMonitoring }) => {
+        initMonitoring();
+      }).catch(error => {
+        console.error('Failed to initialize monitoring:', error);
+      });
+    }
+  }, []);
+
   return (
     <ThemeProvider>
-      <Outlet />
+      <MonitoringErrorBoundary level="app">
+        <Outlet />
+      </MonitoringErrorBoundary>
     </ThemeProvider>
   );
 }

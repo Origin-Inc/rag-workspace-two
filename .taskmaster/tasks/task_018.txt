@@ -1,0 +1,410 @@
+# Task ID: 18
+# Title: Build Context-Aware Response System
+# Status: pending
+# Dependencies: 5, 6, 12, 14, 16
+# Priority: high
+# Description: Implement intelligent response generation that understands current page/workspace context, provides page-specific summaries, generates workspace overviews, handles conversational queries with memory, and delivers actionable suggestions based on user intent analysis
+# Details:
+1. Create context analysis system for current page/workspace state:
+```typescript
+interface PageContext {
+  pageId: string;
+  pageTitle: string;
+  pageType: 'document' | 'database' | 'project' | 'dashboard';
+  blocks: Array<{
+    id: string;
+    type: BlockType;
+    content: any;
+    metadata: Record<string, any>;
+  }>;
+  lastModified: Date;
+  collaborators: string[];
+  parentProject?: string;
+  relatedPages: string[];
+}
+
+interface WorkspaceContext {
+  workspaceId: string;
+  activePages: PageContext[];
+  recentActivity: ActivityLog[];
+  userRole: string;
+  permissions: Permission[];
+  workspaceMetrics: {
+    totalPages: number;
+    activeUsers: number;
+    storageUsed: number;
+  };
+}
+```
+
+2. Implement Supabase Edge Function for context-aware response generation:
+```typescript
+// supabase/functions/generate-contextual-response/index.ts
+export async function handler(req: Request) {
+  const { query, pageContext, workspaceContext, conversationHistory } = await req.json();
+  
+  // Analyze user intent
+  const intent = await analyzeIntent(query);
+  
+  // Gather relevant context based on intent
+  const enrichedContext = await enrichContext({
+    intent,
+    pageContext,
+    workspaceContext,
+    includeRelatedPages: intent.requiresCrossReference,
+    includeWorkspacePatterns: intent.requiresPatternAnalysis
+  });
+  
+  // Generate response with appropriate context
+  const response = await generateResponse({
+    query,
+    intent,
+    context: enrichedContext,
+    conversationHistory,
+    responseType: determineResponseType(intent)
+  });
+  
+  return new Response(JSON.stringify(response));
+}
+```
+
+3. Build intent classification system:
+```typescript
+interface UserIntent {
+  type: 'summary' | 'query' | 'action' | 'analysis' | 'suggestion';
+  confidence: number;
+  entities: {
+    pages?: string[];
+    blocks?: string[];
+    timeRange?: DateRange;
+    actions?: string[];
+  };
+  requiresCrossReference: boolean;
+  requiresPatternAnalysis: boolean;
+  requiresHistoricalData: boolean;
+}
+
+async function analyzeIntent(query: string): Promise<UserIntent> {
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4',
+    messages: [
+      {
+        role: 'system',
+        content: 'Classify user intent and extract entities from workspace queries'
+      },
+      { role: 'user', content: query }
+    ],
+    functions: [{
+      name: 'classify_intent',
+      parameters: {
+        type: 'object',
+        properties: {
+          type: { enum: ['summary', 'query', 'action', 'analysis', 'suggestion'] },
+          entities: { type: 'object' },
+          requirements: { type: 'object' }
+        }
+      }
+    }]
+  });
+  
+  return parseIntentResponse(completion);
+}
+```
+
+4. Implement page-specific summarization with vector search integration:
+```typescript
+async function generatePageSummary(pageId: string, context: PageContext): Promise<Summary> {
+  // Retrieve page embeddings and related content
+  const { data: pageEmbeddings } = await supabase
+    .rpc('get_page_embeddings', { page_id: pageId });
+  
+  // Find semantically similar content in workspace
+  const relatedContent = await findRelatedContent(pageEmbeddings, context.workspaceId);
+  
+  // Generate intelligent summary
+  const summary = await openai.chat.completions.create({
+    model: 'gpt-4',
+    messages: [
+      {
+        role: 'system',
+        content: `Generate a concise summary of the page focusing on:
+          - Key topics and main points
+          - Relationships to other pages: ${relatedContent.pages.join(', ')}
+          - Recent changes and activity
+          - Actionable items or decisions`
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          pageContent: context.blocks,
+          relatedContent,
+          recentActivity: context.recentActivity
+        })
+      }
+    ]
+  });
+  
+  return {
+    summary: summary.choices[0].message.content,
+    keyTopics: extractKeyTopics(summary),
+    relatedPages: relatedContent.pages,
+    suggestedActions: extractActions(summary)
+  };
+}
+```
+
+5. Build conversational memory system:
+```typescript
+// Store conversation context in Supabase
+CREATE TABLE conversation_sessions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  workspace_id UUID REFERENCES workspaces(id),
+  user_id UUID REFERENCES users(id),
+  page_id UUID REFERENCES pages(id),
+  messages JSONB[] DEFAULT '{}',
+  context_snapshot JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+interface ConversationMemory {
+  sessionId: string;
+  messages: Message[];
+  contextSnapshot: {
+    relevantPages: string[];
+    mentionedEntities: Entity[];
+    userPreferences: Preferences;
+  };
+  shortTermMemory: Map<string, any>; // Last 5 exchanges
+  longTermMemory: Map<string, any>; // Important facts
+}
+```
+
+6. Implement actionable suggestion generator:
+```typescript
+async function generateActionableSuggestions(
+  context: EnrichedContext,
+  intent: UserIntent
+): Promise<Suggestion[]> {
+  const suggestions: Suggestion[] = [];
+  
+  // Analyze workspace patterns
+  const patterns = await analyzeWorkspacePatterns(context.workspaceId);
+  
+  // Generate suggestions based on patterns and intent
+  if (intent.type === 'analysis') {
+    suggestions.push(...await generateAnalysisSuggestions(patterns, context));
+  }
+  
+  // Check for missing information
+  const gaps = await identifyInformationGaps(context);
+  if (gaps.length > 0) {
+    suggestions.push(...generateGapFillingSuggestions(gaps));
+  }
+  
+  // Suggest relevant templates or automations
+  const automations = await suggestAutomations(patterns, context);
+  suggestions.push(...automations);
+  
+  return rankSuggestions(suggestions, intent, context);
+}
+```
+
+7. Create workspace overview generator:
+```typescript
+async function generateWorkspaceOverview(
+  workspaceId: string,
+  timeRange?: DateRange
+): Promise<WorkspaceOverview> {
+  // Aggregate workspace data
+  const metrics = await supabase.rpc('get_workspace_metrics', {
+    workspace_id: workspaceId,
+    start_date: timeRange?.start,
+    end_date: timeRange?.end
+  });
+  
+  // Identify key projects and active areas
+  const activeAreas = await identifyActiveAreas(workspaceId, timeRange);
+  
+  // Generate natural language overview
+  const overview = await openai.chat.completions.create({
+    model: 'gpt-4',
+    messages: [
+      {
+        role: 'system',
+        content: 'Generate a executive summary of workspace activity and status'
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({ metrics, activeAreas })
+      }
+    ]
+  });
+  
+  return {
+    summary: overview.choices[0].message.content,
+    keyMetrics: formatMetrics(metrics),
+    activeProjects: activeAreas.projects,
+    teamActivity: activeAreas.teamActivity,
+    trends: identifyTrends(metrics)
+  };
+}
+```
+
+8. Implement real-time context tracking:
+```typescript
+// Track user navigation and interactions
+const contextTracker = {
+  currentPage: null as PageContext | null,
+  visitedPages: new Map<string, PageVisit>(),
+  interactions: [] as UserInteraction[],
+  
+  async updateContext(pageId: string) {
+    this.currentPage = await loadPageContext(pageId);
+    this.visitedPages.set(pageId, {
+      timestamp: new Date(),
+      duration: 0,
+      interactions: []
+    });
+    
+    // Update Supabase with context
+    await supabase.from('user_context').upsert({
+      user_id: currentUser.id,
+      current_page_id: pageId,
+      context_data: this.currentPage,
+      visited_pages: Array.from(this.visitedPages.entries())
+    });
+  }
+};
+```
+
+9. Build response caching and optimization:
+```typescript
+// Cache frequently requested summaries and overviews
+const responseCache = new Map<string, CachedResponse>();
+
+async function getCachedOrGenerate(
+  key: string,
+  generator: () => Promise<any>,
+  ttl: number = 300000 // 5 minutes
+): Promise<any> {
+  const cached = responseCache.get(key);
+  if (cached && Date.now() - cached.timestamp < ttl) {
+    return cached.data;
+  }
+  
+  const fresh = await generator();
+  responseCache.set(key, {
+    data: fresh,
+    timestamp: Date.now()
+  });
+  
+  return fresh;
+}
+```
+
+10. Integrate with AI Controller sidebar:
+```typescript
+// Extend AI Controller to use context-aware responses
+interface AIControllerExtension {
+  getContextualResponse: (query: string) => Promise<ContextualResponse>;
+  getCurrentPageSummary: () => Promise<Summary>;
+  getWorkspaceOverview: () => Promise<WorkspaceOverview>;
+  getSuggestions: () => Promise<Suggestion[]>;
+}
+```
+
+# Test Strategy:
+1. Test intent classification by providing 50+ diverse queries and verify correct intent type, confidence scores > 0.8, and proper entity extraction for pages, blocks, dates, and actions.
+
+2. Verify page summarization by creating pages with 100+ blocks of mixed content types, then validate summaries capture key topics, identify relationships to 5+ other pages, and generate 3-5 actionable suggestions.
+
+3. Test conversational memory by conducting 10-turn conversations, verifying context retention across turns, checking short-term memory holds last 5 exchanges, and confirming long-term memory persists important facts.
+
+4. Validate workspace overview generation with workspaces containing 1000+ pages, verify metrics accuracy within 1%, test trend identification over 30-day periods, and ensure response time < 2 seconds.
+
+5. Test real-time context tracking by navigating between 20+ pages rapidly, verifying context updates within 100ms, checking visited page history accuracy, and confirming interaction tracking captures all user actions.
+
+6. Verify actionable suggestions by creating scenarios with information gaps, testing pattern-based suggestions match workspace usage, and validating automation suggestions are relevant and executable.
+
+7. Load test response generation with 100 concurrent users making context queries, verify p95 response time < 500ms, test cache hit rate > 70% for repeated queries, and ensure no memory leaks over 1-hour test.
+
+8. Test edge cases including empty workspaces, pages with 10k+ blocks, queries with ambiguous intent, and context switching between different workspace types.
+
+9. Verify Supabase Edge Function handles errors gracefully, implements proper rate limiting, and maintains conversation session isolation between users.
+
+10. Test integration with AI Controller sidebar by verifying context flows correctly, responses appear in sidebar UI within 200ms, and suggestions trigger appropriate actions when selected.
+
+# Subtasks:
+## 1. Set up context analysis models and interfaces [pending]
+### Dependencies: None
+### Description: Define TypeScript interfaces for PageContext and WorkspaceContext, create database schema for storing context data, and establish the foundation for the context-aware system
+### Details:
+Create interfaces in app/types/context.ts including PageContext with pageId, pageTitle, pageType, blocks array, metadata, and WorkspaceContext with workspaceId, activePages, recentActivity, permissions. Add database tables for context_snapshots and user_context_sessions. Implement basic context loading functions that retrieve page and workspace data from existing tables.
+
+## 2. Build intent classification system with OpenAI integration [pending]
+### Dependencies: 18.1
+### Description: Implement AI-powered intent analysis to classify user queries into categories like summary, query, action, analysis, or suggestion with entity extraction
+### Details:
+Create analyzeIntent function in app/services/ai/intentClassifier.ts using OpenAI function calling. Define UserIntent interface with type, confidence, entities (pages, blocks, timeRange, actions), and requirement flags. Implement parseIntentResponse to handle OpenAI responses. Add intent classification prompts and examples for training.
+
+## 3. Create Supabase Edge Function for contextual response generation [pending]
+### Dependencies: 18.1, 18.2
+### Description: Implement the main Edge Function that orchestrates context gathering, intent analysis, and response generation based on user queries
+### Details:
+Create supabase/functions/generate-contextual-response/index.ts with handler that accepts query, pageContext, workspaceContext, and conversationHistory. Implement enrichContext function to gather additional context based on intent. Add determineResponseType logic. Configure CORS and authentication. Deploy function with proper environment variables.
+
+## 4. Implement page-specific summarization with vector embeddings [pending]
+### Dependencies: 18.1, 18.3
+### Description: Build intelligent page summarization that leverages vector search to find related content and generate comprehensive summaries
+### Details:
+Create generatePageSummary function using existing vector embeddings from task 16. Implement findRelatedContent using pgvector similarity search. Add extractKeyTopics and extractActions helpers. Create Summary interface with summary text, keyTopics array, relatedPages, and suggestedActions. Integrate with OpenAI for natural language generation.
+
+## 5. Build conversational memory system with session management [pending]
+### Dependencies: 18.1, 18.3
+### Description: Implement conversation session tracking with short-term and long-term memory storage for maintaining context across interactions
+### Details:
+Create conversation_sessions table in Supabase with messages JSONB array and context_snapshot. Implement ConversationMemory class with sessionId, messages, contextSnapshot, shortTermMemory (last 5 exchanges), and longTermMemory (important facts). Add session management functions for creating, updating, and retrieving sessions. Implement memory decay and importance scoring.
+
+## 6. Create actionable suggestion generator with pattern analysis [pending]
+### Dependencies: 18.2, 18.3
+### Description: Build system to analyze workspace patterns and generate contextual suggestions for improvements, automations, and next steps
+### Details:
+Implement generateActionableSuggestions function that analyzes workspace patterns using SQL analytics. Create analyzeWorkspacePatterns to identify usage trends. Build identifyInformationGaps to find missing data. Implement suggestAutomations based on repetitive patterns. Add rankSuggestions using relevance scoring. Define Suggestion interface with type, priority, description, and implementation steps.
+
+## 7. Develop workspace overview generator with analytics [pending]
+### Dependencies: 18.1, 18.3
+### Description: Create comprehensive workspace overview system that aggregates metrics, identifies active areas, and generates executive summaries
+### Details:
+Implement generateWorkspaceOverview with time range filtering. Create get_workspace_metrics Supabase RPC function for efficient aggregation. Build identifyActiveAreas using activity logs and page updates. Add formatMetrics and identifyTrends helpers. Generate natural language overviews with key metrics, active projects, team activity, and trend analysis.
+
+## 8. Implement real-time context tracking system [pending]
+### Dependencies: 18.1, 18.5
+### Description: Build client-side context tracker that monitors user navigation, interactions, and maintains current context state synchronized with backend
+### Details:
+Create contextTracker singleton in app/hooks/useContextTracker.ts with currentPage, visitedPages Map, and interactions array. Implement updateContext method triggered on navigation. Add interaction tracking for clicks, edits, and searches. Sync context to Supabase user_context table. Implement context restoration on page load.
+
+## 9. Build response caching and optimization layer [pending]
+### Dependencies: 18.4, 18.6, 18.7
+### Description: Implement intelligent caching system for frequently requested summaries and overviews with TTL management and cache invalidation
+### Details:
+Create ResponseCache class with Map-based storage and TTL support. Implement getCachedOrGenerate wrapper function. Add cache key generation based on query, context, and user. Implement cache invalidation on content updates using Supabase Realtime. Add cache warming for popular content. Configure Redis for production caching.
+
+## 10. Integrate context-aware system with AI Controller sidebar [pending]
+### Dependencies: 18.3, 18.4, 18.5, 18.6, 18.7, 18.8
+### Description: Extend existing AI Controller component to leverage the new context-aware response system for enhanced interactions
+### Details:
+Modify app/components/ai/AIController.tsx to use generate-contextual-response Edge Function. Add methods for getContextualResponse, getCurrentPageSummary, getWorkspaceOverview, and getSuggestions. Update UI to display suggestions and context-aware responses. Implement streaming responses for better UX. Add context indicators showing what information AI is using.
+
+## 11. Implement context enrichment and cross-referencing [pending]
+### Dependencies: 18.2, 18.4, 18.8
+### Description: Build system to enrich context with related pages, historical data, and cross-references based on user intent requirements
+### Details:
+Create enrichContext function that conditionally loads related pages, workspace patterns, and historical data based on intent flags. Implement cross-reference resolution for mentioned entities. Add context pruning to avoid token limits. Build relevance scoring for included context. Cache enriched contexts for performance.
+
+## 12. Add comprehensive testing and monitoring [pending]
+### Dependencies: 18.10, 18.11
+### Description: Implement end-to-end tests, performance monitoring, and analytics for the context-aware response system
+### Details:
+Create E2E tests using Playwright for full user flows. Add performance monitoring with response time tracking. Implement analytics for intent classification accuracy, suggestion acceptance rates, and user satisfaction. Add error tracking and alerting. Create dashboard for monitoring system health and usage patterns.
+

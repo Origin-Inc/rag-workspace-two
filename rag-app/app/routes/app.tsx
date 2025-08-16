@@ -5,6 +5,7 @@ import { getUser } from "~/services/auth/auth.server";
 import { prisma } from "~/utils/db.server";
 import { workspaceService } from "~/services/workspace.server";
 import { useState, useEffect } from "react";
+import crypto from "crypto";
 import { Breadcrumbs } from "~/components/navigation/Breadcrumbs";
 import { CommandPalette } from "~/components/navigation/CommandPalette";
 import { UserMenu } from "~/components/navigation/UserMenu";
@@ -32,55 +33,66 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   // Get user's workspaces
-  const userWorkspaces = await prisma.userWorkspace.findMany({
-    where: { userId: user.id },
-    include: {
-      workspace: true,
-      role: true,
-    },
-    orderBy: {
-      workspace: {
-        name: 'asc'
+  let userWorkspaces = [];
+  try {
+    userWorkspaces = await prisma.userWorkspace.findMany({
+      where: { userId: user.id },
+      include: {
+        workspace: true,
+        role: true,
+      },
+      orderBy: {
+        workspace: {
+          name: 'asc'
+        }
       }
-    }
-  });
+    });
+  } catch (error) {
+    console.error('Error fetching workspaces:', error);
+    // Continue with empty array
+  }
 
   if (userWorkspaces.length === 0) {
     // Create a default workspace for the user
-    const defaultWorkspace = await prisma.workspace.create({
-      data: {
-        name: "My Workspace",
-        slug: `workspace-${user.id.slice(0, 8)}`,
-        description: "Default workspace",
-      },
-    });
-
-    // Get or create default role
-    let defaultRole = await prisma.role.findFirst({
-      where: { name: "owner" },
-    });
-
-    if (!defaultRole) {
-      defaultRole = await prisma.role.create({
-        data: {
-          name: "owner",
-          displayName: "Owner",
-          description: "Full access to the workspace",
-          isSystem: true,
-        },
+    const slug = `workspace-${user.id.slice(0, 8)}-${Date.now()}`; // Add timestamp to ensure uniqueness
+    
+    try {
+      // Get owner role ID
+      const ownerRole = await prisma.role.findUnique({
+        where: { name: 'owner' }
       });
+      
+      if (!ownerRole) {
+        throw new Error('Owner role not found');
+      }
+      
+      // Create workspace and user association
+      const workspace = await prisma.workspace.create({
+        data: {
+          name: 'My Workspace',
+          slug,
+          description: 'Default workspace',
+          userWorkspaces: {
+            create: {
+              userId: user.id,
+              roleId: ownerRole.id
+            }
+          }
+        }
+      });
+    } catch (e) {
+      console.error('Error creating default workspace:', e);
+      // If workspace creation fails, don't redirect - show error instead
+      return json({ 
+        error: 'Unable to create workspace. Please try again or contact support.',
+        user,
+        workspaces: [],
+        currentWorkspace: null,
+        projects: []
+      }, { status: 500 });
     }
 
-    // Add user to workspace
-    await prisma.userWorkspace.create({
-      data: {
-        userId: user.id,
-        workspaceId: defaultWorkspace.id,
-        roleId: defaultRole.id,
-      },
-    });
-
-    // Redirect to refresh the page with the new workspace
+    // Only redirect if workspace was successfully created
     return redirect("/app");
   }
 
@@ -88,12 +100,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const currentWorkspaceId = user.workspaceId || userWorkspaces[0].workspace.id;
   const currentWorkspace = userWorkspaces.find(uw => uw.workspace.id === currentWorkspaceId)?.workspace || userWorkspaces[0].workspace;
 
-  // Get projects for current workspace
-  const projects = await prisma.project.findMany({
-    where: { workspaceId: currentWorkspace.id },
-    orderBy: { name: 'asc' },
-    take: 10,
-  });
+  // Get projects for current workspace - handle potential missing table
+  let projects = [];
+  try {
+    projects = await prisma.project.findMany({
+      where: { workspaceId: currentWorkspace.id },
+      orderBy: { name: 'asc' },
+      take: 10,
+    });
+  } catch (e) {
+    console.error('Error fetching projects:', e);
+    // Continue with empty array
+  }
 
   return json({
     user,
@@ -116,6 +134,7 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
   const [projectsExpanded, setProjectsExpanded] = useState(true);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   // Main navigation items
   const navigation: NavigationItem[] = [
@@ -164,17 +183,17 @@ export default function AppLayout() {
         className={`
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-64 
-          bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-transform duration-300 ease-in-out
+          bg-white dark:bg-[rgba(33,33,33,1)] border-r border-gray-200 dark:border-[rgba(33, 33, 33, 1)] transition-transform duration-300 ease-in-out
           flex flex-col h-full
         `}
         aria-label="Main navigation"
       >
         {/* Workspace Switcher */}
-        <div className="flex-shrink-0 p-4 border-b border-gray-200">
+        <div className="flex-shrink-0 p-2">
           <div className="relative" data-dropdown="workspace">
             <button
               onClick={() => setWorkspaceDropdownOpen(!workspaceDropdownOpen)}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+              className="w-full flex items-center justify-between px-3 py-0.7 text-sm font-medium text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
               aria-label="Switch workspace"
               aria-expanded={workspaceDropdownOpen}
               aria-haspopup="true"
@@ -190,7 +209,7 @@ export default function AppLayout() {
 
             {/* Workspace Dropdown */}
             {workspaceDropdownOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10 dark:bg-[rgba(33,33,33,1)]">
                 <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Workspaces
                 </div>
@@ -199,8 +218,8 @@ export default function AppLayout() {
                     key={uw.workspace.id}
                     to={`/app/workspace/${uw.workspace.slug}`}
                     className={`
-                      flex items-center px-3 py-2 text-sm hover:bg-gray-50
-                      ${uw.workspace.id === currentWorkspace.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}
+                      flex items-center px-3 py-2 text-sm dark:bg-[rgba(33,33,33,1)] dark:hover:bg-gray-50
+                      ${uw.workspace.id === currentWorkspace.id ? 'bg-blue-50 text-blue-700 dark:text-white' : 'text-gray-700'}
                     `}
                   >
                     <div className="flex-shrink-0 w-6 h-6 bg-gradient-to-br from-gray-400 to-gray-500 rounded flex items-center justify-center text-white text-xs font-semibold">
@@ -229,6 +248,21 @@ export default function AppLayout() {
           {navigation.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
+            
+            // Special handling for Search - opens command palette instead of navigating
+            if (item.name === 'Search') {
+              return (
+                <button
+                  key={item.name}
+                  onClick={() => setCommandPaletteOpen(true)}
+                  className="w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                  {item.name}
+                </button>
+              );
+            }
+            
             return (
               <NavLink
                 key={item.name}
@@ -236,8 +270,8 @@ export default function AppLayout() {
                 className={({ isActive }) => `
                   flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors
                   ${isActive 
-                    ? 'bg-blue-50 text-blue-700' 
-                    : 'text-gray-700 hover:bg-gray-50'
+                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200' 
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
                   }
                 `}
               >
@@ -307,13 +341,10 @@ export default function AppLayout() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header */}
-        <header className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          {/* Breadcrumbs */}
-          <div className="px-4 lg:px-6 py-3 border-b border-gray-200">
-            <Breadcrumbs />
-          </div>
+        <header id="top-header" className="flex-shrink-0 bg-white dark:bg-[rgba(33,33,33,1)] dark:border-[rgba(33, 33, 33, 1)]">
           
-          <div className="flex items-center justify-between h-16 px-4 lg:px-6">
+          
+          <div className="flex items-center justify-between h-12 px-4 lg:px-6">
             {/* Mobile menu button */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -328,10 +359,8 @@ export default function AppLayout() {
               )}
             </button>
 
-            {/* Search Bar / Command Palette */}
-            <div className="flex-1 max-w-2xl mx-4">
-              <CommandPalette />
-            </div>
+            {/* Spacer */}
+            <div className="flex-1"></div>
 
             {/* Right side buttons */}
             <div className="flex items-center space-x-3">
@@ -344,10 +373,16 @@ export default function AppLayout() {
         </header>
 
         {/* Page Content */}
-        <main id="main-content" className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900" tabIndex={-1}>
+        <main id="main-content" className="flex-1 overflow-y-auto bg-white" tabIndex={-1}>
           <Outlet />
         </main>
       </div>
+      
+      {/* Command Palette - rendered as modal */}
+      <CommandPalette 
+        open={commandPaletteOpen} 
+        onClose={() => setCommandPaletteOpen(false)} 
+      />
     </div>
   );
 }

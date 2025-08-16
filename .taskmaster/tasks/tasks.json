@@ -1637,7 +1637,7 @@
         "description": "Build a feature-rich workspace dashboard providing centralized access to workspace overview, team management, usage analytics, recent activity, and workspace configuration with full CRUD operations and search capabilities",
         "details": "1. Create main dashboard layout with responsive grid system:\n```typescript\n// app/dashboard/[workspaceId]/page.tsx\nimport { DashboardGrid } from '@/components/dashboard/DashboardGrid';\nimport { WorkspaceOverview } from '@/components/dashboard/WorkspaceOverview';\nimport { QuickActions } from '@/components/dashboard/QuickActions';\nimport { TeamActivityFeed } from '@/components/dashboard/TeamActivityFeed';\nimport { UsageAnalytics } from '@/components/dashboard/UsageAnalytics';\n\nexport default async function WorkspaceDashboard({ params }) {\n  const workspace = await getWorkspace(params.workspaceId);\n  return (\n    <DashboardGrid>\n      <WorkspaceOverview workspace={workspace} />\n      <QuickActions />\n      <TeamActivityFeed />\n      <UsageAnalytics />\n    </DashboardGrid>\n  );\n}\n```\n\n2. Implement workspace overview component with recent items:\n```typescript\n// components/dashboard/WorkspaceOverview.tsx\nconst { data: recentPages } = await supabase\n  .from('pages')\n  .select('id, title, updated_at, project:projects(name)')\n  .eq('workspace_id', workspaceId)\n  .order('updated_at', { ascending: false })\n  .limit(10);\n\nconst { data: projects } = await supabase\n  .from('projects')\n  .select('id, name, page_count:pages(count)')\n  .eq('workspace_id', workspaceId)\n  .order('updated_at', { ascending: false })\n  .limit(5);\n```\n\n3. Build workspace CRUD operations with Supabase:\n```typescript\n// lib/workspace-operations.ts\nexport async function createWorkspace(data: WorkspaceInput) {\n  const { data: workspace, error } = await supabase\n    .from('workspaces')\n    .insert({\n      name: data.name,\n      description: data.description,\n      owner_id: userId,\n      settings: data.settings,\n      template_id: data.templateId\n    })\n    .select()\n    .single();\n  \n  // Initialize workspace with template if provided\n  if (data.templateId) {\n    await applyWorkspaceTemplate(workspace.id, data.templateId);\n  }\n  return workspace;\n}\n\nexport async function updateWorkspace(id: string, updates: Partial<Workspace>) {\n  return await supabase\n    .from('workspaces')\n    .update(updates)\n    .eq('id', id)\n    .select();\n}\n\nexport async function deleteWorkspace(id: string) {\n  // Soft delete with archive\n  return await supabase\n    .from('workspaces')\n    .update({ archived_at: new Date().toISOString() })\n    .eq('id', id);\n}\n```\n\n4. Create quick actions widget with recent documents:\n```typescript\n// components/dashboard/QuickActions.tsx\ninterface QuickAction {\n  type: 'document' | 'template' | 'project';\n  icon: IconType;\n  title: string;\n  action: () => void;\n}\n\nconst quickActions = [\n  { type: 'document', title: 'New Page', action: createNewPage },\n  { type: 'project', title: 'New Project', action: createNewProject },\n  { type: 'template', title: 'From Template', action: openTemplateGallery }\n];\n\n// Fetch recent documents with thumbnails\nconst { data: recentDocs } = await supabase\n  .from('pages')\n  .select('id, title, thumbnail_url, last_accessed')\n  .eq('workspace_id', workspaceId)\n  .order('last_accessed', { ascending: false })\n  .limit(6);\n```\n\n5. Implement team activity feed with real-time updates:\n```typescript\n// components/dashboard/TeamActivityFeed.tsx\nconst channel = supabase\n  .channel(`workspace:${workspaceId}:activity`)\n  .on('postgres_changes', \n    { event: '*', schema: 'public', table: 'activity_log' },\n    (payload) => {\n      setActivities(prev => [payload.new, ...prev].slice(0, 50));\n    }\n  )\n  .subscribe();\n\n// Activity log schema\ninterface Activity {\n  id: string;\n  user_id: string;\n  action: 'created' | 'updated' | 'deleted' | 'shared' | 'commented';\n  resource_type: 'page' | 'project' | 'database' | 'comment';\n  resource_id: string;\n  resource_title: string;\n  timestamp: Date;\n  metadata?: Record<string, any>;\n}\n```\n\n6. Build usage analytics dashboard with charts:\n```typescript\n// components/dashboard/UsageAnalytics.tsx\nimport { LineChart, BarChart, PieChart } from 'recharts';\n\nconst UsageAnalytics = () => {\n  // Storage usage query\n  const { data: storageData } = await supabase\n    .rpc('calculate_storage_usage', { workspace_id: workspaceId });\n  \n  // Credits/API usage\n  const { data: creditsData } = await supabase\n    .from('usage_metrics')\n    .select('date, ai_credits_used, storage_gb, api_calls')\n    .eq('workspace_id', workspaceId)\n    .gte('date', thirtyDaysAgo)\n    .order('date');\n  \n  // Member activity heatmap\n  const { data: memberActivity } = await supabase\n    .from('user_activity_metrics')\n    .select('user_id, date, actions_count')\n    .eq('workspace_id', workspaceId);\n  \n  return (\n    <div className=\"grid grid-cols-2 gap-4\">\n      <LineChart data={creditsData} title=\"AI Credits Usage\" />\n      <BarChart data={storageData} title=\"Storage by Type\" />\n      <PieChart data={memberActivity} title=\"Team Activity Distribution\" />\n      <UsageTable detailed={true} />\n    </div>\n  );\n};\n```\n\n7. Create workspace settings panel:\n```typescript\n// components/dashboard/WorkspaceSettings.tsx\nconst settingsSections = [\n  {\n    id: 'general',\n    title: 'General',\n    fields: ['name', 'description', 'logo', 'timezone']\n  },\n  {\n    id: 'permissions',\n    title: 'Permissions & Access',\n    fields: ['default_role', 'guest_access', 'sharing_policy']\n  },\n  {\n    id: 'integrations',\n    title: 'Integrations',\n    component: <IntegrationsPanel />\n  },\n  {\n    id: 'billing',\n    title: 'Billing & Usage',\n    component: <BillingSettings />\n  }\n];\n```\n\n8. Implement team member invitation system:\n```typescript\n// components/dashboard/InviteMembers.tsx\nexport async function inviteTeamMembers(emails: string[], role: Role) {\n  const invitations = emails.map(email => ({\n    email,\n    workspace_id: workspaceId,\n    role_id: role.id,\n    invited_by: currentUserId,\n    token: generateInviteToken(),\n    expires_at: addDays(new Date(), 7)\n  }));\n  \n  const { data, error } = await supabase\n    .from('invitations')\n    .insert(invitations)\n    .select();\n  \n  // Send invitation emails via Edge Function\n  await supabase.functions.invoke('send-invitations', {\n    body: { invitations: data }\n  });\n}\n\n// Real-time invitation status\nconst channel = supabase\n  .channel(`invitations:${workspaceId}`)\n  .on('postgres_changes',\n    { event: 'UPDATE', schema: 'public', table: 'invitations' },\n    handleInvitationUpdate\n  );\n```\n\n9. Build workspace templates gallery:\n```typescript\n// components/dashboard/TemplatesGallery.tsx\nconst { data: templates } = await supabase\n  .from('workspace_templates')\n  .select('*')\n  .or(`public.eq.true,owner_id.eq.${userId}`);\n\nconst categories = [\n  'Project Management',\n  'Product Development', \n  'Marketing',\n  'Sales CRM',\n  'Engineering',\n  'Design System'\n];\n\n// Preview and apply template\nasync function applyTemplate(templateId: string) {\n  const { data: template } = await supabase\n    .from('workspace_templates')\n    .select('structure, default_pages, settings')\n    .eq('id', templateId)\n    .single();\n  \n  // Clone template structure\n  await supabase.rpc('clone_workspace_template', {\n    template_id: templateId,\n    target_workspace_id: workspaceId\n  });\n}\n```\n\n10. Implement global search across workspace:\n```typescript\n// components/dashboard/WorkspaceSearch.tsx\nimport { Command } from 'cmdk';\n\nexport function WorkspaceSearch() {\n  const searchAcrossWorkspace = async (query: string) => {\n    // Full-text search using Supabase\n    const results = await Promise.all([\n      supabase\n        .from('pages')\n        .select('id, title, content_preview')\n        .textSearch('title', query)\n        .eq('workspace_id', workspaceId)\n        .limit(5),\n      \n      supabase\n        .from('projects')\n        .select('id, name, description')\n        .textSearch('name', query)\n        .eq('workspace_id', workspaceId)\n        .limit(5),\n      \n      supabase\n        .from('database_blocks')\n        .select('id, title, page_id')\n        .textSearch('title', query)\n        .eq('workspace_id', workspaceId)\n        .limit(5)\n    ]);\n    \n    return combineSearchResults(results);\n  };\n  \n  // Keyboard shortcut: Cmd+K\n  useHotkeys('cmd+k', () => setSearchOpen(true));\n}\n```\n\n11. Create integrations panel for third-party tools:\n```typescript\n// components/dashboard/IntegrationsPanel.tsx\nconst integrations = [\n  { id: 'slack', name: 'Slack', status: 'connected', icon: SlackIcon },\n  { id: 'github', name: 'GitHub', status: 'available', icon: GitHubIcon },\n  { id: 'google-drive', name: 'Google Drive', status: 'available', icon: DriveIcon },\n  { id: 'figma', name: 'Figma', status: 'connected', icon: FigmaIcon }\n];\n\n// OAuth flow for integrations\nasync function connectIntegration(provider: string) {\n  const { data: { url } } = await supabase.functions.invoke('oauth-connect', {\n    body: { provider, workspace_id: workspaceId }\n  });\n  window.location.href = url;\n}\n\n// Webhook management\nconst { data: webhooks } = await supabase\n  .from('integration_webhooks')\n  .select('*')\n  .eq('workspace_id', workspaceId);\n```\n\n12. Implement responsive dashboard layout:\n```typescript\n// components/dashboard/DashboardGrid.tsx\nexport function DashboardGrid({ children }) {\n  return (\n    <div className=\"grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 p-6\">\n      <div className=\"col-span-full xl:col-span-2\">\n        <WorkspaceOverview />\n      </div>\n      <div className=\"col-span-1\">\n        <QuickActions />\n      </div>\n      <div className=\"col-span-full md:col-span-1\">\n        <TeamActivityFeed />\n      </div>\n      <div className=\"col-span-full xl:col-span-2\">\n        <UsageAnalytics />\n      </div>\n      {children}\n    </div>\n  );\n}\n```",
         "testStrategy": "1. Test workspace overview displays correct recent pages and projects with proper sorting by updated_at timestamp. 2. Verify CRUD operations create, update, and soft-delete workspaces correctly with proper permission checks. 3. Test quick actions widget shows 6 most recent documents with working navigation links. 4. Verify team activity feed receives real-time updates via Supabase channels and displays all activity types correctly. 5. Test usage analytics charts render with accurate data for storage, credits, and API calls over 30-day period. 6. Verify workspace settings panel saves all configuration changes and validates input fields. 7. Test invitation system sends emails, generates valid tokens, and expires after 7 days. 8. Verify templates gallery filters by category and successfully clones template structure to workspace. 9. Test global search returns relevant results from pages, projects, and database blocks with proper ranking. 10. Verify integrations panel handles OAuth flows correctly and manages webhook subscriptions. 11. Test responsive layout adapts correctly for mobile, tablet, and desktop viewports. 12. Verify all dashboard components handle loading states, errors, and empty states gracefully. 13. Test role-based permissions restrict access to settings and invitation features appropriately. 14. Verify dashboard performance with large datasets (1000+ pages, 50+ team members).",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           2,
           11
@@ -1650,7 +1650,7 @@
             "description": "Build the main DashboardGrid component with responsive grid system supporting mobile, tablet, and desktop layouts using CSS Grid and Flexbox for optimal component arrangement",
             "dependencies": [],
             "details": "Implement DashboardGrid component in components/dashboard/DashboardGrid.tsx with responsive breakpoints at 768px (mobile), 1024px (tablet), and 1440px (desktop). Use CSS Grid with 12-column layout on desktop, 8 on tablet, and 4 on mobile. Include proper gap spacing and container queries for adaptive layouts.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1661,7 +1661,7 @@
               "12.1"
             ],
             "details": "Build components/dashboard/WorkspaceOverview.tsx fetching recent 10 pages and 5 projects ordered by updated_at. Display workspace name, description, member count, storage usage, and creation date. Include thumbnail previews for recent pages and project cards with page counts.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1669,8 +1669,8 @@
             "title": "Build workspace CRUD operations with Supabase integration",
             "description": "Implement complete workspace management functions including create, read, update, and soft-delete operations with proper RLS policies and template support",
             "dependencies": [],
-            "details": "Create lib/workspace-operations.ts with createWorkspace, updateWorkspace, deleteWorkspace (soft delete), and getWorkspace functions. Include workspace template application logic, settings management, and proper error handling. Implement workspace archiving with archived_at timestamp.",
-            "status": "pending",
+            "details": "Create lib/workspace-operations.ts with createWorkspace, updateWorkspace, deleteWorkspace (soft delete), and getWorkspace functions. Include workspace template application logic, settings management, and proper error handling. Implement workspace archiving with archived_at timestamp.\n<info added on 2025-08-13T10:59:34.800Z>\nImplementation approach:\n\n1. Start with read operations (getWorkspace, getWorkspaces) to establish data fetching patterns\n2. Implement createWorkspace with template support and default settings\n3. Add updateWorkspace for modifying workspace properties and settings\n4. Complete with deleteWorkspace implementing soft delete pattern using archived_at timestamp\n\nEach function will include proper error handling, type safety, and RLS policy compliance. Operations will be built incrementally with unit tests for each piece.\n</info added on 2025-08-13T10:59:34.800Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1681,7 +1681,7 @@
               "12.1"
             ],
             "details": "Implement components/dashboard/QuickActions.tsx with action buttons for new page, new project, and template gallery. Fetch and display 6 recent documents with thumbnail_url and last_accessed timestamp. Include hover effects and keyboard shortcuts (Cmd+N for new page).",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1692,7 +1692,7 @@
               "12.1"
             ],
             "details": "Build components/dashboard/TeamActivityFeed.tsx with Supabase channel subscription to activity_log table. Display user avatars, action types (created/updated/deleted/shared/commented), resource links, and relative timestamps. Implement 50-item limit with auto-cleanup and activity grouping.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1703,7 +1703,7 @@
               "12.1"
             ],
             "details": "Implement components/dashboard/UsageAnalytics.tsx with LineChart for 30-day credit usage, BarChart for storage by type, PieChart for team activity distribution, and detailed usage table. Fetch data from usage_metrics and user_activity_metrics tables with proper aggregation.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1715,7 +1715,7 @@
               "12.3"
             ],
             "details": "Develop components/dashboard/WorkspaceSettings.tsx with sections for general (name, description, logo, timezone), permissions (default_role, guest_access, sharing_policy), integrations panel, and billing settings. Include form validation and auto-save functionality.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1726,7 +1726,7 @@
               "12.3"
             ],
             "details": "Create components/dashboard/InviteMembers.tsx with bulk email input, role selector, and invitation tracking. Generate secure invite tokens with 7-day expiration. Implement Edge Function for sending invitation emails and real-time status updates via Supabase channels.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1738,7 +1738,7 @@
               "12.3"
             ],
             "details": "Develop components/dashboard/TemplatesGallery.tsx displaying templates by category (Project Management, Product Development, Marketing, etc.). Include template preview modal, usage statistics, and clone_workspace_template RPC function for applying templates.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1749,7 +1749,7 @@
               "12.1"
             ],
             "details": "Create components/dashboard/WorkspaceSearch.tsx using Command component with Cmd+K hotkey. Implement parallel full-text search queries across pages, projects, and database_blocks tables. Display categorized results with icons, previews, and keyboard navigation.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1760,7 +1760,7 @@
               "12.7"
             ],
             "details": "Implement components/dashboard/IntegrationsPanel.tsx showing available integrations with status indicators. Create OAuth connection flow via Edge Functions, webhook management interface, and integration settings. Store tokens securely in integration_credentials table.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1771,33 +1771,16 @@
               "12.11"
             ],
             "details": "Build webhook CRUD operations in integration_webhooks table with event type filtering, URL validation, and secret generation. Implement webhook testing functionality, delivery logs, and retry mechanism for failed webhooks.",
-            "status": "pending",
-            "testStrategy": ""
-          },
-          {
-            "id": 13,
-            "title": "Optimize dashboard performance and responsive layouts",
-            "description": "Implement performance optimizations including lazy loading, virtualization for long lists, and responsive design improvements across all dashboard components",
-            "dependencies": [
-              "12.1",
-              "12.2",
-              "12.4",
-              "12.5",
-              "12.6"
-            ],
-            "details": "Add React.lazy for code splitting dashboard sections, implement virtual scrolling for activity feed and search results, optimize Supabase queries with proper indexes, add loading skeletons, and ensure all components work smoothly on mobile devices.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
             "id": 14,
             "title": "Add performance monitoring and error tracking",
             "description": "Integrate performance monitoring tools to track dashboard metrics, user interactions, and error rates with proper alerting and logging",
-            "dependencies": [
-              "12.13"
-            ],
+            "dependencies": [],
             "details": "Implement performance monitoring using Web Vitals API for LCP, FID, and CLS metrics. Add error boundary components with Sentry integration for error tracking. Create dashboard performance dashboard showing load times, API response times, and user interaction metrics.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           }
         ]
@@ -1808,7 +1791,7 @@
         "description": "Build a complete project management system with CRUD operations, hierarchical organization, dashboard views, collaboration features, and drag-and-drop functionality for organizing pages within projects",
         "details": "1. Create project data model in Supabase:\n```sql\nCREATE TABLE projects (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,\n  parent_project_id UUID REFERENCES projects(id),\n  name TEXT NOT NULL,\n  description TEXT,\n  icon TEXT,\n  color TEXT,\n  position INTEGER DEFAULT 0,\n  metadata JSONB DEFAULT '{}',\n  tags TEXT[],\n  is_template BOOLEAN DEFAULT FALSE,\n  template_structure JSONB,\n  is_archived BOOLEAN DEFAULT FALSE,\n  archived_at TIMESTAMP WITH TIME ZONE,\n  created_by UUID REFERENCES users(id),\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE project_pages (\n  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,\n  page_id UUID REFERENCES pages(id) ON DELETE CASCADE,\n  position INTEGER DEFAULT 0,\n  folder_path TEXT,\n  PRIMARY KEY (project_id, page_id)\n);\n\nCREATE TABLE project_collaborators (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,\n  user_id UUID REFERENCES users(id),\n  role TEXT CHECK (role IN ('owner', 'editor', 'viewer')),\n  permissions JSONB DEFAULT '{}',\n  invited_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n```\n\n2. Implement project CRUD API routes:\n```typescript\n// app/api/projects/route.ts\nexport async function POST(request: Request) {\n  const { name, workspaceId, parentId, template } = await request.json();\n  \n  if (template) {\n    // Clone template structure\n    const templateData = await supabase\n      .from('projects')\n      .select('*, project_pages(*)')\n      .eq('id', template)\n      .single();\n    \n    return createProjectFromTemplate(templateData.data);\n  }\n  \n  const { data, error } = await supabase\n    .from('projects')\n    .insert({ name, workspace_id: workspaceId, parent_project_id: parentId })\n    .select()\n    .single();\n  \n  return NextResponse.json(data);\n}\n```\n\n3. Build project dashboard component with activity overview:\n```typescript\n// components/projects/ProjectDashboard.tsx\ninterface ProjectDashboard {\n  projectId: string;\n}\n\nexport function ProjectDashboard({ projectId }: ProjectDashboard) {\n  const { project, pages, activity, collaborators } = useProjectData(projectId);\n  \n  return (\n    <div className=\"grid grid-cols-12 gap-4\">\n      <div className=\"col-span-8\">\n        <ProjectOverview project={project} />\n        <RecentPages pages={pages} />\n        <ActivityFeed activities={activity} />\n      </div>\n      <div className=\"col-span-4\">\n        <ProjectStats pages={pages.length} collaborators={collaborators.length} />\n        <CollaboratorsList collaborators={collaborators} />\n        <ProjectMetadata tags={project.tags} metadata={project.metadata} />\n      </div>\n    </div>\n  );\n}\n```\n\n4. Implement drag-and-drop page organization with react-beautiful-dnd:\n```typescript\n// components/projects/PageOrganizer.tsx\nimport { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';\n\nexport function PageOrganizer({ projectId, pages }) {\n  const handleDragEnd = async (result) => {\n    if (!result.destination) return;\n    \n    const newPages = Array.from(pages);\n    const [reorderedItem] = newPages.splice(result.source.index, 1);\n    newPages.splice(result.destination.index, 0, reorderedItem);\n    \n    // Update positions in database\n    await updatePagePositions(projectId, newPages);\n  };\n  \n  return (\n    <DragDropContext onDragEnd={handleDragEnd}>\n      <Droppable droppableId=\"pages\">\n        {(provided) => (\n          <div {...provided.droppableProps} ref={provided.innerRef}>\n            {pages.map((page, index) => (\n              <Draggable key={page.id} draggableId={page.id} index={index}>\n                {(provided) => (\n                  <PageItem\n                    ref={provided.innerRef}\n                    {...provided.draggableProps}\n                    {...provided.dragHandleProps}\n                    page={page}\n                  />\n                )}\n              </Draggable>\n            ))}\n            {provided.placeholder}\n          </div>\n        )}\n      </Droppable>\n    </DragDropContext>\n  );\n}\n```\n\n5. Create project sidebar navigation with hierarchical display:\n```typescript\n// components/navigation/ProjectSidebar.tsx\nexport function ProjectSidebar({ workspaceId }) {\n  const { projects } = useProjects(workspaceId);\n  \n  const renderProjectTree = (projects: Project[], parentId: string | null = null) => {\n    return projects\n      .filter(p => p.parent_project_id === parentId)\n      .map(project => (\n        <div key={project.id}>\n          <ProjectNode project={project} />\n          {renderProjectTree(projects, project.id)}\n        </div>\n      ));\n  };\n  \n  return (\n    <div className=\"project-sidebar\">\n      <SearchInput placeholder=\"Search projects...\" />\n      <div className=\"project-tree\">\n        {renderProjectTree(projects)}\n      </div>\n    </div>\n  );\n}\n```\n\n6. Implement project search with Supabase full-text search:\n```typescript\n// app/api/projects/search/route.ts\nexport async function GET(request: Request) {\n  const { searchParams } = new URL(request.url);\n  const query = searchParams.get('q');\n  const workspaceId = searchParams.get('workspaceId');\n  \n  const { data } = await supabase\n    .from('projects')\n    .select('*, project_pages(count)')\n    .eq('workspace_id', workspaceId)\n    .textSearch('name', query, { type: 'websearch' })\n    .order('updated_at', { ascending: false });\n  \n  return NextResponse.json(data);\n}\n```\n\n7. Build project templates system:\n```typescript\n// components/projects/TemplateSelector.tsx\nconst PROJECT_TEMPLATES = [\n  { id: 'kanban', name: 'Kanban Board', structure: { columns: ['To Do', 'In Progress', 'Done'] } },\n  { id: 'docs', name: 'Documentation', structure: { folders: ['Getting Started', 'API', 'Guides'] } },\n  { id: 'roadmap', name: 'Product Roadmap', structure: { quarters: ['Q1', 'Q2', 'Q3', 'Q4'] } }\n];\n\nexport function TemplateSelector({ onSelect }) {\n  return (\n    <div className=\"grid grid-cols-3 gap-4\">\n      {PROJECT_TEMPLATES.map(template => (\n        <TemplateCard\n          key={template.id}\n          template={template}\n          onClick={() => onSelect(template)}\n        />\n      ))}\n    </div>\n  );\n}\n```\n\n8. Implement bulk operations on pages:\n```typescript\n// components/projects/BulkActions.tsx\nexport function BulkActions({ selectedPages, projectId }) {\n  const handleBulkMove = async (targetProjectId: string) => {\n    await supabase\n      .from('project_pages')\n      .update({ project_id: targetProjectId })\n      .in('page_id', selectedPages);\n  };\n  \n  const handleBulkArchive = async () => {\n    await supabase\n      .from('pages')\n      .update({ is_archived: true, archived_at: new Date() })\n      .in('id', selectedPages);\n  };\n  \n  return (\n    <div className=\"bulk-actions-toolbar\">\n      <Button onClick={handleBulkArchive}>Archive Selected</Button>\n      <Button onClick={() => setShowMoveDialog(true)}>Move to Project</Button>\n      <Button onClick={handleBulkDelete}>Delete Selected</Button>\n    </div>\n  );\n}\n```\n\n9. Create project settings and permissions management:\n```typescript\n// components/projects/ProjectSettings.tsx\nexport function ProjectSettings({ projectId }) {\n  const [settings, setSettings] = useState({\n    permissions: {\n      canInviteMembers: true,\n      defaultRole: 'viewer',\n      requireApproval: false\n    },\n    sharing: {\n      isPublic: false,\n      shareableLink: null,\n      linkExpiry: null\n    }\n  });\n  \n  return (\n    <Tabs defaultValue=\"general\">\n      <TabsList>\n        <TabsTrigger value=\"general\">General</TabsTrigger>\n        <TabsTrigger value=\"permissions\">Permissions</TabsTrigger>\n        <TabsTrigger value=\"sharing\">Sharing</TabsTrigger>\n        <TabsTrigger value=\"archive\">Archive & Delete</TabsTrigger>\n      </TabsList>\n      <TabsContent value=\"permissions\">\n        <PermissionsManager projectId={projectId} settings={settings.permissions} />\n      </TabsContent>\n    </Tabs>\n  );\n}\n```\n\n10. Implement project archiving and restoration:\n```typescript\n// app/api/projects/[id]/archive/route.ts\nexport async function POST(request: Request, { params }) {\n  const { id } = params;\n  \n  // Archive project and all its pages\n  const { error } = await supabase.rpc('archive_project', {\n    project_id: id,\n    archive_pages: true\n  });\n  \n  if (!error) {\n    // Trigger notification to collaborators\n    await notifyCollaborators(id, 'project_archived');\n  }\n  \n  return NextResponse.json({ success: !error });\n}\n\nexport async function DELETE(request: Request, { params }) {\n  const { id } = params;\n  \n  // Restore archived project\n  const { data } = await supabase\n    .from('projects')\n    .update({ is_archived: false, archived_at: null })\n    .eq('id', id)\n    .select();\n  \n  return NextResponse.json(data);\n}\n```",
         "testStrategy": "1. Test project CRUD operations create, list, edit, and delete projects with proper workspace association and verify parent-child relationships work correctly. 2. Verify project dashboard displays accurate page count, recent activity feed updates in real-time, and collaborator list shows correct roles. 3. Test drag-and-drop functionality reorders pages correctly and persists position changes to database. 4. Verify project hierarchy displays nested projects properly with correct indentation and expand/collapse functionality. 5. Test project search returns relevant results and filters by workspace correctly. 6. Verify template creation properly clones structure and creates all default pages/folders. 7. Test bulk operations can move/archive/delete multiple pages simultaneously with proper permission checks. 8. Verify project permissions system correctly restricts actions based on user role (owner/editor/viewer). 9. Test project archiving soft-deletes project and optionally archives all associated pages. 10. Verify restoration brings back archived projects with all relationships intact. 11. Test collaborator management can add/remove users and update roles with email notifications. 12. Verify project metadata and tags are searchable and filterable in project list view.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           2,
           11
@@ -1843,7 +1826,7 @@
               "13.2"
             ],
             "details": "Implement ProjectDashboard component with grid layout showing project overview card with name, description, and metadata. Create RecentPages component displaying last accessed pages with timestamps. Build ActivityFeed component subscribing to project changes via Supabase realtime. Add ProjectStats widget showing total pages, active collaborators, and last updated time. Include CollaboratorsList with avatars and roles. Use Supabase realtime subscriptions for live updates.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1854,7 +1837,7 @@
               "13.3"
             ],
             "details": "Install and configure react-beautiful-dnd library. Build PageOrganizer component with DragDropContext, Droppable, and Draggable components. Implement handleDragEnd function to update page positions in project_pages table. Add support for creating folders and nested page structures with folder_path tracking. Include visual feedback during drag operations with smooth animations. Persist position changes to Supabase with optimistic updates for responsive UI.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1865,7 +1848,7 @@
               "13.2"
             ],
             "details": "Implement ProjectSidebar component with recursive renderProjectTree function for displaying nested projects. Add expand/collapse functionality for parent projects with state persistence. Include project search input with debounced filtering. Add quick action buttons for each project (new page, settings, archive). Style with indentation levels for visual hierarchy. Implement keyboard navigation support for accessibility. Cache project tree structure for performance.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1877,7 +1860,7 @@
               "13.2"
             ],
             "details": "Create search API endpoint using Supabase's textSearch function for project names and descriptions. Implement tag-based filtering with array contains operations. Add search across associated pages using joins with project_pages table. Build SearchResults component with highlighted matches and result grouping. Include search suggestions and recent searches storage. Add filters for archived status, date ranges, and collaborator involvement. Optimize with proper indexes for search performance.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1888,7 +1871,7 @@
               "13.2"
             ],
             "details": "Define template structures for common project types (Kanban, Documentation, Roadmap, Sprint Planning). Build TemplateSelector component with visual template previews. Implement template cloning logic that creates project structure with predefined folders and pages. Add custom template creation from existing projects. Store template definitions in template_structure JSONB column. Include template marketplace UI for browsing available templates. Support template versioning and updates.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1899,7 +1882,7 @@
               "13.4"
             ],
             "details": "Build BulkActions toolbar with checkbox selection for multiple pages. Implement bulk move to different projects with project selector dialog. Add bulk archive with confirmation and archived_at timestamp setting. Create bulk delete with soft delete option and restoration capability. Include bulk tagging interface for adding/removing tags. Implement undo/redo system for bulk operations using command pattern. Add progress indicators for long-running bulk operations.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1911,7 +1894,7 @@
               "13.3"
             ],
             "details": "Implement ProjectSettings component with tabbed interface for different setting categories. Create PermissionsManager for setting user roles (owner, editor, viewer) with granular permissions. Build sharing interface with public/private toggle and shareable link generation with expiry dates. Add invitation system for adding collaborators with email notifications. Include transfer ownership functionality with confirmation. Implement audit log for permission changes. Add project export/import settings.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -1923,7 +1906,7 @@
               "13.9"
             ],
             "details": "Create archive API endpoints for soft deleting projects with is_archived flag and archived_at timestamp. Implement cascade archiving for all associated pages using Supabase RPC function. Build archived projects view with restoration options and permanent deletion after retention period. Add archive notifications to collaborators via Edge Functions. Implement automatic cleanup job using pg_cron for old archived projects. Include archive export functionality before permanent deletion. Add archive search and filtering capabilities.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           }
         ]
@@ -1934,7 +1917,7 @@
         "description": "Build a Notion-style page editor with grid-based canvas for arranging blocks, drag-and-drop positioning, inline editing, slash commands, and collaborative features",
         "details": "1. Create canvas-based page editor architecture:\n```typescript\n// components/editor/PageCanvas.tsx\ninterface CanvasGrid {\n  columns: 12;\n  rowHeight: 40;\n  gap: 8;\n  snapToGrid: boolean;\n}\n\ninterface BlockPosition {\n  x: number;\n  y: number;\n  width: number;\n  height: number;\n  zIndex: number;\n}\n\ninterface PageBlock {\n  id: string;\n  type: BlockType;\n  position: BlockPosition;\n  content: any;\n  parentId?: string;\n  children?: string[];\n  metadata: {\n    locked?: boolean;\n    hidden?: boolean;\n    permissions?: BlockPermissions;\n  };\n}\n```\n\n2. Implement block management system with Supabase:\n```sql\nCREATE TABLE page_blocks (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  page_id UUID REFERENCES pages(id) ON DELETE CASCADE,\n  type TEXT NOT NULL,\n  position JSONB NOT NULL,\n  content JSONB,\n  parent_id UUID REFERENCES page_blocks(id),\n  order_index INTEGER,\n  metadata JSONB DEFAULT '{}',\n  created_by UUID REFERENCES auth.users(id),\n  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE page_versions (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  page_id UUID REFERENCES pages(id) ON DELETE CASCADE,\n  version_number INTEGER NOT NULL,\n  blocks_snapshot JSONB NOT NULL,\n  created_by UUID REFERENCES auth.users(id),\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE page_templates (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  name TEXT NOT NULL,\n  category TEXT,\n  thumbnail_url TEXT,\n  blocks_structure JSONB NOT NULL,\n  is_public BOOLEAN DEFAULT FALSE\n);\n```\n\n3. Build drag-and-drop system using @dnd-kit/sortable:\n```typescript\nimport { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';\nimport { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';\n\nconst PageEditor = () => {\n  const sensors = useSensors(\n    useSensor(PointerSensor),\n    useSensor(KeyboardSensor)\n  );\n  \n  return (\n    <DndContext\n      sensors={sensors}\n      collisionDetection={closestCenter}\n      onDragEnd={handleDragEnd}\n    >\n      <SortableContext items={blocks} strategy={rectSortingStrategy}>\n        <CanvasGrid>\n          {blocks.map(block => (\n            <DraggableBlock key={block.id} block={block} />\n          ))}\n        </CanvasGrid>\n      </SortableContext>\n      <DragOverlay>{/* Preview */}</DragOverlay>\n    </DndContext>\n  );\n};\n```\n\n4. Implement block palette sidebar:\n```typescript\ninterface BlockPalette {\n  categories: {\n    basic: ['text', 'heading', 'divider', 'spacer'];\n    media: ['image', 'video', 'audio', 'file'];\n    embed: ['youtube', 'twitter', 'figma', 'miro'];\n    data: ['table', 'database', 'chart', 'kanban'];\n    advanced: ['code', 'math', 'mermaid', 'timeline'];\n  };\n}\n\nconst BlockPalette = () => {\n  return (\n    <aside className=\"w-64 border-l bg-gray-50\">\n      {Object.entries(blockCategories).map(([category, blocks]) => (\n        <div key={category}>\n          <h3>{category}</h3>\n          {blocks.map(blockType => (\n            <DraggableBlockTemplate\n              key={blockType}\n              type={blockType}\n              onDragStart={handleTemplateStart}\n            />\n          ))}\n        </div>\n      ))}\n    </aside>\n  );\n};\n```\n\n5. Create inline editing system with ContentEditable:\n```typescript\nconst InlineTextBlock = ({ block, onUpdate }) => {\n  const [isEditing, setIsEditing] = useState(false);\n  \n  return (\n    <ContentEditable\n      html={block.content.html}\n      disabled={!isEditing}\n      onChange={handleChange}\n      onBlur={handleSave}\n      onKeyDown={handleKeyCommands}\n      className=\"block-content\"\n    />\n  );\n};\n```\n\n6. Implement slash command system:\n```typescript\ninterface SlashCommand {\n  trigger: string;\n  label: string;\n  icon: ReactNode;\n  action: (editor: Editor) => void;\n  keywords?: string[];\n}\n\nconst slashCommands: SlashCommand[] = [\n  { trigger: '/text', label: 'Text', action: insertTextBlock },\n  { trigger: '/h1', label: 'Heading 1', action: insertHeading1 },\n  { trigger: '/table', label: 'Table', action: insertTable },\n  { trigger: '/ai', label: 'Ask AI', action: openAIAssistant }\n];\n\nconst SlashCommandMenu = () => {\n  const [query, setQuery] = useState('');\n  const filtered = useMemo(() => \n    slashCommands.filter(cmd => \n      cmd.trigger.includes(query) || \n      cmd.keywords?.some(k => k.includes(query))\n    ), [query]\n  );\n  \n  return <CommandPalette commands={filtered} />;\n};\n```\n\n7. Build block selection and multi-select:\n```typescript\nconst SelectionManager = () => {\n  const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());\n  \n  const handleBlockClick = (blockId: string, event: MouseEvent) => {\n    if (event.shiftKey) {\n      // Range select\n      selectRange(lastSelected, blockId);\n    } else if (event.metaKey || event.ctrlKey) {\n      // Multi-select\n      toggleSelection(blockId);\n    } else {\n      // Single select\n      setSelectedBlocks(new Set([blockId]));\n    }\n  };\n  \n  return { selectedBlocks, handleBlockClick };\n};\n```\n\n8. Implement copy/paste/duplicate functionality:\n```typescript\nconst useClipboard = () => {\n  const copyBlocks = async (blockIds: string[]) => {\n    const blocks = await fetchBlocks(blockIds);\n    await navigator.clipboard.writeText(\n      JSON.stringify({ type: 'blocks', data: blocks })\n    );\n  };\n  \n  const pasteBlocks = async (targetPosition: Position) => {\n    const text = await navigator.clipboard.readText();\n    try {\n      const { type, data } = JSON.parse(text);\n      if (type === 'blocks') {\n        await insertBlocks(data, targetPosition);\n      }\n    } catch (e) {\n      // Handle plain text paste\n      await insertTextBlock(text, targetPosition);\n    }\n  };\n  \n  return { copyBlocks, pasteBlocks };\n};\n```\n\n9. Create nested blocks and column layouts:\n```typescript\nconst ColumnBlock = ({ block }) => {\n  const columns = block.content.columns || 2;\n  \n  return (\n    <div className=\"grid\" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>\n      {block.children.map((childId, index) => (\n        <DropZone key={index} columnIndex={index}>\n          <BlockRenderer blockId={childId} />\n        </DropZone>\n      ))}\n    </div>\n  );\n};\n```\n\n10. Implement auto-save with debouncing:\n```typescript\nconst useAutoSave = (pageId: string, blocks: Block[]) => {\n  const debouncedSave = useMemo(\n    () => debounce(async (blocks: Block[]) => {\n      await supabase\n        .from('page_blocks')\n        .upsert(blocks.map(formatForDB));\n      \n      // Create version snapshot every 10 saves\n      if (saveCount % 10 === 0) {\n        await createVersion(pageId, blocks);\n      }\n    }, 2000),\n    [pageId]\n  );\n  \n  useEffect(() => {\n    debouncedSave(blocks);\n  }, [blocks]);\n};\n```\n\n11. Add collaborative editing with Supabase Realtime:\n```typescript\nconst useCollaboration = (pageId: string) => {\n  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);\n  \n  useEffect(() => {\n    const channel = supabase.channel(`page:${pageId}`)\n      .on('presence', { event: 'sync' }, () => {\n        const state = channel.presenceState();\n        setCollaborators(Object.values(state).flat());\n      })\n      .on('broadcast', { event: 'cursor' }, ({ payload }) => {\n        updateCursorPosition(payload.userId, payload.position);\n      })\n      .on('broadcast', { event: 'selection' }, ({ payload }) => {\n        updateUserSelection(payload.userId, payload.blockIds);\n      })\n      .subscribe();\n      \n    return () => channel.unsubscribe();\n  }, [pageId]);\n};\n```\n\n12. Implement @mentions and comments:\n```typescript\nconst MentionPlugin = () => {\n  const [showMentions, setShowMentions] = useState(false);\n  const [query, setQuery] = useState('');\n  \n  const handleInput = (text: string) => {\n    const mentionMatch = /@(\\w*)$/.exec(text);\n    if (mentionMatch) {\n      setQuery(mentionMatch[1]);\n      setShowMentions(true);\n    }\n  };\n  \n  return (\n    <MentionSuggestions\n      query={query}\n      onSelect={(user) => insertMention(user)}\n    />\n  );\n};\n```\n\n13. Create page properties editor:\n```typescript\ninterface PageProperties {\n  title: string;\n  icon?: string;\n  cover?: string;\n  tags: string[];\n  metadata: {\n    author?: string;\n    publishedAt?: Date;\n    seoDescription?: string;\n    ogImage?: string;\n  };\n}\n\nconst PagePropertiesPanel = ({ page }) => {\n  return (\n    <Sheet>\n      <SheetContent>\n        <IconPicker value={page.icon} onChange={updateIcon} />\n        <CoverImageUploader value={page.cover} onChange={updateCover} />\n        <TagInput value={page.tags} onChange={updateTags} />\n        <MetadataEditor metadata={page.metadata} onChange={updateMetadata} />\n      </SheetContent>\n    </Sheet>\n  );\n};\n```",
         "testStrategy": "1. Test drag-and-drop functionality by dragging blocks between different grid positions and verifying position updates persist in Supabase. 2. Verify block palette displays all block types categorized correctly and dragging from palette creates new blocks on canvas. 3. Test inline editing saves content changes with debouncing and preserves formatting. 4. Verify slash commands trigger with '/' key, filter based on input, and insert correct block types. 5. Test multi-select with Shift+Click for range and Cmd/Ctrl+Click for individual selection. 6. Verify copy/paste works across pages and maintains block hierarchy and content. 7. Test nested blocks and column layouts render correctly with proper drag zones. 8. Verify auto-save triggers after 2 seconds of inactivity and creates version snapshots every 10 saves. 9. Test collaborative cursors and selections update in real-time via Supabase channels. 10. Verify @mentions autocomplete shows user list and creates proper references. 11. Test page templates apply correct block structure when selected. 12. Verify version history shows all snapshots and allows rollback to previous versions.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           11,
           13,
@@ -1990,7 +1973,7 @@
               "14.1"
             ],
             "details": "Build InlineTextBlock component with ContentEditable wrapper. Handle focus/blur events for edit mode transitions. Implement handleKeyCommands for formatting shortcuts (bold, italic, etc.). Add debounced auto-save on content changes. Support HTML sanitization and XSS prevention.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -2013,7 +1996,7 @@
               "14.3"
             ],
             "details": "Create SelectionManager hook to track selectedBlocks Set. Handle click events with modifier keys (shift for range, cmd/ctrl for toggle). Add visual selection indicators (borders, backgrounds). Implement selection rectangle for drag-select. Support select-all keyboard shortcut.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -2024,7 +2007,7 @@
               "14.7"
             ],
             "details": "Build useClipboard hook with copyBlocks and pasteBlocks functions. Serialize blocks to JSON for clipboard storage. Handle paste events to insert blocks at target position. Support plain text paste fallback. Implement duplicate functionality with position offset.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -2036,7 +2019,7 @@
               "14.3"
             ],
             "details": "Implement ColumnBlock component with dynamic grid columns. Create DropZone components for each column. Handle nested drag-and-drop with proper parent-child relationships. Support column resizing and responsive breakpoints. Manage nested block state updates.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -2048,7 +2031,7 @@
               "14.5"
             ],
             "details": "Build useAutoSave hook with 2-second debounce. Format blocks for database storage with formatForDB utility. Create version snapshots every 10 saves. Handle save conflicts and error recovery. Show save status indicator to users.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -2060,7 +2043,7 @@
               "14.7"
             ],
             "details": "Set up Supabase channel for page collaboration. Implement presence tracking for active collaborators. Broadcast cursor positions and selections. Show collaborator cursors and selection highlights. Handle conflict resolution for concurrent edits.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -2072,7 +2055,7 @@
               "14.11"
             ],
             "details": "Create MentionPlugin to detect @ patterns in text. Build MentionSuggestions dropdown with user search. Insert mention nodes with user references. Add comment thread UI for blocks. Store comments in Supabase with real-time updates.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -2084,7 +2067,7 @@
               "14.2"
             ],
             "details": "Design PagePropertiesPanel with Sheet component. Implement IconPicker with emoji/icon selection. Create CoverImageUploader with Supabase Storage. Build TagInput with autocomplete. Add MetadataEditor for SEO fields (description, OG image).",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           }
         ]
@@ -2262,11 +2245,897 @@
             "testStrategy": ""
           }
         ]
+      },
+      {
+        "id": 16,
+        "title": "Build High-Performance RAG Infrastructure",
+        "description": "Create scalable vector search foundation with pgvector optimization, multi-tier caching (Redis + in-memory LRU), parallel embedding generation pipeline, incremental indexing system, and database connection pooling for sub-100ms search responses",
+        "details": "1. Optimize pgvector performance with advanced indexing strategies:\n```sql\n-- Create optimized HNSW index with tuned parameters\nCREATE INDEX documents_embedding_hnsw_idx ON documents \nUSING hnsw (embedding vector_cosine_ops)\nWITH (m = 16, ef_construction = 64);\n\n-- Add partial indexes for filtered searches\nCREATE INDEX documents_workspace_embedding_idx ON documents \nUSING hnsw (embedding vector_cosine_ops)\nWHERE workspace_id IS NOT NULL;\n\n-- Create composite B-tree indexes for hybrid search\nCREATE INDEX documents_metadata_gin_idx ON documents \nUSING gin (metadata jsonb_path_ops);\n```\n\n2. Implement multi-tier caching system:\n```typescript\ninterface CacheLayer {\n  redis: RedisCache;\n  inMemory: LRUCache<string, EmbeddingResult>;\n  ttl: { redis: 3600, memory: 300 };\n}\n\nclass VectorSearchCache {\n  private lru = new LRUCache<string, EmbeddingResult>({\n    max: 1000,\n    ttl: 1000 * 60 * 5, // 5 minutes\n    updateAgeOnGet: true,\n    updateAgeOnHas: true\n  });\n  \n  async get(key: string): Promise<EmbeddingResult | null> {\n    // L1: In-memory cache\n    const memoryHit = this.lru.get(key);\n    if (memoryHit) return memoryHit;\n    \n    // L2: Redis cache\n    const redisHit = await redis.get(`embed:${key}`);\n    if (redisHit) {\n      const result = JSON.parse(redisHit);\n      this.lru.set(key, result);\n      return result;\n    }\n    \n    return null;\n  }\n}\n```\n\n3. Build parallel embedding generation pipeline:\n```typescript\ninterface EmbeddingPipeline {\n  batchSize: 100;\n  concurrency: 5;\n  queue: BullMQ.Queue;\n  workers: EmbeddingWorker[];\n}\n\nclass ParallelEmbeddingProcessor {\n  private queue = new Queue('embeddings', {\n    connection: redis,\n    defaultJobOptions: {\n      removeOnComplete: true,\n      removeOnFail: false,\n      attempts: 3,\n      backoff: { type: 'exponential', delay: 2000 }\n    }\n  });\n  \n  async processBatch(documents: Document[]): Promise<void> {\n    const chunks = chunk(documents, this.batchSize);\n    const jobs = chunks.map(batch => ({\n      name: 'generate-embeddings',\n      data: { documents: batch },\n      opts: { priority: batch[0].priority || 0 }\n    }));\n    \n    await this.queue.addBulk(jobs);\n  }\n}\n\n// Worker implementation\nconst worker = new Worker('embeddings', async (job) => {\n  const { documents } = job.data;\n  const embeddings = await Promise.all(\n    documents.map(doc => openai.embeddings.create({\n      model: 'text-embedding-3-small',\n      input: doc.content,\n      dimensions: 1536\n    }))\n  );\n  \n  // Batch insert to PostgreSQL\n  await supabase.rpc('batch_upsert_embeddings', {\n    documents: documents.map((doc, i) => ({\n      ...doc,\n      embedding: embeddings[i].data[0].embedding\n    }))\n  });\n}, {\n  connection: redis,\n  concurrency: 5,\n  limiter: { max: 100, duration: 60000 } // Rate limiting\n});\n```\n\n4. Implement incremental indexing system:\n```typescript\ninterface IncrementalIndexer {\n  checkpointInterval: 1000;\n  batchSize: 500;\n  deltaTracking: boolean;\n}\n\nclass IncrementalVectorIndexer {\n  async indexChanges(since: Date): Promise<void> {\n    // Track changes using PostgreSQL logical replication\n    const changes = await supabase\n      .from('documents_changes')\n      .select('*')\n      .gte('changed_at', since.toISOString())\n      .order('changed_at', { ascending: true });\n    \n    // Process in batches with checkpointing\n    for (const batch of chunk(changes.data, this.batchSize)) {\n      await this.processBatch(batch);\n      await this.saveCheckpoint(batch[batch.length - 1].changed_at);\n    }\n  }\n  \n  async reindexPartial(workspaceId: string): Promise<void> {\n    // Reindex specific workspace without affecting others\n    await supabase.rpc('reindex_workspace_vectors', {\n      workspace_id: workspaceId,\n      use_parallel: true\n    });\n  }\n}\n```\n\n5. Configure database connection pooling:\n```typescript\n// Supabase connection pool configuration\nconst supabase = createClient(url, key, {\n  db: {\n    poolConfig: {\n      min: 5,\n      max: 20,\n      idleTimeoutMillis: 30000,\n      connectionTimeoutMillis: 2000,\n      statement_timeout: 5000\n    }\n  },\n  global: {\n    headers: { 'x-connection-pool': 'vector-search' }\n  }\n});\n\n// PgBouncer configuration for production\nconst pgBouncerConfig = {\n  pool_mode: 'transaction',\n  max_client_conn: 1000,\n  default_pool_size: 25,\n  reserve_pool_size: 5,\n  reserve_pool_timeout: 3,\n  server_lifetime: 3600,\n  server_idle_timeout: 600\n};\n```\n\n6. Implement sub-100ms search optimization:\n```typescript\nclass OptimizedVectorSearch {\n  async search(query: string, options: SearchOptions): Promise<SearchResult[]> {\n    const cacheKey = this.getCacheKey(query, options);\n    \n    // Check cache first\n    const cached = await this.cache.get(cacheKey);\n    if (cached) return cached;\n    \n    // Parallel execution of embedding generation and metadata prep\n    const [embedding, filters] = await Promise.all([\n      this.generateEmbedding(query),\n      this.prepareFilters(options)\n    ]);\n    \n    // Use prepared statement for performance\n    const results = await supabase.rpc('vector_search_optimized', {\n      query_embedding: embedding,\n      match_threshold: options.threshold || 0.8,\n      match_count: options.limit || 10,\n      filter_json: filters\n    });\n    \n    // Warm cache for next request\n    await this.cache.set(cacheKey, results.data, { ttl: 300 });\n    \n    return results.data;\n  }\n}\n```\n\n7. Create monitoring and performance dashboard:\n```typescript\ninterface PerformanceMetrics {\n  searchLatency: Histogram;\n  cacheHitRate: Counter;\n  embeddingQueueDepth: Gauge;\n  indexingLag: Gauge;\n}\n\nclass RAGMonitoring {\n  private metrics = {\n    searchLatency: new Histogram({\n      name: 'rag_search_latency_ms',\n      help: 'Search latency in milliseconds',\n      buckets: [10, 25, 50, 100, 250, 500, 1000]\n    }),\n    cacheHitRate: new Counter({\n      name: 'rag_cache_hits_total',\n      help: 'Total cache hits',\n      labelNames: ['layer']\n    })\n  };\n  \n  async recordSearch(duration: number, cacheHit: boolean): Promise<void> {\n    this.metrics.searchLatency.observe(duration);\n    if (cacheHit) {\n      this.metrics.cacheHitRate.inc({ layer: 'memory' });\n    }\n  }\n}\n```",
+        "testStrategy": "1. Load test vector search with 100k+ documents and verify p95 latency < 100ms using k6 or Artillery, testing various query patterns and workspace sizes.\n\n2. Verify cache hit rates > 80% for repeated queries by running same search queries multiple times and monitoring Redis and LRU cache statistics.\n\n3. Test parallel embedding generation processes 1000 documents in < 30 seconds by uploading batch of documents and measuring total processing time.\n\n4. Verify incremental indexing only processes changed documents by modifying subset of documents and confirming only those are re-indexed.\n\n5. Test connection pooling handles 500 concurrent searches without connection exhaustion by running parallel search requests and monitoring connection metrics.\n\n6. Verify HNSW index performance by comparing search times with and without indexes, expecting 10x+ improvement with indexes.\n\n7. Test cache invalidation works correctly when documents are updated by modifying documents and ensuring stale results are not returned.\n\n8. Verify monitoring dashboard shows accurate metrics by performing known operations and checking metric values match expected results.\n\n9. Test graceful degradation when Redis is unavailable by stopping Redis and ensuring searches still work (albeit slower).\n\n10. Verify memory usage stays within bounds under load by monitoring LRU cache size and ensuring it respects configured limits.",
+        "status": "pending",
+        "dependencies": [
+          4,
+          5,
+          19,
+          "20"
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up pgvector extension and optimize indexes",
+            "description": "Install pgvector extension in Supabase, create optimized HNSW indexes with tuned parameters, and implement partial indexes for filtered searches",
+            "dependencies": [],
+            "details": "Execute SQL migrations to enable pgvector extension, create HNSW index on documents table with m=16 and ef_construction=64, add partial indexes for workspace-filtered searches, create composite B-tree indexes for hybrid search on metadata JSONB columns. Test index performance with EXPLAIN ANALYZE queries.",
+            "status": "pending",
+            "testStrategy": "Run EXPLAIN ANALYZE on vector similarity searches to verify index usage. Benchmark query performance before and after index creation. Test filtered searches use partial indexes correctly."
+          },
+          {
+            "id": 2,
+            "title": "Implement Redis caching layer with connection management",
+            "description": "Set up Redis client with connection pooling, implement cache key strategies, and create Redis-based caching utilities",
+            "dependencies": [],
+            "details": "Configure Redis client with BullMQ-compatible connection settings, implement connection pooling with retry logic, create standardized cache key generation functions for embeddings and search results, set up TTL strategies (3600s for Redis), implement cache invalidation patterns.",
+            "status": "pending",
+            "testStrategy": "Test Redis connection resilience with connection drops. Verify cache key uniqueness for different queries. Test TTL expiration works correctly. Measure cache write/read performance."
+          },
+          {
+            "id": 3,
+            "title": "Build LRU in-memory cache layer",
+            "description": "Implement LRU cache using lru-cache package with configurable size limits and TTL for fast in-memory caching",
+            "dependencies": [],
+            "details": "Install and configure lru-cache package, implement LRUCache with max 1000 entries and 5-minute TTL, enable updateAgeOnGet and updateAgeOnHas options, create typed interfaces for EmbeddingResult caching, implement cache statistics tracking for hit/miss rates.",
+            "status": "pending",
+            "testStrategy": "Test LRU eviction with cache overflow scenarios. Verify TTL expiration and age updates. Test cache hit rates with repeated queries. Benchmark memory usage at capacity."
+          },
+          {
+            "id": 4,
+            "title": "Create multi-tier cache orchestration service",
+            "description": "Build VectorSearchCache class that coordinates between in-memory LRU and Redis caches with proper fallback logic",
+            "dependencies": [
+              "16.2",
+              "16.3"
+            ],
+            "details": "Implement VectorSearchCache class with L1 (in-memory) and L2 (Redis) cache layers, create async get/set methods with proper error handling, implement cache warming strategies, add cache bypass options for testing, create cache statistics collection for monitoring.",
+            "status": "pending",
+            "testStrategy": "Test cache fallback from L1 to L2 to database. Verify data consistency across cache layers. Test concurrent access patterns. Measure latency improvements with caching enabled."
+          },
+          {
+            "id": 5,
+            "title": "Set up BullMQ queue infrastructure for embeddings",
+            "description": "Configure BullMQ queues with Redis backend for reliable embedding generation job processing",
+            "dependencies": [
+              "16.2"
+            ],
+            "details": "Install BullMQ and configure embedding queue with Redis connection, set up job options with removeOnComplete, 3 retry attempts, exponential backoff, implement job priority system based on document priority, create queue monitoring utilities, add dead letter queue for failed jobs.",
+            "status": "pending",
+            "testStrategy": "Test job retry logic with simulated failures. Verify exponential backoff timing. Test priority queue ordering. Validate dead letter queue captures failed jobs correctly."
+          },
+          {
+            "id": 6,
+            "title": "Implement parallel embedding processor with batching",
+            "description": "Create ParallelEmbeddingProcessor class that handles document batching and parallel job submission to BullMQ",
+            "dependencies": [
+              "16.5"
+            ],
+            "details": "Implement document chunking with configurable batch size (100), create processBatch method for parallel job submission, implement priority-based job scheduling, add batch validation and error handling, create progress tracking for large batch operations, implement graceful shutdown handling.",
+            "status": "pending",
+            "testStrategy": "Test batching with various document counts. Verify parallel job submission works correctly. Test priority ordering in queue. Measure throughput with different batch sizes."
+          },
+          {
+            "id": 7,
+            "title": "Build embedding generation workers with rate limiting",
+            "description": "Create BullMQ workers that process embedding jobs with OpenAI API integration and rate limiting",
+            "dependencies": [
+              "16.5",
+              "16.6"
+            ],
+            "details": "Implement Worker class for embedding generation, integrate OpenAI embeddings API with text-embedding-3-small model, configure 5 concurrent workers with rate limiting (100 requests/minute), implement batch upsert to PostgreSQL using Supabase RPC, add error handling and retry logic for API failures.",
+            "status": "pending",
+            "testStrategy": "Test worker concurrency limits are respected. Verify rate limiting prevents API throttling. Test batch upsert performance. Simulate API failures and verify retry behavior."
+          },
+          {
+            "id": 8,
+            "title": "Create incremental indexing change tracking system",
+            "description": "Implement database triggers and change tracking tables for incremental vector index updates",
+            "dependencies": [
+              "16.1"
+            ],
+            "details": "Create documents_changes table with timestamp tracking, implement PostgreSQL triggers for INSERT/UPDATE/DELETE operations, add logical replication setup for change data capture, create checkpoint storage for resumable indexing, implement change aggregation to reduce redundant updates.",
+            "status": "pending",
+            "testStrategy": "Test triggers capture all document changes correctly. Verify checkpoint recovery after interruption. Test change aggregation reduces duplicate work. Validate no changes are missed."
+          },
+          {
+            "id": 9,
+            "title": "Build incremental vector indexer service",
+            "description": "Create IncrementalVectorIndexer class that processes document changes in batches with checkpointing",
+            "dependencies": [
+              "16.7",
+              "16.8"
+            ],
+            "details": "Implement indexChanges method to process changes since last checkpoint, create batch processing with configurable size (500), implement checkpoint saving after each batch, add workspace-specific reindexing capability, create progress reporting for long-running operations, implement parallel processing for independent workspaces.",
+            "status": "pending",
+            "testStrategy": "Test incremental indexing captures all changes. Verify checkpoint recovery works correctly. Test workspace isolation during reindexing. Measure indexing throughput and lag."
+          },
+          {
+            "id": 10,
+            "title": "Configure Supabase connection pooling and optimization",
+            "description": "Set up optimized Supabase client with connection pooling and prepared statements for vector operations",
+            "dependencies": [],
+            "details": "Configure Supabase client with min 5/max 20 connections, set appropriate timeouts (idle: 30s, connection: 2s, statement: 5s), implement connection pool monitoring, create prepared RPC functions for vector operations, configure PgBouncer settings for production, add connection retry logic.",
+            "status": "pending",
+            "testStrategy": "Test connection pool behavior under load. Verify timeout settings work correctly. Test prepared statements improve performance. Validate connection recovery after network issues."
+          },
+          {
+            "id": 11,
+            "title": "Implement optimized vector search with caching",
+            "description": "Create OptimizedVectorSearch class that combines caching, parallel execution, and prepared statements",
+            "dependencies": [
+              "16.4",
+              "16.10"
+            ],
+            "details": "Implement search method with cache-first strategy, create parallel embedding generation and filter preparation, use prepared vector_search_optimized RPC function, implement result post-processing and ranking, add search relevance scoring adjustments, create search query analysis for optimization.",
+            "status": "pending",
+            "testStrategy": "Test search latency stays under 100ms with cache hits. Verify parallel execution improves performance. Test various filter combinations. Validate relevance scoring accuracy."
+          },
+          {
+            "id": 12,
+            "title": "Build performance monitoring system with Prometheus",
+            "description": "Create comprehensive monitoring for search latency, cache performance, and system health metrics",
+            "dependencies": [],
+            "details": "Set up Prometheus client with histograms for search latency (buckets: 10-1000ms), implement cache hit rate counters for each layer, add gauges for queue depth and indexing lag, create custom metrics for vector operations, implement metric aggregation and export endpoints, add alerting rules for SLA violations.",
+            "status": "pending",
+            "testStrategy": "Test metrics are correctly recorded for all operations. Verify histogram buckets capture latency distribution. Test alerting triggers on threshold violations. Validate metric export format."
+          },
+          {
+            "id": 13,
+            "title": "Create performance testing suite and benchmarks",
+            "description": "Develop comprehensive load testing scenarios to validate sub-100ms search performance",
+            "dependencies": [
+              "16.11",
+              "16.12"
+            ],
+            "details": "Create k6 scripts for vector search load testing with 100k+ documents, implement various query patterns (exact, fuzzy, filtered), test different workspace sizes and document distributions, create performance regression tests, implement automated performance reporting, add memory and CPU profiling integration.",
+            "status": "pending",
+            "testStrategy": "Run load tests with increasing concurrency levels. Verify p95 latency stays under 100ms. Test cache effectiveness under load. Validate no memory leaks during extended runs."
+          },
+          {
+            "id": 14,
+            "title": "Implement hot reload and cache warming strategies",
+            "description": "Build system for pre-warming caches and maintaining performance during deployments",
+            "dependencies": [
+              "16.4",
+              "16.11"
+            ],
+            "details": "Create cache warming service for popular queries, implement rolling deployment support with connection draining, add predictive cache warming based on usage patterns, create cache persistence for deployment continuity, implement gradual traffic shifting for new deployments, add health checks for cache readiness.",
+            "status": "pending",
+            "testStrategy": "Test cache survives deployments with minimal impact. Verify warming improves initial response times. Test health checks accurately reflect system readiness. Measure deployment impact on latency."
+          },
+          {
+            "id": 15,
+            "title": "Build admin dashboard for RAG system monitoring",
+            "description": "Create React-based dashboard for monitoring vector search performance, cache statistics, and system health",
+            "dependencies": [
+              "16.12"
+            ],
+            "details": "Build real-time dashboard with search latency graphs, cache hit rate visualization, embedding queue depth monitoring, indexing lag tracking, create historical trend analysis, add drill-down capabilities for debugging, implement export functionality for reports, add system health alerts and notifications.",
+            "status": "pending",
+            "testStrategy": "Test dashboard updates in real-time with system metrics. Verify historical data accuracy. Test alert notifications trigger correctly. Validate export functionality produces valid reports."
+          }
+        ]
+      },
+      {
+        "id": 17,
+        "title": "Implement Intelligent Content Generation Engine",
+        "description": "Build AI-powered content generation system that can create full project templates with pages and blocks, generate context-aware content based on workspace patterns, add elements to specific pages on demand, and support batch generation for entire CRM/project structures with template inheritance",
+        "details": "1. Create Supabase Edge Functions for AI-powered content generation:\n```typescript\n// supabase/functions/generate-content/index.ts\nexport async function handler(req: Request) {\n  const { type, context, templateId, targetPageId } = await req.json();\n  \n  switch (type) {\n    case 'project_template':\n      return generateProjectTemplate(context);\n    case 'page_content':\n      return generatePageContent(targetPageId, context);\n    case 'batch_crm':\n      return generateCRMStructure(context);\n  }\n}\n```\n\n2. Implement template analysis and pattern recognition:\n```typescript\ninterface WorkspacePattern {\n  blockTypes: Map<string, number>;\n  structurePatterns: {\n    avgBlocksPerPage: number;\n    commonLayouts: BlockLayout[];\n    formulaPatterns: string[];\n  };\n  contentPatterns: {\n    namingConventions: string[];\n    dataSchemas: Record<string, ColumnSchema[]>;\n  };\n}\n\nasync function analyzeWorkspacePatterns(workspaceId: string): Promise<WorkspacePattern> {\n  const { data: pages } = await supabase\n    .from('pages')\n    .select('*, blocks(*)')\n    .eq('workspace_id', workspaceId);\n  \n  // Analyze block usage, layouts, and content patterns\n  return extractPatterns(pages);\n}\n```\n\n3. Create template inheritance system:\n```sql\nCREATE TABLE content_templates (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  name TEXT NOT NULL,\n  type TEXT CHECK (type IN ('project', 'page', 'block', 'crm', 'workflow')),\n  parent_template_id UUID REFERENCES content_templates(id),\n  structure JSONB NOT NULL,\n  metadata JSONB DEFAULT '{}',\n  is_system_template BOOLEAN DEFAULT FALSE,\n  usage_count INTEGER DEFAULT 0,\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE template_variables (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  template_id UUID REFERENCES content_templates(id),\n  variable_name TEXT NOT NULL,\n  variable_type TEXT,\n  default_value JSONB,\n  required BOOLEAN DEFAULT FALSE\n);\n```\n\n4. Implement intelligent content generation with OpenAI:\n```typescript\nasync function generateContentFromTemplate(\n  template: ContentTemplate,\n  variables: Record<string, any>,\n  patterns: WorkspacePattern\n): Promise<GeneratedContent> {\n  const prompt = buildGenerationPrompt(template, variables, patterns);\n  \n  const completion = await openai.chat.completions.create({\n    model: 'gpt-4-turbo-preview',\n    messages: [\n      {\n        role: 'system',\n        content: 'Generate structured content based on template and workspace patterns. Output valid JSON.'\n      },\n      { role: 'user', content: prompt }\n    ],\n    response_format: { type: 'json_object' }\n  });\n  \n  return parseGeneratedContent(completion.choices[0].message.content);\n}\n```\n\n5. Create batch generation system for CRM/project structures:\n```typescript\ninterface CRMGenerationConfig {\n  companyCount: number;\n  contactsPerCompany: number[];\n  dealPipeline: PipelineStage[];\n  customFields: CustomField[];\n  linkRelationships: boolean;\n}\n\nasync function generateCRMStructure(config: CRMGenerationConfig) {\n  // Create project structure\n  const crmProject = await createProject({\n    name: 'CRM System',\n    template: 'crm_template'\n  });\n  \n  // Generate companies database\n  const companiesDb = await generateDatabaseBlock({\n    projectId: crmProject.id,\n    schema: generateCompanySchema(config.customFields),\n    rowCount: config.companyCount,\n    useAIContent: true\n  });\n  \n  // Generate contacts with relationships\n  const contactsDb = await generateDatabaseBlock({\n    projectId: crmProject.id,\n    schema: generateContactSchema(config.customFields),\n    relationships: [{ targetDb: companiesDb.id, type: 'many-to-one' }]\n  });\n  \n  // Generate deals pipeline\n  const dealsDb = await generateDealsDatabase(config.dealPipeline);\n  \n  return { crmProject, databases: [companiesDb, contactsDb, dealsDb] };\n}\n```\n\n6. Implement context-aware content addition:\n```typescript\ninterface ContentAdditionRequest {\n  pageId: string;\n  contentType: 'text' | 'database' | 'chart' | 'calendar' | 'form';\n  prompt: string;\n  position?: { x: number; y: number };\n  referenceData?: string[]; // IDs of blocks to use as context\n}\n\nasync function addContentToPage(request: ContentAdditionRequest) {\n  // Analyze existing page content\n  const pageContext = await analyzePageContent(request.pageId);\n  \n  // Get referenced blocks for additional context\n  const references = await getReferencedContent(request.referenceData);\n  \n  // Generate appropriate content\n  const generatedBlock = await generateContextualBlock({\n    type: request.contentType,\n    context: { ...pageContext, references },\n    userPrompt: request.prompt\n  });\n  \n  // Add to page at specified position\n  return await addBlockToPage(request.pageId, generatedBlock, request.position);\n}\n```\n\n7. Create template marketplace integration:\n```typescript\ninterface TemplateMarketplace {\n  publishTemplate(templateId: string, metadata: PublishMetadata): Promise<void>;\n  importTemplate(marketplaceId: string): Promise<ContentTemplate>;\n  searchTemplates(query: string, filters: TemplateFilters): Promise<MarketplaceTemplate[]>;\n}\n```\n\n8. Implement generation preview and modification:\n```typescript\ninterface GenerationPreview {\n  id: string;\n  generatedStructure: any;\n  estimatedBlocks: number;\n  estimatedTokenUsage: number;\n  modifications: PreviewModification[];\n}\n\nasync function previewGeneration(request: GenerationRequest): Promise<GenerationPreview> {\n  const preview = await generateContentPreview(request);\n  \n  // Allow modifications before committing\n  return {\n    ...preview,\n    modify: (changes: PreviewModification[]) => applyPreviewChanges(preview, changes),\n    commit: () => commitGeneratedContent(preview)\n  };\n}\n```",
+        "testStrategy": "1. Test template creation and inheritance by creating parent template with variables, then child template that overrides specific values, and verify inheritance chain works correctly.\n\n2. Test workspace pattern analysis by creating workspace with 50+ pages containing various block types, then verify pattern extraction identifies common layouts, naming conventions, and data schemas accurately.\n\n3. Test AI content generation by requesting project template for 'E-commerce Dashboard' and verify it creates appropriate pages (Products, Orders, Customers) with relevant database schemas and sample data.\n\n4. Test batch CRM generation by generating structure with 100 companies, 500 contacts, and deal pipeline, then verify all relationships are properly linked and data is contextually appropriate.\n\n5. Test context-aware content addition by adding 'monthly revenue chart' to page with existing sales data and verify chart references correct database columns and uses appropriate visualization.\n\n6. Test generation preview system by requesting complex project generation, modifying preview (changing column names, adjusting structure), and verifying modifications apply correctly before commit.\n\n7. Load test Edge Functions by generating 10 concurrent template requests and verify all complete within 30 seconds with proper error handling for rate limits.\n\n8. Test template variable system by creating template with required/optional variables and verify generation fails gracefully when required variables are missing.",
+        "status": "pending",
+        "dependencies": [
+          5,
+          13,
+          14,
+          4,
+          6
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Supabase Edge Functions infrastructure for content generation",
+            "description": "Create the base Edge Function structure with proper routing for different content generation types (project_template, page_content, batch_crm)",
+            "dependencies": [],
+            "details": "Create supabase/functions/generate-content/index.ts with handler function that routes requests based on type parameter. Set up proper CORS headers, authentication middleware, and error handling. Configure environment variables for OpenAI API access.",
+            "status": "pending",
+            "testStrategy": "Test Edge Function deployment and routing by sending requests with different type parameters. Verify authentication works correctly and unauthorized requests are rejected. Test error handling with invalid request types."
+          },
+          {
+            "id": 2,
+            "title": "Create content templates database schema and models",
+            "description": "Implement PostgreSQL tables for content_templates and template_variables with proper relationships and constraints",
+            "dependencies": [],
+            "details": "Execute SQL migrations to create content_templates table with fields for workspace_id, name, type, parent_template_id, structure (JSONB), metadata, is_system_template, and usage_count. Create template_variables table for dynamic template variables. Add indexes for performance and foreign key constraints.",
+            "status": "pending",
+            "testStrategy": "Insert test templates with various types (project, page, block, crm, workflow) and verify constraints work. Test parent-child template relationships. Verify JSONB structure storage and retrieval. Test variable associations with templates."
+          },
+          {
+            "id": 3,
+            "title": "Implement workspace pattern analysis system",
+            "description": "Build pattern recognition to analyze existing workspace content including block types, layouts, naming conventions, and data schemas",
+            "dependencies": [],
+            "details": "Create analyzeWorkspacePatterns function that queries pages and blocks from Supabase, extracts block type frequencies, common layouts, formula patterns, naming conventions, and data schemas. Return WorkspacePattern interface with structured analysis results.",
+            "status": "pending",
+            "testStrategy": "Create test workspace with 20+ pages containing various block types. Run pattern analysis and verify it correctly identifies block type frequencies, average blocks per page, common layouts, and naming patterns. Test with empty workspace edge case."
+          },
+          {
+            "id": 4,
+            "title": "Build template inheritance and variable resolution system",
+            "description": "Implement logic for templates to inherit from parent templates and resolve variables with defaults and overrides",
+            "dependencies": [
+              "17.2"
+            ],
+            "details": "Create functions to traverse template inheritance chain, merge parent and child template structures, resolve template variables with proper precedence (child overrides parent), and validate required variables are provided. Handle circular inheritance prevention.",
+            "status": "pending",
+            "testStrategy": "Create parent template with variables, child template that overrides some values, and grandchild template. Test variable resolution through inheritance chain. Verify circular inheritance is detected and prevented. Test required variable validation."
+          },
+          {
+            "id": 5,
+            "title": "Integrate OpenAI API for intelligent content generation",
+            "description": "Implement OpenAI integration with structured prompts and JSON response parsing for content generation",
+            "dependencies": [
+              "17.1",
+              "17.3"
+            ],
+            "details": "Create generateContentFromTemplate function that builds prompts combining template structure, variables, and workspace patterns. Configure OpenAI chat completion with JSON response format. Implement parseGeneratedContent to validate and structure AI responses.",
+            "status": "pending",
+            "testStrategy": "Mock OpenAI API responses for testing. Verify prompt construction includes template, variables, and patterns correctly. Test JSON parsing handles various response structures. Test error handling for API failures or invalid responses."
+          },
+          {
+            "id": 6,
+            "title": "Create project template generation system",
+            "description": "Build functionality to generate complete project structures with multiple pages and blocks from templates",
+            "dependencies": [
+              "17.4",
+              "17.5"
+            ],
+            "details": "Implement generateProjectTemplate function that creates project hierarchy, generates multiple pages based on template structure, creates blocks within each page maintaining relationships, and applies workspace patterns to generated content.",
+            "status": "pending",
+            "testStrategy": "Test generating project from template with 5+ pages and various block types. Verify all pages and blocks are created with correct relationships. Test that generated content follows workspace patterns. Verify transaction rollback on partial failures."
+          },
+          {
+            "id": 7,
+            "title": "Implement CRM batch generation system",
+            "description": "Build specialized CRM structure generation with companies, contacts, deals, and relationships",
+            "dependencies": [
+              "17.6"
+            ],
+            "details": "Create generateCRMStructure function that generates companies database with custom fields, contacts database with company relationships, deals pipeline with stages, and proper many-to-one relationships between entities. Support configurable company/contact counts.",
+            "status": "pending",
+            "testStrategy": "Test CRM generation with 50 companies, 200 contacts, and deal pipeline. Verify relationships are properly established. Test custom field generation. Verify all databases have correct schemas and sample data. Test performance with large datasets."
+          },
+          {
+            "id": 8,
+            "title": "Build context-aware content addition system",
+            "description": "Implement ability to add AI-generated content to existing pages based on page context and user prompts",
+            "dependencies": [
+              "17.5"
+            ],
+            "details": "Create addContentToPage function that analyzes existing page blocks, retrieves referenced block content for context, generates appropriate new block based on type and prompt, and inserts at specified position. Support text, database, chart, calendar, and form blocks.",
+            "status": "pending",
+            "testStrategy": "Test adding various block types to existing pages. Verify generated content is contextually appropriate based on existing page content. Test position specification works correctly. Verify reference data is properly incorporated into generation."
+          },
+          {
+            "id": 9,
+            "title": "Create generation preview and modification system",
+            "description": "Build preview functionality that shows generated content before committing with ability to modify",
+            "dependencies": [
+              "17.5",
+              "17.6"
+            ],
+            "details": "Implement previewGeneration that generates content structure without persisting, calculates estimated blocks and token usage, allows applying modifications to preview, and provides commit function to persist when satisfied.",
+            "status": "pending",
+            "testStrategy": "Test preview generation for various content types. Verify modifications can be applied to preview without affecting database. Test token usage estimation accuracy. Verify commit properly persists all preview content."
+          },
+          {
+            "id": 10,
+            "title": "Implement template marketplace integration",
+            "description": "Build system for sharing and importing templates with metadata and search functionality",
+            "dependencies": [
+              "17.2",
+              "17.4"
+            ],
+            "details": "Create TemplateMarketplace interface with publishTemplate to share templates with metadata, importTemplate to bring marketplace templates into workspace, and searchTemplates with filters. Handle template compatibility and versioning.",
+            "status": "pending",
+            "testStrategy": "Test publishing template with complete metadata. Verify import creates proper local copy with new IDs. Test search functionality with various filters. Verify imported templates work with local workspace patterns."
+          },
+          {
+            "id": 11,
+            "title": "Add comprehensive error handling and validation",
+            "description": "Implement robust error handling, input validation, and rate limiting for all generation endpoints",
+            "dependencies": [
+              "17.1",
+              "17.5",
+              "17.6",
+              "17.7",
+              "17.8"
+            ],
+            "details": "Add input validation for all Edge Function endpoints, implement rate limiting to prevent abuse, add comprehensive error handling with meaningful messages, log generation requests for debugging, and implement retry logic for transient failures.",
+            "status": "pending",
+            "testStrategy": "Test with invalid inputs for all endpoints. Verify rate limiting blocks excessive requests. Test error messages are helpful and don't expose sensitive data. Verify retry logic handles transient OpenAI API failures."
+          },
+          {
+            "id": 12,
+            "title": "Create monitoring and analytics for content generation",
+            "description": "Build system to track template usage, generation success rates, and popular patterns",
+            "dependencies": [
+              "17.2",
+              "17.6",
+              "17.7",
+              "17.10"
+            ],
+            "details": "Implement analytics to track template usage counts, generation success/failure rates, popular workspace patterns, average generation times, and token usage. Create dashboard queries for monitoring generation system health.",
+            "status": "pending",
+            "testStrategy": "Generate content using various templates and verify usage tracking. Test success/failure rate calculations. Verify pattern popularity metrics are accurate. Test dashboard queries return correct aggregated data."
+          }
+        ]
+      },
+      {
+        "id": 18,
+        "title": "Build Context-Aware Response System",
+        "description": "Implement intelligent response generation that understands current page/workspace context, provides page-specific summaries, generates workspace overviews, handles conversational queries with memory, and delivers actionable suggestions based on user intent analysis",
+        "details": "1. Create context analysis system for current page/workspace state:\n```typescript\ninterface PageContext {\n  pageId: string;\n  pageTitle: string;\n  pageType: 'document' | 'database' | 'project' | 'dashboard';\n  blocks: Array<{\n    id: string;\n    type: BlockType;\n    content: any;\n    metadata: Record<string, any>;\n  }>;\n  lastModified: Date;\n  collaborators: string[];\n  parentProject?: string;\n  relatedPages: string[];\n}\n\ninterface WorkspaceContext {\n  workspaceId: string;\n  activePages: PageContext[];\n  recentActivity: ActivityLog[];\n  userRole: string;\n  permissions: Permission[];\n  workspaceMetrics: {\n    totalPages: number;\n    activeUsers: number;\n    storageUsed: number;\n  };\n}\n```\n\n2. Implement Supabase Edge Function for context-aware response generation:\n```typescript\n// supabase/functions/generate-contextual-response/index.ts\nexport async function handler(req: Request) {\n  const { query, pageContext, workspaceContext, conversationHistory } = await req.json();\n  \n  // Analyze user intent\n  const intent = await analyzeIntent(query);\n  \n  // Gather relevant context based on intent\n  const enrichedContext = await enrichContext({\n    intent,\n    pageContext,\n    workspaceContext,\n    includeRelatedPages: intent.requiresCrossReference,\n    includeWorkspacePatterns: intent.requiresPatternAnalysis\n  });\n  \n  // Generate response with appropriate context\n  const response = await generateResponse({\n    query,\n    intent,\n    context: enrichedContext,\n    conversationHistory,\n    responseType: determineResponseType(intent)\n  });\n  \n  return new Response(JSON.stringify(response));\n}\n```\n\n3. Build intent classification system:\n```typescript\ninterface UserIntent {\n  type: 'summary' | 'query' | 'action' | 'analysis' | 'suggestion';\n  confidence: number;\n  entities: {\n    pages?: string[];\n    blocks?: string[];\n    timeRange?: DateRange;\n    actions?: string[];\n  };\n  requiresCrossReference: boolean;\n  requiresPatternAnalysis: boolean;\n  requiresHistoricalData: boolean;\n}\n\nasync function analyzeIntent(query: string): Promise<UserIntent> {\n  const completion = await openai.chat.completions.create({\n    model: 'gpt-4',\n    messages: [\n      {\n        role: 'system',\n        content: 'Classify user intent and extract entities from workspace queries'\n      },\n      { role: 'user', content: query }\n    ],\n    functions: [{\n      name: 'classify_intent',\n      parameters: {\n        type: 'object',\n        properties: {\n          type: { enum: ['summary', 'query', 'action', 'analysis', 'suggestion'] },\n          entities: { type: 'object' },\n          requirements: { type: 'object' }\n        }\n      }\n    }]\n  });\n  \n  return parseIntentResponse(completion);\n}\n```\n\n4. Implement page-specific summarization with vector search integration:\n```typescript\nasync function generatePageSummary(pageId: string, context: PageContext): Promise<Summary> {\n  // Retrieve page embeddings and related content\n  const { data: pageEmbeddings } = await supabase\n    .rpc('get_page_embeddings', { page_id: pageId });\n  \n  // Find semantically similar content in workspace\n  const relatedContent = await findRelatedContent(pageEmbeddings, context.workspaceId);\n  \n  // Generate intelligent summary\n  const summary = await openai.chat.completions.create({\n    model: 'gpt-4',\n    messages: [\n      {\n        role: 'system',\n        content: `Generate a concise summary of the page focusing on:\n          - Key topics and main points\n          - Relationships to other pages: ${relatedContent.pages.join(', ')}\n          - Recent changes and activity\n          - Actionable items or decisions`\n      },\n      {\n        role: 'user',\n        content: JSON.stringify({\n          pageContent: context.blocks,\n          relatedContent,\n          recentActivity: context.recentActivity\n        })\n      }\n    ]\n  });\n  \n  return {\n    summary: summary.choices[0].message.content,\n    keyTopics: extractKeyTopics(summary),\n    relatedPages: relatedContent.pages,\n    suggestedActions: extractActions(summary)\n  };\n}\n```\n\n5. Build conversational memory system:\n```typescript\n// Store conversation context in Supabase\nCREATE TABLE conversation_sessions (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  user_id UUID REFERENCES users(id),\n  page_id UUID REFERENCES pages(id),\n  messages JSONB[] DEFAULT '{}',\n  context_snapshot JSONB,\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\ninterface ConversationMemory {\n  sessionId: string;\n  messages: Message[];\n  contextSnapshot: {\n    relevantPages: string[];\n    mentionedEntities: Entity[];\n    userPreferences: Preferences;\n  };\n  shortTermMemory: Map<string, any>; // Last 5 exchanges\n  longTermMemory: Map<string, any>; // Important facts\n}\n```\n\n6. Implement actionable suggestion generator:\n```typescript\nasync function generateActionableSuggestions(\n  context: EnrichedContext,\n  intent: UserIntent\n): Promise<Suggestion[]> {\n  const suggestions: Suggestion[] = [];\n  \n  // Analyze workspace patterns\n  const patterns = await analyzeWorkspacePatterns(context.workspaceId);\n  \n  // Generate suggestions based on patterns and intent\n  if (intent.type === 'analysis') {\n    suggestions.push(...await generateAnalysisSuggestions(patterns, context));\n  }\n  \n  // Check for missing information\n  const gaps = await identifyInformationGaps(context);\n  if (gaps.length > 0) {\n    suggestions.push(...generateGapFillingSuggestions(gaps));\n  }\n  \n  // Suggest relevant templates or automations\n  const automations = await suggestAutomations(patterns, context);\n  suggestions.push(...automations);\n  \n  return rankSuggestions(suggestions, intent, context);\n}\n```\n\n7. Create workspace overview generator:\n```typescript\nasync function generateWorkspaceOverview(\n  workspaceId: string,\n  timeRange?: DateRange\n): Promise<WorkspaceOverview> {\n  // Aggregate workspace data\n  const metrics = await supabase.rpc('get_workspace_metrics', {\n    workspace_id: workspaceId,\n    start_date: timeRange?.start,\n    end_date: timeRange?.end\n  });\n  \n  // Identify key projects and active areas\n  const activeAreas = await identifyActiveAreas(workspaceId, timeRange);\n  \n  // Generate natural language overview\n  const overview = await openai.chat.completions.create({\n    model: 'gpt-4',\n    messages: [\n      {\n        role: 'system',\n        content: 'Generate a executive summary of workspace activity and status'\n      },\n      {\n        role: 'user',\n        content: JSON.stringify({ metrics, activeAreas })\n      }\n    ]\n  });\n  \n  return {\n    summary: overview.choices[0].message.content,\n    keyMetrics: formatMetrics(metrics),\n    activeProjects: activeAreas.projects,\n    teamActivity: activeAreas.teamActivity,\n    trends: identifyTrends(metrics)\n  };\n}\n```\n\n8. Implement real-time context tracking:\n```typescript\n// Track user navigation and interactions\nconst contextTracker = {\n  currentPage: null as PageContext | null,\n  visitedPages: new Map<string, PageVisit>(),\n  interactions: [] as UserInteraction[],\n  \n  async updateContext(pageId: string) {\n    this.currentPage = await loadPageContext(pageId);\n    this.visitedPages.set(pageId, {\n      timestamp: new Date(),\n      duration: 0,\n      interactions: []\n    });\n    \n    // Update Supabase with context\n    await supabase.from('user_context').upsert({\n      user_id: currentUser.id,\n      current_page_id: pageId,\n      context_data: this.currentPage,\n      visited_pages: Array.from(this.visitedPages.entries())\n    });\n  }\n};\n```\n\n9. Build response caching and optimization:\n```typescript\n// Cache frequently requested summaries and overviews\nconst responseCache = new Map<string, CachedResponse>();\n\nasync function getCachedOrGenerate(\n  key: string,\n  generator: () => Promise<any>,\n  ttl: number = 300000 // 5 minutes\n): Promise<any> {\n  const cached = responseCache.get(key);\n  if (cached && Date.now() - cached.timestamp < ttl) {\n    return cached.data;\n  }\n  \n  const fresh = await generator();\n  responseCache.set(key, {\n    data: fresh,\n    timestamp: Date.now()\n  });\n  \n  return fresh;\n}\n```\n\n10. Integrate with AI Controller sidebar:\n```typescript\n// Extend AI Controller to use context-aware responses\ninterface AIControllerExtension {\n  getContextualResponse: (query: string) => Promise<ContextualResponse>;\n  getCurrentPageSummary: () => Promise<Summary>;\n  getWorkspaceOverview: () => Promise<WorkspaceOverview>;\n  getSuggestions: () => Promise<Suggestion[]>;\n}\n```",
+        "testStrategy": "1. Test intent classification by providing 50+ diverse queries and verify correct intent type, confidence scores > 0.8, and proper entity extraction for pages, blocks, dates, and actions.\n\n2. Verify page summarization by creating pages with 100+ blocks of mixed content types, then validate summaries capture key topics, identify relationships to 5+ other pages, and generate 3-5 actionable suggestions.\n\n3. Test conversational memory by conducting 10-turn conversations, verifying context retention across turns, checking short-term memory holds last 5 exchanges, and confirming long-term memory persists important facts.\n\n4. Validate workspace overview generation with workspaces containing 1000+ pages, verify metrics accuracy within 1%, test trend identification over 30-day periods, and ensure response time < 2 seconds.\n\n5. Test real-time context tracking by navigating between 20+ pages rapidly, verifying context updates within 100ms, checking visited page history accuracy, and confirming interaction tracking captures all user actions.\n\n6. Verify actionable suggestions by creating scenarios with information gaps, testing pattern-based suggestions match workspace usage, and validating automation suggestions are relevant and executable.\n\n7. Load test response generation with 100 concurrent users making context queries, verify p95 response time < 500ms, test cache hit rate > 70% for repeated queries, and ensure no memory leaks over 1-hour test.\n\n8. Test edge cases including empty workspaces, pages with 10k+ blocks, queries with ambiguous intent, and context switching between different workspace types.\n\n9. Verify Supabase Edge Function handles errors gracefully, implements proper rate limiting, and maintains conversation session isolation between users.\n\n10. Test integration with AI Controller sidebar by verifying context flows correctly, responses appear in sidebar UI within 200ms, and suggestions trigger appropriate actions when selected.",
+        "status": "pending",
+        "dependencies": [
+          5,
+          6,
+          12,
+          14,
+          16
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up context analysis models and interfaces",
+            "description": "Define TypeScript interfaces for PageContext and WorkspaceContext, create database schema for storing context data, and establish the foundation for the context-aware system",
+            "dependencies": [],
+            "details": "Create interfaces in app/types/context.ts including PageContext with pageId, pageTitle, pageType, blocks array, metadata, and WorkspaceContext with workspaceId, activePages, recentActivity, permissions. Add database tables for context_snapshots and user_context_sessions. Implement basic context loading functions that retrieve page and workspace data from existing tables.",
+            "status": "pending",
+            "testStrategy": "Unit test interface type guards and validators. Test database schema creation and basic CRUD operations for context storage. Verify context loading functions retrieve correct data structure."
+          },
+          {
+            "id": 2,
+            "title": "Build intent classification system with OpenAI integration",
+            "description": "Implement AI-powered intent analysis to classify user queries into categories like summary, query, action, analysis, or suggestion with entity extraction",
+            "dependencies": [
+              "18.1"
+            ],
+            "details": "Create analyzeIntent function in app/services/ai/intentClassifier.ts using OpenAI function calling. Define UserIntent interface with type, confidence, entities (pages, blocks, timeRange, actions), and requirement flags. Implement parseIntentResponse to handle OpenAI responses. Add intent classification prompts and examples for training.",
+            "status": "pending",
+            "testStrategy": "Test with 50+ diverse queries covering all intent types. Verify confidence scores exceed 0.8 threshold. Test entity extraction accuracy for page references, date ranges, and action keywords. Mock OpenAI API for unit tests."
+          },
+          {
+            "id": 3,
+            "title": "Create Supabase Edge Function for contextual response generation",
+            "description": "Implement the main Edge Function that orchestrates context gathering, intent analysis, and response generation based on user queries",
+            "dependencies": [
+              "18.1",
+              "18.2"
+            ],
+            "details": "Create supabase/functions/generate-contextual-response/index.ts with handler that accepts query, pageContext, workspaceContext, and conversationHistory. Implement enrichContext function to gather additional context based on intent. Add determineResponseType logic. Configure CORS and authentication. Deploy function with proper environment variables.",
+            "status": "pending",
+            "testStrategy": "Test Edge Function with various query types and contexts. Verify proper error handling and response formats. Test authentication and CORS headers. Benchmark response times under load."
+          },
+          {
+            "id": 4,
+            "title": "Implement page-specific summarization with vector embeddings",
+            "description": "Build intelligent page summarization that leverages vector search to find related content and generate comprehensive summaries",
+            "dependencies": [
+              "18.1",
+              "18.3"
+            ],
+            "details": "Create generatePageSummary function using existing vector embeddings from task 16. Implement findRelatedContent using pgvector similarity search. Add extractKeyTopics and extractActions helpers. Create Summary interface with summary text, keyTopics array, relatedPages, and suggestedActions. Integrate with OpenAI for natural language generation.",
+            "status": "pending",
+            "testStrategy": "Test summarization with pages containing 100+ blocks of mixed content. Verify related content discovery accuracy. Test key topic extraction for technical and non-technical content. Validate action extraction identifies TODOs and decisions."
+          },
+          {
+            "id": 5,
+            "title": "Build conversational memory system with session management",
+            "description": "Implement conversation session tracking with short-term and long-term memory storage for maintaining context across interactions",
+            "dependencies": [
+              "18.1",
+              "18.3"
+            ],
+            "details": "Create conversation_sessions table in Supabase with messages JSONB array and context_snapshot. Implement ConversationMemory class with sessionId, messages, contextSnapshot, shortTermMemory (last 5 exchanges), and longTermMemory (important facts). Add session management functions for creating, updating, and retrieving sessions. Implement memory decay and importance scoring.",
+            "status": "pending",
+            "testStrategy": "Test session creation and retrieval across multiple interactions. Verify short-term memory maintains last 5 exchanges. Test long-term memory extraction of important facts. Validate session persistence and recovery."
+          },
+          {
+            "id": 6,
+            "title": "Create actionable suggestion generator with pattern analysis",
+            "description": "Build system to analyze workspace patterns and generate contextual suggestions for improvements, automations, and next steps",
+            "dependencies": [
+              "18.2",
+              "18.3"
+            ],
+            "details": "Implement generateActionableSuggestions function that analyzes workspace patterns using SQL analytics. Create analyzeWorkspacePatterns to identify usage trends. Build identifyInformationGaps to find missing data. Implement suggestAutomations based on repetitive patterns. Add rankSuggestions using relevance scoring. Define Suggestion interface with type, priority, description, and implementation steps.",
+            "status": "pending",
+            "testStrategy": "Test pattern analysis with workspaces having diverse activity. Verify suggestion relevance to current context. Test gap identification accuracy. Validate automation suggestions are feasible and beneficial."
+          },
+          {
+            "id": 7,
+            "title": "Develop workspace overview generator with analytics",
+            "description": "Create comprehensive workspace overview system that aggregates metrics, identifies active areas, and generates executive summaries",
+            "dependencies": [
+              "18.1",
+              "18.3"
+            ],
+            "details": "Implement generateWorkspaceOverview with time range filtering. Create get_workspace_metrics Supabase RPC function for efficient aggregation. Build identifyActiveAreas using activity logs and page updates. Add formatMetrics and identifyTrends helpers. Generate natural language overviews with key metrics, active projects, team activity, and trend analysis.",
+            "status": "pending",
+            "testStrategy": "Test overview generation for workspaces with varying activity levels. Verify metric aggregation accuracy. Test trend identification over different time ranges. Validate natural language summary quality."
+          },
+          {
+            "id": 8,
+            "title": "Implement real-time context tracking system",
+            "description": "Build client-side context tracker that monitors user navigation, interactions, and maintains current context state synchronized with backend",
+            "dependencies": [
+              "18.1",
+              "18.5"
+            ],
+            "details": "Create contextTracker singleton in app/hooks/useContextTracker.ts with currentPage, visitedPages Map, and interactions array. Implement updateContext method triggered on navigation. Add interaction tracking for clicks, edits, and searches. Sync context to Supabase user_context table. Implement context restoration on page load.",
+            "status": "pending",
+            "testStrategy": "Test context updates on page navigation. Verify interaction tracking captures all user actions. Test context persistence across sessions. Validate real-time sync with backend."
+          },
+          {
+            "id": 9,
+            "title": "Build response caching and optimization layer",
+            "description": "Implement intelligent caching system for frequently requested summaries and overviews with TTL management and cache invalidation",
+            "dependencies": [
+              "18.4",
+              "18.6",
+              "18.7"
+            ],
+            "details": "Create ResponseCache class with Map-based storage and TTL support. Implement getCachedOrGenerate wrapper function. Add cache key generation based on query, context, and user. Implement cache invalidation on content updates using Supabase Realtime. Add cache warming for popular content. Configure Redis for production caching.",
+            "status": "pending",
+            "testStrategy": "Test cache hit/miss scenarios. Verify TTL expiration. Test cache invalidation on content updates. Benchmark performance improvements with caching enabled."
+          },
+          {
+            "id": 10,
+            "title": "Integrate context-aware system with AI Controller sidebar",
+            "description": "Extend existing AI Controller component to leverage the new context-aware response system for enhanced interactions",
+            "dependencies": [
+              "18.3",
+              "18.4",
+              "18.5",
+              "18.6",
+              "18.7",
+              "18.8"
+            ],
+            "details": "Modify app/components/ai/AIController.tsx to use generate-contextual-response Edge Function. Add methods for getContextualResponse, getCurrentPageSummary, getWorkspaceOverview, and getSuggestions. Update UI to display suggestions and context-aware responses. Implement streaming responses for better UX. Add context indicators showing what information AI is using.",
+            "status": "pending",
+            "testStrategy": "Test AI Controller integration with all response types. Verify context awareness in responses. Test streaming response display. Validate suggestion rendering and interaction."
+          },
+          {
+            "id": 11,
+            "title": "Implement context enrichment and cross-referencing",
+            "description": "Build system to enrich context with related pages, historical data, and cross-references based on user intent requirements",
+            "dependencies": [
+              "18.2",
+              "18.4",
+              "18.8"
+            ],
+            "details": "Create enrichContext function that conditionally loads related pages, workspace patterns, and historical data based on intent flags. Implement cross-reference resolution for mentioned entities. Add context pruning to avoid token limits. Build relevance scoring for included context. Cache enriched contexts for performance.",
+            "status": "pending",
+            "testStrategy": "Test context enrichment with various intent types. Verify cross-reference accuracy. Test context size optimization. Validate relevance scoring effectiveness."
+          },
+          {
+            "id": 12,
+            "title": "Add comprehensive testing and monitoring",
+            "description": "Implement end-to-end tests, performance monitoring, and analytics for the context-aware response system",
+            "dependencies": [
+              "18.10",
+              "18.11"
+            ],
+            "details": "Create E2E tests using Playwright for full user flows. Add performance monitoring with response time tracking. Implement analytics for intent classification accuracy, suggestion acceptance rates, and user satisfaction. Add error tracking and alerting. Create dashboard for monitoring system health and usage patterns.",
+            "status": "pending",
+            "testStrategy": "Run E2E tests simulating real user interactions. Load test Edge Functions with concurrent requests. Monitor response times and error rates. Track user engagement metrics and suggestion effectiveness."
+          }
+        ]
+      },
+      {
+        "id": 19,
+        "title": "Implement Real-time Indexing Pipeline",
+        "description": "Build automatic content indexing with PostgreSQL triggers, Supabase Realtime subscriptions for instant updates, debounced batch processing, incremental index updates, and background re-indexing jobs for optimal search freshness without performance impact",
+        "details": "1. Create PostgreSQL trigger-based indexing system:\n```sql\n-- Create indexing queue table\nCREATE TABLE indexing_queue (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  entity_type TEXT NOT NULL, -- 'page', 'block', 'document'\n  entity_id UUID NOT NULL,\n  operation TEXT NOT NULL, -- 'insert', 'update', 'delete'\n  priority INTEGER DEFAULT 0,\n  retry_count INTEGER DEFAULT 0,\n  status TEXT DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'failed'\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n  processed_at TIMESTAMP WITH TIME ZONE\n);\n\n-- Create triggers for content changes\nCREATE OR REPLACE FUNCTION queue_content_for_indexing()\nRETURNS TRIGGER AS $$\nBEGIN\n  INSERT INTO indexing_queue (entity_type, entity_id, operation)\n  VALUES (\n    TG_TABLE_NAME,\n    CASE\n      WHEN TG_OP = 'DELETE' THEN OLD.id\n      ELSE NEW.id\n    END,\n    TG_OP\n  );\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\n\n-- Attach triggers to relevant tables\nCREATE TRIGGER index_pages_changes\nAFTER INSERT OR UPDATE OR DELETE ON pages\nFOR EACH ROW EXECUTE FUNCTION queue_content_for_indexing();\n\nCREATE TRIGGER index_blocks_changes\nAFTER INSERT OR UPDATE OR DELETE ON blocks\nFOR EACH ROW EXECUTE FUNCTION queue_content_for_indexing();\n```\n\n2. Implement Supabase Realtime subscription for instant updates:\n```typescript\n// services/indexing/realtime-indexer.ts\nexport class RealtimeIndexer {\n  private channel: RealtimeChannel;\n  private indexingBuffer: Map<string, IndexingTask> = new Map();\n  private debounceTimer: NodeJS.Timeout | null = null;\n  \n  async initialize() {\n    this.channel = supabase\n      .channel('indexing-updates')\n      .on(\n        'postgres_changes',\n        {\n          event: '*',\n          schema: 'public',\n          table: 'indexing_queue',\n          filter: 'status=eq.pending'\n        },\n        (payload) => this.handleIndexingEvent(payload)\n      )\n      .subscribe();\n  }\n  \n  private handleIndexingEvent(payload: any) {\n    const task: IndexingTask = {\n      id: payload.new.id,\n      entityType: payload.new.entity_type,\n      entityId: payload.new.entity_id,\n      operation: payload.new.operation,\n      priority: payload.new.priority\n    };\n    \n    // Buffer updates for batch processing\n    this.indexingBuffer.set(task.entityId, task);\n    this.scheduleBatchProcessing();\n  }\n  \n  private scheduleBatchProcessing() {\n    if (this.debounceTimer) {\n      clearTimeout(this.debounceTimer);\n    }\n    \n    this.debounceTimer = setTimeout(() => {\n      this.processBatch();\n    }, 500); // 500ms debounce\n  }\n}\n```\n\n3. Create batch processing system with intelligent debouncing:\n```typescript\n// services/indexing/batch-processor.ts\nexport class BatchIndexProcessor {\n  private readonly BATCH_SIZE = 100;\n  private readonly MAX_CONCURRENT = 5;\n  \n  async processBatch() {\n    const tasks = await this.getTopPriorityTasks(this.BATCH_SIZE);\n    \n    // Group by entity type for efficient processing\n    const grouped = this.groupTasksByType(tasks);\n    \n    // Process in parallel with concurrency limit\n    await pLimit(this.MAX_CONCURRENT, Object.entries(grouped).map(\n      ([entityType, entityTasks]) => () => this.processEntityBatch(entityType, entityTasks)\n    ));\n  }\n  \n  private async processEntityBatch(entityType: string, tasks: IndexingTask[]) {\n    const entityIds = tasks.map(t => t.entityId);\n    \n    switch (entityType) {\n      case 'pages':\n        await this.indexPages(entityIds);\n        break;\n      case 'blocks':\n        await this.indexBlocks(entityIds);\n        break;\n      case 'documents':\n        await this.indexDocuments(entityIds);\n        break;\n    }\n    \n    // Mark tasks as completed\n    await supabase\n      .from('indexing_queue')\n      .update({ status: 'completed', processed_at: new Date() })\n      .in('id', tasks.map(t => t.id));\n  }\n}\n```\n\n4. Implement incremental index updates:\n```typescript\n// services/indexing/incremental-indexer.ts\nexport class IncrementalIndexer {\n  async indexPages(pageIds: string[]) {\n    // Fetch only changed content with checksums\n    const pages = await supabase\n      .from('pages')\n      .select('id, title, content, content_checksum, updated_at')\n      .in('id', pageIds);\n    \n    for (const page of pages.data) {\n      // Check if content actually changed\n      const existingIndex = await this.getExistingIndex(page.id);\n      \n      if (existingIndex?.content_checksum === page.content_checksum) {\n        continue; // Skip if content unchanged\n      }\n      \n      // Generate incremental updates\n      const chunks = await this.generateIncrementalChunks(page, existingIndex);\n      \n      // Update only changed vectors\n      await this.updateVectors(chunks);\n    }\n  }\n  \n  private async generateIncrementalChunks(page: Page, existingIndex?: IndexEntry) {\n    // Smart diffing to identify changed sections\n    const diff = this.computeContentDiff(existingIndex?.content, page.content);\n    \n    // Generate embeddings only for changed chunks\n    return this.chunkAndEmbed(diff.changedSections);\n  }\n}\n```\n\n5. Create background re-indexing job system:\n```typescript\n// supabase/functions/background-reindex/index.ts\nDeno.serve(async (req) => {\n  const { workspaceId, fullReindex } = await req.json();\n  \n  // Schedule re-indexing job\n  const job = await createReindexJob({\n    workspaceId,\n    type: fullReindex ? 'full' : 'incremental',\n    priority: -1, // Low priority\n    scheduledAt: new Date()\n  });\n  \n  // Process in chunks to avoid timeouts\n  const CHUNK_SIZE = 1000;\n  let offset = 0;\n  \n  while (true) {\n    const entities = await getEntitiesForReindex(workspaceId, offset, CHUNK_SIZE);\n    \n    if (entities.length === 0) break;\n    \n    // Queue for processing\n    await queueEntitiesForIndexing(entities, job.id);\n    \n    offset += CHUNK_SIZE;\n    \n    // Yield to prevent Edge Function timeout\n    await new Promise(resolve => setTimeout(resolve, 100));\n  }\n  \n  return new Response(JSON.stringify({ jobId: job.id, status: 'scheduled' }));\n});\n```\n\n6. Implement performance monitoring and optimization:\n```typescript\n// services/indexing/performance-monitor.ts\nexport class IndexingPerformanceMonitor {\n  private metrics = {\n    indexingLatency: new Map<string, number[]>(),\n    batchSizes: [],\n    errorRates: new Map<string, number>()\n  };\n  \n  async monitorIndexingPipeline() {\n    // Track indexing latency\n    const latency = await this.measureIndexingLatency();\n    \n    // Auto-adjust batch sizes based on performance\n    if (latency.p95 > 1000) { // If p95 > 1s\n      await this.reduceBatchSize();\n    } else if (latency.p95 < 200) { // If p95 < 200ms\n      await this.increaseBatchSize();\n    }\n    \n    // Monitor and alert on error rates\n    const errorRate = await this.calculateErrorRate();\n    if (errorRate > 0.05) { // 5% error threshold\n      await this.triggerErrorAlert();\n    }\n  }\n}\n```\n\n7. Create intelligent cache invalidation:\n```typescript\n// services/indexing/cache-invalidator.ts\nexport class IndexCacheInvalidator {\n  async invalidateRelatedCaches(entityId: string, entityType: string) {\n    // Invalidate direct entity cache\n    await this.invalidateEntityCache(entityId);\n    \n    // Find and invalidate related searches\n    const relatedSearches = await this.findRelatedSearches(entityId, entityType);\n    \n    for (const searchKey of relatedSearches) {\n      await redis.del(`search:${searchKey}`);\n    }\n    \n    // Invalidate workspace-level aggregations if needed\n    if (entityType === 'pages') {\n      await this.invalidateWorkspaceStats(entityId);\n    }\n  }\n}\n```",
+        "testStrategy": "1. Test PostgreSQL trigger functionality by creating, updating, and deleting pages/blocks, then verify entries appear in indexing_queue table with correct operation types and entity IDs within 50ms.\n\n2. Verify Realtime subscription by monitoring indexing_queue changes and confirming the RealtimeIndexer receives events in real-time, buffers them correctly, and triggers batch processing after 500ms debounce period.\n\n3. Test batch processing performance by queuing 10,000 indexing tasks across different entity types, then verify batch processor handles them with proper concurrency limits (5 concurrent), respects batch size (100), and completes all tasks without memory leaks.\n\n4. Validate incremental indexing by modifying small sections of large documents (>10MB), then verify only changed chunks are re-indexed by checking embedding generation count and comparing content checksums.\n\n5. Test background re-indexing by triggering full workspace re-index job for workspace with 50k+ entities, verify job processes in chunks without Edge Function timeouts, maintains low priority to not impact real-time operations, and completes successfully with progress tracking.\n\n6. Performance test the entire pipeline by simulating 1000 concurrent users making rapid edits, verify p95 indexing latency < 1s, search results reflect changes within 2s, and system auto-adjusts batch sizes based on load.\n\n7. Test error handling and recovery by simulating embedding service failures, database connection drops, and verify retry logic works correctly with exponential backoff, failed tasks are retried up to 3 times, and permanent failures are logged for manual intervention.\n\n8. Verify cache invalidation by updating a page, then immediately searching for it and confirming fresh results are returned, related workspace statistics are updated, and no stale cache entries remain.",
+        "status": "done",
+        "dependencies": [
+          6
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create indexing queue database schema",
+            "description": "Set up PostgreSQL tables for the indexing queue system including queue management and tracking",
+            "dependencies": [],
+            "details": "Create the indexing_queue table with columns for entity tracking (id, entity_type, entity_id, operation, priority, retry_count, status, created_at, processed_at). Add indexes on status, created_at, and entity_id for efficient querying. Create enum types for operation and status fields.",
+            "status": "done",
+            "testStrategy": "Verify table creation with proper constraints, test insert/update operations, verify indexes are created and used in query plans"
+          },
+          {
+            "id": 2,
+            "title": "Implement PostgreSQL triggers for content changes",
+            "description": "Create database triggers that automatically queue content changes for indexing",
+            "dependencies": [
+              "19.1"
+            ],
+            "details": "Create the queue_content_for_indexing() function that inserts records into indexing_queue. Attach triggers to pages, blocks, and documents tables for INSERT, UPDATE, and DELETE operations. Handle both NEW and OLD row references correctly based on operation type.",
+            "status": "done",
+            "testStrategy": "Test triggers by performing CRUD operations on pages/blocks/documents tables and verify corresponding entries appear in indexing_queue with correct operation types and entity IDs"
+          },
+          {
+            "id": 3,
+            "title": "Set up Supabase Realtime subscription service",
+            "description": "Implement RealtimeIndexer class to subscribe to indexing queue changes via Supabase Realtime",
+            "dependencies": [
+              "19.1"
+            ],
+            "details": "Create RealtimeIndexer class in services/indexing/realtime-indexer.ts. Initialize Supabase channel subscription for 'indexing-updates'. Filter for pending status entries. Implement handleIndexingEvent method to process incoming events and buffer them for batch processing.",
+            "status": "done",
+            "testStrategy": "Test subscription initialization, verify events are received when indexing_queue is updated, test event filtering for pending status only"
+          },
+          {
+            "id": 4,
+            "title": "Implement debounced batch processing",
+            "description": "Create intelligent debouncing system to batch multiple indexing tasks efficiently",
+            "dependencies": [
+              "19.3"
+            ],
+            "details": "Implement indexingBuffer Map to store pending tasks by entity ID. Create scheduleBatchProcessing method with 500ms debounce timer. Ensure newer tasks for same entity override older ones in buffer. Handle timer cancellation and rescheduling properly.",
+            "status": "done",
+            "testStrategy": "Test rapid consecutive updates consolidate into single batch, verify 500ms delay before processing, test buffer correctly handles duplicate entity updates"
+          },
+          {
+            "id": 5,
+            "title": "Create batch processor with concurrency control",
+            "description": "Build BatchIndexProcessor to handle bulk indexing operations with rate limiting",
+            "dependencies": [
+              "19.4"
+            ],
+            "details": "Implement BatchIndexProcessor class with configurable BATCH_SIZE (100) and MAX_CONCURRENT (5). Create getTopPriorityTasks method to fetch highest priority pending tasks. Implement groupTasksByType for efficient entity grouping. Use p-limit library for concurrency control.",
+            "status": "done",
+            "testStrategy": "Test batch size limits are respected, verify concurrent processing doesn't exceed limit, test priority ordering works correctly"
+          },
+          {
+            "id": 6,
+            "title": "Implement entity-specific indexing methods",
+            "description": "Create specialized indexing logic for pages, blocks, and documents",
+            "dependencies": [
+              "19.5"
+            ],
+            "details": "Implement processEntityBatch method with switch statement for entity types. Create indexPages, indexBlocks, and indexDocuments methods. Each method should fetch entity data, generate embeddings, and update vector store. Mark tasks as completed after successful processing.",
+            "status": "done",
+            "testStrategy": "Test each entity type processes correctly, verify embeddings are generated and stored, test task status updates to completed"
+          },
+          {
+            "id": 7,
+            "title": "Build incremental indexing system",
+            "description": "Implement IncrementalIndexer for efficient updates using content checksums",
+            "dependencies": [
+              "19.6"
+            ],
+            "details": "Create IncrementalIndexer class with content checksum comparison. Implement getExistingIndex to fetch current index state. Create computeContentDiff method for smart diffing. Only generate embeddings for changed content sections to minimize API calls and processing time.",
+            "status": "done",
+            "testStrategy": "Test checksum comparison skips unchanged content, verify diff algorithm identifies changed sections accurately, test partial embedding updates"
+          },
+          {
+            "id": 8,
+            "title": "Create background re-indexing Edge Function",
+            "description": "Build Supabase Edge Function for scheduled full and incremental re-indexing",
+            "dependencies": [
+              "19.7"
+            ],
+            "details": "Create background-reindex Edge Function that accepts workspaceId and fullReindex parameters. Implement chunked processing (1000 entities per chunk) to avoid timeouts. Add yield delays between chunks. Create job tracking for monitoring progress.",
+            "status": "done",
+            "testStrategy": "Test Edge Function handles large datasets without timeout, verify chunking works correctly, test both full and incremental reindex modes"
+          },
+          {
+            "id": 9,
+            "title": "Implement performance monitoring system",
+            "description": "Build IndexingPerformanceMonitor to track and optimize indexing pipeline",
+            "dependencies": [
+              "19.5",
+              "19.6",
+              "19.7"
+            ],
+            "details": "Create metrics tracking for indexing latency (p50, p95, p99), batch sizes, and error rates. Implement auto-adjustment of batch sizes based on latency metrics. Add alerting when error rate exceeds 5% threshold. Store metrics in time-series format for analysis.",
+            "status": "done",
+            "testStrategy": "Test latency measurement accuracy, verify batch size adjustments trigger correctly, test error rate calculations and alerting"
+          },
+          {
+            "id": 10,
+            "title": "Build intelligent cache invalidation",
+            "description": "Create IndexCacheInvalidator for smart cache management on content updates",
+            "dependencies": [
+              "19.6"
+            ],
+            "details": "Implement invalidateEntityCache for direct entity caches. Create findRelatedSearches to identify affected search results. Build workspace-level aggregation invalidation for page changes. Use Redis for cache storage with appropriate TTLs.",
+            "status": "done",
+            "testStrategy": "Test entity cache invalidation on updates, verify related searches are identified and cleared, test workspace stats update correctly"
+          },
+          {
+            "id": 11,
+            "title": "Add error handling and retry mechanisms",
+            "description": "Implement robust error handling with exponential backoff retry logic",
+            "dependencies": [
+              "19.5",
+              "19.6"
+            ],
+            "details": "Add try-catch blocks in all processing methods. Implement exponential backoff for failed tasks (retry_count tracking). Create dead letter queue for tasks failing after max retries. Log detailed error information for debugging. Handle network failures gracefully.",
+            "status": "done",
+            "testStrategy": "Test retry logic with simulated failures, verify exponential backoff timing, test dead letter queue for max retry failures"
+          },
+          {
+            "id": 12,
+            "title": "Create monitoring dashboard and analytics",
+            "description": "Build comprehensive monitoring for indexing pipeline health and performance",
+            "dependencies": [
+              "19.9",
+              "19.11"
+            ],
+            "details": "Create dashboard showing real-time indexing queue depth, processing rate, error rates, and latency percentiles. Add historical trend analysis. Implement alerts for queue backlog, high error rates, or processing delays. Export metrics to observability platform.",
+            "status": "done",
+            "testStrategy": "Test dashboard displays real-time metrics accurately, verify historical data aggregation, test alert triggers for various threshold conditions"
+          }
+        ]
+      },
+      {
+        "id": 20,
+        "title": "Rebuild Page Editor with Notion/Coda-style Block Architecture",
+        "description": "CRITICAL: Complete rebuild of the page editor to implement a production-ready block-based architecture similar to Notion and Coda, replacing the broken drag-and-drop canvas with inline block editing, slash commands, keyboard navigation, and virtual scrolling for optimal performance. This is blocking content creation and must be completed before Task 16 (RAG Infrastructure) since users cannot create content for the RAG system without a functional editor.",
+        "status": "in-progress",
+        "dependencies": [
+          6,
+          14
+        ],
+        "priority": "high",
+        "details": "**CRITICAL PRIORITY**: The editor is currently broken and preventing all content creation. This must be completed before Task 16 (RAG Infrastructure) can be useful, as the RAG system requires content to index.\n\n1. Create new block-based editor foundation with virtual scrolling:\n```typescript\ninterface BlockEditorState {\n  blocks: Map<string, EditorBlock>;\n  selection: {\n    anchor: { blockId: string; offset: number };\n    focus: { blockId: string; offset: number };\n  };\n  virtualScrollState: {\n    viewportHeight: number;\n    scrollTop: number;\n    visibleRange: { start: number; end: number };\n    blockHeights: Map<string, number>;\n  };\n}\n\ninterface EditorBlock {\n  id: string;\n  type: BlockType;\n  content: any;\n  children?: string[];\n  parent?: string;\n  metadata: {\n    createdAt: Date;\n    updatedAt: Date;\n    version: number;\n  };\n}\n```\n\n2. Implement slash command system with fuzzy search:\n```typescript\nclass SlashCommandHandler {\n  private commands = new Map<string, CommandDefinition>();\n  \n  registerCommand(command: CommandDefinition) {\n    this.commands.set(command.trigger, command);\n  }\n  \n  async handleSlashTrigger(query: string): Promise<CommandSuggestion[]> {\n    const fuse = new Fuse(Array.from(this.commands.values()), {\n      keys: ['name', 'description', 'aliases'],\n      threshold: 0.3\n    });\n    return fuse.search(query).slice(0, 10);\n  }\n}\n```\n\n3. Build keyboard navigation system:\n```typescript\nclass KeyboardNavigationHandler {\n  private shortcuts = new Map<string, NavigationAction>();\n  \n  constructor() {\n    this.registerShortcuts();\n  }\n  \n  private registerShortcuts() {\n    this.shortcuts.set('ArrowUp', this.moveToPreviousBlock);\n    this.shortcuts.set('ArrowDown', this.moveToNextBlock);\n    this.shortcuts.set('Tab', this.indentBlock);\n    this.shortcuts.set('Shift+Tab', this.outdentBlock);\n    this.shortcuts.set('Cmd+Enter', this.createNewBlock);\n    this.shortcuts.set('Cmd+D', this.duplicateBlock);\n    this.shortcuts.set('Cmd+Shift+Up', this.moveBlockUp);\n    this.shortcuts.set('Cmd+Shift+Down', this.moveBlockDown);\n  }\n}\n```\n\n4. Implement virtual scrolling with react-window:\n```typescript\nimport { VariableSizeList } from 'react-window';\nimport AutoSizer from 'react-virtualized-auto-sizer';\n\nconst VirtualBlockEditor: React.FC = () => {\n  const rowHeights = useRef<Map<number, number>>(new Map());\n  \n  const getItemSize = (index: number) => {\n    return rowHeights.current.get(index) || 50;\n  };\n  \n  const setItemSize = (index: number, size: number) => {\n    if (rowHeights.current.get(index) !== size) {\n      rowHeights.current.set(index, size);\n      listRef.current?.resetAfterIndex(index);\n    }\n  };\n  \n  return (\n    <AutoSizer>\n      {({ height, width }) => (\n        <VariableSizeList\n          ref={listRef}\n          height={height}\n          width={width}\n          itemCount={blocks.length}\n          itemSize={getItemSize}\n          overscanCount={5}\n        >\n          {BlockRenderer}\n        </VariableSizeList>\n      )}\n    </AutoSizer>\n  );\n};\n```\n\n5. Create inline block editing with contentEditable:\n```typescript\nconst EditableBlock: React.FC<BlockProps> = ({ block, onUpdate }) => {\n  const [isEditing, setIsEditing] = useState(false);\n  const contentRef = useRef<HTMLDivElement>(null);\n  \n  const handleInput = useCallback((e: React.FormEvent) => {\n    const content = e.currentTarget.textContent || '';\n    onUpdate(block.id, { content });\n  }, [block.id, onUpdate]);\n  \n  return (\n    <div\n      ref={contentRef}\n      contentEditable={isEditing}\n      suppressContentEditableWarning\n      onFocus={() => setIsEditing(true)}\n      onBlur={() => setIsEditing(false)}\n      onInput={handleInput}\n      className=\"block-content\"\n    />\n  );\n};\n```\n\n6. Implement block transformation system:\n```typescript\nclass BlockTransformer {\n  async transformBlock(block: EditorBlock, targetType: BlockType): Promise<EditorBlock> {\n    const transformer = this.getTransformer(block.type, targetType);\n    if (!transformer) {\n      throw new Error(`No transformer from ${block.type} to ${targetType}`);\n    }\n    return transformer(block);\n  }\n  \n  private transformers = new Map<string, TransformFunction>();\n  \n  registerTransformer(from: BlockType, to: BlockType, fn: TransformFunction) {\n    this.transformers.set(`${from}->${to}`, fn);\n  }\n}\n```\n\n7. Add real-time collaboration with Supabase Realtime:\n```typescript\nconst useCollaborativeEditing = (pageId: string) => {\n  useEffect(() => {\n    const channel = supabase\n      .channel(`page:${pageId}`)\n      .on('presence', { event: 'sync' }, () => {\n        const state = channel.presenceState();\n        updateCollaboratorCursors(state);\n      })\n      .on('broadcast', { event: 'block-update' }, ({ payload }) => {\n        applyRemoteBlockUpdate(payload);\n      })\n      .subscribe();\n      \n    return () => { channel.unsubscribe(); };\n  }, [pageId]);\n};\n```\n\n8. Performance optimizations:\n```typescript\n// Debounced save with diff detection\nconst useDebouncedSave = (blocks: Map<string, EditorBlock>) => {\n  const previousBlocks = useRef(blocks);\n  \n  const saveChanges = useMemo(\n    () => debounce(async (changedBlocks: EditorBlock[]) => {\n      await supabase\n        .from('blocks')\n        .upsert(changedBlocks);\n    }, 500),\n    []\n  );\n  \n  useEffect(() => {\n    const changes = diffBlocks(previousBlocks.current, blocks);\n    if (changes.length > 0) {\n      saveChanges(changes);\n      previousBlocks.current = blocks;\n    }\n  }, [blocks, saveChanges]);\n};\n```",
+        "testStrategy": "**CRITICAL: Test that the editor functions at all before Task 16 implementation begins.**\n\n1. Test virtual scrolling performance by creating a page with 10,000+ blocks and verify smooth scrolling at 60fps, memory usage stays under 100MB, and only visible blocks are rendered in DOM (check with React DevTools).\n\n2. Verify slash command functionality by typing '/' in any block and confirming command palette appears within 50ms, fuzzy search works correctly (e.g., '/h1' shows heading options), and selected commands transform blocks properly.\n\n3. Test keyboard navigation by using arrow keys to move between blocks, Tab/Shift+Tab for indentation, Cmd+Enter to create new blocks, and verify all shortcuts work consistently across different block types.\n\n4. Validate inline editing by clicking on any block to enter edit mode, typing to update content, and confirming changes save automatically with debouncing (network tab should show saves every 500ms during continuous typing).\n\n5. Test block transformations by selecting text blocks and converting to headings, lists, code blocks, and verify content is preserved correctly during transformation.\n\n6. Verify real-time collaboration by opening the same page in multiple browser tabs, editing blocks simultaneously, and confirming updates appear in real-time with presence indicators.\n\n7. Load test the editor with various content sizes: empty page, 100 blocks, 1000 blocks, 10000 blocks, and verify initial load time < 1s for pages under 1000 blocks.\n\n8. Test error recovery by simulating network failures during save operations and verify the editor maintains local state and retries failed saves automatically.\n\n9. Validate accessibility by testing keyboard-only navigation, screen reader compatibility, and ARIA labels on all interactive elements.\n\n10. Performance profile the editor using Chrome DevTools to ensure no memory leaks during extended editing sessions (1+ hour) and no performance degradation over time.\n\n11. **CRITICAL: Verify basic content creation works - users must be able to create and save content before Task 16 RAG system can index it.**",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Tiptap editor foundation with virtual scrolling",
+            "description": "Replace current PageEditor.tsx with Tiptap-based block editor and implement virtual scrolling for performance",
+            "status": "done",
+            "dependencies": [],
+            "details": "Install Tiptap and dependencies (@tiptap/react, @tiptap/starter-kit, @tanstack/react-virtual). Create new BlockEditor component with hierarchical block structure. Implement virtual scrolling to handle 10,000+ blocks efficiently. Set up block state management with Zustand. Create base block rendering pipeline with memoization.\n<info added on 2025-08-16T07:12:38.975Z>\nImplementation complete. Successfully installed Tiptap dependencies including @tiptap/react, @tiptap/pm, @tiptap/starter-kit, @tiptap/extension-bubble-menu, @tiptap/extension-floating-menu, and @tiptap/extension-placeholder. Created TiptapEditor component at app/components/editor/TiptapEditor.tsx with full rich text formatting capabilities, keyboard shortcuts, and both bubble menu and floating menu for context-aware formatting. Implemented BlockEditor component at app/components/editor/BlockEditor.tsx with react-window virtual scrolling supporting 10,000+ blocks efficiently. Added proper TypeScript types and memoization for optimal performance. The editor foundation is now ready for implementing the block hierarchy, slash commands, and state management system.\n</info added on 2025-08-16T07:12:38.975Z>",
+            "testStrategy": "Verify Tiptap renders correctly. Test virtual scrolling with 10,000 blocks maintains 60fps. Check memory usage stays under 100MB. Ensure only visible blocks are in DOM."
+          },
+          {
+            "id": 2,
+            "title": "Implement command pattern for undo/redo with coalescing",
+            "description": "Build robust undo/redo system with operation coalescing for optimal user experience",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Create Command interface with execute/undo/canMerge/merge methods. Implement 200ms debounce for continuous operations. Build history stack with 50-state limit. Add operation coalescing for typing and formatting. Create keyboard shortcuts (Cmd+Z, Cmd+Shift+Z).",
+            "testStrategy": "Test undo/redo works for all operations. Verify continuous typing coalesces into single undo. Check memory limits are enforced. Test keyboard shortcuts work consistently."
+          },
+          {
+            "id": 3,
+            "title": "Build slash command system with fuzzy search",
+            "description": "Create Notion-style slash command palette with intelligent fuzzy matching",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement SlashCommandHandler with command registry. Add Fuse.js for fuzzy search matching. Create command palette UI with keyboard navigation. Build command categories (basic, formatting, advanced). Add context-aware suggestions. Ensure < 50ms response time.",
+            "testStrategy": "Type '/' and verify palette appears within 50ms. Test fuzzy search (e.g., '/h1' shows headings). Verify keyboard navigation works. Check command execution transforms blocks correctly."
+          },
+          {
+            "id": 4,
+            "title": "Implement keyboard navigation between blocks",
+            "description": "Build comprehensive keyboard navigation system for efficient block manipulation",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Create KeyboardNavigationHandler with shortcut registry. Implement arrow key navigation between blocks. Add Tab/Shift+Tab for indentation. Build Cmd+Enter for new blocks. Add Cmd+D for duplication. Implement Cmd+Shift+Up/Down for moving blocks.",
+            "testStrategy": "Test all arrow key navigation patterns. Verify Tab indentation works correctly. Check block creation/duplication shortcuts. Test block movement preserves content."
+          },
+          {
+            "id": 5,
+            "title": "Create inline rich text editing with contentEditable",
+            "description": "Implement inline editing capabilities within blocks with rich text support",
+            "status": "pending",
+            "dependencies": [
+              1,
+              3
+            ],
+            "details": "Build EditableBlock component with contentEditable. Add rich text formatting (bold, italic, underline, code). Implement focus management and cursor positioning. Create text selection handling. Add paste handling with formatting preservation.",
+            "testStrategy": "Click blocks to enter edit mode. Verify typing updates content. Test rich text formatting. Check paste operations preserve formatting. Validate cursor positioning."
+          },
+          {
+            "id": 6,
+            "title": "Build multi-block selection system",
+            "description": "Implement multi-block selection for bulk operations",
+            "status": "pending",
+            "dependencies": [
+              4,
+              5
+            ],
+            "details": "Create selection state management. Implement Shift+Click for range selection. Add Cmd+A for select all. Build visual selection indicators. Create bulk operations (delete, move, transform). Add selection keyboard navigation.",
+            "testStrategy": "Test Shift+Click selects range. Verify Cmd+A selects all blocks. Check bulk delete/move operations. Test selection visual feedback. Validate keyboard selection."
+          },
+          {
+            "id": 7,
+            "title": "Implement core block types",
+            "description": "Create essential block types: paragraph, headings, lists, code blocks",
+            "status": "pending",
+            "dependencies": [
+              5
+            ],
+            "details": "Build paragraph block with rich text. Create heading blocks (h1-h6). Implement ordered/unordered lists with nesting. Add code blocks with Prism.js syntax highlighting. Create block transformation logic between types.",
+            "testStrategy": "Create each block type and verify rendering. Test transformations between types. Check list nesting works. Verify code syntax highlighting. Test content preservation during transforms."
+          },
+          {
+            "id": 8,
+            "title": "Add advanced block types",
+            "description": "Implement tables, images, videos, quotes, callouts, and collapsible blocks",
+            "status": "pending",
+            "dependencies": [
+              7
+            ],
+            "details": "Create table blocks with cell editing. Implement image/video blocks with upload. Build quote and callout blocks. Add toggle/collapsible blocks. Create math blocks with KaTeX. Implement block-specific toolbars.",
+            "testStrategy": "Test table cell editing and navigation. Verify media upload and display. Check collapsible blocks expand/collapse. Test math rendering with KaTeX. Validate block-specific features."
+          },
+          {
+            "id": 9,
+            "title": "Optimize database with JSONB indexes",
+            "description": "Add performance-critical database indexes and query optimizations",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Create GIN indexes on JSONB content fields. Add B-tree indexes for frequent queries. Optimize block retrieval queries. Implement efficient bulk operations. Add query performance monitoring.",
+            "testStrategy": "Benchmark query performance before/after indexes. Test bulk operations performance. Verify index usage with EXPLAIN ANALYZE. Check query response times < 100ms."
+          },
+          {
+            "id": 10,
+            "title": "Implement client-side caching and memoization",
+            "description": "Add caching layers for optimal performance during editing",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement IndexedDB for block caching. Add React.memo for block components. Create block diff detection. Build intelligent cache invalidation. Add memory management for long sessions.",
+            "testStrategy": "Verify blocks are cached in IndexedDB. Check re-renders are minimized. Test cache invalidation works correctly. Monitor memory usage over time. Validate long session performance."
+          },
+          {
+            "id": 11,
+            "title": "Build debounced auto-save with conflict resolution",
+            "description": "Create reliable auto-save system with conflict handling",
+            "status": "pending",
+            "dependencies": [
+              5,
+              10
+            ],
+            "details": "Implement 500ms debounced save. Create diff detection for changed blocks. Build conflict resolution UI. Add offline queue for failed saves. Implement retry logic with exponential backoff.",
+            "testStrategy": "Monitor network tab for 500ms save intervals. Test conflict resolution with concurrent edits. Verify offline saves queue properly. Check retry logic works. Test data integrity."
+          },
+          {
+            "id": 12,
+            "title": "Add real-time collaboration infrastructure",
+            "description": "Implement multi-user editing with Supabase Realtime",
+            "status": "pending",
+            "dependencies": [
+              11
+            ],
+            "details": "Set up Supabase Realtime channels. Implement presence tracking with cursors. Build operational transform for conflicts. Add user awareness indicators. Create collaboration permissions.",
+            "testStrategy": "Open multiple tabs and verify real-time sync. Test cursor positions are shared. Check conflict resolution works. Verify presence indicators update. Test permission enforcement."
+          },
+          {
+            "id": 13,
+            "title": "Create block plugin system",
+            "description": "Build extensible architecture for custom block types",
+            "status": "pending",
+            "dependencies": [
+              7,
+              8
+            ],
+            "details": "Design plugin API for custom blocks. Create block registry system. Implement plugin lifecycle hooks. Build plugin configuration UI. Add plugin sandboxing for security.",
+            "testStrategy": "Create sample custom block plugin. Test plugin registration and lifecycle. Verify plugin isolation. Check configuration persistence. Test plugin error handling."
+          },
+          {
+            "id": 14,
+            "title": "Implement mobile touch interactions",
+            "description": "Add comprehensive touch support for mobile editing",
+            "status": "pending",
+            "dependencies": [
+              5,
+              6
+            ],
+            "details": "Add touch gesture recognition. Implement long-press for selection. Create touch-friendly block handles. Build mobile-optimized toolbar. Add viewport management for mobile keyboards.",
+            "testStrategy": "Test on iOS and Android devices. Verify touch selection works. Check toolbar accessibility on mobile. Test with mobile keyboards. Validate responsive design."
+          },
+          {
+            "id": 15,
+            "title": "Add accessibility features",
+            "description": "Ensure WCAG 2.1 AA compliance with comprehensive accessibility",
+            "status": "pending",
+            "dependencies": [
+              4,
+              5
+            ],
+            "details": "Add ARIA labels and roles. Implement screen reader announcements. Create high contrast mode. Build keyboard-only navigation. Add focus indicators and skip links.",
+            "testStrategy": "Test with NVDA/JAWS screen readers. Verify keyboard-only navigation. Check WCAG 2.1 AA compliance. Test high contrast mode. Validate focus management."
+          },
+          {
+            "id": 16,
+            "title": "Build content migration tool",
+            "description": "Create tool to migrate existing canvas-based content to block format",
+            "status": "pending",
+            "dependencies": [
+              7
+            ],
+            "details": "Analyze existing page content structure. Build migration transformers for each element type. Create batch migration system. Add rollback capability. Implement migration progress tracking.",
+            "testStrategy": "Test migration preserves all content. Verify data integrity after migration. Check rollback works correctly. Test with various content types. Validate no data loss."
+          },
+          {
+            "id": 17,
+            "title": "Create comprehensive test suite",
+            "description": "Build unit, integration, and e2e tests for editor reliability",
+            "status": "pending",
+            "dependencies": [
+              1,
+              3,
+              5,
+              7
+            ],
+            "details": "Write unit tests for all components. Create integration tests for features. Build e2e tests with Playwright. Add performance benchmarks. Implement visual regression tests.",
+            "testStrategy": "Achieve > 80% code coverage. Run e2e tests on all browsers. Verify performance benchmarks pass. Check visual regression tests. Validate CI/CD integration."
+          },
+          {
+            "id": 18,
+            "title": "Performance testing and optimization",
+            "description": "Conduct thorough performance testing and optimization",
+            "status": "pending",
+            "dependencies": [
+              17
+            ],
+            "details": "Test with 10,000+ block documents. Profile memory usage patterns. Optimize render performance. Add performance monitoring. Create performance dashboard.",
+            "testStrategy": "Load 10,000 blocks in < 3 seconds. Maintain 60fps during scrolling. Keep memory < 100MB. Verify no memory leaks. Check metrics dashboard works."
+          },
+          {
+            "id": 19,
+            "title": "Cross-browser compatibility testing",
+            "description": "Ensure editor works across all major browsers",
+            "status": "pending",
+            "dependencies": [
+              17
+            ],
+            "details": "Test on Chrome, Firefox, Safari, Edge. Verify feature parity across browsers. Fix browser-specific issues. Add browser detection and polyfills. Create compatibility matrix.",
+            "testStrategy": "Test all features on each browser. Verify consistent behavior. Check performance is similar. Test with older browser versions. Document any limitations."
+          },
+          {
+            "id": 20,
+            "title": "Production deployment preparation",
+            "description": "Prepare editor for production deployment with monitoring",
+            "status": "pending",
+            "dependencies": [
+              18,
+              19
+            ],
+            "details": "Set up feature flags for gradual rollout. Add error tracking with Sentry. Implement analytics and telemetry. Create rollback procedures. Build admin monitoring dashboard.",
+            "testStrategy": "Test feature flags work correctly. Verify error tracking captures issues. Check telemetry data flows. Test rollback procedures. Validate monitoring dashboard."
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-08-12T23:25:46.230Z",
+      "updated": "2025-08-16T11:30:43.044Z",
       "description": "Tasks for master context"
     }
   }

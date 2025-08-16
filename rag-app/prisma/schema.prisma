@@ -6,7 +6,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  extensions = [vector, uuidOssp(map: "uuid-ossp")]
+  extensions = [uuidOssp(map: "uuid-ossp")]
 }
 
 model User {
@@ -33,6 +33,7 @@ model User {
   refreshTokens     RefreshToken[]
   userWorkspaces    UserWorkspace[]
   auditLogs         AuditLog[]
+  invitations       Invitation[]
 
   @@index([email])
   @@index([emailVerificationToken])
@@ -53,6 +54,8 @@ model Workspace {
   userWorkspaces UserWorkspace[]
   pages          Page[]
   projects       Project[]
+  invitations    Invitation[]
+  integrationCredentials IntegrationCredential[]
 
   @@index([slug])
   @@map("workspaces")
@@ -70,6 +73,7 @@ model Role {
   // Relations
   permissions      RolePermission[]
   userWorkspaces   UserWorkspace[]
+  invitations      Invitation[]
 
   @@map("roles")
 }
@@ -237,6 +241,31 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model Invitation {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String    @db.VarChar(255)
+  workspaceId  String    @map("workspace_id") @db.Uuid
+  roleId       String    @map("role_id") @db.Uuid
+  invitedById  String    @map("invited_by_id") @db.Uuid
+  token        String    @unique @db.VarChar(500)
+  status       String    @default("pending") @db.VarChar(50) // pending, accepted, expired, cancelled
+  acceptedAt   DateTime? @map("accepted_at") @db.Timestamptz(6)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  role        Role      @relation(fields: [roleId], references: [id])
+  invitedBy   User      @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([workspaceId])
+  @@index([token])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("invitations")
+}
+
 model Document {
   id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId     String      @map("user_id") @db.Uuid
@@ -259,7 +288,7 @@ model Embedding {
   documentId String                   @map("document_id") @db.Uuid
   chunkText  String                   @map("chunk_text") @db.Text
   chunkIndex Int                      @map("chunk_index")
-  embedding  Unsupported("vector(1536)")?
+  // embedding  Unsupported("vector(1536)")? // Temporarily disabled - requires pgvector extension
   metadata   Json?                    @db.JsonB
   createdAt  DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   document   Document                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
@@ -282,4 +311,48 @@ model Query {
 
   @@index([userId])
   @@map("queries")
+}
+
+model IntegrationCredential {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId   String    @map("workspace_id") @db.Uuid
+  provider      String    @db.VarChar(50) // slack, github, google_drive, figma, notion, linear
+  accessToken   String?   @map("access_token") @db.Text // Encrypted
+  refreshToken  String?   @map("refresh_token") @db.Text // Encrypted
+  tokenExpiry   DateTime? @map("token_expiry") @db.Timestamptz(6)
+  metadata      Json?     @db.JsonB // Additional provider-specific data
+  isActive      Boolean   @default(true) @map("is_active")
+  lastSyncedAt  DateTime? @map("last_synced_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  webhooks  Webhook[]
+  
+  @@unique([workspaceId, provider])
+  @@index([workspaceId])
+  @@index([provider])
+  @@map("integration_credentials")
+}
+
+model Webhook {
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  integrationId String                 @map("integration_id") @db.Uuid
+  url           String                 @db.Text
+  secret        String?                @db.Text // For webhook signature verification
+  events        String[]               // Array of event types to listen for
+  isActive      Boolean                @default(true) @map("is_active")
+  lastTriggered DateTime?              @map("last_triggered") @db.Timestamptz(6)
+  failureCount  Int                    @default(0) @map("failure_count")
+  metadata      Json?                  @db.JsonB
+  createdAt     DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  integration IntegrationCredential @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  
+  @@index([integrationId])
+  @@index([isActive])
+  @@map("webhooks")
 }

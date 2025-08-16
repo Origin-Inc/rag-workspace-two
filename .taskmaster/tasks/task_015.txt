@@ -1,0 +1,413 @@
+# Task ID: 15
+# Title: Enhanced Block System Integration
+# Status: pending
+# Dependencies: 14, 11, 6
+# Priority: medium
+# Description: Extend the existing block system with advanced features including grid-based positioning, cross-block interactions, block collections, theming, permissions, version control, transformations, custom SDK, marketplace, real-time collaboration, performance optimization, responsive layouts, and import/export functionality
+# Details:
+1. Implement grid-based positioning system for blocks:
+```typescript
+interface BlockGridSystem {
+  gridSize: { columns: 12, rows: 'auto' };
+  snapToGrid: boolean;
+  gridGap: number;
+  breakpoints: {
+    mobile: { columns: 4, threshold: 768 };
+    tablet: { columns: 8, threshold: 1024 };
+    desktop: { columns: 12, threshold: 1440 };
+  };
+}
+
+interface EnhancedBlockPosition extends BlockPosition {
+  gridArea?: string; // CSS Grid area definition
+  flexOrder?: number;
+  responsivePositions?: Map<string, BlockPosition>;
+}
+```
+
+2. Create cross-block interaction system in Supabase:
+```sql
+CREATE TABLE block_references (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  source_block_id UUID REFERENCES blocks(id) ON DELETE CASCADE,
+  target_block_id UUID REFERENCES blocks(id) ON DELETE CASCADE,
+  reference_type TEXT CHECK (reference_type IN ('link', 'embed', 'sync', 'formula')),
+  reference_data JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE synced_blocks (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  master_block_id UUID REFERENCES blocks(id) ON DELETE CASCADE,
+  sync_group_id UUID NOT NULL,
+  sync_properties TEXT[] DEFAULT ARRAY['content', 'style'],
+  last_synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+3. Implement block collections and grouping:
+```typescript
+interface BlockCollection {
+  id: string;
+  name: string;
+  blocks: string[];
+  layout: 'stack' | 'grid' | 'masonry' | 'carousel';
+  metadata: {
+    collapsed?: boolean;
+    locked?: boolean;
+    template?: boolean;
+  };
+}
+
+class BlockCollectionManager {
+  async createCollection(blocks: Block[]): Promise<BlockCollection>
+  async addToCollection(collectionId: string, blockId: string): Promise<void>
+  async removeFromCollection(collectionId: string, blockId: string): Promise<void>
+  async applyCollectionTemplate(templateId: string): Promise<BlockCollection>
+}
+```
+
+4. Build consistent theming system:
+```typescript
+interface BlockTheme {
+  id: string;
+  name: string;
+  variables: {
+    colors: Record<string, string>;
+    typography: Record<string, FontStyle>;
+    spacing: Record<string, number>;
+    borders: Record<string, BorderStyle>;
+    shadows: Record<string, string>;
+  };
+  blockOverrides: Map<BlockType, Partial<BlockStyle>>;
+}
+
+class ThemeManager {
+  async applyTheme(themeId: string, blockIds: string[]): Promise<void>
+  async createCustomTheme(base: BlockTheme): Promise<BlockTheme>
+  async exportTheme(themeId: string): Promise<ThemeExport>
+}
+```
+
+5. Implement block permissions and access control:
+```sql
+CREATE TABLE block_permissions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  block_id UUID REFERENCES blocks(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  permission_level TEXT CHECK (permission_level IN ('view', 'comment', 'edit', 'admin')),
+  granted_by UUID REFERENCES users(id),
+  granted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE,
+  UNIQUE(block_id, user_id)
+);
+
+CREATE TABLE block_access_tokens (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  block_id UUID REFERENCES blocks(id) ON DELETE CASCADE,
+  token TEXT UNIQUE NOT NULL,
+  permission_level TEXT,
+  max_uses INTEGER,
+  used_count INTEGER DEFAULT 0,
+  expires_at TIMESTAMP WITH TIME ZONE
+);
+```
+
+6. Add version control and history tracking:
+```typescript
+interface BlockVersion {
+  id: string;
+  blockId: string;
+  version: number;
+  content: any;
+  metadata: {
+    author: string;
+    timestamp: Date;
+    changeDescription?: string;
+    diff?: JsonDiff;
+  };
+}
+
+class BlockVersionControl {
+  async saveVersion(blockId: string, content: any): Promise<BlockVersion>
+  async revertToVersion(blockId: string, versionId: string): Promise<Block>
+  async compareVersions(v1: string, v2: string): Promise<VersionDiff>
+  async getBranchHistory(blockId: string): Promise<VersionTree>
+}
+```
+
+7. Create block transformation system:
+```typescript
+interface BlockTransformer {
+  sourceType: BlockType;
+  targetType: BlockType;
+  transform: (sourceBlock: Block) => Block;
+  canTransform: (block: Block) => boolean;
+  preserveProperties?: string[];
+}
+
+class TransformationEngine {
+  registerTransformer(transformer: BlockTransformer): void
+  async transformBlock(blockId: string, targetType: BlockType): Promise<Block>
+  getAvailableTransformations(blockType: BlockType): BlockType[]
+  async bulkTransform(blockIds: string[], targetType: BlockType): Promise<Block[]>
+}
+```
+
+8. Build custom block development SDK:
+```typescript
+// @workspace/block-sdk
+export interface CustomBlockDefinition {
+  type: string;
+  version: string;
+  schema: JsonSchema;
+  component: React.ComponentType<BlockProps>;
+  editor?: React.ComponentType<BlockEditorProps>;
+  migrations?: VersionMigration[];
+  capabilities: {
+    embeddable?: boolean;
+    searchable?: boolean;
+    collaborative?: boolean;
+    exportable?: ExportFormat[];
+  };
+}
+
+export class BlockSDK {
+  static defineBlock(definition: CustomBlockDefinition): BlockRegistration
+  static useBlockData<T>(): [T, (data: T) => void]
+  static useBlockPermissions(): BlockPermissions
+  static useBlockTheme(): BlockTheme
+}
+```
+
+9. Implement block marketplace:
+```sql
+CREATE TABLE marketplace_blocks (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  publisher_id UUID REFERENCES users(id),
+  name TEXT NOT NULL,
+  description TEXT,
+  category TEXT[],
+  version TEXT NOT NULL,
+  downloads INTEGER DEFAULT 0,
+  rating DECIMAL(3,2),
+  price DECIMAL(10,2) DEFAULT 0,
+  source_url TEXT,
+  preview_url TEXT,
+  compatibility JSONB,
+  published_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+10. Add real-time collaborative editing with Supabase Realtime:
+```typescript
+class CollaborativeBlockEditor {
+  private realtimeChannel: RealtimeChannel;
+  private awareness: AwarenessProtocol;
+  
+  async joinSession(blockId: string): Promise<void> {
+    this.realtimeChannel = supabase.channel(`block:${blockId}`);
+    
+    this.realtimeChannel
+      .on('presence', { event: 'sync' }, () => this.syncPresence())
+      .on('broadcast', { event: 'cursor' }, (payload) => this.updateCursor(payload))
+      .on('broadcast', { event: 'selection' }, (payload) => this.updateSelection(payload))
+      .on('broadcast', { event: 'edit' }, (payload) => this.applyEdit(payload))
+      .subscribe();
+  }
+  
+  async broadcastEdit(operation: EditOperation): Promise<void>
+  async resolveConflict(local: Edit, remote: Edit): Promise<Edit>
+}
+```
+
+11. Implement performance optimization:
+```typescript
+class BlockPerformanceOptimizer {
+  private renderCache: LRUCache<string, ReactElement>;
+  private lazyLoader: IntersectionObserver;
+  
+  async optimizeBlock(block: Block): Promise<OptimizedBlock> {
+    return {
+      ...block,
+      render: this.memoizeRender(block),
+      data: await this.compressData(block.data),
+      assets: await this.optimizeAssets(block.assets)
+    };
+  }
+  
+  virtualizeBlockList(blocks: Block[]): VirtualizedList
+  implementProgressiveLoading(blocks: Block[]): ProgressiveLoader
+  enableOffscreenRendering(blockId: string): void
+}
+```
+
+12. Create responsive block layouts:
+```typescript
+interface ResponsiveBlockLayout {
+  breakpoints: BreakpointConfig[];
+  layouts: Map<string, BlockLayout>;
+  containerQueries?: ContainerQuery[];
+}
+
+class ResponsiveLayoutEngine {
+  async calculateLayout(viewport: Viewport): Promise<BlockLayout>
+  async reflow(blocks: Block[]): Promise<void>
+  registerBreakpoint(breakpoint: BreakpointConfig): void
+  async adaptToContainer(container: HTMLElement): Promise<void>
+}
+```
+
+13. Build import/export functionality:
+```typescript
+interface BlockExportOptions {
+  format: 'json' | 'html' | 'markdown' | 'pdf' | 'notion' | 'custom';
+  includeMetadata?: boolean;
+  includeHistory?: boolean;
+  includePermissions?: boolean;
+  compression?: boolean;
+}
+
+class BlockPortability {
+  async exportBlocks(blockIds: string[], options: BlockExportOptions): Promise<Blob>
+  async importBlocks(file: File, targetPageId: string): Promise<Block[]>
+  async convertFormat(blocks: Block[], from: string, to: string): Promise<Block[]>
+  validateImport(data: any): ValidationResult
+}
+```
+
+14. Integrate with Supabase Edge Functions for advanced processing:
+```typescript
+// supabase/functions/block-processor/index.ts
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+
+serve(async (req) => {
+  const { blockId, operation } = await req.json();
+  
+  switch(operation) {
+    case 'optimize':
+      return optimizeBlockContent(blockId);
+    case 'transform':
+      return transformBlockType(blockId, req.targetType);
+    case 'analyze':
+      return analyzeBlockComplexity(blockId);
+    case 'export':
+      return generateBlockExport(blockId, req.format);
+  }
+});
+```
+
+# Test Strategy:
+1. Test grid-based positioning by creating blocks with different grid positions and verifying they render correctly at various breakpoints, with proper snap-to-grid behavior and responsive adjustments.
+
+2. Verify cross-block interactions by creating linked blocks, testing reference updates propagate correctly, synced blocks update simultaneously, and formula references calculate properly across blocks.
+
+3. Test block collections by grouping multiple blocks, verifying collection operations (add/remove/reorder), testing different layout modes (stack/grid/masonry), and ensuring template collections can be instantiated correctly.
+
+4. Validate theming system by applying themes to blocks, testing theme variable inheritance, verifying block-specific overrides work, and ensuring theme exports/imports maintain consistency.
+
+5. Test permissions by setting different access levels for users, verifying view/edit/admin permissions are enforced, testing access tokens work with proper expiration, and ensuring permission inheritance from parent blocks.
+
+6. Verify version control by making changes to blocks and checking version history, testing revert functionality, comparing version diffs, and ensuring branch merging works correctly.
+
+7. Test block transformations between different types (text→list, table→cards), verifying data preservation during transformation, testing bulk transformations, and ensuring transformation validation prevents data loss.
+
+8. Validate custom block SDK by creating a custom block using the SDK, testing all lifecycle hooks, verifying data persistence, and ensuring custom blocks integrate with all system features.
+
+9. Test marketplace functionality by publishing a custom block, searching and installing marketplace blocks, verifying compatibility checks, and testing version updates.
+
+10. Verify real-time collaboration by having multiple users edit the same block, testing cursor and selection synchronization, verifying conflict resolution, and ensuring presence awareness works.
+
+11. Test performance optimizations with 1000+ blocks on a page, measuring render times, verifying lazy loading and virtualization work, and testing memory usage stays within acceptable limits.
+
+12. Validate responsive layouts by testing blocks at mobile/tablet/desktop breakpoints, verifying container queries work, testing reflow on window resize, and ensuring touch interactions work on mobile.
+
+13. Test import/export by exporting blocks in various formats (JSON, HTML, Markdown), importing from different sources, verifying data integrity after round-trip import/export, and testing format conversions.
+
+14. Integration tests for the complete enhanced block system, including creating a complex page with 50+ interconnected blocks, testing all features work together without conflicts, and verifying Supabase Edge Functions process blocks correctly.
+
+# Subtasks:
+## 1. Implement grid-based positioning system with responsive breakpoints [pending]
+### Dependencies: None
+### Description: Create the BlockGridSystem interface and EnhancedBlockPosition extending the existing BlockPosition, implementing CSS Grid-based layout with configurable grid sizes, snap-to-grid functionality, and responsive breakpoints for mobile/tablet/desktop views
+### Details:
+Build the core grid system that allows blocks to be positioned using CSS Grid areas, implement snap-to-grid behavior with configurable grid gaps, create responsive position mapping for different viewport sizes, and ensure smooth transitions between breakpoints while maintaining block relationships
+
+## 2. Create cross-block interaction database schema and reference system [pending]
+### Dependencies: None
+### Description: Set up Supabase tables for block_references and synced_blocks with proper foreign key constraints, RLS policies, and support for different reference types (link, embed, sync, formula)
+### Details:
+Design and implement the database schema for managing block relationships, create indexes for efficient querying of block references, implement cascade delete behavior, and set up sync groups for maintaining consistency across synced blocks with configurable sync properties
+
+## 3. Build BlockCollectionManager for grouping and organizing blocks [pending]
+### Dependencies: 15.1
+### Description: Implement the BlockCollection interface and BlockCollectionManager class with methods for creating collections, managing block membership, applying templates, and supporting various layout modes (stack, grid, masonry, carousel)
+### Details:
+Create functionality to group blocks into collections with metadata support for collapsed/locked states, implement template system for reusable collections, build layout engines for different collection display modes, and handle collection CRUD operations with proper state management
+
+## 4. Develop comprehensive theming system with variable management [pending]
+### Dependencies: 15.1
+### Description: Build the BlockTheme interface and ThemeManager class supporting CSS variables for colors, typography, spacing, borders, and shadows with block-specific overrides and theme import/export capabilities
+### Details:
+Create a theming engine that applies consistent visual styles across blocks, implement CSS variable injection system, build theme inheritance and override mechanisms, develop theme creation UI with live preview, and support theme export/import in various formats
+
+## 5. Implement block permissions and access control system [pending]
+### Dependencies: 15.2
+### Description: Create Supabase tables for block_permissions and block_access_tokens with RLS policies, implementing granular permission levels (view, comment, edit, admin) and token-based access sharing
+### Details:
+Build permission checking middleware for block operations, implement token generation and validation system with expiration and usage limits, create UI for managing block permissions, develop audit logging for permission changes, and ensure proper cascade behavior on user/block deletion
+
+## 6. Add version control with history tracking and diff visualization [pending]
+### Dependencies: 15.2
+### Description: Implement BlockVersion interface and BlockVersionControl class with version saving, reverting, comparison, and branch history visualization using JSON diff algorithms
+### Details:
+Create version storage system with efficient diff compression, implement three-way merge for conflict resolution, build version comparison UI with visual diff highlighting, develop branch/merge functionality for complex version trees, and add automatic versioning triggers on significant changes
+
+## 7. Create block transformation engine with type conversion [pending]
+### Dependencies: 15.3, 15.6
+### Description: Build the BlockTransformer interface and TransformationEngine class supporting registered transformers between block types with property preservation and bulk transformation capabilities
+### Details:
+Implement transformer registration system with capability checking, create default transformers for common block type conversions, build property mapping and preservation logic, develop transformation preview system, and handle edge cases for incompatible transformations with fallback strategies
+
+## 8. Develop custom block SDK with React components and migrations [pending]
+### Dependencies: 15.4, 15.5
+### Description: Create the @workspace/block-sdk package with CustomBlockDefinition interface, BlockSDK static methods, hooks for data/permissions/theme access, and version migration support
+### Details:
+Build SDK architecture with TypeScript definitions and React hooks, implement block registration system with capability declarations, create development tools for testing custom blocks, develop migration framework for block version updates, and provide comprehensive SDK documentation with examples
+
+## 9. Build block marketplace infrastructure with publishing system [pending]
+### Dependencies: 15.8
+### Description: Implement marketplace_blocks table in Supabase with publisher management, ratings, pricing, compatibility checking, and download tracking for community-created blocks
+### Details:
+Create marketplace backend with search/filter capabilities, implement block submission and review workflow, build rating and review system, develop licensing and payment integration for premium blocks, and create block preview and testing sandbox environment
+
+## 10. Implement real-time collaborative editing with conflict resolution [pending]
+### Dependencies: 15.2, 15.6
+### Description: Build CollaborativeBlockEditor class using Supabase Realtime channels for presence, cursor tracking, selection synchronization, and operational transformation for concurrent edits
+### Details:
+Implement awareness protocol for user presence and cursor positions, create operational transformation algorithms for conflict-free concurrent editing, build selection synchronization with visual indicators, develop offline support with operation queuing, and implement automatic conflict resolution strategies
+
+## 11. Add performance optimization with caching and virtualization [pending]
+### Dependencies: 15.1, 15.3
+### Description: Create BlockPerformanceOptimizer class with LRU cache for render memoization, intersection observer for lazy loading, virtual scrolling for large lists, and progressive loading strategies
+### Details:
+Implement render caching with intelligent invalidation, build virtual scrolling for handling thousands of blocks, create asset optimization pipeline for images/media, develop progressive enhancement for initial page loads, and implement offscreen rendering for complex blocks
+
+## 12. Create responsive layout engine with container queries [pending]
+### Dependencies: 15.1, 15.11
+### Description: Build ResponsiveBlockLayout interface and ResponsiveLayoutEngine class supporting breakpoint-based layouts, container queries, and automatic reflow calculations for adaptive block positioning
+### Details:
+Implement container query polyfill for older browsers, create layout calculation engine with performance optimizations, build automatic reflow system for dynamic content, develop responsive preview mode for different viewport sizes, and implement layout persistence across breakpoints
+
+## 13. Implement import/export system with format conversion [pending]
+### Dependencies: 15.7, 15.6
+### Description: Create BlockPortability class supporting multiple export formats (JSON, HTML, Markdown, PDF, Notion), metadata preservation, compression, and validation for reliable data portability
+### Details:
+Build format converters for each supported type, implement metadata and permission preservation options, create compression algorithms for large exports, develop import validation and sanitization, and build batch import/export UI with progress tracking and error recovery
+
+## 14. Integrate Supabase Edge Functions for advanced processing [pending]
+### Dependencies: 15.7, 15.11, 15.13
+### Description: Deploy Edge Functions for block optimization, transformation, complexity analysis, and export generation with proper error handling and performance monitoring
+### Details:
+Create Edge Function endpoints for CPU-intensive operations, implement request queuing and rate limiting, build error handling with retry logic, develop performance monitoring and logging, integrate with block system for seamless operation triggering, and implement caching strategies for repeated operations
+
