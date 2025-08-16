@@ -1,0 +1,354 @@
+# Task ID: 11
+# Title: Core Application Layout & Navigation
+# Status: done
+# Dependencies: None
+# Priority: medium
+# Description: Build the main application shell with root layout, persistent left sidebar navigation showing hierarchical workspace > projects > pages tree structure, workspace switcher dropdown, breadcrumb navigation, responsive design, global search, user profile menu, notification center, keyboard shortcuts, and dark/light theme toggle
+# Details:
+1. Create root layout with persistent sidebar using Next.js App Router:
+```typescript
+// app/layout.tsx
+import { Sidebar } from '@/components/navigation/Sidebar';
+import { Header } from '@/components/navigation/Header';
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        <div className="flex h-screen">
+          <Sidebar className="w-64 flex-shrink-0" />
+          <div className="flex-1 flex flex-col">
+            <Header />
+            <main className="flex-1 overflow-auto">
+              {children}
+            </main>
+          </div>
+        </div>
+      </body>
+    </html>
+  );
+}
+```
+
+2. Implement hierarchical tree navigation with Supabase data:
+```typescript
+interface TreeNode {
+  id: string;
+  type: 'workspace' | 'project' | 'page';
+  name: string;
+  children: TreeNode[];
+  icon: React.ComponentType;
+  path: string;
+}
+
+// Fetch tree structure from Supabase
+const { data: workspaces } = await supabase
+  .from('workspaces')
+  .select(`
+    id, name,
+    projects (
+      id, name,
+      pages (id, title, slug)
+    )
+  `);
+```
+
+3. Build collapsible sidebar with Radix UI primitives:
+```typescript
+import * as Collapsible from '@radix-ui/react-collapsible';
+import { ChevronRight, Menu } from 'lucide-react';
+
+function TreeItem({ node, level = 0 }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  return (
+    <Collapsible.Root open={isOpen} onOpenChange={setIsOpen}>
+      <Collapsible.Trigger className="flex items-center w-full">
+        <ChevronRight className={cn('transition-transform', isOpen && 'rotate-90')} />
+        {node.icon && <node.icon className="mr-2" />}
+        <span>{node.name}</span>
+      </Collapsible.Trigger>
+      <Collapsible.Content>
+        {node.children?.map(child => (
+          <TreeItem key={child.id} node={child} level={level + 1} />
+        ))}
+      </Collapsible.Content>
+    </Collapsible.Root>
+  );
+}
+```
+
+4. Workspace switcher with Supabase RLS:
+```typescript
+function WorkspaceSwitcher() {
+  const { data: workspaces } = await supabase
+    .from('workspaces')
+    .select('id, name, logo_url')
+    .order('name');
+    
+  return (
+    <Select onValueChange={switchWorkspace}>
+      <SelectTrigger>
+        <SelectValue placeholder="Select workspace" />
+      </SelectTrigger>
+      <SelectContent>
+        {workspaces?.map(workspace => (
+          <SelectItem key={workspace.id} value={workspace.id}>
+            <img src={workspace.logo_url} className="w-4 h-4 mr-2" />
+            {workspace.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+```
+
+5. Breadcrumb navigation with Next.js router:
+```typescript
+import { usePathname } from 'next/navigation';
+
+function Breadcrumbs() {
+  const pathname = usePathname();
+  const segments = pathname.split('/').filter(Boolean);
+  
+  return (
+    <nav aria-label="Breadcrumb">
+      <ol className="flex items-center space-x-2">
+        {segments.map((segment, index) => (
+          <li key={index} className="flex items-center">
+            {index > 0 && <ChevronRight className="mx-2" />}
+            <Link href={`/${segments.slice(0, index + 1).join('/')}`}>
+              {segment}
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+```
+
+6. Global search with Command palette (cmdk):
+```typescript
+import { Command } from 'cmdk';
+
+function GlobalSearch() {
+  const [open, setOpen] = useState(false);
+  
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setOpen(open => !open);
+      }
+    };
+    
+    document.addEventListener('keydown', down);
+    return () => document.removeEventListener('keydown', down);
+  }, []);
+  
+  return (
+    <Command.Dialog open={open} onOpenChange={setOpen}>
+      <Command.Input placeholder="Search pages, projects, or run commands..." />
+      <Command.List>
+        <Command.Group heading="Pages">
+          {/* Search results from Supabase */}
+        </Command.Group>
+      </Command.List>
+    </Command.Dialog>
+  );
+}
+```
+
+7. User profile menu with Supabase Auth:
+```typescript
+function UserMenu() {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger>
+        <Avatar>
+          <AvatarImage src={user?.user_metadata?.avatar_url} />
+          <AvatarFallback>{user?.email?.[0]?.toUpperCase()}</AvatarFallback>
+        </Avatar>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem onClick={() => router.push('/settings')}>
+          Settings
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => supabase.auth.signOut()}>
+          Logout
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+```
+
+8. Notification center with Supabase Realtime:
+```typescript
+function NotificationCenter() {
+  const [notifications, setNotifications] = useState([]);
+  
+  useEffect(() => {
+    const channel = supabase
+      .channel('notifications')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'notifications' },
+        payload => setNotifications(prev => [payload.new, ...prev])
+      )
+      .subscribe();
+      
+    return () => supabase.removeChannel(channel);
+  }, []);
+  
+  return (
+    <Popover>
+      <PopoverTrigger>
+        <Bell className="w-5 h-5" />
+        {notifications.length > 0 && (
+          <span className="badge">{notifications.length}</span>
+        )}
+      </PopoverTrigger>
+      <PopoverContent>
+        {notifications.map(notification => (
+          <NotificationItem key={notification.id} {...notification} />
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+```
+
+9. Keyboard shortcuts with react-hotkeys-hook:
+```typescript
+import { useHotkeys } from 'react-hotkeys-hook';
+
+function useNavigationShortcuts() {
+  useHotkeys('cmd+k', () => openCommandPalette());
+  useHotkeys('cmd+/', () => toggleSidebar());
+  useHotkeys('cmd+shift+d', () => toggleTheme());
+  useHotkeys('g h', () => router.push('/'));
+  useHotkeys('g p', () => router.push('/projects'));
+  useHotkeys('g s', () => router.push('/settings'));
+}
+```
+
+10. Theme toggle with next-themes:
+```typescript
+import { useTheme } from 'next-themes';
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+    >
+      {theme === 'dark' ? <Sun /> : <Moon />}
+    </Button>
+  );
+}
+```
+
+11. Responsive sidebar with CSS container queries:
+```css
+.sidebar {
+  @container (max-width: 768px) {
+    position: fixed;
+    transform: translateX(-100%);
+    transition: transform 0.3s;
+    
+    &.open {
+      transform: translateX(0);
+    }
+  }
+}
+```
+
+12. Persist navigation state in localStorage:
+```typescript
+const [expandedNodes, setExpandedNodes] = useLocalStorage('nav-expanded', []);
+const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage('sidebar-collapsed', false);
+```
+
+# Test Strategy:
+1. Test sidebar navigation renders workspace > project > page hierarchy correctly with mock Supabase data. 2. Verify workspace switcher changes active workspace and updates navigation tree. 3. Test breadcrumb navigation reflects current route and all links work. 4. Verify sidebar collapses/expands on mobile breakpoints using ResizeObserver. 5. Test global search with Cmd+K shortcut opens command palette and searches across all entities. 6. Verify user profile menu shows correct user data and logout works. 7. Test notification center receives real-time updates via Supabase channels. 8. Verify all keyboard shortcuts work: Cmd+K (search), Cmd+/ (toggle sidebar), Cmd+Shift+D (toggle theme), g+h (go home), g+p (go to projects), g+s (go to settings). 9. Test theme toggle persists selection and applies correct styles. 10. Verify navigation state persists across page refreshes using localStorage. 11. Test accessibility: keyboard navigation through tree, ARIA labels, focus management. 12. Performance test: navigation tree with 1000+ nodes renders efficiently with virtualization
+
+# Subtasks:
+## 1. Set up Remix root layout structure with TypeScript [done]
+### Dependencies: None
+### Description: Create the root.tsx layout file with proper TypeScript types, configure HTML structure, meta tags, links, and implement the main application shell with flex layout for sidebar and main content area
+### Details:
+Implement root.tsx with proper Remix conventions including Links, LiveReload, Meta, Outlet, Scripts, ScrollRestoration components. Set up the base HTML structure with flex layout container, configure viewport meta tags, add global CSS imports, implement error boundaries for production error handling, and ensure proper TypeScript types for loader and action functions
+
+## 2. Build persistent sidebar navigation component [done]
+### Dependencies: 11.1
+### Description: Create a reusable Sidebar component with collapsible functionality, fixed positioning, smooth transitions, and proper responsive behavior including mobile drawer mode
+### Details:
+Implement Sidebar component using Radix UI Collapsible primitives, add collapse/expand toggle button with icon rotation, implement CSS transitions for smooth open/close animations, add container queries for responsive behavior, create mobile drawer variant with overlay backdrop, persist collapsed state in localStorage, and ensure proper z-index layering for mobile mode
+
+## 3. Implement hierarchical tree navigation with Supabase data [done]
+### Dependencies: 11.2
+### Description: Build the workspace > project > page tree structure component that fetches data from Supabase, renders nested items recursively, and handles expand/collapse states for each node
+### Details:
+Create TreeNode TypeScript interface for workspace/project/page hierarchy, implement Supabase query with nested selects for full tree structure, build recursive TreeItem component with Radix UI Collapsible, add proper indentation based on tree depth level, implement expand/collapse icons with smooth rotations, persist expanded node states in localStorage, handle loading and error states gracefully
+
+## 4. Create workspace switcher dropdown with Supabase RLS [done]
+### Dependencies: 11.3
+### Description: Build a workspace selector dropdown that fetches available workspaces from Supabase with proper RLS policies, displays workspace logos/names, and handles workspace switching with router navigation
+### Details:
+Implement WorkspaceSwitcher using Radix UI Select components, fetch workspaces with Supabase client respecting RLS policies, display workspace logos with fallback avatars, handle workspace selection with Remix navigation, update active workspace in context/session, show loading state during workspace switch, implement search/filter for many workspaces, add create new workspace option
+
+## 5. Build breadcrumb navigation system [done]
+### Dependencies: 11.1
+### Description: Create a breadcrumb component that parses the current URL path, generates clickable segments, fetches human-readable names from Supabase, and provides proper navigation hierarchy
+### Details:
+Parse pathname using Remix useLocation hook, split URL into meaningful segments, fetch display names from Supabase for IDs in path, render breadcrumb items with separator icons, implement overflow handling for long paths with ellipsis, add home icon for root navigation, ensure proper aria-labels for accessibility, handle async name resolution with loading states
+
+## 6. Implement responsive design with mobile menu [done]
+### Dependencies: 11.2
+### Description: Add responsive behavior to the layout including hamburger menu for mobile, touch gestures for sidebar drawer, breakpoint-based layout adjustments, and proper viewport handling
+### Details:
+Add hamburger menu button in header for mobile viewports, implement touch swipe gestures to open/close sidebar drawer, use CSS container queries for adaptive sidebar width, create overlay backdrop for mobile sidebar mode, ensure proper focus management when menu opens/closes, test on various device sizes and orientations, implement viewport height fixes for mobile browsers
+
+## 7. Build global search with cmdk command palette [done]
+### Dependencies: 11.1
+### Description: Implement a command palette using cmdk library that provides global search across pages/projects, command execution, and keyboard-driven navigation with Supabase full-text search
+### Details:
+Install and configure cmdk library with React, implement Cmd+K keyboard shortcut listener, create search dialog with input and results list, integrate Supabase full-text search for pages/projects, add command groups for different action types, implement keyboard navigation with arrow keys, add recent searches and suggestions, show loading states during search, implement debounced search queries
+
+## 8. Create user profile menu with Supabase Auth [done]
+### Dependencies: 11.1
+### Description: Build a user dropdown menu that displays current user info from Supabase Auth, shows avatar/email, and provides options for settings, profile, and logout functionality
+### Details:
+Fetch current user from Supabase Auth session, create Avatar component with image and fallback initials, implement Radix UI DropdownMenu for user options, add menu items for profile, settings, preferences, implement logout with Supabase signOut method, handle loading states during auth operations, add keyboard shortcuts for menu items, ensure proper session cleanup on logout
+
+## 9. Implement notification center with Supabase Realtime [done]
+### Dependencies: 11.1
+### Description: Build a real-time notification system that subscribes to Supabase changes, displays unread count badge, shows notification list in popover, and handles mark as read functionality
+### Details:
+Set up Supabase Realtime channel for notifications table, implement notification badge with unread count, create Radix UI Popover for notification list, handle real-time INSERT events for new notifications, implement mark as read functionality with database updates, add notification types with different icons/colors, implement auto-dismiss for certain notification types, add pagination for notification history
+
+## 10. Add keyboard shortcuts with react-hotkeys-hook [done]
+### Dependencies: 11.7
+### Description: Implement global keyboard shortcuts for navigation, search, theme toggle, and common actions using react-hotkeys-hook library with customizable key bindings
+### Details:
+Install and configure react-hotkeys-hook library, implement shortcuts for command palette (Cmd+K), sidebar toggle (Cmd+/), theme switch (Cmd+Shift+D), navigation shortcuts (g h for home, g p for projects), create keyboard shortcuts help modal, allow customization of key bindings in settings, handle platform-specific keys (Cmd vs Ctrl), prevent conflicts with browser shortcuts
+
+## 11. Implement dark/light theme toggle with persistence [done]
+### Dependencies: 11.1
+### Description: Create theme switching functionality using CSS custom properties, system preference detection, localStorage persistence, and smooth transitions between themes
+### Details:
+Set up CSS custom properties for theme colors, implement theme context provider for Remix, detect system color scheme preference, add theme toggle button with sun/moon icons, persist theme choice in localStorage and cookies, ensure theme applies before first paint to prevent flash, add smooth color transitions when switching, test all components in both theme modes
+
+## 12. Add accessibility features and ARIA labels [done]
+### Dependencies: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 11.9, 11.10, 11.11
+### Description: Ensure all navigation components are fully accessible with proper ARIA labels, keyboard navigation, screen reader support, and WCAG 2.1 AA compliance
+### Details:
+Add proper ARIA labels to all interactive elements, implement focus visible styles for keyboard navigation, ensure proper heading hierarchy in sidebar, add skip navigation links for screen readers, test with screen readers (NVDA/JAWS/VoiceOver), implement proper focus management for modals/popovers, add aria-live regions for notifications, ensure color contrast meets WCAG standards, add keyboard navigation for tree structure
+

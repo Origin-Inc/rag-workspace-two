@@ -1,0 +1,289 @@
+# Task ID: 17
+# Title: Implement Intelligent Content Generation Engine
+# Status: pending
+# Dependencies: 5, 13, 14, 4, 6
+# Priority: high
+# Description: Build AI-powered content generation system that can create full project templates with pages and blocks, generate context-aware content based on workspace patterns, add elements to specific pages on demand, and support batch generation for entire CRM/project structures with template inheritance
+# Details:
+1. Create Supabase Edge Functions for AI-powered content generation:
+```typescript
+// supabase/functions/generate-content/index.ts
+export async function handler(req: Request) {
+  const { type, context, templateId, targetPageId } = await req.json();
+  
+  switch (type) {
+    case 'project_template':
+      return generateProjectTemplate(context);
+    case 'page_content':
+      return generatePageContent(targetPageId, context);
+    case 'batch_crm':
+      return generateCRMStructure(context);
+  }
+}
+```
+
+2. Implement template analysis and pattern recognition:
+```typescript
+interface WorkspacePattern {
+  blockTypes: Map<string, number>;
+  structurePatterns: {
+    avgBlocksPerPage: number;
+    commonLayouts: BlockLayout[];
+    formulaPatterns: string[];
+  };
+  contentPatterns: {
+    namingConventions: string[];
+    dataSchemas: Record<string, ColumnSchema[]>;
+  };
+}
+
+async function analyzeWorkspacePatterns(workspaceId: string): Promise<WorkspacePattern> {
+  const { data: pages } = await supabase
+    .from('pages')
+    .select('*, blocks(*)')
+    .eq('workspace_id', workspaceId);
+  
+  // Analyze block usage, layouts, and content patterns
+  return extractPatterns(pages);
+}
+```
+
+3. Create template inheritance system:
+```sql
+CREATE TABLE content_templates (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  workspace_id UUID REFERENCES workspaces(id),
+  name TEXT NOT NULL,
+  type TEXT CHECK (type IN ('project', 'page', 'block', 'crm', 'workflow')),
+  parent_template_id UUID REFERENCES content_templates(id),
+  structure JSONB NOT NULL,
+  metadata JSONB DEFAULT '{}',
+  is_system_template BOOLEAN DEFAULT FALSE,
+  usage_count INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE template_variables (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  template_id UUID REFERENCES content_templates(id),
+  variable_name TEXT NOT NULL,
+  variable_type TEXT,
+  default_value JSONB,
+  required BOOLEAN DEFAULT FALSE
+);
+```
+
+4. Implement intelligent content generation with OpenAI:
+```typescript
+async function generateContentFromTemplate(
+  template: ContentTemplate,
+  variables: Record<string, any>,
+  patterns: WorkspacePattern
+): Promise<GeneratedContent> {
+  const prompt = buildGenerationPrompt(template, variables, patterns);
+  
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4-turbo-preview',
+    messages: [
+      {
+        role: 'system',
+        content: 'Generate structured content based on template and workspace patterns. Output valid JSON.'
+      },
+      { role: 'user', content: prompt }
+    ],
+    response_format: { type: 'json_object' }
+  });
+  
+  return parseGeneratedContent(completion.choices[0].message.content);
+}
+```
+
+5. Create batch generation system for CRM/project structures:
+```typescript
+interface CRMGenerationConfig {
+  companyCount: number;
+  contactsPerCompany: number[];
+  dealPipeline: PipelineStage[];
+  customFields: CustomField[];
+  linkRelationships: boolean;
+}
+
+async function generateCRMStructure(config: CRMGenerationConfig) {
+  // Create project structure
+  const crmProject = await createProject({
+    name: 'CRM System',
+    template: 'crm_template'
+  });
+  
+  // Generate companies database
+  const companiesDb = await generateDatabaseBlock({
+    projectId: crmProject.id,
+    schema: generateCompanySchema(config.customFields),
+    rowCount: config.companyCount,
+    useAIContent: true
+  });
+  
+  // Generate contacts with relationships
+  const contactsDb = await generateDatabaseBlock({
+    projectId: crmProject.id,
+    schema: generateContactSchema(config.customFields),
+    relationships: [{ targetDb: companiesDb.id, type: 'many-to-one' }]
+  });
+  
+  // Generate deals pipeline
+  const dealsDb = await generateDealsDatabase(config.dealPipeline);
+  
+  return { crmProject, databases: [companiesDb, contactsDb, dealsDb] };
+}
+```
+
+6. Implement context-aware content addition:
+```typescript
+interface ContentAdditionRequest {
+  pageId: string;
+  contentType: 'text' | 'database' | 'chart' | 'calendar' | 'form';
+  prompt: string;
+  position?: { x: number; y: number };
+  referenceData?: string[]; // IDs of blocks to use as context
+}
+
+async function addContentToPage(request: ContentAdditionRequest) {
+  // Analyze existing page content
+  const pageContext = await analyzePageContent(request.pageId);
+  
+  // Get referenced blocks for additional context
+  const references = await getReferencedContent(request.referenceData);
+  
+  // Generate appropriate content
+  const generatedBlock = await generateContextualBlock({
+    type: request.contentType,
+    context: { ...pageContext, references },
+    userPrompt: request.prompt
+  });
+  
+  // Add to page at specified position
+  return await addBlockToPage(request.pageId, generatedBlock, request.position);
+}
+```
+
+7. Create template marketplace integration:
+```typescript
+interface TemplateMarketplace {
+  publishTemplate(templateId: string, metadata: PublishMetadata): Promise<void>;
+  importTemplate(marketplaceId: string): Promise<ContentTemplate>;
+  searchTemplates(query: string, filters: TemplateFilters): Promise<MarketplaceTemplate[]>;
+}
+```
+
+8. Implement generation preview and modification:
+```typescript
+interface GenerationPreview {
+  id: string;
+  generatedStructure: any;
+  estimatedBlocks: number;
+  estimatedTokenUsage: number;
+  modifications: PreviewModification[];
+}
+
+async function previewGeneration(request: GenerationRequest): Promise<GenerationPreview> {
+  const preview = await generateContentPreview(request);
+  
+  // Allow modifications before committing
+  return {
+    ...preview,
+    modify: (changes: PreviewModification[]) => applyPreviewChanges(preview, changes),
+    commit: () => commitGeneratedContent(preview)
+  };
+}
+```
+
+# Test Strategy:
+1. Test template creation and inheritance by creating parent template with variables, then child template that overrides specific values, and verify inheritance chain works correctly.
+
+2. Test workspace pattern analysis by creating workspace with 50+ pages containing various block types, then verify pattern extraction identifies common layouts, naming conventions, and data schemas accurately.
+
+3. Test AI content generation by requesting project template for 'E-commerce Dashboard' and verify it creates appropriate pages (Products, Orders, Customers) with relevant database schemas and sample data.
+
+4. Test batch CRM generation by generating structure with 100 companies, 500 contacts, and deal pipeline, then verify all relationships are properly linked and data is contextually appropriate.
+
+5. Test context-aware content addition by adding 'monthly revenue chart' to page with existing sales data and verify chart references correct database columns and uses appropriate visualization.
+
+6. Test generation preview system by requesting complex project generation, modifying preview (changing column names, adjusting structure), and verifying modifications apply correctly before commit.
+
+7. Load test Edge Functions by generating 10 concurrent template requests and verify all complete within 30 seconds with proper error handling for rate limits.
+
+8. Test template variable system by creating template with required/optional variables and verify generation fails gracefully when required variables are missing.
+
+# Subtasks:
+## 1. Set up Supabase Edge Functions infrastructure for content generation [pending]
+### Dependencies: None
+### Description: Create the base Edge Function structure with proper routing for different content generation types (project_template, page_content, batch_crm)
+### Details:
+Create supabase/functions/generate-content/index.ts with handler function that routes requests based on type parameter. Set up proper CORS headers, authentication middleware, and error handling. Configure environment variables for OpenAI API access.
+
+## 2. Create content templates database schema and models [pending]
+### Dependencies: None
+### Description: Implement PostgreSQL tables for content_templates and template_variables with proper relationships and constraints
+### Details:
+Execute SQL migrations to create content_templates table with fields for workspace_id, name, type, parent_template_id, structure (JSONB), metadata, is_system_template, and usage_count. Create template_variables table for dynamic template variables. Add indexes for performance and foreign key constraints.
+
+## 3. Implement workspace pattern analysis system [pending]
+### Dependencies: None
+### Description: Build pattern recognition to analyze existing workspace content including block types, layouts, naming conventions, and data schemas
+### Details:
+Create analyzeWorkspacePatterns function that queries pages and blocks from Supabase, extracts block type frequencies, common layouts, formula patterns, naming conventions, and data schemas. Return WorkspacePattern interface with structured analysis results.
+
+## 4. Build template inheritance and variable resolution system [pending]
+### Dependencies: 17.2
+### Description: Implement logic for templates to inherit from parent templates and resolve variables with defaults and overrides
+### Details:
+Create functions to traverse template inheritance chain, merge parent and child template structures, resolve template variables with proper precedence (child overrides parent), and validate required variables are provided. Handle circular inheritance prevention.
+
+## 5. Integrate OpenAI API for intelligent content generation [pending]
+### Dependencies: 17.1, 17.3
+### Description: Implement OpenAI integration with structured prompts and JSON response parsing for content generation
+### Details:
+Create generateContentFromTemplate function that builds prompts combining template structure, variables, and workspace patterns. Configure OpenAI chat completion with JSON response format. Implement parseGeneratedContent to validate and structure AI responses.
+
+## 6. Create project template generation system [pending]
+### Dependencies: 17.4, 17.5
+### Description: Build functionality to generate complete project structures with multiple pages and blocks from templates
+### Details:
+Implement generateProjectTemplate function that creates project hierarchy, generates multiple pages based on template structure, creates blocks within each page maintaining relationships, and applies workspace patterns to generated content.
+
+## 7. Implement CRM batch generation system [pending]
+### Dependencies: 17.6
+### Description: Build specialized CRM structure generation with companies, contacts, deals, and relationships
+### Details:
+Create generateCRMStructure function that generates companies database with custom fields, contacts database with company relationships, deals pipeline with stages, and proper many-to-one relationships between entities. Support configurable company/contact counts.
+
+## 8. Build context-aware content addition system [pending]
+### Dependencies: 17.5
+### Description: Implement ability to add AI-generated content to existing pages based on page context and user prompts
+### Details:
+Create addContentToPage function that analyzes existing page blocks, retrieves referenced block content for context, generates appropriate new block based on type and prompt, and inserts at specified position. Support text, database, chart, calendar, and form blocks.
+
+## 9. Create generation preview and modification system [pending]
+### Dependencies: 17.5, 17.6
+### Description: Build preview functionality that shows generated content before committing with ability to modify
+### Details:
+Implement previewGeneration that generates content structure without persisting, calculates estimated blocks and token usage, allows applying modifications to preview, and provides commit function to persist when satisfied.
+
+## 10. Implement template marketplace integration [pending]
+### Dependencies: 17.2, 17.4
+### Description: Build system for sharing and importing templates with metadata and search functionality
+### Details:
+Create TemplateMarketplace interface with publishTemplate to share templates with metadata, importTemplate to bring marketplace templates into workspace, and searchTemplates with filters. Handle template compatibility and versioning.
+
+## 11. Add comprehensive error handling and validation [pending]
+### Dependencies: 17.1, 17.5, 17.6, 17.7, 17.8
+### Description: Implement robust error handling, input validation, and rate limiting for all generation endpoints
+### Details:
+Add input validation for all Edge Function endpoints, implement rate limiting to prevent abuse, add comprehensive error handling with meaningful messages, log generation requests for debugging, and implement retry logic for transient failures.
+
+## 12. Create monitoring and analytics for content generation [pending]
+### Dependencies: 17.2, 17.6, 17.7, 17.10
+### Description: Build system to track template usage, generation success rates, and popular patterns
+### Details:
+Implement analytics to track template usage counts, generation success/failure rates, popular workspace patterns, average generation times, and token usage. Create dashboard queries for monitoring generation system health.
+

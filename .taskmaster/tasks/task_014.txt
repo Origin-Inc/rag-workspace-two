@@ -1,0 +1,431 @@
+# Task ID: 14
+# Title: Page Editor with Canvas System
+# Status: done
+# Dependencies: 11, 13, 6
+# Priority: medium
+# Description: Build a Notion-style page editor with grid-based canvas for arranging blocks, drag-and-drop positioning, inline editing, slash commands, and collaborative features
+# Details:
+1. Create canvas-based page editor architecture:
+```typescript
+// components/editor/PageCanvas.tsx
+interface CanvasGrid {
+  columns: 12;
+  rowHeight: 40;
+  gap: 8;
+  snapToGrid: boolean;
+}
+
+interface BlockPosition {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zIndex: number;
+}
+
+interface PageBlock {
+  id: string;
+  type: BlockType;
+  position: BlockPosition;
+  content: any;
+  parentId?: string;
+  children?: string[];
+  metadata: {
+    locked?: boolean;
+    hidden?: boolean;
+    permissions?: BlockPermissions;
+  };
+}
+```
+
+2. Implement block management system with Supabase:
+```sql
+CREATE TABLE page_blocks (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  page_id UUID REFERENCES pages(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  position JSONB NOT NULL,
+  content JSONB,
+  parent_id UUID REFERENCES page_blocks(id),
+  order_index INTEGER,
+  metadata JSONB DEFAULT '{}',
+  created_by UUID REFERENCES auth.users(id),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE page_versions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  page_id UUID REFERENCES pages(id) ON DELETE CASCADE,
+  version_number INTEGER NOT NULL,
+  blocks_snapshot JSONB NOT NULL,
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE page_templates (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT,
+  thumbnail_url TEXT,
+  blocks_structure JSONB NOT NULL,
+  is_public BOOLEAN DEFAULT FALSE
+);
+```
+
+3. Build drag-and-drop system using @dnd-kit/sortable:
+```typescript
+import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
+import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
+
+const PageEditor = () => {
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor)
+  );
+  
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={blocks} strategy={rectSortingStrategy}>
+        <CanvasGrid>
+          {blocks.map(block => (
+            <DraggableBlock key={block.id} block={block} />
+          ))}
+        </CanvasGrid>
+      </SortableContext>
+      <DragOverlay>{/* Preview */}</DragOverlay>
+    </DndContext>
+  );
+};
+```
+
+4. Implement block palette sidebar:
+```typescript
+interface BlockPalette {
+  categories: {
+    basic: ['text', 'heading', 'divider', 'spacer'];
+    media: ['image', 'video', 'audio', 'file'];
+    embed: ['youtube', 'twitter', 'figma', 'miro'];
+    data: ['table', 'database', 'chart', 'kanban'];
+    advanced: ['code', 'math', 'mermaid', 'timeline'];
+  };
+}
+
+const BlockPalette = () => {
+  return (
+    <aside className="w-64 border-l bg-gray-50">
+      {Object.entries(blockCategories).map(([category, blocks]) => (
+        <div key={category}>
+          <h3>{category}</h3>
+          {blocks.map(blockType => (
+            <DraggableBlockTemplate
+              key={blockType}
+              type={blockType}
+              onDragStart={handleTemplateStart}
+            />
+          ))}
+        </div>
+      ))}
+    </aside>
+  );
+};
+```
+
+5. Create inline editing system with ContentEditable:
+```typescript
+const InlineTextBlock = ({ block, onUpdate }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  
+  return (
+    <ContentEditable
+      html={block.content.html}
+      disabled={!isEditing}
+      onChange={handleChange}
+      onBlur={handleSave}
+      onKeyDown={handleKeyCommands}
+      className="block-content"
+    />
+  );
+};
+```
+
+6. Implement slash command system:
+```typescript
+interface SlashCommand {
+  trigger: string;
+  label: string;
+  icon: ReactNode;
+  action: (editor: Editor) => void;
+  keywords?: string[];
+}
+
+const slashCommands: SlashCommand[] = [
+  { trigger: '/text', label: 'Text', action: insertTextBlock },
+  { trigger: '/h1', label: 'Heading 1', action: insertHeading1 },
+  { trigger: '/table', label: 'Table', action: insertTable },
+  { trigger: '/ai', label: 'Ask AI', action: openAIAssistant }
+];
+
+const SlashCommandMenu = () => {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => 
+    slashCommands.filter(cmd => 
+      cmd.trigger.includes(query) || 
+      cmd.keywords?.some(k => k.includes(query))
+    ), [query]
+  );
+  
+  return <CommandPalette commands={filtered} />;
+};
+```
+
+7. Build block selection and multi-select:
+```typescript
+const SelectionManager = () => {
+  const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
+  
+  const handleBlockClick = (blockId: string, event: MouseEvent) => {
+    if (event.shiftKey) {
+      // Range select
+      selectRange(lastSelected, blockId);
+    } else if (event.metaKey || event.ctrlKey) {
+      // Multi-select
+      toggleSelection(blockId);
+    } else {
+      // Single select
+      setSelectedBlocks(new Set([blockId]));
+    }
+  };
+  
+  return { selectedBlocks, handleBlockClick };
+};
+```
+
+8. Implement copy/paste/duplicate functionality:
+```typescript
+const useClipboard = () => {
+  const copyBlocks = async (blockIds: string[]) => {
+    const blocks = await fetchBlocks(blockIds);
+    await navigator.clipboard.writeText(
+      JSON.stringify({ type: 'blocks', data: blocks })
+    );
+  };
+  
+  const pasteBlocks = async (targetPosition: Position) => {
+    const text = await navigator.clipboard.readText();
+    try {
+      const { type, data } = JSON.parse(text);
+      if (type === 'blocks') {
+        await insertBlocks(data, targetPosition);
+      }
+    } catch (e) {
+      // Handle plain text paste
+      await insertTextBlock(text, targetPosition);
+    }
+  };
+  
+  return { copyBlocks, pasteBlocks };
+};
+```
+
+9. Create nested blocks and column layouts:
+```typescript
+const ColumnBlock = ({ block }) => {
+  const columns = block.content.columns || 2;
+  
+  return (
+    <div className="grid" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+      {block.children.map((childId, index) => (
+        <DropZone key={index} columnIndex={index}>
+          <BlockRenderer blockId={childId} />
+        </DropZone>
+      ))}
+    </div>
+  );
+};
+```
+
+10. Implement auto-save with debouncing:
+```typescript
+const useAutoSave = (pageId: string, blocks: Block[]) => {
+  const debouncedSave = useMemo(
+    () => debounce(async (blocks: Block[]) => {
+      await supabase
+        .from('page_blocks')
+        .upsert(blocks.map(formatForDB));
+      
+      // Create version snapshot every 10 saves
+      if (saveCount % 10 === 0) {
+        await createVersion(pageId, blocks);
+      }
+    }, 2000),
+    [pageId]
+  );
+  
+  useEffect(() => {
+    debouncedSave(blocks);
+  }, [blocks]);
+};
+```
+
+11. Add collaborative editing with Supabase Realtime:
+```typescript
+const useCollaboration = (pageId: string) => {
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  
+  useEffect(() => {
+    const channel = supabase.channel(`page:${pageId}`)
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        setCollaborators(Object.values(state).flat());
+      })
+      .on('broadcast', { event: 'cursor' }, ({ payload }) => {
+        updateCursorPosition(payload.userId, payload.position);
+      })
+      .on('broadcast', { event: 'selection' }, ({ payload }) => {
+        updateUserSelection(payload.userId, payload.blockIds);
+      })
+      .subscribe();
+      
+    return () => channel.unsubscribe();
+  }, [pageId]);
+};
+```
+
+12. Implement @mentions and comments:
+```typescript
+const MentionPlugin = () => {
+  const [showMentions, setShowMentions] = useState(false);
+  const [query, setQuery] = useState('');
+  
+  const handleInput = (text: string) => {
+    const mentionMatch = /@(\w*)$/.exec(text);
+    if (mentionMatch) {
+      setQuery(mentionMatch[1]);
+      setShowMentions(true);
+    }
+  };
+  
+  return (
+    <MentionSuggestions
+      query={query}
+      onSelect={(user) => insertMention(user)}
+    />
+  );
+};
+```
+
+13. Create page properties editor:
+```typescript
+interface PageProperties {
+  title: string;
+  icon?: string;
+  cover?: string;
+  tags: string[];
+  metadata: {
+    author?: string;
+    publishedAt?: Date;
+    seoDescription?: string;
+    ogImage?: string;
+  };
+}
+
+const PagePropertiesPanel = ({ page }) => {
+  return (
+    <Sheet>
+      <SheetContent>
+        <IconPicker value={page.icon} onChange={updateIcon} />
+        <CoverImageUploader value={page.cover} onChange={updateCover} />
+        <TagInput value={page.tags} onChange={updateTags} />
+        <MetadataEditor metadata={page.metadata} onChange={updateMetadata} />
+      </SheetContent>
+    </Sheet>
+  );
+};
+```
+
+# Test Strategy:
+1. Test drag-and-drop functionality by dragging blocks between different grid positions and verifying position updates persist in Supabase. 2. Verify block palette displays all block types categorized correctly and dragging from palette creates new blocks on canvas. 3. Test inline editing saves content changes with debouncing and preserves formatting. 4. Verify slash commands trigger with '/' key, filter based on input, and insert correct block types. 5. Test multi-select with Shift+Click for range and Cmd/Ctrl+Click for individual selection. 6. Verify copy/paste works across pages and maintains block hierarchy and content. 7. Test nested blocks and column layouts render correctly with proper drag zones. 8. Verify auto-save triggers after 2 seconds of inactivity and creates version snapshots every 10 saves. 9. Test collaborative cursors and selections update in real-time via Supabase channels. 10. Verify @mentions autocomplete shows user list and creates proper references. 11. Test page templates apply correct block structure when selected. 12. Verify version history shows all snapshots and allows rollback to previous versions.
+
+# Subtasks:
+## 1. Set up canvas grid architecture and block positioning system [done]
+### Dependencies: None
+### Description: Implement the core canvas grid system with 12-column layout, snap-to-grid functionality, and block position management using TypeScript interfaces for CanvasGrid, BlockPosition, and PageBlock
+### Details:
+Create PageCanvas.tsx component with grid configuration (12 columns, 40px row height, 8px gap). Define TypeScript interfaces for BlockPosition (x, y, width, height, zIndex) and PageBlock (id, type, position, content, parentId, children, metadata). Implement snap-to-grid logic and position calculation utilities.
+
+## 2. Create Supabase database schema for page blocks [done]
+### Dependencies: None
+### Description: Set up page_blocks, page_versions, and page_templates tables in Supabase with proper relationships, indexes, and RLS policies for block persistence
+### Details:
+Execute SQL migrations to create page_blocks table with position JSONB, content JSONB, and metadata fields. Create page_versions table for version history with blocks_snapshot. Set up page_templates table for reusable templates. Add appropriate indexes for performance and RLS policies for security.
+
+## 3. Implement drag-and-drop system with @dnd-kit [done]
+### Dependencies: 14.1
+### Description: Integrate @dnd-kit/sortable library for drag-and-drop functionality with DndContext, SortableContext, and custom drag overlay for block manipulation
+### Details:
+Install and configure @dnd-kit/core and @dnd-kit/sortable. Create DraggableBlock component with PointerSensor and KeyboardSensor support. Implement handleDragEnd logic to update block positions in state and Supabase. Add visual feedback with DragOverlay component showing block preview during drag.
+
+## 4. Build block palette sidebar with categories [done]
+### Dependencies: 14.3
+### Description: Create a sidebar component displaying categorized block types (basic, media, embed, data, advanced) with draggable templates for adding new blocks to the canvas
+### Details:
+Design BlockPalette component with collapsible categories. Implement DraggableBlockTemplate for each block type with preview icons. Add search/filter functionality for block types. Handle template drag start events to create new blocks when dropped on canvas.
+
+## 5. Create inline editing system with ContentEditable [done]
+### Dependencies: 14.1
+### Description: Implement inline text editing using ContentEditable API with support for rich text formatting, keyboard shortcuts, and auto-save functionality
+### Details:
+Build InlineTextBlock component with ContentEditable wrapper. Handle focus/blur events for edit mode transitions. Implement handleKeyCommands for formatting shortcuts (bold, italic, etc.). Add debounced auto-save on content changes. Support HTML sanitization and XSS prevention.
+
+## 6. Implement slash command system and menu [done]
+### Dependencies: 14.5
+### Description: Build a slash command interface that appears when typing '/' to quickly insert blocks, with fuzzy search and keyboard navigation
+### Details:
+Create SlashCommandMenu component with command palette UI. Define slashCommands array with triggers, labels, icons, and actions. Implement fuzzy search filtering based on trigger and keywords. Add keyboard navigation (arrow keys, enter, escape). Position menu relative to cursor position.
+
+## 7. Build block selection and multi-select functionality [done]
+### Dependencies: 14.1, 14.3
+### Description: Implement selection manager for single and multi-block selection with shift-click range selection and cmd/ctrl-click toggle selection
+### Details:
+Create SelectionManager hook to track selectedBlocks Set. Handle click events with modifier keys (shift for range, cmd/ctrl for toggle). Add visual selection indicators (borders, backgrounds). Implement selection rectangle for drag-select. Support select-all keyboard shortcut.
+
+## 8. Implement copy/paste/duplicate operations [done]
+### Dependencies: 14.7
+### Description: Create clipboard management system for copying, pasting, and duplicating blocks with support for both internal block format and plain text
+### Details:
+Build useClipboard hook with copyBlocks and pasteBlocks functions. Serialize blocks to JSON for clipboard storage. Handle paste events to insert blocks at target position. Support plain text paste fallback. Implement duplicate functionality with position offset.
+
+## 9. Create nested blocks and column layouts [done]
+### Dependencies: 14.1, 14.3
+### Description: Build support for nested block structures and column layouts allowing blocks to contain other blocks with configurable column counts
+### Details:
+Implement ColumnBlock component with dynamic grid columns. Create DropZone components for each column. Handle nested drag-and-drop with proper parent-child relationships. Support column resizing and responsive breakpoints. Manage nested block state updates.
+
+## 10. Implement auto-save with debouncing and versioning [done]
+### Dependencies: 14.2, 14.5
+### Description: Create auto-save system that debounces block updates to Supabase and creates version snapshots at regular intervals
+### Details:
+Build useAutoSave hook with 2-second debounce. Format blocks for database storage with formatForDB utility. Create version snapshots every 10 saves. Handle save conflicts and error recovery. Show save status indicator to users.
+
+## 11. Add collaborative editing with Supabase Realtime [done]
+### Dependencies: 14.2, 14.7
+### Description: Implement real-time collaboration features using Supabase Realtime for presence, cursor positions, and selection synchronization
+### Details:
+Set up Supabase channel for page collaboration. Implement presence tracking for active collaborators. Broadcast cursor positions and selections. Show collaborator cursors and selection highlights. Handle conflict resolution for concurrent edits.
+
+## 12. Implement @mentions and comments system [done]
+### Dependencies: 14.5, 14.11
+### Description: Build mention functionality with @ symbol triggering user suggestions and inline comment threads on blocks
+### Details:
+Create MentionPlugin to detect @ patterns in text. Build MentionSuggestions dropdown with user search. Insert mention nodes with user references. Add comment thread UI for blocks. Store comments in Supabase with real-time updates.
+
+## 13. Create page properties and metadata editor [done]
+### Dependencies: 14.1, 14.2
+### Description: Build a properties panel for editing page metadata including title, icon, cover image, tags, and SEO settings
+### Details:
+Design PagePropertiesPanel with Sheet component. Implement IconPicker with emoji/icon selection. Create CoverImageUploader with Supabase Storage. Build TagInput with autocomplete. Add MetadataEditor for SEO fields (description, OG image).
+

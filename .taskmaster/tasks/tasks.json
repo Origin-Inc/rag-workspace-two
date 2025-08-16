@@ -1637,7 +1637,7 @@
         "description": "Build a feature-rich workspace dashboard providing centralized access to workspace overview, team management, usage analytics, recent activity, and workspace configuration with full CRUD operations and search capabilities",
         "details": "1. Create main dashboard layout with responsive grid system:\n```typescript\n// app/dashboard/[workspaceId]/page.tsx\nimport { DashboardGrid } from '@/components/dashboard/DashboardGrid';\nimport { WorkspaceOverview } from '@/components/dashboard/WorkspaceOverview';\nimport { QuickActions } from '@/components/dashboard/QuickActions';\nimport { TeamActivityFeed } from '@/components/dashboard/TeamActivityFeed';\nimport { UsageAnalytics } from '@/components/dashboard/UsageAnalytics';\n\nexport default async function WorkspaceDashboard({ params }) {\n  const workspace = await getWorkspace(params.workspaceId);\n  return (\n    <DashboardGrid>\n      <WorkspaceOverview workspace={workspace} />\n      <QuickActions />\n      <TeamActivityFeed />\n      <UsageAnalytics />\n    </DashboardGrid>\n  );\n}\n```\n\n2. Implement workspace overview component with recent items:\n```typescript\n// components/dashboard/WorkspaceOverview.tsx\nconst { data: recentPages } = await supabase\n  .from('pages')\n  .select('id, title, updated_at, project:projects(name)')\n  .eq('workspace_id', workspaceId)\n  .order('updated_at', { ascending: false })\n  .limit(10);\n\nconst { data: projects } = await supabase\n  .from('projects')\n  .select('id, name, page_count:pages(count)')\n  .eq('workspace_id', workspaceId)\n  .order('updated_at', { ascending: false })\n  .limit(5);\n```\n\n3. Build workspace CRUD operations with Supabase:\n```typescript\n// lib/workspace-operations.ts\nexport async function createWorkspace(data: WorkspaceInput) {\n  const { data: workspace, error } = await supabase\n    .from('workspaces')\n    .insert({\n      name: data.name,\n      description: data.description,\n      owner_id: userId,\n      settings: data.settings,\n      template_id: data.templateId\n    })\n    .select()\n    .single();\n  \n  // Initialize workspace with template if provided\n  if (data.templateId) {\n    await applyWorkspaceTemplate(workspace.id, data.templateId);\n  }\n  return workspace;\n}\n\nexport async function updateWorkspace(id: string, updates: Partial<Workspace>) {\n  return await supabase\n    .from('workspaces')\n    .update(updates)\n    .eq('id', id)\n    .select();\n}\n\nexport async function deleteWorkspace(id: string) {\n  // Soft delete with archive\n  return await supabase\n    .from('workspaces')\n    .update({ archived_at: new Date().toISOString() })\n    .eq('id', id);\n}\n```\n\n4. Create quick actions widget with recent documents:\n```typescript\n// components/dashboard/QuickActions.tsx\ninterface QuickAction {\n  type: 'document' | 'template' | 'project';\n  icon: IconType;\n  title: string;\n  action: () => void;\n}\n\nconst quickActions = [\n  { type: 'document', title: 'New Page', action: createNewPage },\n  { type: 'project', title: 'New Project', action: createNewProject },\n  { type: 'template', title: 'From Template', action: openTemplateGallery }\n];\n\n// Fetch recent documents with thumbnails\nconst { data: recentDocs } = await supabase\n  .from('pages')\n  .select('id, title, thumbnail_url, last_accessed')\n  .eq('workspace_id', workspaceId)\n  .order('last_accessed', { ascending: false })\n  .limit(6);\n```\n\n5. Implement team activity feed with real-time updates:\n```typescript\n// components/dashboard/TeamActivityFeed.tsx\nconst channel = supabase\n  .channel(`workspace:${workspaceId}:activity`)\n  .on('postgres_changes', \n    { event: '*', schema: 'public', table: 'activity_log' },\n    (payload) => {\n      setActivities(prev => [payload.new, ...prev].slice(0, 50));\n    }\n  )\n  .subscribe();\n\n// Activity log schema\ninterface Activity {\n  id: string;\n  user_id: string;\n  action: 'created' | 'updated' | 'deleted' | 'shared' | 'commented';\n  resource_type: 'page' | 'project' | 'database' | 'comment';\n  resource_id: string;\n  resource_title: string;\n  timestamp: Date;\n  metadata?: Record<string, any>;\n}\n```\n\n6. Build usage analytics dashboard with charts:\n```typescript\n// components/dashboard/UsageAnalytics.tsx\nimport { LineChart, BarChart, PieChart } from 'recharts';\n\nconst UsageAnalytics = () => {\n  // Storage usage query\n  const { data: storageData } = await supabase\n    .rpc('calculate_storage_usage', { workspace_id: workspaceId });\n  \n  // Credits/API usage\n  const { data: creditsData } = await supabase\n    .from('usage_metrics')\n    .select('date, ai_credits_used, storage_gb, api_calls')\n    .eq('workspace_id', workspaceId)\n    .gte('date', thirtyDaysAgo)\n    .order('date');\n  \n  // Member activity heatmap\n  const { data: memberActivity } = await supabase\n    .from('user_activity_metrics')\n    .select('user_id, date, actions_count')\n    .eq('workspace_id', workspaceId);\n  \n  return (\n    <div className=\"grid grid-cols-2 gap-4\">\n      <LineChart data={creditsData} title=\"AI Credits Usage\" />\n      <BarChart data={storageData} title=\"Storage by Type\" />\n      <PieChart data={memberActivity} title=\"Team Activity Distribution\" />\n      <UsageTable detailed={true} />\n    </div>\n  );\n};\n```\n\n7. Create workspace settings panel:\n```typescript\n// components/dashboard/WorkspaceSettings.tsx\nconst settingsSections = [\n  {\n    id: 'general',\n    title: 'General',\n    fields: ['name', 'description', 'logo', 'timezone']\n  },\n  {\n    id: 'permissions',\n    title: 'Permissions & Access',\n    fields: ['default_role', 'guest_access', 'sharing_policy']\n  },\n  {\n    id: 'integrations',\n    title: 'Integrations',\n    component: <IntegrationsPanel />\n  },\n  {\n    id: 'billing',\n    title: 'Billing & Usage',\n    component: <BillingSettings />\n  }\n];\n```\n\n8. Implement team member invitation system:\n```typescript\n// components/dashboard/InviteMembers.tsx\nexport async function inviteTeamMembers(emails: string[], role: Role) {\n  const invitations = emails.map(email => ({\n    email,\n    workspace_id: workspaceId,\n    role_id: role.id,\n    invited_by: currentUserId,\n    token: generateInviteToken(),\n    expires_at: addDays(new Date(), 7)\n  }));\n  \n  const { data, error } = await supabase\n    .from('invitations')\n    .insert(invitations)\n    .select();\n  \n  // Send invitation emails via Edge Function\n  await supabase.functions.invoke('send-invitations', {\n    body: { invitations: data }\n  });\n}\n\n// Real-time invitation status\nconst channel = supabase\n  .channel(`invitations:${workspaceId}`)\n  .on('postgres_changes',\n    { event: 'UPDATE', schema: 'public', table: 'invitations' },\n    handleInvitationUpdate\n  );\n```\n\n9. Build workspace templates gallery:\n```typescript\n// components/dashboard/TemplatesGallery.tsx\nconst { data: templates } = await supabase\n  .from('workspace_templates')\n  .select('*')\n  .or(`public.eq.true,owner_id.eq.${userId}`);\n\nconst categories = [\n  'Project Management',\n  'Product Development', \n  'Marketing',\n  'Sales CRM',\n  'Engineering',\n  'Design System'\n];\n\n// Preview and apply template\nasync function applyTemplate(templateId: string) {\n  const { data: template } = await supabase\n    .from('workspace_templates')\n    .select('structure, default_pages, settings')\n    .eq('id', templateId)\n    .single();\n  \n  // Clone template structure\n  await supabase.rpc('clone_workspace_template', {\n    template_id: templateId,\n    target_workspace_id: workspaceId\n  });\n}\n```\n\n10. Implement global search across workspace:\n```typescript\n// components/dashboard/WorkspaceSearch.tsx\nimport { Command } from 'cmdk';\n\nexport function WorkspaceSearch() {\n  const searchAcrossWorkspace = async (query: string) => {\n    // Full-text search using Supabase\n    const results = await Promise.all([\n      supabase\n        .from('pages')\n        .select('id, title, content_preview')\n        .textSearch('title', query)\n        .eq('workspace_id', workspaceId)\n        .limit(5),\n      \n      supabase\n        .from('projects')\n        .select('id, name, description')\n        .textSearch('name', query)\n        .eq('workspace_id', workspaceId)\n        .limit(5),\n      \n      supabase\n        .from('database_blocks')\n        .select('id, title, page_id')\n        .textSearch('title', query)\n        .eq('workspace_id', workspaceId)\n        .limit(5)\n    ]);\n    \n    return combineSearchResults(results);\n  };\n  \n  // Keyboard shortcut: Cmd+K\n  useHotkeys('cmd+k', () => setSearchOpen(true));\n}\n```\n\n11. Create integrations panel for third-party tools:\n```typescript\n// components/dashboard/IntegrationsPanel.tsx\nconst integrations = [\n  { id: 'slack', name: 'Slack', status: 'connected', icon: SlackIcon },\n  { id: 'github', name: 'GitHub', status: 'available', icon: GitHubIcon },\n  { id: 'google-drive', name: 'Google Drive', status: 'available', icon: DriveIcon },\n  { id: 'figma', name: 'Figma', status: 'connected', icon: FigmaIcon }\n];\n\n// OAuth flow for integrations\nasync function connectIntegration(provider: string) {\n  const { data: { url } } = await supabase.functions.invoke('oauth-connect', {\n    body: { provider, workspace_id: workspaceId }\n  });\n  window.location.href = url;\n}\n\n// Webhook management\nconst { data: webhooks } = await supabase\n  .from('integration_webhooks')\n  .select('*')\n  .eq('workspace_id', workspaceId);\n```\n\n12. Implement responsive dashboard layout:\n```typescript\n// components/dashboard/DashboardGrid.tsx\nexport function DashboardGrid({ children }) {\n  return (\n    <div className=\"grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 p-6\">\n      <div className=\"col-span-full xl:col-span-2\">\n        <WorkspaceOverview />\n      </div>\n      <div className=\"col-span-1\">\n        <QuickActions />\n      </div>\n      <div className=\"col-span-full md:col-span-1\">\n        <TeamActivityFeed />\n      </div>\n      <div className=\"col-span-full xl:col-span-2\">\n        <UsageAnalytics />\n      </div>\n      {children}\n    </div>\n  );\n}\n```",
         "testStrategy": "1. Test workspace overview displays correct recent pages and projects with proper sorting by updated_at timestamp. 2. Verify CRUD operations create, update, and soft-delete workspaces correctly with proper permission checks. 3. Test quick actions widget shows 6 most recent documents with working navigation links. 4. Verify team activity feed receives real-time updates via Supabase channels and displays all activity types correctly. 5. Test usage analytics charts render with accurate data for storage, credits, and API calls over 30-day period. 6. Verify workspace settings panel saves all configuration changes and validates input fields. 7. Test invitation system sends emails, generates valid tokens, and expires after 7 days. 8. Verify templates gallery filters by category and successfully clones template structure to workspace. 9. Test global search returns relevant results from pages, projects, and database blocks with proper ranking. 10. Verify integrations panel handles OAuth flows correctly and manages webhook subscriptions. 11. Test responsive layout adapts correctly for mobile, tablet, and desktop viewports. 12. Verify all dashboard components handle loading states, errors, and empty states gracefully. 13. Test role-based permissions restrict access to settings and invitation features appropriately. 14. Verify dashboard performance with large datasets (1000+ pages, 50+ team members).",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
           2,
           11
@@ -2256,7 +2256,8 @@
         "dependencies": [
           4,
           5,
-          19
+          19,
+          "20"
         ],
         "priority": "high",
         "subtasks": [
@@ -2748,7 +2749,7 @@
         "description": "Build automatic content indexing with PostgreSQL triggers, Supabase Realtime subscriptions for instant updates, debounced batch processing, incremental index updates, and background re-indexing jobs for optimal search freshness without performance impact",
         "details": "1. Create PostgreSQL trigger-based indexing system:\n```sql\n-- Create indexing queue table\nCREATE TABLE indexing_queue (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  entity_type TEXT NOT NULL, -- 'page', 'block', 'document'\n  entity_id UUID NOT NULL,\n  operation TEXT NOT NULL, -- 'insert', 'update', 'delete'\n  priority INTEGER DEFAULT 0,\n  retry_count INTEGER DEFAULT 0,\n  status TEXT DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'failed'\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n  processed_at TIMESTAMP WITH TIME ZONE\n);\n\n-- Create triggers for content changes\nCREATE OR REPLACE FUNCTION queue_content_for_indexing()\nRETURNS TRIGGER AS $$\nBEGIN\n  INSERT INTO indexing_queue (entity_type, entity_id, operation)\n  VALUES (\n    TG_TABLE_NAME,\n    CASE\n      WHEN TG_OP = 'DELETE' THEN OLD.id\n      ELSE NEW.id\n    END,\n    TG_OP\n  );\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\n\n-- Attach triggers to relevant tables\nCREATE TRIGGER index_pages_changes\nAFTER INSERT OR UPDATE OR DELETE ON pages\nFOR EACH ROW EXECUTE FUNCTION queue_content_for_indexing();\n\nCREATE TRIGGER index_blocks_changes\nAFTER INSERT OR UPDATE OR DELETE ON blocks\nFOR EACH ROW EXECUTE FUNCTION queue_content_for_indexing();\n```\n\n2. Implement Supabase Realtime subscription for instant updates:\n```typescript\n// services/indexing/realtime-indexer.ts\nexport class RealtimeIndexer {\n  private channel: RealtimeChannel;\n  private indexingBuffer: Map<string, IndexingTask> = new Map();\n  private debounceTimer: NodeJS.Timeout | null = null;\n  \n  async initialize() {\n    this.channel = supabase\n      .channel('indexing-updates')\n      .on(\n        'postgres_changes',\n        {\n          event: '*',\n          schema: 'public',\n          table: 'indexing_queue',\n          filter: 'status=eq.pending'\n        },\n        (payload) => this.handleIndexingEvent(payload)\n      )\n      .subscribe();\n  }\n  \n  private handleIndexingEvent(payload: any) {\n    const task: IndexingTask = {\n      id: payload.new.id,\n      entityType: payload.new.entity_type,\n      entityId: payload.new.entity_id,\n      operation: payload.new.operation,\n      priority: payload.new.priority\n    };\n    \n    // Buffer updates for batch processing\n    this.indexingBuffer.set(task.entityId, task);\n    this.scheduleBatchProcessing();\n  }\n  \n  private scheduleBatchProcessing() {\n    if (this.debounceTimer) {\n      clearTimeout(this.debounceTimer);\n    }\n    \n    this.debounceTimer = setTimeout(() => {\n      this.processBatch();\n    }, 500); // 500ms debounce\n  }\n}\n```\n\n3. Create batch processing system with intelligent debouncing:\n```typescript\n// services/indexing/batch-processor.ts\nexport class BatchIndexProcessor {\n  private readonly BATCH_SIZE = 100;\n  private readonly MAX_CONCURRENT = 5;\n  \n  async processBatch() {\n    const tasks = await this.getTopPriorityTasks(this.BATCH_SIZE);\n    \n    // Group by entity type for efficient processing\n    const grouped = this.groupTasksByType(tasks);\n    \n    // Process in parallel with concurrency limit\n    await pLimit(this.MAX_CONCURRENT, Object.entries(grouped).map(\n      ([entityType, entityTasks]) => () => this.processEntityBatch(entityType, entityTasks)\n    ));\n  }\n  \n  private async processEntityBatch(entityType: string, tasks: IndexingTask[]) {\n    const entityIds = tasks.map(t => t.entityId);\n    \n    switch (entityType) {\n      case 'pages':\n        await this.indexPages(entityIds);\n        break;\n      case 'blocks':\n        await this.indexBlocks(entityIds);\n        break;\n      case 'documents':\n        await this.indexDocuments(entityIds);\n        break;\n    }\n    \n    // Mark tasks as completed\n    await supabase\n      .from('indexing_queue')\n      .update({ status: 'completed', processed_at: new Date() })\n      .in('id', tasks.map(t => t.id));\n  }\n}\n```\n\n4. Implement incremental index updates:\n```typescript\n// services/indexing/incremental-indexer.ts\nexport class IncrementalIndexer {\n  async indexPages(pageIds: string[]) {\n    // Fetch only changed content with checksums\n    const pages = await supabase\n      .from('pages')\n      .select('id, title, content, content_checksum, updated_at')\n      .in('id', pageIds);\n    \n    for (const page of pages.data) {\n      // Check if content actually changed\n      const existingIndex = await this.getExistingIndex(page.id);\n      \n      if (existingIndex?.content_checksum === page.content_checksum) {\n        continue; // Skip if content unchanged\n      }\n      \n      // Generate incremental updates\n      const chunks = await this.generateIncrementalChunks(page, existingIndex);\n      \n      // Update only changed vectors\n      await this.updateVectors(chunks);\n    }\n  }\n  \n  private async generateIncrementalChunks(page: Page, existingIndex?: IndexEntry) {\n    // Smart diffing to identify changed sections\n    const diff = this.computeContentDiff(existingIndex?.content, page.content);\n    \n    // Generate embeddings only for changed chunks\n    return this.chunkAndEmbed(diff.changedSections);\n  }\n}\n```\n\n5. Create background re-indexing job system:\n```typescript\n// supabase/functions/background-reindex/index.ts\nDeno.serve(async (req) => {\n  const { workspaceId, fullReindex } = await req.json();\n  \n  // Schedule re-indexing job\n  const job = await createReindexJob({\n    workspaceId,\n    type: fullReindex ? 'full' : 'incremental',\n    priority: -1, // Low priority\n    scheduledAt: new Date()\n  });\n  \n  // Process in chunks to avoid timeouts\n  const CHUNK_SIZE = 1000;\n  let offset = 0;\n  \n  while (true) {\n    const entities = await getEntitiesForReindex(workspaceId, offset, CHUNK_SIZE);\n    \n    if (entities.length === 0) break;\n    \n    // Queue for processing\n    await queueEntitiesForIndexing(entities, job.id);\n    \n    offset += CHUNK_SIZE;\n    \n    // Yield to prevent Edge Function timeout\n    await new Promise(resolve => setTimeout(resolve, 100));\n  }\n  \n  return new Response(JSON.stringify({ jobId: job.id, status: 'scheduled' }));\n});\n```\n\n6. Implement performance monitoring and optimization:\n```typescript\n// services/indexing/performance-monitor.ts\nexport class IndexingPerformanceMonitor {\n  private metrics = {\n    indexingLatency: new Map<string, number[]>(),\n    batchSizes: [],\n    errorRates: new Map<string, number>()\n  };\n  \n  async monitorIndexingPipeline() {\n    // Track indexing latency\n    const latency = await this.measureIndexingLatency();\n    \n    // Auto-adjust batch sizes based on performance\n    if (latency.p95 > 1000) { // If p95 > 1s\n      await this.reduceBatchSize();\n    } else if (latency.p95 < 200) { // If p95 < 200ms\n      await this.increaseBatchSize();\n    }\n    \n    // Monitor and alert on error rates\n    const errorRate = await this.calculateErrorRate();\n    if (errorRate > 0.05) { // 5% error threshold\n      await this.triggerErrorAlert();\n    }\n  }\n}\n```\n\n7. Create intelligent cache invalidation:\n```typescript\n// services/indexing/cache-invalidator.ts\nexport class IndexCacheInvalidator {\n  async invalidateRelatedCaches(entityId: string, entityType: string) {\n    // Invalidate direct entity cache\n    await this.invalidateEntityCache(entityId);\n    \n    // Find and invalidate related searches\n    const relatedSearches = await this.findRelatedSearches(entityId, entityType);\n    \n    for (const searchKey of relatedSearches) {\n      await redis.del(`search:${searchKey}`);\n    }\n    \n    // Invalidate workspace-level aggregations if needed\n    if (entityType === 'pages') {\n      await this.invalidateWorkspaceStats(entityId);\n    }\n  }\n}\n```",
         "testStrategy": "1. Test PostgreSQL trigger functionality by creating, updating, and deleting pages/blocks, then verify entries appear in indexing_queue table with correct operation types and entity IDs within 50ms.\n\n2. Verify Realtime subscription by monitoring indexing_queue changes and confirming the RealtimeIndexer receives events in real-time, buffers them correctly, and triggers batch processing after 500ms debounce period.\n\n3. Test batch processing performance by queuing 10,000 indexing tasks across different entity types, then verify batch processor handles them with proper concurrency limits (5 concurrent), respects batch size (100), and completes all tasks without memory leaks.\n\n4. Validate incremental indexing by modifying small sections of large documents (>10MB), then verify only changed chunks are re-indexed by checking embedding generation count and comparing content checksums.\n\n5. Test background re-indexing by triggering full workspace re-index job for workspace with 50k+ entities, verify job processes in chunks without Edge Function timeouts, maintains low priority to not impact real-time operations, and completes successfully with progress tracking.\n\n6. Performance test the entire pipeline by simulating 1000 concurrent users making rapid edits, verify p95 indexing latency < 1s, search results reflect changes within 2s, and system auto-adjusts batch sizes based on load.\n\n7. Test error handling and recovery by simulating embedding service failures, database connection drops, and verify retry logic works correctly with exponential backoff, failed tasks are retried up to 3 times, and permanent failures are logged for manual intervention.\n\n8. Verify cache invalidation by updating a page, then immediately searching for it and confirming fresh results are returned, related workspace statistics are updated, and no stale cache entries remain.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           6
         ],
@@ -2782,7 +2783,7 @@
               "19.1"
             ],
             "details": "Create RealtimeIndexer class in services/indexing/realtime-indexer.ts. Initialize Supabase channel subscription for 'indexing-updates'. Filter for pending status entries. Implement handleIndexingEvent method to process incoming events and buffer them for batch processing.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test subscription initialization, verify events are received when indexing_queue is updated, test event filtering for pending status only"
           },
           {
@@ -2793,7 +2794,7 @@
               "19.3"
             ],
             "details": "Implement indexingBuffer Map to store pending tasks by entity ID. Create scheduleBatchProcessing method with 500ms debounce timer. Ensure newer tasks for same entity override older ones in buffer. Handle timer cancellation and rescheduling properly.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test rapid consecutive updates consolidate into single batch, verify 500ms delay before processing, test buffer correctly handles duplicate entity updates"
           },
           {
@@ -2804,7 +2805,7 @@
               "19.4"
             ],
             "details": "Implement BatchIndexProcessor class with configurable BATCH_SIZE (100) and MAX_CONCURRENT (5). Create getTopPriorityTasks method to fetch highest priority pending tasks. Implement groupTasksByType for efficient entity grouping. Use p-limit library for concurrency control.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test batch size limits are respected, verify concurrent processing doesn't exceed limit, test priority ordering works correctly"
           },
           {
@@ -2815,7 +2816,7 @@
               "19.5"
             ],
             "details": "Implement processEntityBatch method with switch statement for entity types. Create indexPages, indexBlocks, and indexDocuments methods. Each method should fetch entity data, generate embeddings, and update vector store. Mark tasks as completed after successful processing.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test each entity type processes correctly, verify embeddings are generated and stored, test task status updates to completed"
           },
           {
@@ -2826,7 +2827,7 @@
               "19.6"
             ],
             "details": "Create IncrementalIndexer class with content checksum comparison. Implement getExistingIndex to fetch current index state. Create computeContentDiff method for smart diffing. Only generate embeddings for changed content sections to minimize API calls and processing time.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test checksum comparison skips unchanged content, verify diff algorithm identifies changed sections accurately, test partial embedding updates"
           },
           {
@@ -2837,7 +2838,7 @@
               "19.7"
             ],
             "details": "Create background-reindex Edge Function that accepts workspaceId and fullReindex parameters. Implement chunked processing (1000 entities per chunk) to avoid timeouts. Add yield delays between chunks. Create job tracking for monitoring progress.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test Edge Function handles large datasets without timeout, verify chunking works correctly, test both full and incremental reindex modes"
           },
           {
@@ -2850,7 +2851,7 @@
               "19.7"
             ],
             "details": "Create metrics tracking for indexing latency (p50, p95, p99), batch sizes, and error rates. Implement auto-adjustment of batch sizes based on latency metrics. Add alerting when error rate exceeds 5% threshold. Store metrics in time-series format for analysis.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test latency measurement accuracy, verify batch size adjustments trigger correctly, test error rate calculations and alerting"
           },
           {
@@ -2861,7 +2862,7 @@
               "19.6"
             ],
             "details": "Implement invalidateEntityCache for direct entity caches. Create findRelatedSearches to identify affected search results. Build workspace-level aggregation invalidation for page changes. Use Redis for cache storage with appropriate TTLs.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test entity cache invalidation on updates, verify related searches are identified and cleared, test workspace stats update correctly"
           },
           {
@@ -2873,7 +2874,7 @@
               "19.6"
             ],
             "details": "Add try-catch blocks in all processing methods. Implement exponential backoff for failed tasks (retry_count tracking). Create dead letter queue for tasks failing after max retries. Log detailed error information for debugging. Handle network failures gracefully.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test retry logic with simulated failures, verify exponential backoff timing, test dead letter queue for max retry failures"
           },
           {
@@ -2885,15 +2886,256 @@
               "19.11"
             ],
             "details": "Create dashboard showing real-time indexing queue depth, processing rate, error rates, and latency percentiles. Add historical trend analysis. Implement alerts for queue backlog, high error rates, or processing delays. Export metrics to observability platform.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test dashboard displays real-time metrics accurately, verify historical data aggregation, test alert triggers for various threshold conditions"
+          }
+        ]
+      },
+      {
+        "id": 20,
+        "title": "Rebuild Page Editor with Notion/Coda-style Block Architecture",
+        "description": "CRITICAL: Complete rebuild of the page editor to implement a production-ready block-based architecture similar to Notion and Coda, replacing the broken drag-and-drop canvas with inline block editing, slash commands, keyboard navigation, and virtual scrolling for optimal performance. This is blocking content creation and must be completed before Task 16 (RAG Infrastructure) since users cannot create content for the RAG system without a functional editor.",
+        "status": "in-progress",
+        "dependencies": [
+          6,
+          14
+        ],
+        "priority": "high",
+        "details": "**CRITICAL PRIORITY**: The editor is currently broken and preventing all content creation. This must be completed before Task 16 (RAG Infrastructure) can be useful, as the RAG system requires content to index.\n\n1. Create new block-based editor foundation with virtual scrolling:\n```typescript\ninterface BlockEditorState {\n  blocks: Map<string, EditorBlock>;\n  selection: {\n    anchor: { blockId: string; offset: number };\n    focus: { blockId: string; offset: number };\n  };\n  virtualScrollState: {\n    viewportHeight: number;\n    scrollTop: number;\n    visibleRange: { start: number; end: number };\n    blockHeights: Map<string, number>;\n  };\n}\n\ninterface EditorBlock {\n  id: string;\n  type: BlockType;\n  content: any;\n  children?: string[];\n  parent?: string;\n  metadata: {\n    createdAt: Date;\n    updatedAt: Date;\n    version: number;\n  };\n}\n```\n\n2. Implement slash command system with fuzzy search:\n```typescript\nclass SlashCommandHandler {\n  private commands = new Map<string, CommandDefinition>();\n  \n  registerCommand(command: CommandDefinition) {\n    this.commands.set(command.trigger, command);\n  }\n  \n  async handleSlashTrigger(query: string): Promise<CommandSuggestion[]> {\n    const fuse = new Fuse(Array.from(this.commands.values()), {\n      keys: ['name', 'description', 'aliases'],\n      threshold: 0.3\n    });\n    return fuse.search(query).slice(0, 10);\n  }\n}\n```\n\n3. Build keyboard navigation system:\n```typescript\nclass KeyboardNavigationHandler {\n  private shortcuts = new Map<string, NavigationAction>();\n  \n  constructor() {\n    this.registerShortcuts();\n  }\n  \n  private registerShortcuts() {\n    this.shortcuts.set('ArrowUp', this.moveToPreviousBlock);\n    this.shortcuts.set('ArrowDown', this.moveToNextBlock);\n    this.shortcuts.set('Tab', this.indentBlock);\n    this.shortcuts.set('Shift+Tab', this.outdentBlock);\n    this.shortcuts.set('Cmd+Enter', this.createNewBlock);\n    this.shortcuts.set('Cmd+D', this.duplicateBlock);\n    this.shortcuts.set('Cmd+Shift+Up', this.moveBlockUp);\n    this.shortcuts.set('Cmd+Shift+Down', this.moveBlockDown);\n  }\n}\n```\n\n4. Implement virtual scrolling with react-window:\n```typescript\nimport { VariableSizeList } from 'react-window';\nimport AutoSizer from 'react-virtualized-auto-sizer';\n\nconst VirtualBlockEditor: React.FC = () => {\n  const rowHeights = useRef<Map<number, number>>(new Map());\n  \n  const getItemSize = (index: number) => {\n    return rowHeights.current.get(index) || 50;\n  };\n  \n  const setItemSize = (index: number, size: number) => {\n    if (rowHeights.current.get(index) !== size) {\n      rowHeights.current.set(index, size);\n      listRef.current?.resetAfterIndex(index);\n    }\n  };\n  \n  return (\n    <AutoSizer>\n      {({ height, width }) => (\n        <VariableSizeList\n          ref={listRef}\n          height={height}\n          width={width}\n          itemCount={blocks.length}\n          itemSize={getItemSize}\n          overscanCount={5}\n        >\n          {BlockRenderer}\n        </VariableSizeList>\n      )}\n    </AutoSizer>\n  );\n};\n```\n\n5. Create inline block editing with contentEditable:\n```typescript\nconst EditableBlock: React.FC<BlockProps> = ({ block, onUpdate }) => {\n  const [isEditing, setIsEditing] = useState(false);\n  const contentRef = useRef<HTMLDivElement>(null);\n  \n  const handleInput = useCallback((e: React.FormEvent) => {\n    const content = e.currentTarget.textContent || '';\n    onUpdate(block.id, { content });\n  }, [block.id, onUpdate]);\n  \n  return (\n    <div\n      ref={contentRef}\n      contentEditable={isEditing}\n      suppressContentEditableWarning\n      onFocus={() => setIsEditing(true)}\n      onBlur={() => setIsEditing(false)}\n      onInput={handleInput}\n      className=\"block-content\"\n    />\n  );\n};\n```\n\n6. Implement block transformation system:\n```typescript\nclass BlockTransformer {\n  async transformBlock(block: EditorBlock, targetType: BlockType): Promise<EditorBlock> {\n    const transformer = this.getTransformer(block.type, targetType);\n    if (!transformer) {\n      throw new Error(`No transformer from ${block.type} to ${targetType}`);\n    }\n    return transformer(block);\n  }\n  \n  private transformers = new Map<string, TransformFunction>();\n  \n  registerTransformer(from: BlockType, to: BlockType, fn: TransformFunction) {\n    this.transformers.set(`${from}->${to}`, fn);\n  }\n}\n```\n\n7. Add real-time collaboration with Supabase Realtime:\n```typescript\nconst useCollaborativeEditing = (pageId: string) => {\n  useEffect(() => {\n    const channel = supabase\n      .channel(`page:${pageId}`)\n      .on('presence', { event: 'sync' }, () => {\n        const state = channel.presenceState();\n        updateCollaboratorCursors(state);\n      })\n      .on('broadcast', { event: 'block-update' }, ({ payload }) => {\n        applyRemoteBlockUpdate(payload);\n      })\n      .subscribe();\n      \n    return () => { channel.unsubscribe(); };\n  }, [pageId]);\n};\n```\n\n8. Performance optimizations:\n```typescript\n// Debounced save with diff detection\nconst useDebouncedSave = (blocks: Map<string, EditorBlock>) => {\n  const previousBlocks = useRef(blocks);\n  \n  const saveChanges = useMemo(\n    () => debounce(async (changedBlocks: EditorBlock[]) => {\n      await supabase\n        .from('blocks')\n        .upsert(changedBlocks);\n    }, 500),\n    []\n  );\n  \n  useEffect(() => {\n    const changes = diffBlocks(previousBlocks.current, blocks);\n    if (changes.length > 0) {\n      saveChanges(changes);\n      previousBlocks.current = blocks;\n    }\n  }, [blocks, saveChanges]);\n};\n```",
+        "testStrategy": "**CRITICAL: Test that the editor functions at all before Task 16 implementation begins.**\n\n1. Test virtual scrolling performance by creating a page with 10,000+ blocks and verify smooth scrolling at 60fps, memory usage stays under 100MB, and only visible blocks are rendered in DOM (check with React DevTools).\n\n2. Verify slash command functionality by typing '/' in any block and confirming command palette appears within 50ms, fuzzy search works correctly (e.g., '/h1' shows heading options), and selected commands transform blocks properly.\n\n3. Test keyboard navigation by using arrow keys to move between blocks, Tab/Shift+Tab for indentation, Cmd+Enter to create new blocks, and verify all shortcuts work consistently across different block types.\n\n4. Validate inline editing by clicking on any block to enter edit mode, typing to update content, and confirming changes save automatically with debouncing (network tab should show saves every 500ms during continuous typing).\n\n5. Test block transformations by selecting text blocks and converting to headings, lists, code blocks, and verify content is preserved correctly during transformation.\n\n6. Verify real-time collaboration by opening the same page in multiple browser tabs, editing blocks simultaneously, and confirming updates appear in real-time with presence indicators.\n\n7. Load test the editor with various content sizes: empty page, 100 blocks, 1000 blocks, 10000 blocks, and verify initial load time < 1s for pages under 1000 blocks.\n\n8. Test error recovery by simulating network failures during save operations and verify the editor maintains local state and retries failed saves automatically.\n\n9. Validate accessibility by testing keyboard-only navigation, screen reader compatibility, and ARIA labels on all interactive elements.\n\n10. Performance profile the editor using Chrome DevTools to ensure no memory leaks during extended editing sessions (1+ hour) and no performance degradation over time.\n\n11. **CRITICAL: Verify basic content creation works - users must be able to create and save content before Task 16 RAG system can index it.**",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Tiptap editor foundation with virtual scrolling",
+            "description": "Replace current PageEditor.tsx with Tiptap-based block editor and implement virtual scrolling for performance",
+            "status": "done",
+            "dependencies": [],
+            "details": "Install Tiptap and dependencies (@tiptap/react, @tiptap/starter-kit, @tanstack/react-virtual). Create new BlockEditor component with hierarchical block structure. Implement virtual scrolling to handle 10,000+ blocks efficiently. Set up block state management with Zustand. Create base block rendering pipeline with memoization.\n<info added on 2025-08-16T07:12:38.975Z>\nImplementation complete. Successfully installed Tiptap dependencies including @tiptap/react, @tiptap/pm, @tiptap/starter-kit, @tiptap/extension-bubble-menu, @tiptap/extension-floating-menu, and @tiptap/extension-placeholder. Created TiptapEditor component at app/components/editor/TiptapEditor.tsx with full rich text formatting capabilities, keyboard shortcuts, and both bubble menu and floating menu for context-aware formatting. Implemented BlockEditor component at app/components/editor/BlockEditor.tsx with react-window virtual scrolling supporting 10,000+ blocks efficiently. Added proper TypeScript types and memoization for optimal performance. The editor foundation is now ready for implementing the block hierarchy, slash commands, and state management system.\n</info added on 2025-08-16T07:12:38.975Z>",
+            "testStrategy": "Verify Tiptap renders correctly. Test virtual scrolling with 10,000 blocks maintains 60fps. Check memory usage stays under 100MB. Ensure only visible blocks are in DOM."
+          },
+          {
+            "id": 2,
+            "title": "Implement command pattern for undo/redo with coalescing",
+            "description": "Build robust undo/redo system with operation coalescing for optimal user experience",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Create Command interface with execute/undo/canMerge/merge methods. Implement 200ms debounce for continuous operations. Build history stack with 50-state limit. Add operation coalescing for typing and formatting. Create keyboard shortcuts (Cmd+Z, Cmd+Shift+Z).",
+            "testStrategy": "Test undo/redo works for all operations. Verify continuous typing coalesces into single undo. Check memory limits are enforced. Test keyboard shortcuts work consistently."
+          },
+          {
+            "id": 3,
+            "title": "Build slash command system with fuzzy search",
+            "description": "Create Notion-style slash command palette with intelligent fuzzy matching",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement SlashCommandHandler with command registry. Add Fuse.js for fuzzy search matching. Create command palette UI with keyboard navigation. Build command categories (basic, formatting, advanced). Add context-aware suggestions. Ensure < 50ms response time.",
+            "testStrategy": "Type '/' and verify palette appears within 50ms. Test fuzzy search (e.g., '/h1' shows headings). Verify keyboard navigation works. Check command execution transforms blocks correctly."
+          },
+          {
+            "id": 4,
+            "title": "Implement keyboard navigation between blocks",
+            "description": "Build comprehensive keyboard navigation system for efficient block manipulation",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Create KeyboardNavigationHandler with shortcut registry. Implement arrow key navigation between blocks. Add Tab/Shift+Tab for indentation. Build Cmd+Enter for new blocks. Add Cmd+D for duplication. Implement Cmd+Shift+Up/Down for moving blocks.",
+            "testStrategy": "Test all arrow key navigation patterns. Verify Tab indentation works correctly. Check block creation/duplication shortcuts. Test block movement preserves content."
+          },
+          {
+            "id": 5,
+            "title": "Create inline rich text editing with contentEditable",
+            "description": "Implement inline editing capabilities within blocks with rich text support",
+            "status": "pending",
+            "dependencies": [
+              1,
+              3
+            ],
+            "details": "Build EditableBlock component with contentEditable. Add rich text formatting (bold, italic, underline, code). Implement focus management and cursor positioning. Create text selection handling. Add paste handling with formatting preservation.",
+            "testStrategy": "Click blocks to enter edit mode. Verify typing updates content. Test rich text formatting. Check paste operations preserve formatting. Validate cursor positioning."
+          },
+          {
+            "id": 6,
+            "title": "Build multi-block selection system",
+            "description": "Implement multi-block selection for bulk operations",
+            "status": "pending",
+            "dependencies": [
+              4,
+              5
+            ],
+            "details": "Create selection state management. Implement Shift+Click for range selection. Add Cmd+A for select all. Build visual selection indicators. Create bulk operations (delete, move, transform). Add selection keyboard navigation.",
+            "testStrategy": "Test Shift+Click selects range. Verify Cmd+A selects all blocks. Check bulk delete/move operations. Test selection visual feedback. Validate keyboard selection."
+          },
+          {
+            "id": 7,
+            "title": "Implement core block types",
+            "description": "Create essential block types: paragraph, headings, lists, code blocks",
+            "status": "pending",
+            "dependencies": [
+              5
+            ],
+            "details": "Build paragraph block with rich text. Create heading blocks (h1-h6). Implement ordered/unordered lists with nesting. Add code blocks with Prism.js syntax highlighting. Create block transformation logic between types.",
+            "testStrategy": "Create each block type and verify rendering. Test transformations between types. Check list nesting works. Verify code syntax highlighting. Test content preservation during transforms."
+          },
+          {
+            "id": 8,
+            "title": "Add advanced block types",
+            "description": "Implement tables, images, videos, quotes, callouts, and collapsible blocks",
+            "status": "pending",
+            "dependencies": [
+              7
+            ],
+            "details": "Create table blocks with cell editing. Implement image/video blocks with upload. Build quote and callout blocks. Add toggle/collapsible blocks. Create math blocks with KaTeX. Implement block-specific toolbars.",
+            "testStrategy": "Test table cell editing and navigation. Verify media upload and display. Check collapsible blocks expand/collapse. Test math rendering with KaTeX. Validate block-specific features."
+          },
+          {
+            "id": 9,
+            "title": "Optimize database with JSONB indexes",
+            "description": "Add performance-critical database indexes and query optimizations",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Create GIN indexes on JSONB content fields. Add B-tree indexes for frequent queries. Optimize block retrieval queries. Implement efficient bulk operations. Add query performance monitoring.",
+            "testStrategy": "Benchmark query performance before/after indexes. Test bulk operations performance. Verify index usage with EXPLAIN ANALYZE. Check query response times < 100ms."
+          },
+          {
+            "id": 10,
+            "title": "Implement client-side caching and memoization",
+            "description": "Add caching layers for optimal performance during editing",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement IndexedDB for block caching. Add React.memo for block components. Create block diff detection. Build intelligent cache invalidation. Add memory management for long sessions.",
+            "testStrategy": "Verify blocks are cached in IndexedDB. Check re-renders are minimized. Test cache invalidation works correctly. Monitor memory usage over time. Validate long session performance."
+          },
+          {
+            "id": 11,
+            "title": "Build debounced auto-save with conflict resolution",
+            "description": "Create reliable auto-save system with conflict handling",
+            "status": "pending",
+            "dependencies": [
+              5,
+              10
+            ],
+            "details": "Implement 500ms debounced save. Create diff detection for changed blocks. Build conflict resolution UI. Add offline queue for failed saves. Implement retry logic with exponential backoff.",
+            "testStrategy": "Monitor network tab for 500ms save intervals. Test conflict resolution with concurrent edits. Verify offline saves queue properly. Check retry logic works. Test data integrity."
+          },
+          {
+            "id": 12,
+            "title": "Add real-time collaboration infrastructure",
+            "description": "Implement multi-user editing with Supabase Realtime",
+            "status": "pending",
+            "dependencies": [
+              11
+            ],
+            "details": "Set up Supabase Realtime channels. Implement presence tracking with cursors. Build operational transform for conflicts. Add user awareness indicators. Create collaboration permissions.",
+            "testStrategy": "Open multiple tabs and verify real-time sync. Test cursor positions are shared. Check conflict resolution works. Verify presence indicators update. Test permission enforcement."
+          },
+          {
+            "id": 13,
+            "title": "Create block plugin system",
+            "description": "Build extensible architecture for custom block types",
+            "status": "pending",
+            "dependencies": [
+              7,
+              8
+            ],
+            "details": "Design plugin API for custom blocks. Create block registry system. Implement plugin lifecycle hooks. Build plugin configuration UI. Add plugin sandboxing for security.",
+            "testStrategy": "Create sample custom block plugin. Test plugin registration and lifecycle. Verify plugin isolation. Check configuration persistence. Test plugin error handling."
+          },
+          {
+            "id": 14,
+            "title": "Implement mobile touch interactions",
+            "description": "Add comprehensive touch support for mobile editing",
+            "status": "pending",
+            "dependencies": [
+              5,
+              6
+            ],
+            "details": "Add touch gesture recognition. Implement long-press for selection. Create touch-friendly block handles. Build mobile-optimized toolbar. Add viewport management for mobile keyboards.",
+            "testStrategy": "Test on iOS and Android devices. Verify touch selection works. Check toolbar accessibility on mobile. Test with mobile keyboards. Validate responsive design."
+          },
+          {
+            "id": 15,
+            "title": "Add accessibility features",
+            "description": "Ensure WCAG 2.1 AA compliance with comprehensive accessibility",
+            "status": "pending",
+            "dependencies": [
+              4,
+              5
+            ],
+            "details": "Add ARIA labels and roles. Implement screen reader announcements. Create high contrast mode. Build keyboard-only navigation. Add focus indicators and skip links.",
+            "testStrategy": "Test with NVDA/JAWS screen readers. Verify keyboard-only navigation. Check WCAG 2.1 AA compliance. Test high contrast mode. Validate focus management."
+          },
+          {
+            "id": 16,
+            "title": "Build content migration tool",
+            "description": "Create tool to migrate existing canvas-based content to block format",
+            "status": "pending",
+            "dependencies": [
+              7
+            ],
+            "details": "Analyze existing page content structure. Build migration transformers for each element type. Create batch migration system. Add rollback capability. Implement migration progress tracking.",
+            "testStrategy": "Test migration preserves all content. Verify data integrity after migration. Check rollback works correctly. Test with various content types. Validate no data loss."
+          },
+          {
+            "id": 17,
+            "title": "Create comprehensive test suite",
+            "description": "Build unit, integration, and e2e tests for editor reliability",
+            "status": "pending",
+            "dependencies": [
+              1,
+              3,
+              5,
+              7
+            ],
+            "details": "Write unit tests for all components. Create integration tests for features. Build e2e tests with Playwright. Add performance benchmarks. Implement visual regression tests.",
+            "testStrategy": "Achieve > 80% code coverage. Run e2e tests on all browsers. Verify performance benchmarks pass. Check visual regression tests. Validate CI/CD integration."
+          },
+          {
+            "id": 18,
+            "title": "Performance testing and optimization",
+            "description": "Conduct thorough performance testing and optimization",
+            "status": "pending",
+            "dependencies": [
+              17
+            ],
+            "details": "Test with 10,000+ block documents. Profile memory usage patterns. Optimize render performance. Add performance monitoring. Create performance dashboard.",
+            "testStrategy": "Load 10,000 blocks in < 3 seconds. Maintain 60fps during scrolling. Keep memory < 100MB. Verify no memory leaks. Check metrics dashboard works."
+          },
+          {
+            "id": 19,
+            "title": "Cross-browser compatibility testing",
+            "description": "Ensure editor works across all major browsers",
+            "status": "pending",
+            "dependencies": [
+              17
+            ],
+            "details": "Test on Chrome, Firefox, Safari, Edge. Verify feature parity across browsers. Fix browser-specific issues. Add browser detection and polyfills. Create compatibility matrix.",
+            "testStrategy": "Test all features on each browser. Verify consistent behavior. Check performance is similar. Test with older browser versions. Document any limitations."
+          },
+          {
+            "id": 20,
+            "title": "Production deployment preparation",
+            "description": "Prepare editor for production deployment with monitoring",
+            "status": "pending",
+            "dependencies": [
+              18,
+              19
+            ],
+            "details": "Set up feature flags for gradual rollout. Add error tracking with Sentry. Implement analytics and telemetry. Create rollback procedures. Build admin monitoring dashboard.",
+            "testStrategy": "Test feature flags work correctly. Verify error tracking captures issues. Check telemetry data flows. Test rollback procedures. Validate monitoring dashboard."
           }
         ]
       }
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-08-15T22:17:44.130Z",
+      "updated": "2025-08-16T11:30:43.044Z",
       "description": "Tasks for master context"
     }
   }

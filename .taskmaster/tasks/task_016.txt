@@ -1,0 +1,355 @@
+# Task ID: 16
+# Title: Build High-Performance RAG Infrastructure
+# Status: pending
+# Dependencies: 4, 5, 19, 20
+# Priority: high
+# Description: Create scalable vector search foundation with pgvector optimization, multi-tier caching (Redis + in-memory LRU), parallel embedding generation pipeline, incremental indexing system, and database connection pooling for sub-100ms search responses
+# Details:
+1. Optimize pgvector performance with advanced indexing strategies:
+```sql
+-- Create optimized HNSW index with tuned parameters
+CREATE INDEX documents_embedding_hnsw_idx ON documents 
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+-- Add partial indexes for filtered searches
+CREATE INDEX documents_workspace_embedding_idx ON documents 
+USING hnsw (embedding vector_cosine_ops)
+WHERE workspace_id IS NOT NULL;
+
+-- Create composite B-tree indexes for hybrid search
+CREATE INDEX documents_metadata_gin_idx ON documents 
+USING gin (metadata jsonb_path_ops);
+```
+
+2. Implement multi-tier caching system:
+```typescript
+interface CacheLayer {
+  redis: RedisCache;
+  inMemory: LRUCache<string, EmbeddingResult>;
+  ttl: { redis: 3600, memory: 300 };
+}
+
+class VectorSearchCache {
+  private lru = new LRUCache<string, EmbeddingResult>({
+    max: 1000,
+    ttl: 1000 * 60 * 5, // 5 minutes
+    updateAgeOnGet: true,
+    updateAgeOnHas: true
+  });
+  
+  async get(key: string): Promise<EmbeddingResult | null> {
+    // L1: In-memory cache
+    const memoryHit = this.lru.get(key);
+    if (memoryHit) return memoryHit;
+    
+    // L2: Redis cache
+    const redisHit = await redis.get(`embed:${key}`);
+    if (redisHit) {
+      const result = JSON.parse(redisHit);
+      this.lru.set(key, result);
+      return result;
+    }
+    
+    return null;
+  }
+}
+```
+
+3. Build parallel embedding generation pipeline:
+```typescript
+interface EmbeddingPipeline {
+  batchSize: 100;
+  concurrency: 5;
+  queue: BullMQ.Queue;
+  workers: EmbeddingWorker[];
+}
+
+class ParallelEmbeddingProcessor {
+  private queue = new Queue('embeddings', {
+    connection: redis,
+    defaultJobOptions: {
+      removeOnComplete: true,
+      removeOnFail: false,
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 2000 }
+    }
+  });
+  
+  async processBatch(documents: Document[]): Promise<void> {
+    const chunks = chunk(documents, this.batchSize);
+    const jobs = chunks.map(batch => ({
+      name: 'generate-embeddings',
+      data: { documents: batch },
+      opts: { priority: batch[0].priority || 0 }
+    }));
+    
+    await this.queue.addBulk(jobs);
+  }
+}
+
+// Worker implementation
+const worker = new Worker('embeddings', async (job) => {
+  const { documents } = job.data;
+  const embeddings = await Promise.all(
+    documents.map(doc => openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: doc.content,
+      dimensions: 1536
+    }))
+  );
+  
+  // Batch insert to PostgreSQL
+  await supabase.rpc('batch_upsert_embeddings', {
+    documents: documents.map((doc, i) => ({
+      ...doc,
+      embedding: embeddings[i].data[0].embedding
+    }))
+  });
+}, {
+  connection: redis,
+  concurrency: 5,
+  limiter: { max: 100, duration: 60000 } // Rate limiting
+});
+```
+
+4. Implement incremental indexing system:
+```typescript
+interface IncrementalIndexer {
+  checkpointInterval: 1000;
+  batchSize: 500;
+  deltaTracking: boolean;
+}
+
+class IncrementalVectorIndexer {
+  async indexChanges(since: Date): Promise<void> {
+    // Track changes using PostgreSQL logical replication
+    const changes = await supabase
+      .from('documents_changes')
+      .select('*')
+      .gte('changed_at', since.toISOString())
+      .order('changed_at', { ascending: true });
+    
+    // Process in batches with checkpointing
+    for (const batch of chunk(changes.data, this.batchSize)) {
+      await this.processBatch(batch);
+      await this.saveCheckpoint(batch[batch.length - 1].changed_at);
+    }
+  }
+  
+  async reindexPartial(workspaceId: string): Promise<void> {
+    // Reindex specific workspace without affecting others
+    await supabase.rpc('reindex_workspace_vectors', {
+      workspace_id: workspaceId,
+      use_parallel: true
+    });
+  }
+}
+```
+
+5. Configure database connection pooling:
+```typescript
+// Supabase connection pool configuration
+const supabase = createClient(url, key, {
+  db: {
+    poolConfig: {
+      min: 5,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+      statement_timeout: 5000
+    }
+  },
+  global: {
+    headers: { 'x-connection-pool': 'vector-search' }
+  }
+});
+
+// PgBouncer configuration for production
+const pgBouncerConfig = {
+  pool_mode: 'transaction',
+  max_client_conn: 1000,
+  default_pool_size: 25,
+  reserve_pool_size: 5,
+  reserve_pool_timeout: 3,
+  server_lifetime: 3600,
+  server_idle_timeout: 600
+};
+```
+
+6. Implement sub-100ms search optimization:
+```typescript
+class OptimizedVectorSearch {
+  async search(query: string, options: SearchOptions): Promise<SearchResult[]> {
+    const cacheKey = this.getCacheKey(query, options);
+    
+    // Check cache first
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached;
+    
+    // Parallel execution of embedding generation and metadata prep
+    const [embedding, filters] = await Promise.all([
+      this.generateEmbedding(query),
+      this.prepareFilters(options)
+    ]);
+    
+    // Use prepared statement for performance
+    const results = await supabase.rpc('vector_search_optimized', {
+      query_embedding: embedding,
+      match_threshold: options.threshold || 0.8,
+      match_count: options.limit || 10,
+      filter_json: filters
+    });
+    
+    // Warm cache for next request
+    await this.cache.set(cacheKey, results.data, { ttl: 300 });
+    
+    return results.data;
+  }
+}
+```
+
+7. Create monitoring and performance dashboard:
+```typescript
+interface PerformanceMetrics {
+  searchLatency: Histogram;
+  cacheHitRate: Counter;
+  embeddingQueueDepth: Gauge;
+  indexingLag: Gauge;
+}
+
+class RAGMonitoring {
+  private metrics = {
+    searchLatency: new Histogram({
+      name: 'rag_search_latency_ms',
+      help: 'Search latency in milliseconds',
+      buckets: [10, 25, 50, 100, 250, 500, 1000]
+    }),
+    cacheHitRate: new Counter({
+      name: 'rag_cache_hits_total',
+      help: 'Total cache hits',
+      labelNames: ['layer']
+    })
+  };
+  
+  async recordSearch(duration: number, cacheHit: boolean): Promise<void> {
+    this.metrics.searchLatency.observe(duration);
+    if (cacheHit) {
+      this.metrics.cacheHitRate.inc({ layer: 'memory' });
+    }
+  }
+}
+```
+
+# Test Strategy:
+1. Load test vector search with 100k+ documents and verify p95 latency < 100ms using k6 or Artillery, testing various query patterns and workspace sizes.
+
+2. Verify cache hit rates > 80% for repeated queries by running same search queries multiple times and monitoring Redis and LRU cache statistics.
+
+3. Test parallel embedding generation processes 1000 documents in < 30 seconds by uploading batch of documents and measuring total processing time.
+
+4. Verify incremental indexing only processes changed documents by modifying subset of documents and confirming only those are re-indexed.
+
+5. Test connection pooling handles 500 concurrent searches without connection exhaustion by running parallel search requests and monitoring connection metrics.
+
+6. Verify HNSW index performance by comparing search times with and without indexes, expecting 10x+ improvement with indexes.
+
+7. Test cache invalidation works correctly when documents are updated by modifying documents and ensuring stale results are not returned.
+
+8. Verify monitoring dashboard shows accurate metrics by performing known operations and checking metric values match expected results.
+
+9. Test graceful degradation when Redis is unavailable by stopping Redis and ensuring searches still work (albeit slower).
+
+10. Verify memory usage stays within bounds under load by monitoring LRU cache size and ensuring it respects configured limits.
+
+# Subtasks:
+## 1. Set up pgvector extension and optimize indexes [pending]
+### Dependencies: None
+### Description: Install pgvector extension in Supabase, create optimized HNSW indexes with tuned parameters, and implement partial indexes for filtered searches
+### Details:
+Execute SQL migrations to enable pgvector extension, create HNSW index on documents table with m=16 and ef_construction=64, add partial indexes for workspace-filtered searches, create composite B-tree indexes for hybrid search on metadata JSONB columns. Test index performance with EXPLAIN ANALYZE queries.
+
+## 2. Implement Redis caching layer with connection management [pending]
+### Dependencies: None
+### Description: Set up Redis client with connection pooling, implement cache key strategies, and create Redis-based caching utilities
+### Details:
+Configure Redis client with BullMQ-compatible connection settings, implement connection pooling with retry logic, create standardized cache key generation functions for embeddings and search results, set up TTL strategies (3600s for Redis), implement cache invalidation patterns.
+
+## 3. Build LRU in-memory cache layer [pending]
+### Dependencies: None
+### Description: Implement LRU cache using lru-cache package with configurable size limits and TTL for fast in-memory caching
+### Details:
+Install and configure lru-cache package, implement LRUCache with max 1000 entries and 5-minute TTL, enable updateAgeOnGet and updateAgeOnHas options, create typed interfaces for EmbeddingResult caching, implement cache statistics tracking for hit/miss rates.
+
+## 4. Create multi-tier cache orchestration service [pending]
+### Dependencies: 16.2, 16.3
+### Description: Build VectorSearchCache class that coordinates between in-memory LRU and Redis caches with proper fallback logic
+### Details:
+Implement VectorSearchCache class with L1 (in-memory) and L2 (Redis) cache layers, create async get/set methods with proper error handling, implement cache warming strategies, add cache bypass options for testing, create cache statistics collection for monitoring.
+
+## 5. Set up BullMQ queue infrastructure for embeddings [pending]
+### Dependencies: 16.2
+### Description: Configure BullMQ queues with Redis backend for reliable embedding generation job processing
+### Details:
+Install BullMQ and configure embedding queue with Redis connection, set up job options with removeOnComplete, 3 retry attempts, exponential backoff, implement job priority system based on document priority, create queue monitoring utilities, add dead letter queue for failed jobs.
+
+## 6. Implement parallel embedding processor with batching [pending]
+### Dependencies: 16.5
+### Description: Create ParallelEmbeddingProcessor class that handles document batching and parallel job submission to BullMQ
+### Details:
+Implement document chunking with configurable batch size (100), create processBatch method for parallel job submission, implement priority-based job scheduling, add batch validation and error handling, create progress tracking for large batch operations, implement graceful shutdown handling.
+
+## 7. Build embedding generation workers with rate limiting [pending]
+### Dependencies: 16.5, 16.6
+### Description: Create BullMQ workers that process embedding jobs with OpenAI API integration and rate limiting
+### Details:
+Implement Worker class for embedding generation, integrate OpenAI embeddings API with text-embedding-3-small model, configure 5 concurrent workers with rate limiting (100 requests/minute), implement batch upsert to PostgreSQL using Supabase RPC, add error handling and retry logic for API failures.
+
+## 8. Create incremental indexing change tracking system [pending]
+### Dependencies: 16.1
+### Description: Implement database triggers and change tracking tables for incremental vector index updates
+### Details:
+Create documents_changes table with timestamp tracking, implement PostgreSQL triggers for INSERT/UPDATE/DELETE operations, add logical replication setup for change data capture, create checkpoint storage for resumable indexing, implement change aggregation to reduce redundant updates.
+
+## 9. Build incremental vector indexer service [pending]
+### Dependencies: 16.7, 16.8
+### Description: Create IncrementalVectorIndexer class that processes document changes in batches with checkpointing
+### Details:
+Implement indexChanges method to process changes since last checkpoint, create batch processing with configurable size (500), implement checkpoint saving after each batch, add workspace-specific reindexing capability, create progress reporting for long-running operations, implement parallel processing for independent workspaces.
+
+## 10. Configure Supabase connection pooling and optimization [pending]
+### Dependencies: None
+### Description: Set up optimized Supabase client with connection pooling and prepared statements for vector operations
+### Details:
+Configure Supabase client with min 5/max 20 connections, set appropriate timeouts (idle: 30s, connection: 2s, statement: 5s), implement connection pool monitoring, create prepared RPC functions for vector operations, configure PgBouncer settings for production, add connection retry logic.
+
+## 11. Implement optimized vector search with caching [pending]
+### Dependencies: 16.4, 16.10
+### Description: Create OptimizedVectorSearch class that combines caching, parallel execution, and prepared statements
+### Details:
+Implement search method with cache-first strategy, create parallel embedding generation and filter preparation, use prepared vector_search_optimized RPC function, implement result post-processing and ranking, add search relevance scoring adjustments, create search query analysis for optimization.
+
+## 12. Build performance monitoring system with Prometheus [pending]
+### Dependencies: None
+### Description: Create comprehensive monitoring for search latency, cache performance, and system health metrics
+### Details:
+Set up Prometheus client with histograms for search latency (buckets: 10-1000ms), implement cache hit rate counters for each layer, add gauges for queue depth and indexing lag, create custom metrics for vector operations, implement metric aggregation and export endpoints, add alerting rules for SLA violations.
+
+## 13. Create performance testing suite and benchmarks [pending]
+### Dependencies: 16.11, 16.12
+### Description: Develop comprehensive load testing scenarios to validate sub-100ms search performance
+### Details:
+Create k6 scripts for vector search load testing with 100k+ documents, implement various query patterns (exact, fuzzy, filtered), test different workspace sizes and document distributions, create performance regression tests, implement automated performance reporting, add memory and CPU profiling integration.
+
+## 14. Implement hot reload and cache warming strategies [pending]
+### Dependencies: 16.4, 16.11
+### Description: Build system for pre-warming caches and maintaining performance during deployments
+### Details:
+Create cache warming service for popular queries, implement rolling deployment support with connection draining, add predictive cache warming based on usage patterns, create cache persistence for deployment continuity, implement gradual traffic shifting for new deployments, add health checks for cache readiness.
+
+## 15. Build admin dashboard for RAG system monitoring [pending]
+### Dependencies: 16.12
+### Description: Create React-based dashboard for monitoring vector search performance, cache statistics, and system health
+### Details:
+Build real-time dashboard with search latency graphs, cache hit rate visualization, embedding queue depth monitoring, indexing lag tracking, create historical trend analysis, add drill-down capabilities for debugging, implement export functionality for reports, add system health alerts and notifications.
+

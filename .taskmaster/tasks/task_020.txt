@@ -1,0 +1,353 @@
+# Task ID: 20
+# Title: Rebuild Page Editor with Notion/Coda-style Block Architecture
+# Status: pending
+# Dependencies: 6, 14
+# Priority: high
+# Description: CRITICAL: Complete rebuild of the page editor to implement a production-ready block-based architecture similar to Notion and Coda, replacing the broken drag-and-drop canvas with inline block editing, slash commands, keyboard navigation, and virtual scrolling for optimal performance. This is blocking content creation and must be completed before Task 16 (RAG Infrastructure) since users cannot create content for the RAG system without a functional editor.
+# Details:
+**CRITICAL PRIORITY**: The editor is currently broken and preventing all content creation. This must be completed before Task 16 (RAG Infrastructure) can be useful, as the RAG system requires content to index.
+
+1. Create new block-based editor foundation with virtual scrolling:
+```typescript
+interface BlockEditorState {
+  blocks: Map<string, EditorBlock>;
+  selection: {
+    anchor: { blockId: string; offset: number };
+    focus: { blockId: string; offset: number };
+  };
+  virtualScrollState: {
+    viewportHeight: number;
+    scrollTop: number;
+    visibleRange: { start: number; end: number };
+    blockHeights: Map<string, number>;
+  };
+}
+
+interface EditorBlock {
+  id: string;
+  type: BlockType;
+  content: any;
+  children?: string[];
+  parent?: string;
+  metadata: {
+    createdAt: Date;
+    updatedAt: Date;
+    version: number;
+  };
+}
+```
+
+2. Implement slash command system with fuzzy search:
+```typescript
+class SlashCommandHandler {
+  private commands = new Map<string, CommandDefinition>();
+  
+  registerCommand(command: CommandDefinition) {
+    this.commands.set(command.trigger, command);
+  }
+  
+  async handleSlashTrigger(query: string): Promise<CommandSuggestion[]> {
+    const fuse = new Fuse(Array.from(this.commands.values()), {
+      keys: ['name', 'description', 'aliases'],
+      threshold: 0.3
+    });
+    return fuse.search(query).slice(0, 10);
+  }
+}
+```
+
+3. Build keyboard navigation system:
+```typescript
+class KeyboardNavigationHandler {
+  private shortcuts = new Map<string, NavigationAction>();
+  
+  constructor() {
+    this.registerShortcuts();
+  }
+  
+  private registerShortcuts() {
+    this.shortcuts.set('ArrowUp', this.moveToPreviousBlock);
+    this.shortcuts.set('ArrowDown', this.moveToNextBlock);
+    this.shortcuts.set('Tab', this.indentBlock);
+    this.shortcuts.set('Shift+Tab', this.outdentBlock);
+    this.shortcuts.set('Cmd+Enter', this.createNewBlock);
+    this.shortcuts.set('Cmd+D', this.duplicateBlock);
+    this.shortcuts.set('Cmd+Shift+Up', this.moveBlockUp);
+    this.shortcuts.set('Cmd+Shift+Down', this.moveBlockDown);
+  }
+}
+```
+
+4. Implement virtual scrolling with react-window:
+```typescript
+import { VariableSizeList } from 'react-window';
+import AutoSizer from 'react-virtualized-auto-sizer';
+
+const VirtualBlockEditor: React.FC = () => {
+  const rowHeights = useRef<Map<number, number>>(new Map());
+  
+  const getItemSize = (index: number) => {
+    return rowHeights.current.get(index) || 50;
+  };
+  
+  const setItemSize = (index: number, size: number) => {
+    if (rowHeights.current.get(index) !== size) {
+      rowHeights.current.set(index, size);
+      listRef.current?.resetAfterIndex(index);
+    }
+  };
+  
+  return (
+    <AutoSizer>
+      {({ height, width }) => (
+        <VariableSizeList
+          ref={listRef}
+          height={height}
+          width={width}
+          itemCount={blocks.length}
+          itemSize={getItemSize}
+          overscanCount={5}
+        >
+          {BlockRenderer}
+        </VariableSizeList>
+      )}
+    </AutoSizer>
+  );
+};
+```
+
+5. Create inline block editing with contentEditable:
+```typescript
+const EditableBlock: React.FC<BlockProps> = ({ block, onUpdate }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  
+  const handleInput = useCallback((e: React.FormEvent) => {
+    const content = e.currentTarget.textContent || '';
+    onUpdate(block.id, { content });
+  }, [block.id, onUpdate]);
+  
+  return (
+    <div
+      ref={contentRef}
+      contentEditable={isEditing}
+      suppressContentEditableWarning
+      onFocus={() => setIsEditing(true)}
+      onBlur={() => setIsEditing(false)}
+      onInput={handleInput}
+      className="block-content"
+    />
+  );
+};
+```
+
+6. Implement block transformation system:
+```typescript
+class BlockTransformer {
+  async transformBlock(block: EditorBlock, targetType: BlockType): Promise<EditorBlock> {
+    const transformer = this.getTransformer(block.type, targetType);
+    if (!transformer) {
+      throw new Error(`No transformer from ${block.type} to ${targetType}`);
+    }
+    return transformer(block);
+  }
+  
+  private transformers = new Map<string, TransformFunction>();
+  
+  registerTransformer(from: BlockType, to: BlockType, fn: TransformFunction) {
+    this.transformers.set(`${from}->${to}`, fn);
+  }
+}
+```
+
+7. Add real-time collaboration with Supabase Realtime:
+```typescript
+const useCollaborativeEditing = (pageId: string) => {
+  useEffect(() => {
+    const channel = supabase
+      .channel(`page:${pageId}`)
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        updateCollaboratorCursors(state);
+      })
+      .on('broadcast', { event: 'block-update' }, ({ payload }) => {
+        applyRemoteBlockUpdate(payload);
+      })
+      .subscribe();
+      
+    return () => { channel.unsubscribe(); };
+  }, [pageId]);
+};
+```
+
+8. Performance optimizations:
+```typescript
+// Debounced save with diff detection
+const useDebouncedSave = (blocks: Map<string, EditorBlock>) => {
+  const previousBlocks = useRef(blocks);
+  
+  const saveChanges = useMemo(
+    () => debounce(async (changedBlocks: EditorBlock[]) => {
+      await supabase
+        .from('blocks')
+        .upsert(changedBlocks);
+    }, 500),
+    []
+  );
+  
+  useEffect(() => {
+    const changes = diffBlocks(previousBlocks.current, blocks);
+    if (changes.length > 0) {
+      saveChanges(changes);
+      previousBlocks.current = blocks;
+    }
+  }, [blocks, saveChanges]);
+};
+```
+
+# Test Strategy:
+**CRITICAL: Test that the editor functions at all before Task 16 implementation begins.**
+
+1. Test virtual scrolling performance by creating a page with 10,000+ blocks and verify smooth scrolling at 60fps, memory usage stays under 100MB, and only visible blocks are rendered in DOM (check with React DevTools).
+
+2. Verify slash command functionality by typing '/' in any block and confirming command palette appears within 50ms, fuzzy search works correctly (e.g., '/h1' shows heading options), and selected commands transform blocks properly.
+
+3. Test keyboard navigation by using arrow keys to move between blocks, Tab/Shift+Tab for indentation, Cmd+Enter to create new blocks, and verify all shortcuts work consistently across different block types.
+
+4. Validate inline editing by clicking on any block to enter edit mode, typing to update content, and confirming changes save automatically with debouncing (network tab should show saves every 500ms during continuous typing).
+
+5. Test block transformations by selecting text blocks and converting to headings, lists, code blocks, and verify content is preserved correctly during transformation.
+
+6. Verify real-time collaboration by opening the same page in multiple browser tabs, editing blocks simultaneously, and confirming updates appear in real-time with presence indicators.
+
+7. Load test the editor with various content sizes: empty page, 100 blocks, 1000 blocks, 10000 blocks, and verify initial load time < 1s for pages under 1000 blocks.
+
+8. Test error recovery by simulating network failures during save operations and verify the editor maintains local state and retries failed saves automatically.
+
+9. Validate accessibility by testing keyboard-only navigation, screen reader compatibility, and ARIA labels on all interactive elements.
+
+10. Performance profile the editor using Chrome DevTools to ensure no memory leaks during extended editing sessions (1+ hour) and no performance degradation over time.
+
+11. **CRITICAL: Verify basic content creation works - users must be able to create and save content before Task 16 RAG system can index it.**
+
+# Subtasks:
+## 1. Set up Tiptap editor foundation with virtual scrolling [pending]
+### Dependencies: None
+### Description: Replace current PageEditor.tsx with Tiptap-based block editor and implement virtual scrolling for performance
+### Details:
+Install Tiptap and dependencies (@tiptap/react, @tiptap/starter-kit, @tanstack/react-virtual). Create new BlockEditor component with hierarchical block structure. Implement virtual scrolling to handle 10,000+ blocks efficiently. Set up block state management with Zustand. Create base block rendering pipeline with memoization.
+
+## 2. Implement command pattern for undo/redo with coalescing [pending]
+### Dependencies: 20.1
+### Description: Build robust undo/redo system with operation coalescing for optimal user experience
+### Details:
+Create Command interface with execute/undo/canMerge/merge methods. Implement 200ms debounce for continuous operations. Build history stack with 50-state limit. Add operation coalescing for typing and formatting. Create keyboard shortcuts (Cmd+Z, Cmd+Shift+Z).
+
+## 3. Build slash command system with fuzzy search [pending]
+### Dependencies: 20.1
+### Description: Create Notion-style slash command palette with intelligent fuzzy matching
+### Details:
+Implement SlashCommandHandler with command registry. Add Fuse.js for fuzzy search matching. Create command palette UI with keyboard navigation. Build command categories (basic, formatting, advanced). Add context-aware suggestions. Ensure < 50ms response time.
+
+## 4. Implement keyboard navigation between blocks [pending]
+### Dependencies: 20.1
+### Description: Build comprehensive keyboard navigation system for efficient block manipulation
+### Details:
+Create KeyboardNavigationHandler with shortcut registry. Implement arrow key navigation between blocks. Add Tab/Shift+Tab for indentation. Build Cmd+Enter for new blocks. Add Cmd+D for duplication. Implement Cmd+Shift+Up/Down for moving blocks.
+
+## 5. Create inline rich text editing with contentEditable [pending]
+### Dependencies: 20.1, 20.3
+### Description: Implement inline editing capabilities within blocks with rich text support
+### Details:
+Build EditableBlock component with contentEditable. Add rich text formatting (bold, italic, underline, code). Implement focus management and cursor positioning. Create text selection handling. Add paste handling with formatting preservation.
+
+## 6. Build multi-block selection system [pending]
+### Dependencies: 20.4, 20.5
+### Description: Implement multi-block selection for bulk operations
+### Details:
+Create selection state management. Implement Shift+Click for range selection. Add Cmd+A for select all. Build visual selection indicators. Create bulk operations (delete, move, transform). Add selection keyboard navigation.
+
+## 7. Implement core block types [pending]
+### Dependencies: 20.5
+### Description: Create essential block types: paragraph, headings, lists, code blocks
+### Details:
+Build paragraph block with rich text. Create heading blocks (h1-h6). Implement ordered/unordered lists with nesting. Add code blocks with Prism.js syntax highlighting. Create block transformation logic between types.
+
+## 8. Add advanced block types [pending]
+### Dependencies: 20.7
+### Description: Implement tables, images, videos, quotes, callouts, and collapsible blocks
+### Details:
+Create table blocks with cell editing. Implement image/video blocks with upload. Build quote and callout blocks. Add toggle/collapsible blocks. Create math blocks with KaTeX. Implement block-specific toolbars.
+
+## 9. Optimize database with JSONB indexes [pending]
+### Dependencies: None
+### Description: Add performance-critical database indexes and query optimizations
+### Details:
+Create GIN indexes on JSONB content fields. Add B-tree indexes for frequent queries. Optimize block retrieval queries. Implement efficient bulk operations. Add query performance monitoring.
+
+## 10. Implement client-side caching and memoization [pending]
+### Dependencies: 20.1
+### Description: Add caching layers for optimal performance during editing
+### Details:
+Implement IndexedDB for block caching. Add React.memo for block components. Create block diff detection. Build intelligent cache invalidation. Add memory management for long sessions.
+
+## 11. Build debounced auto-save with conflict resolution [pending]
+### Dependencies: 20.5, 20.10
+### Description: Create reliable auto-save system with conflict handling
+### Details:
+Implement 500ms debounced save. Create diff detection for changed blocks. Build conflict resolution UI. Add offline queue for failed saves. Implement retry logic with exponential backoff.
+
+## 12. Add real-time collaboration infrastructure [pending]
+### Dependencies: 20.11
+### Description: Implement multi-user editing with Supabase Realtime
+### Details:
+Set up Supabase Realtime channels. Implement presence tracking with cursors. Build operational transform for conflicts. Add user awareness indicators. Create collaboration permissions.
+
+## 13. Create block plugin system [pending]
+### Dependencies: 20.7, 20.8
+### Description: Build extensible architecture for custom block types
+### Details:
+Design plugin API for custom blocks. Create block registry system. Implement plugin lifecycle hooks. Build plugin configuration UI. Add plugin sandboxing for security.
+
+## 14. Implement mobile touch interactions [pending]
+### Dependencies: 20.5, 20.6
+### Description: Add comprehensive touch support for mobile editing
+### Details:
+Add touch gesture recognition. Implement long-press for selection. Create touch-friendly block handles. Build mobile-optimized toolbar. Add viewport management for mobile keyboards.
+
+## 15. Add accessibility features [pending]
+### Dependencies: 20.4, 20.5
+### Description: Ensure WCAG 2.1 AA compliance with comprehensive accessibility
+### Details:
+Add ARIA labels and roles. Implement screen reader announcements. Create high contrast mode. Build keyboard-only navigation. Add focus indicators and skip links.
+
+## 16. Build content migration tool [pending]
+### Dependencies: 20.7
+### Description: Create tool to migrate existing canvas-based content to block format
+### Details:
+Analyze existing page content structure. Build migration transformers for each element type. Create batch migration system. Add rollback capability. Implement migration progress tracking.
+
+## 17. Create comprehensive test suite [pending]
+### Dependencies: 20.1, 20.3, 20.5, 20.7
+### Description: Build unit, integration, and e2e tests for editor reliability
+### Details:
+Write unit tests for all components. Create integration tests for features. Build e2e tests with Playwright. Add performance benchmarks. Implement visual regression tests.
+
+## 18. Performance testing and optimization [pending]
+### Dependencies: 20.17
+### Description: Conduct thorough performance testing and optimization
+### Details:
+Test with 10,000+ block documents. Profile memory usage patterns. Optimize render performance. Add performance monitoring. Create performance dashboard.
+
+## 19. Cross-browser compatibility testing [pending]
+### Dependencies: 20.17
+### Description: Ensure editor works across all major browsers
+### Details:
+Test on Chrome, Firefox, Safari, Edge. Verify feature parity across browsers. Fix browser-specific issues. Add browser detection and polyfills. Create compatibility matrix.
+
+## 20. Production deployment preparation [pending]
+### Dependencies: 20.18, 20.19
+### Description: Prepare editor for production deployment with monitoring
+### Details:
+Set up feature flags for gradual rollout. Add error tracking with Sentry. Implement analytics and telemetry. Create rollback procedures. Build admin monitoring dashboard.
+
