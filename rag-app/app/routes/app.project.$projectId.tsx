@@ -72,6 +72,16 @@ export async function action({ request, params }: ActionFunctionArgs) {
   if (intent === "create-page") {
     const title = formData.get("title") as string || "Untitled Page";
     
+    // Get the project to get workspace_id
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { workspaceId: true }
+    });
+    
+    if (!project) {
+      return json({ error: "Project not found" }, { status: 404 });
+    }
+    
     // Generate slug from title
     const baseSlug = title.trim().toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -109,6 +119,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
       
       console.log("Creating page with data:", {
         projectId,
+        workspaceId: project.workspaceId,
         title,
         slug,
         content: JSON.stringify({}),
@@ -116,24 +127,42 @@ export async function action({ request, params }: ActionFunctionArgs) {
         metadata,
         isPublic: false,
         isArchived: false,
+        createdBy: user.id,
       });
       
-      const page = await prisma.page.create({
-        data: {
-          projectId,
-          title,
-          slug,
-          content: JSON.stringify({}),  // Convert to JSON string
-          position: 0,
-          metadata,  // Prisma handles JSON type automatically
-          isPublic: false,
-          isArchived: false,
-        }
-      });
+      const page = await prisma.$executeRaw`
+        INSERT INTO pages (
+          id, project_id, workspace_id, title, slug, content, 
+          position, metadata, is_public, is_archived, created_by
+        ) VALUES (
+          gen_random_uuid(),
+          ${projectId}::uuid,
+          ${project.workspaceId},
+          ${title},
+          ${slug},
+          ${JSON.stringify({})}::jsonb,
+          0,
+          ${JSON.stringify(metadata)}::jsonb,
+          false,
+          false,
+          ${user.id}
+        ) RETURNING id
+      `;
+      
+      // Get the created page ID
+      const createdPage = await prisma.$queryRaw`
+        SELECT id FROM pages 
+        WHERE project_id = ${projectId}::uuid 
+        AND slug = ${slug}
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+      
+      const pageId = (createdPage as any[])[0]?.id;
 
-      console.log("Page created successfully:", page.id);
+      console.log("Page created successfully:", pageId);
       // Redirect to the editor for the new page
-      return redirect(`/editor/${page.id}`);
+      return redirect(`/editor/${pageId}`);
     } catch (error) {
       console.error("Error creating page - Full error:", error);
       console.error("Error stack:", error instanceof Error ? error.stack : "No stack");

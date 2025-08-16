@@ -22,6 +22,17 @@ export default defineConfig({
     sourcemap: true,
   },
   optimizeDeps: {
-    include: ['react', 'react-dom'],
+    include: [
+      'react', 
+      'react-dom',
+      '@dnd-kit/core',
+      '@dnd-kit/sortable',
+      '@dnd-kit/utilities',
+      'uuid',
+      '@heroicons/react/24/outline',
+      '@heroicons/react/24/solid'
+    ],
+    exclude: ['@mapbox/node-pre-gyp'],
+    force: true, // Force re-optimization
   },
 });

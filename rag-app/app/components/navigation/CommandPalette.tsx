@@ -20,23 +20,38 @@ interface CommandItem {
   keywords?: string[];
 }
 
-export function CommandPalette() {
-  const [open, setOpen] = useState(false);
+interface CommandPaletteProps {
+  open?: boolean;
+  onClose?: () => void;
+}
+
+export function CommandPalette({ open: externalOpen, onClose }: CommandPaletteProps = {}) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
+  
+  // Use external open state if provided, otherwise use internal state
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = onClose ? (value: boolean | ((prev: boolean) => boolean)) => {
+    const newValue = typeof value === 'function' ? value(open) : value;
+    if (!newValue) onClose();
+  } : setInternalOpen;
 
   // Toggle command palette with Cmd+K
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setOpen((open) => !open);
+        if (externalOpen === undefined) {
+          // Only toggle internal state if not controlled externally
+          setInternalOpen((open) => !open);
+        }
       }
     };
 
     document.addEventListener('keydown', down);
     return () => document.removeEventListener('keydown', down);
-  }, []);
+  }, [externalOpen]);
 
   // Navigation items
   const navigationItems: CommandItem[] = [
@@ -93,21 +108,7 @@ export function CommandPalette() {
   const allItems = [...navigationItems, ...actionItems];
 
   return (
-    <>
-      {/* Search trigger button */}
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center px-3 py-1.5 text-sm text-gray-500 bg-gray-50 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
-      >
-        <MagnifyingGlassIcon className="h-4 w-4 mr-2" />
-        <span className="hidden sm:inline">Search...</span>
-        <kbd className="ml-auto hidden sm:inline-flex items-center px-1.5 py-0.5 text-xs text-gray-500 bg-gray-100 rounded">
-          ⌘K
-        </kbd>
-      </button>
-
-      {/* Command Palette Dialog */}
-      <Command.Dialog
+    <Command.Dialog
         open={open}
         onOpenChange={setOpen}
         label="Global Command Menu"
@@ -207,6 +208,5 @@ export function CommandPalette() {
           </div>
         </div>
       </Command.Dialog>
-    </>
   );
 }
