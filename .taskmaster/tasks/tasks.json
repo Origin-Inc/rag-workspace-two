@@ -2974,7 +2974,7 @@
             "id": 7,
             "title": "Implement core block types",
             "description": "Create essential block types: paragraph, headings, lists, code blocks",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               5
             ],
@@ -3135,7 +3135,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-08-16T14:19:55.301Z",
+      "updated": "2025-08-16T16:57:35.199Z",
       "description": "Tasks for master context"
     }
   }
