@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { TiptapEditor } from "~/components/editor/TiptapEditor";
 import { BlockEditor } from "~/components/editor/BlockEditor";
+import { LexicalBlockEditor } from "~/components/editor/LexicalBlockEditor";
+import { ClientOnly } from "~/components/ClientOnly";
 
 export default function TestEditor() {
   const [activeEditor, setActiveEditor] = useState<'tiptap' | 'blocks'>('blocks');
@@ -78,26 +80,28 @@ export default function TestEditor() {
             </p>
           </div>
           
-          {activeEditor === 'tiptap' ? (
-            <TiptapEditor
-              content={content}
-              onChange={setContent}
-              onSave={handleSave}
-              editable={true}
-              placeholder="Start typing or press '/' for commands..."
-              className="min-h-[600px]"
-              autoFocus
-            />
-          ) : (
-            <div className="h-[600px]">
-              <BlockEditor
-                initialBlocks={blocks}
-                onChange={setBlocks}
-                onSave={(blocks) => console.log('Saving blocks:', blocks)}
-                className="h-full"
+          <ClientOnly fallback={<div className="h-[600px] bg-gray-50 animate-pulse rounded-lg" />}>
+            {activeEditor === 'tiptap' ? (
+              <TiptapEditor
+                content={content}
+                onChange={setContent}
+                onSave={handleSave}
+                editable={true}
+                placeholder="Start typing or press '/' for commands..."
+                className="min-h-[600px]"
+                autoFocus
               />
-            </div>
-          )}
+            ) : (
+              <div className="h-[600px]">
+                <LexicalBlockEditor
+                  initialBlocks={blocks}
+                  onChange={setBlocks}
+                  onSave={(blocks) => console.log('Saving blocks:', blocks)}
+                  className="h-full"
+                />
+              </div>
+            )}
+          </ClientOnly>
         </div>
         
         <div className="mt-8 bg-white rounded-lg shadow-lg p-6">
