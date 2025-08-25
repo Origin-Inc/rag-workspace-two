@@ -2983,29 +2983,92 @@
           },
           {
             "id": 8,
-            "title": "Add advanced block types",
-            "description": "Implement tables, images, videos, quotes, callouts, and collapsible blocks",
-            "status": "pending",
+            "title": "Add basic advanced block types",
+            "description": "Implement embedding, toggle, and callout blocks as advanced block types",
+            "status": "deferred",
             "dependencies": [
-              7
+              7,
+              10,
+              11,
+              12,
+              13,
+              14
             ],
-            "details": "Create table blocks with cell editing. Implement image/video blocks with upload. Build quote and callout blocks. Add toggle/collapsible blocks. Create math blocks with KaTeX. Implement block-specific toolbars.",
-            "testStrategy": "Test table cell editing and navigation. Verify media upload and display. Check collapsible blocks expand/collapse. Test math rendering with KaTeX. Validate block-specific features."
+            "details": "Create three essential advanced block types: 1) Embedding blocks for external content (YouTube, Twitter, etc.), 2) Toggle blocks for collapsible content sections, 3) Callout blocks for highlighted information boxes. The database block is handled separately in subtasks 20.10-20.14.",
+            "testStrategy": "Test embedding with various URLs, verify toggle expand/collapse functionality, test callout styling and icons"
           },
           {
             "id": 9,
             "title": "Optimize database with JSONB indexes",
             "description": "Add performance-critical database indexes and query optimizations",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "Create GIN indexes on JSONB content fields. Add B-tree indexes for frequent queries. Optimize block retrieval queries. Implement efficient bulk operations. Add query performance monitoring.",
             "testStrategy": "Benchmark query performance before/after indexes. Test bulk operations performance. Verify index usage with EXPLAIN ANALYZE. Check query response times < 100ms."
           },
           {
             "id": 10,
+            "title": "Database Block Core Infrastructure",
+            "description": "Implement the foundational database block with schema definition, CRUD operations, and basic table view",
+            "dependencies": [
+              7
+            ],
+            "details": "Create the core database block infrastructure with flexible schema, efficient data storage using JSONB, basic CRUD operations, and a performant table view component. This forms the foundation for the 50,000+ record handling capability.",
+            "status": "done",
+            "testStrategy": "Test basic CRUD operations, verify schema flexibility, test with 1000+ records for initial performance baseline"
+          },
+          {
+            "id": 11,
+            "title": "Database Block Schema & Storage Layer",
+            "description": "Build the advanced schema system with column types, validation, and optimized storage",
+            "dependencies": [
+              10
+            ],
+            "details": "Implement comprehensive column types (text, number, date, select, multi-select, relation, formula, rollup), validation rules, indexed columns for performance, and JSONB storage optimization for 50k+ records.",
+            "status": "done",
+            "testStrategy": "Test all column types, verify validation rules, test schema migrations, benchmark with 10,000+ records"
+          },
+          {
+            "id": 12,
+            "title": "Formula Engine Implementation",
+            "description": "Create the formula evaluation engine with dependency tracking and incremental updates",
+            "dependencies": [
+              11
+            ],
+            "details": "Build a secure formula engine using expr-eval or similar, implement dependency graph tracking, support 40+ built-in functions, enable incremental evaluation for performance, and add formula autocomplete with IntelliSense.",
+            "status": "done",
+            "testStrategy": "Test complex formulas, verify dependency tracking, test circular reference detection, benchmark formula evaluation with 1000+ formula cells"
+          },
+          {
+            "id": 13,
+            "title": "Database Block Advanced Views & Features",
+            "description": "Implement advanced view types including table, kanban, calendar, gallery, and timeline views",
+            "dependencies": [
+              11
+            ],
+            "details": "Create multiple view types with virtual scrolling, implement filtering and sorting UI, add grouping capabilities, build view-specific features (drag-drop for kanban, date navigation for calendar), and optimize for 50k+ records.",
+            "status": "done",
+            "testStrategy": "Test each view type with large datasets, verify view switching performance, test filtering/sorting with complex queries"
+          },
+          {
+            "id": 14,
+            "title": "Database Block Performance & Scale Optimization",
+            "description": "Optimize the database block to handle 50,000+ records with 40+ properties efficiently",
+            "dependencies": [
+              10,
+              11,
+              12,
+              13
+            ],
+            "details": "Implement virtual scrolling with react-window, add Redis caching layer, optimize queries with proper indexes, implement pagination and lazy loading, add performance monitoring, and ensure smooth operation with 50k+ records.",
+            "status": "in-progress",
+            "testStrategy": "Load test with 50,000+ records, verify 60fps scrolling, test complex queries under 100ms, monitor memory usage stays under 200MB"
+          },
+          {
+            "id": 15,
             "title": "Implement client-side caching and memoization",
             "description": "Add caching layers for optimal performance during editing",
-            "status": "pending",
+            "status": "deferred",
             "dependencies": [
               1
             ],
@@ -3013,33 +3076,33 @@
             "testStrategy": "Verify blocks are cached in IndexedDB. Check re-renders are minimized. Test cache invalidation works correctly. Monitor memory usage over time. Validate long session performance."
           },
           {
-            "id": 11,
+            "id": 16,
             "title": "Build debounced auto-save with conflict resolution",
             "description": "Create reliable auto-save system with conflict handling",
-            "status": "pending",
+            "status": "deferred",
             "dependencies": [
               5,
-              10
+              15
             ],
             "details": "Implement 500ms debounced save. Create diff detection for changed blocks. Build conflict resolution UI. Add offline queue for failed saves. Implement retry logic with exponential backoff.",
             "testStrategy": "Monitor network tab for 500ms save intervals. Test conflict resolution with concurrent edits. Verify offline saves queue properly. Check retry logic works. Test data integrity."
           },
           {
-            "id": 12,
+            "id": 17,
             "title": "Add real-time collaboration infrastructure",
             "description": "Implement multi-user editing with Supabase Realtime",
-            "status": "pending",
+            "status": "deferred",
             "dependencies": [
-              11
+              16
             ],
             "details": "Set up Supabase Realtime channels. Implement presence tracking with cursors. Build operational transform for conflicts. Add user awareness indicators. Create collaboration permissions.",
             "testStrategy": "Open multiple tabs and verify real-time sync. Test cursor positions are shared. Check conflict resolution works. Verify presence indicators update. Test permission enforcement."
           },
           {
-            "id": 13,
+            "id": 18,
             "title": "Create block plugin system",
             "description": "Build extensible architecture for custom block types",
-            "status": "pending",
+            "status": "deferred",
             "dependencies": [
               7,
               8
@@ -3048,10 +3111,10 @@
             "testStrategy": "Create sample custom block plugin. Test plugin registration and lifecycle. Verify plugin isolation. Check configuration persistence. Test plugin error handling."
           },
           {
-            "id": 14,
+            "id": 19,
             "title": "Implement mobile touch interactions",
             "description": "Add comprehensive touch support for mobile editing",
-            "status": "pending",
+            "status": "deferred",
             "dependencies": [
               5,
               6
@@ -3060,10 +3123,10 @@
             "testStrategy": "Test on iOS and Android devices. Verify touch selection works. Check toolbar accessibility on mobile. Test with mobile keyboards. Validate responsive design."
           },
           {
-            "id": 15,
+            "id": 20,
             "title": "Add accessibility features",
             "description": "Ensure WCAG 2.1 AA compliance with comprehensive accessibility",
-            "status": "pending",
+            "status": "deferred",
             "dependencies": [
               4,
               5
@@ -3072,10 +3135,10 @@
             "testStrategy": "Test with NVDA/JAWS screen readers. Verify keyboard-only navigation. Check WCAG 2.1 AA compliance. Test high contrast mode. Validate focus management."
           },
           {
-            "id": 16,
+            "id": 21,
             "title": "Build content migration tool",
             "description": "Create tool to migrate existing canvas-based content to block format",
-            "status": "pending",
+            "status": "deferred",
             "dependencies": [
               7
             ],
@@ -3083,10 +3146,10 @@
             "testStrategy": "Test migration preserves all content. Verify data integrity after migration. Check rollback works correctly. Test with various content types. Validate no data loss."
           },
           {
-            "id": 17,
+            "id": 22,
             "title": "Create comprehensive test suite",
             "description": "Build unit, integration, and e2e tests for editor reliability",
-            "status": "pending",
+            "status": "deferred",
             "dependencies": [
               1,
               3,
@@ -3097,45 +3160,564 @@
             "testStrategy": "Achieve > 80% code coverage. Run e2e tests on all browsers. Verify performance benchmarks pass. Check visual regression tests. Validate CI/CD integration."
           },
           {
-            "id": 18,
+            "id": 23,
             "title": "Performance testing and optimization",
             "description": "Conduct thorough performance testing and optimization",
-            "status": "pending",
+            "status": "deferred",
             "dependencies": [
-              17
+              22
             ],
             "details": "Test with 10,000+ block documents. Profile memory usage patterns. Optimize render performance. Add performance monitoring. Create performance dashboard.",
             "testStrategy": "Load 10,000 blocks in < 3 seconds. Maintain 60fps during scrolling. Keep memory < 100MB. Verify no memory leaks. Check metrics dashboard works."
           },
           {
-            "id": 19,
+            "id": 24,
             "title": "Cross-browser compatibility testing",
             "description": "Ensure editor works across all major browsers",
-            "status": "pending",
+            "status": "deferred",
             "dependencies": [
-              17
+              22
             ],
             "details": "Test on Chrome, Firefox, Safari, Edge. Verify feature parity across browsers. Fix browser-specific issues. Add browser detection and polyfills. Create compatibility matrix.",
             "testStrategy": "Test all features on each browser. Verify consistent behavior. Check performance is similar. Test with older browser versions. Document any limitations."
           },
           {
-            "id": 20,
+            "id": 25,
             "title": "Production deployment preparation",
             "description": "Prepare editor for production deployment with monitoring",
-            "status": "pending",
+            "status": "deferred",
             "dependencies": [
-              18,
-              19
+              23,
+              24
             ],
             "details": "Set up feature flags for gradual rollout. Add error tracking with Sentry. Implement analytics and telemetry. Create rollback procedures. Build admin monitoring dashboard.",
             "testStrategy": "Test feature flags work correctly. Verify error tracking captures issues. Check telemetry data flows. Test rollback procedures. Validate monitoring dashboard."
+          },
+          {
+            "id": 26,
+            "title": "Create base view components for table, kanban, and gallery views",
+            "description": "Implement the foundational view components with proper abstraction for data display, virtual scrolling support, and view-specific interactions while maintaining shared functionality across all view types",
+            "dependencies": [
+              "20.1",
+              "20.2"
+            ],
+            "details": "Build ViewRenderer abstract base component with shared state management, implement TableView with react-window FixedSizeGrid for virtual scrolling, create KanbanView with drag-and-drop columns using @dnd-kit/sortable, develop GalleryView with masonry layout and react-window support, ensure all views integrate with existing DatabaseBlockEnhanced service, implement view configuration storage in database_views table, add ViewContext provider for sharing state between views",
+            "status": "deferred",
+            "testStrategy": "Test each view renders 10,000+ records without performance degradation, verify virtual scrolling maintains 60fps scrolling, test drag-and-drop in kanban preserves data integrity, ensure view switching maintains scroll position and selection state"
+          },
+          {
+            "id": 27,
+            "title": "Implement calendar and timeline views with date-based navigation",
+            "description": "Build advanced chronological views with month/week/day display modes for calendar, horizontal timeline with zoom controls, and proper date range calculations for efficient data fetching",
+            "dependencies": [],
+            "details": "Create CalendarView component with month grid layout using CSS Grid, implement week and day views with time slots, build TimelineView with horizontal scrolling and zoom levels (day/week/month/quarter/year), add date range picker for navigation, implement smart data fetching based on visible date range, create recurring event support for calendar entries, add drag-to-reschedule functionality for both views, integrate with existing date/datetime column types",
+            "status": "done",
+            "testStrategy": "Test calendar handles 1000+ events per month without lag, verify timeline zoom maintains selection state, test drag-to-reschedule updates database correctly, ensure date navigation fetches only required data range"
+          },
+          {
+            "id": 28,
+            "title": "Build advanced filtering and grouping UI with query builder",
+            "description": "Create sophisticated filter builder with AND/OR logic, nested conditions, saved filter sets, and dynamic grouping capabilities that update views in real-time without full data reload",
+            "dependencies": [],
+            "details": "Implement FilterBuilder component with nested condition groups, create filter operators specific to each column type (text contains/starts/ends, number ranges, date before/after/between), build GroupingSelector with multi-level grouping support, add saved filter presets stored per view, implement filter chip display with quick toggle, create server-side filter compilation to SQL WHERE clauses, optimize with indexed columns for common filters, add filter validation and error handling",
+            "status": "deferred",
+            "testStrategy": "Test complex nested filters (3+ levels) execute in under 200ms, verify filter changes trigger minimal re-renders, test saved filters persist across sessions, ensure grouping works with 50k+ records efficiently"
+          },
+          {
+            "id": 29,
+            "title": "Implement view-specific features and interactions",
+            "description": "Add specialized functionality for each view type including kanban swimlanes, calendar event details, gallery card customization, and timeline milestones with proper performance optimization",
+            "dependencies": [],
+            "details": "For Kanban: implement swimlanes with collapsible groups, add WIP limits per column, create card preview on hover, build quick edit inline forms. For Calendar: add event creation by clicking dates, implement recurring events UI, create event detail popover. For Gallery: build card template editor, add image lazy loading with intersection observer, implement masonry vs grid layout toggle. For Timeline: add milestone markers, implement dependency lines between items, create zoom-to-fit functionality",
+            "status": "deferred",
+            "testStrategy": "Test kanban handles 500+ cards per column smoothly, verify calendar event creation takes under 100ms, test gallery lazy loads images progressively, ensure timeline renders 1000+ items with dependencies"
+          },
+          {
+            "id": 30,
+            "title": "Optimize rendering performance for 50k+ records across all views",
+            "description": "Implement advanced performance optimizations including windowing, memoization, request debouncing, and progressive data loading to ensure smooth interaction with massive datasets",
+            "dependencies": [],
+            "details": "Implement react-window for all scrollable areas with dynamic item sizes, add React.memo and useMemo for expensive computations, create intersection observer for progressive loading, implement request debouncing (500ms) for filter/sort changes, add IndexedDB caching for recently viewed data, optimize SQL queries with proper indexes and LIMIT/OFFSET, implement virtual DOM recycling for view transitions, add performance monitoring with reportWebVitals, create fallback to pagination if dataset exceeds threshold",
+            "status": "deferred",
+            "testStrategy": "Load test with 50,000 records verifying < 3s initial load, test continuous scrolling maintains 60fps, verify memory usage stays under 200MB, test filter/sort operations complete in under 500ms, ensure no memory leaks during extended use"
           }
         ]
+      },
+      {
+        "id": 21,
+        "title": "Enhance Database Block with AI Analysis",
+        "description": "Add AI analysis capabilities to the existing editable database block. Keep all editing features but add an 'Analyze with AI' button that opens an AI block pre-loaded with the database context. This creates the wow factor of seamless data analysis.",
+        "status": "done",
+        "dependencies": [
+          4
+        ],
+        "priority": "high",
+        "details": "1. Keep the existing database block fully editable with all current features (including complex views, formula engine, and virtual scrolling). 2. Add 'Analyze with AI' button to database toolbar. 3. When clicked, create new AI block below with context about the database schema and data. 4. AI can read database content and generate insights, charts, summaries. 5. Both manually created and imported databases work the same way. 6. Maintain full editing capabilities while adding AI-powered analysis as an enhancement.",
+        "testStrategy": "1. Verify all existing database block functionality remains intact (editing, sorting, filtering, formula calculations). 2. Test 'Analyze with AI' button appears in toolbar and is clickable. 3. Verify clicking button creates new AI block below with pre-loaded database context. 4. Test AI block receives correct schema and sample data from database. 5. Verify AI can generate insights, charts, and summaries based on database content. 6. Test with both manually created and imported databases. 7. Verify AI analysis works with all view types (Table, Kanban, Calendar, Timeline).",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add 'Analyze with AI' button to database toolbar",
+            "description": "Integrate a new 'Analyze with AI' button into the existing DatabaseToolbar component that triggers AI analysis workflow.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Add button to DatabaseToolbar.tsx with appropriate icon and tooltip. Button should be visible for all database view types and maintain consistent styling with existing toolbar buttons.",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Create database context extraction service",
+            "description": "Build service to extract database schema, column types, sample data, and statistics for AI context generation.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Create function that gathers: schema definition, column names and types, first 10-20 rows of data, basic statistics (row count, unique values per column), and any existing filters or sorts applied.",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement AI block creation and positioning",
+            "description": "Create logic to instantiate new AI block below database block with proper positioning and focus management.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Use existing block creation APIs to add AI block immediately below the database block. Ensure proper spacing and auto-scroll to make new block visible. Set focus to AI input field.",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Build AI context injection system",
+            "description": "Develop system to inject database context into AI block's initial prompt and maintain reference to source database.",
+            "status": "done",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Create structured prompt template that includes database schema, sample data, and metadata. Store reference to source database block ID for ongoing context. Enable AI to query live database data.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Add AI analysis capabilities",
+            "description": "Implement AI features for data analysis including insights generation, chart creation, and summary reports.",
+            "status": "done",
+            "dependencies": [
+              4
+            ],
+            "details": "Enable AI to: generate statistical insights, create visualizations using existing charting libraries, produce summary reports, identify patterns and anomalies, suggest data transformations or queries.",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Ensure compatibility with imported databases",
+            "description": "Test and ensure AI analysis works seamlessly with databases created from CSV imports and other data sources.",
+            "status": "done",
+            "dependencies": [
+              2,
+              4
+            ],
+            "details": "Verify context extraction works for imported data with various column types. Handle edge cases like missing values, mixed data types, and large datasets. Ensure consistent behavior across all database sources.",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 22,
+        "title": "MVP Pivot - Implement CSV Ingestion with Papa Parse",
+        "description": "Add CSV/Excel import to create editable database blocks. Files are parsed, schema is inferred, and a fully functional database block is created that users can edit, add to, and analyze with AI.",
+        "status": "pending",
+        "dependencies": [
+          21
+        ],
+        "priority": "high",
+        "details": "1. Use existing database block structure from the codebase.\n2. Papa Parse for CSV parsing, SheetJS for Excel parsing.\n3. Infer column types from data during import.\n4. Create database using existing createColumn() and createRow() APIs.\n5. Result is identical to manually created database - fully editable.\n6. Max 10MB files, show progress during import.\n\nThe import process should seamlessly integrate with the existing database block system, allowing imported data to be immediately editable, sortable, filterable, and compatible with all existing database block features including formulas, views, and AI analysis.",
+        "testStrategy": "1. Test CSV import: Upload various CSV files (up to 10MB), verify Papa Parse streaming works, confirm schema inference correctly identifies column types (text, number, date, boolean).\n\n2. Test Excel import: Upload .xlsx files with SheetJS, test multi-sheet selection, verify formulas are evaluated to values.\n\n3. Test database creation: Verify imported data creates fully functional database blocks using existing APIs, confirm all columns are editable, test adding new rows/columns post-import.\n\n4. Test integration: Ensure imported databases work with existing features (filtering, sorting, formulas), verify AI can analyze imported data.\n\n5. Test progress indication: Upload large files (5-10MB), verify progress bar updates smoothly, ensure UI remains responsive during import.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up file upload with Papa Parse and SheetJS",
+            "description": "Configure Papa Parse for CSV and SheetJS for Excel parsing, ensuring both libraries are properly integrated with the existing codebase.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Create file upload UI with progress tracking",
+            "description": "Build upload component that accepts CSV/Excel files with drag-and-drop, shows upload progress, and validates 10MB size limit.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement schema inference and type detection",
+            "description": "Analyze parsed data to automatically detect column types (text, number, date, boolean) and create appropriate column definitions for the database block.",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Integrate with existing database block APIs",
+            "description": "Use existing createColumn() and createRow() APIs to create the database block from parsed data, ensuring full compatibility with existing database features.",
+            "status": "pending",
+            "dependencies": [
+              3
+            ],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Add Excel sheet selection for multi-sheet files",
+            "description": "When Excel files contain multiple sheets, show a selector allowing users to choose which sheet to import.",
+            "status": "pending",
+            "dependencies": [
+              1
+            ],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 23,
+        "title": "MVP Pivot - Build AI Block with Inline Chat",
+        "description": "Create the AI Block that appears when users press Space anywhere. This is the magic moment - type a question, get grounded answers from your workspace data, insert charts/tables/content directly into the page.",
+        "status": "pending",
+        "dependencies": [
+          20
+        ],
+        "priority": "high",
+        "details": "1. Press Space in any block to activate AI. 2. Inline chat UI appears with context awareness. 3. AI knows what's on the page, what database you're looking at, what project you're in. 4. Responses are grounded in YOUR data via RAG. 5. One-click insert of AI-generated content as new blocks. 6. This is the core wow - AI that actually knows your content.",
+        "testStrategy": "Test Space hotkey activation from any block type. Verify context awareness captures current page content, visible database schemas, and project scope. Test RAG integration returns relevant workspace data. Verify AI responses can generate and insert various block types (text, tables, charts). Test performance with instant UI response on Space press. Validate that AI context includes page hierarchy and block relationships.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Build AI block base component structure",
+            "description": "Create AIBlock.tsx component with empty state showing 'Press Space to ask the AI' ghost text and basic block container.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement Space hotkey activation",
+            "description": "Add keyboard event handler that opens inline chat when Space is pressed in empty AI block using react-hotkeys-hook.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Create context-aware AI chat interface",
+            "description": "Build inline chat UI that appears on Space press with awareness of current page, visible database, and project context.",
+            "status": "pending",
+            "dependencies": [
+              2
+            ],
+            "details": "Capture current block content, page hierarchy, visible database schemas, and project metadata to provide as context to AI.",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Integrate RAG pipeline for grounded responses",
+            "description": "Connect AI chat to existing RAG system to retrieve relevant workspace data and generate responses grounded in user's actual content.",
+            "status": "pending",
+            "dependencies": [
+              3
+            ],
+            "details": "Use existing rag.server.ts service with pgvector similarity search to find relevant documents and provide as context.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement AI response preview area",
+            "description": "Create preview component that displays AI responses with proper formatting, code highlighting, and visual distinction from user input.",
+            "status": "pending",
+            "dependencies": [
+              4
+            ],
+            "details": "Support markdown rendering, code blocks with syntax highlighting, and preview of generated charts/tables.",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Build Insert action for AI-generated content",
+            "description": "Implement one-click insertion of AI responses as new blocks (text, tables, charts, code) directly into the page.",
+            "status": "pending",
+            "dependencies": [
+              5
+            ],
+            "details": "Parse AI response to determine block type, create appropriate block data structure, and insert at cursor position.",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Add dismiss and retry functionality",
+            "description": "Implement UI controls to dismiss AI responses, clear chat, or retry with modified prompts.",
+            "status": "pending",
+            "dependencies": [
+              5
+            ],
+            "details": "Include keyboard shortcuts (Esc to dismiss, Cmd+R to retry) and visual buttons.",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Create the wow factor polish",
+            "description": "Add smooth animations, instant response feedback, and delightful interactions that make the AI feel magical and responsive.",
+            "status": "pending",
+            "dependencies": [
+              6,
+              7
+            ],
+            "details": "Implement typing indicators, smooth transitions, subtle particle effects on insertion, and sub-50ms response times.",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 24,
+        "title": "MVP Pivot - Implement LLM Orchestration Layer",
+        "description": "Build Smart AI Response Generation system that makes AI incredibly intelligent about user data. The system should understand natural language questions about databases, documents, and projects, then generate perfect responses with appropriate visualizations (charts, tables, insights) using actual data rather than hallucinations.",
+        "status": "pending",
+        "dependencies": [
+          23
+        ],
+        "priority": "high",
+        "details": "1. Natural Language Understanding Layer:\n   - Process questions like 'summarize my tasks', 'show revenue by month', 'what are my blocked items'\n   - Intent classification to determine query type (data query, content search, analytics, summary)\n   - Context extraction to identify relevant entities and time ranges\n\n2. Smart Response Determination:\n   - Automatically decide response format: text summary, data table, chart visualization, or combination\n   - For data questions: Query actual database using Prisma, never hallucinate numbers\n   - For content questions: Use RAG retrieval to find relevant documents\n   - For analytics: Generate appropriate visualizations (bar charts for comparisons, line charts for trends)\n\n3. Structured Output Generation:\n   - Use OpenAI Structured Outputs API for 100% JSON schema compliance\n   - Generate valid block formats that integrate seamlessly with editor\n   - Include metadata for confidence scores and data sources\n\n4. Data Integration:\n   - Direct database queries for real-time accurate data\n   - RAG integration for document and content retrieval\n   - Combine multiple data sources for comprehensive answers\n\n5. User Experience:\n   - Response time under 2 seconds for most queries\n   - Clear indication of data sources used\n   - Fallback strategies for ambiguous queries\n   - Make users think 'wow, it actually understands my data!'",
+        "testStrategy": "1. Test natural language understanding with diverse queries:\n   - Data queries: 'show my completed tasks', 'revenue last quarter', 'user growth rate'\n   - Content queries: 'find documentation about authentication', 'summarize project requirements'\n   - Mixed queries: 'compare this month's performance to our goals in the planning doc'\n\n2. Verify response format selection:\n   - Numeric comparisons generate bar charts\n   - Time series data generates line charts\n   - Lists generate formatted tables\n   - Summaries generate structured text blocks\n\n3. Test data accuracy:\n   - Compare AI responses against direct database queries\n   - Verify no hallucinated numbers\n   - Test with empty datasets and edge cases\n\n4. Test structured output compliance:\n   - All responses pass JSON schema validation\n   - Generated blocks render correctly in editor\n   - Test error handling for API failures\n\n5. Performance testing:\n   - Response time < 2s for 95% of queries\n   - Concurrent query handling\n   - Graceful degradation under load",
+        "subtasks": []
+      },
+      {
+        "id": 25,
+        "title": "MVP Pivot - Build Numeric Analytics Engine",
+        "description": "When users ask data questions, the AI queries the actual database for real numbers. No hallucinations. Questions like 'total sales this month' get exact answers from your data.",
+        "status": "pending",
+        "dependencies": [
+          22
+        ],
+        "priority": "high",
+        "details": "1. Parse natural language to SQL queries using AI to understand user intent and map to database schema.\n2. Execute against actual database tables with proper error handling and timeout management.\n3. Support aggregations (SUM, COUNT, AVG, MIN, MAX) for numeric computations.\n4. Handle date ranges and filters with intelligent date parsing (today, this month, last year, etc.).\n5. Return exact numbers with source indication showing which tables/columns were queried.\n6. This builds trust - the AI uses real data, not made-up numbers.\n7. Implement query result caching for frequently accessed computations.\n8. Support GROUP BY operations for segmented analytics.\n9. Include query audit logging for compliance and debugging.",
+        "testStrategy": "Test natural language parsing converts questions like 'total revenue last quarter' into correct SQL. Verify aggregation functions return exact database values. Test date range parsing handles relative dates correctly. Ensure source attribution shows queried tables/columns. Test caching improves response times for repeated queries. Verify the system never returns hallucinated numbers - only real database values or clear error messages when data is unavailable.",
+        "subtasks": []
+      },
+      {
+        "id": 26,
+        "title": "MVP Pivot - Implement Chart and Table Output Blocks",
+        "description": "Build beautiful AI output blocks that transform AI responses into stunning charts and tables users can insert directly into their pages. Using Recharts for visually impressive, presentation-ready visualizations that make data come alive with interactive, professional-quality output.",
+        "status": "pending",
+        "dependencies": [
+          24
+        ],
+        "priority": "high",
+        "details": "1. Auto-detect when to show charts vs tables based on data structure and content type\n2. Chart types:\n   - Bar charts for comparisons and rankings\n   - Line charts for trends and time series\n   - Pie charts for percentages and proportions\n   - Funnel charts for conversion and process flows\n3. Beautiful, interactive visualizations:\n   - Smooth animations on load and interaction\n   - Hover tooltips with detailed information\n   - Click interactions for drilling down\n   - Responsive design that looks great at any size\n4. Tables with advanced features:\n   - Sortable columns with visual indicators\n   - Conditional formatting for highlighting key data\n   - Pagination for large datasets\n   - Export capabilities (CSV, JSON)\n5. One-click insert functionality:\n   - AI outputs automatically formatted as blocks\n   - Direct insertion into page editor\n   - Blocks are fully editable after insertion\n   - Maintain data source references\n6. Visual polish and wow factor:\n   - Modern, clean design with subtle gradients\n   - Consistent color schemes across chart types\n   - Professional typography and spacing\n   - Dark mode support\n7. Provenance indicators:\n   - Small badges showing AI-generated status\n   - Expandable source information\n   - Confidence scores where applicable",
+        "testStrategy": "1. Test auto-detection logic with various data structures (arrays of objects, time series, categorical data) and verify correct chart type selection\n2. Test each chart type (bar, line, pie, funnel) with real AI response data and verify correct rendering, animations, and interactions\n3. Test table functionality including sorting, filtering, pagination with datasets of 10, 100, 1000+ rows\n4. Test one-click insertion into page editor, ensuring blocks maintain data and are fully editable\n5. Test visual consistency across light/dark themes and different viewport sizes\n6. Test performance with large datasets (10,000+ data points) ensuring smooth interactions\n7. Test provenance indicators display correctly and source information is accessible\n8. Test accessibility features including keyboard navigation and screen reader support",
+        "subtasks": []
+      },
+      {
+        "id": 27,
+        "title": "MVP Pivot - Create Provenance and Citation System",
+        "description": "Every AI answer shows where it came from. Users can see which documents, databases, or pages the AI used. This builds trust - the AI isn't making things up.",
+        "status": "pending",
+        "dependencies": [
+          24,
+          26
+        ],
+        "priority": "high",
+        "details": "1. Every AI response includes source indicators.\n2. Click to expand and see exact documents/data used.\n3. Highlight confidence levels (high/medium/low).\n4. Show when AI is using workspace data vs general knowledge.\n5. Simple, non-intrusive citations.\n6. Users trust AI because they can verify sources.",
+        "testStrategy": "1. Test that every AI response displays source indicators inline with the content.\n2. Verify click-to-expand functionality reveals detailed source information including document names, sections, and relevance scores.\n3. Test confidence level indicators (high/medium/low) display correctly based on retrieval scores.\n4. Verify clear differentiation between workspace data sources and general AI knowledge.\n5. Test citation UI remains non-intrusive and doesn't interfere with content readability.\n6. Verify source verification flow allows users to navigate to original documents.\n7. Test performance impact of citation rendering stays under 50ms.\n8. Verify citations update correctly when AI responses are regenerated.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design trust-focused citation UI components",
+            "description": "Create simple, non-intrusive UI components for displaying AI source citations",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement source indicator system",
+            "description": "Add inline source indicators to every AI response showing number and type of sources used",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Build expandable source details panel",
+            "description": "Create click-to-expand functionality that reveals detailed document/database sources",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Add confidence level indicators",
+            "description": "Implement visual confidence levels (high/medium/low) based on retrieval scores and source quality",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Differentiate workspace vs general knowledge",
+            "description": "Clearly show when AI uses workspace-specific data versus general training knowledge",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Create source verification flow",
+            "description": "Allow users to click through to original documents/pages that were referenced",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Optimize citation rendering performance",
+            "description": "Ensure citation UI adds minimal overhead (<50ms) to response rendering",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Add citation persistence and caching",
+            "description": "Store citation data with responses for consistent source tracking across sessions",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 28,
+        "title": "Future: Google Sheets Integration",
+        "description": "Post-MVP feature to sync with Google Sheets. Not essential for wow factor - users can upload CSV exports from Sheets instead.",
+        "status": "pending",
+        "dependencies": [
+          22
+        ],
+        "priority": "low",
+        "details": "1. This is a nice-to-have, not core MVP.\n2. Users can export from Google Sheets as CSV and upload.\n3. Focus on core wow factors first: AI that knows your data, beautiful outputs, seamless editing.\n4. Revisit after MVP success.\n\nOriginal implementation plan (for future reference):\n- OAuth flow for Google Sheets access\n- Data fetching via Sheets API\n- Schema mapping to dataset format\n- Automatic refresh scheduling\n- Store snapshots as datasets for AI analysis",
+        "testStrategy": "To be defined when feature is prioritized post-MVP. Will include:\n- OAuth flow testing\n- API integration testing\n- Data mapping validation\n- Refresh scheduling verification",
+        "subtasks": []
+      },
+      {
+        "id": 29,
+        "title": "MVP Pivot - Performance Optimization and Testing",
+        "description": "Make It Lightning Fast - Speed is part of the wow factor. AI responses in 2-3 seconds, instant UI reactions, smooth animations. Users should feel the app is magical and responsive.",
+        "status": "pending",
+        "dependencies": [
+          27
+        ],
+        "priority": "high",
+        "details": "1. AI responses in 2-3 seconds using streaming - implement server-sent events for real-time token streaming, show typing indicators instantly.\n2. Instant UI feedback - loading states appear immediately, skeleton screens for data fetching, optimistic updates for all user actions.\n3. Database operations feel instant with optimistic updates - update UI immediately while background sync happens, rollback on failure gracefully.\n4. Smooth animations and transitions - 60fps animations using CSS transforms, React Spring for complex interactions, reduced motion support.\n5. Pre-fetch and cache smartly - prefetch next likely actions, cache API responses in Redis, use SWR for client-side caching.\n6. The wow is speed - it feels faster than competitors. Target metrics: AI streaming starts <500ms, UI interactions <50ms, page transitions <200ms.",
+        "testStrategy": "1. Measure AI response streaming latency - first token should arrive <500ms, complete responses in 2-3s for typical queries.\n2. Test UI responsiveness - all clicks/interactions show feedback within 50ms using React DevTools Profiler.\n3. Verify optimistic updates work correctly - test network failure scenarios and rollback behavior.\n4. Animation performance testing - use Chrome DevTools to ensure 60fps during transitions.\n5. Cache effectiveness - monitor cache hit rates >90% for repeated operations.\n6. Load test with 100 concurrent users - all performance targets must hold under load.\n7. Competitive benchmarking - measure against Notion, Coda, Airtable for common operations.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement AI Response Streaming",
+            "description": "Set up server-sent events for real-time AI token streaming with <500ms time to first token",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Add Instant UI Feedback Systems",
+            "description": "Implement skeleton screens, loading states, and typing indicators that appear within 50ms",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement Optimistic Updates",
+            "description": "Add optimistic UI updates for all database operations with graceful rollback on failure",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Optimize Animations and Transitions",
+            "description": "Implement 60fps animations using CSS transforms and React Spring for smooth interactions",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Smart Prefetching and Caching",
+            "description": "Set up intelligent prefetching for likely next actions and implement multi-tier caching with Redis and SWR",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Performance Monitoring Dashboard",
+            "description": "Create real-time performance monitoring to track all speed metrics and ensure wow factor",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Competitive Speed Testing",
+            "description": "Benchmark against Notion, Coda, and Airtable to ensure superior performance",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 30,
+        "title": "MVP Pivot - Production Deployment Preparation",
+        "description": "Polish for Launch - Make It Magical. Final polish that makes users say wow. Delightful interactions, helpful onboarding, showcase the magic of AI + data in the first 30 seconds.",
+        "status": "pending",
+        "dependencies": [
+          29
+        ],
+        "priority": "high",
+        "details": "1. Amazing first-time experience - sample data that shows off capabilities, pre-populated with compelling examples that demonstrate AI-powered analytics immediately.\n2. Interactive tutorial - 'Try pressing Space to ask AI about this data' with guided tooltips and progressive disclosure of features.\n3. Delightful micro-interactions - subtle animations on data updates, smooth transitions between views, optional sound effects for key actions, haptic feedback on mobile.\n4. Smart defaults - detect CSV on clipboard and offer instant import, suggest relevant questions based on data schema, auto-configure visualizations based on data types.\n5. Shareable demos - let users share their AI-generated insights with public links, embed widgets, or export as interactive reports.\n6. The final wow - it just works beautifully with zero configuration, instant responses, and intelligent assistance throughout.\n7. Security hardening - implement input sanitization, rate limiting (100 req/min), XSS/CSRF protection.\n8. Production monitoring - set up error tracking (Sentry), performance monitoring, uptime checks for 99.9% availability.\n9. Rollback procedures - automated rollback on critical errors, feature flags for gradual rollout.",
+        "testStrategy": "Test first-time user experience with fresh accounts and sample data loading. Verify interactive tutorial completion rates and user engagement metrics. Test micro-interactions perform at 60fps across devices. Validate smart defaults correctly detect and suggest based on various data types. Test sharing features generate working public links with proper access controls. Load test to ensure <200ms response times for AI queries. Security audit for input sanitization and rate limiting. Test monitoring alerts trigger correctly. Verify rollback procedures work within 5 minutes.",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-08-16T16:57:35.199Z",
+      "updated": "2025-08-24T21:21:36.892Z",
       "description": "Tasks for master context"
     }
   }

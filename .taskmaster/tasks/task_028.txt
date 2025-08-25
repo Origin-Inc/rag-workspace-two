@@ -1,0 +1,11 @@
+# Task ID: 28
+# Title: MVP Pivot - Implement Google Sheets Snapshot Integration
+# Status: pending
+# Dependencies: 22
+# Priority: medium
+# Description: Build Google Sheets integration for read-only snapshot capture. Implement OAuth flow, data fetching via Sheets API, schema mapping to dataset format, and automatic refresh scheduling. Store snapshots as datasets for AI analysis.
+# Details:
+
+
+# Test Strategy:
+

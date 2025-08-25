@@ -4,10 +4,12 @@ import type {
   DatabaseColumn,
   Filter,
   Sort,
-  DatabaseColumnType
+  DatabaseColumnType,
+  ViewType
 } from '~/types/database-block';
 import { FilterBuilder } from './FilterBuilder';
 import { SortBuilder } from './SortBuilder';
+import { ViewSwitcher } from './ViewSwitcher';
 import { cn } from '~/utils/cn';
 
 interface DatabaseToolbarProps {
@@ -16,11 +18,14 @@ interface DatabaseToolbarProps {
   filters: Filter[];
   sorts: Sort[];
   selectedRows: Set<string>;
+  currentView: ViewType;
   onAddRow: () => void;
   onAddColumn: (column: Partial<DatabaseColumn>) => void;
   onApplyFilters: (filters: Filter[]) => void;
   onApplySorts: (sorts: Sort[]) => void;
   onDeleteSelected: () => void;
+  onViewChange: (view: ViewType) => void;
+  onAnalyzeWithAI?: () => void;
 }
 
 export const DatabaseToolbar = memo(function DatabaseToolbar({
@@ -29,11 +34,14 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
   filters,
   sorts,
   selectedRows,
+  currentView,
   onAddRow,
   onAddColumn,
   onApplyFilters,
   onApplySorts,
-  onDeleteSelected
+  onDeleteSelected,
+  onViewChange,
+  onAnalyzeWithAI
 }: DatabaseToolbarProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [showSorts, setShowSorts] = useState(false);
@@ -81,11 +89,19 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
     <div className="border-b border-gray-200 bg-white">
       {/* Main toolbar */}
       <div className="flex items-center justify-between px-4 py-2">
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-3">
           {/* Database name */}
           <h2 className="text-lg font-semibold">
             {databaseBlock?.name || 'Database'}
           </h2>
+          
+          {/* View Switcher */}
+          <ViewSwitcher
+            currentView={currentView}
+            onViewChange={onViewChange}
+          />
+          
+          <div className="h-6 w-px bg-gray-300" />
           
           {/* Row count */}
           <span className="text-sm text-gray-500">
@@ -169,6 +185,17 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
           >
             + New Row
           </button>
+
+          {/* Analyze with AI button */}
+          {onAnalyzeWithAI && (
+            <button
+              onClick={onAnalyzeWithAI}
+              className="px-3 py-1 text-sm bg-purple-600 text-white hover:bg-purple-700 rounded flex items-center space-x-1"
+            >
+              <span>✨</span>
+              <span>Analyze with AI</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -178,6 +205,7 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
           <FilterBuilder
             columns={columns}
             filters={filters}
+            currentView={currentView}
             onApply={(newFilters) => {
               onApplyFilters(newFilters);
               setShowFilters(false);

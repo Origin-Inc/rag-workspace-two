@@ -9,6 +9,7 @@ import crypto from "crypto";
 import { Breadcrumbs } from "~/components/navigation/Breadcrumbs";
 import { CommandPalette } from "~/components/navigation/CommandPalette";
 import { UserMenu } from "~/components/navigation/UserMenu";
+import { ClientOnly } from "~/components/ClientOnly";
 import { ThemeToggle } from "~/components/theme/ThemeToggle";
 import { 
   HomeIcon, 
@@ -379,10 +380,12 @@ export default function AppLayout() {
       </div>
       
       {/* Command Palette - rendered as modal */}
-      <CommandPalette 
-        open={commandPaletteOpen} 
-        onClose={() => setCommandPaletteOpen(false)} 
-      />
+      <ClientOnly fallback={null}>
+        <CommandPalette 
+          open={commandPaletteOpen} 
+          onClose={() => setCommandPaletteOpen(false)} 
+        />
+      </ClientOnly>
     </div>
   );
 }

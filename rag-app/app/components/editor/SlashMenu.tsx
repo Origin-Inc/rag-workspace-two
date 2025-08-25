@@ -21,6 +21,7 @@ import {
   Video,
   Music,
   Link2,
+  Sparkles,
 } from 'lucide-react';
 
 interface Command {
@@ -184,6 +185,14 @@ const commands: Command[] = [
     description: 'Add a database view',
     icon: <Database className="w-4 h-4" />,
     keywords: ['database', 'table', 'data', 'records'],
+  },
+  {
+    id: 'ai',
+    type: 'ai',
+    label: 'AI Analysis',
+    description: 'Add AI-powered analysis block',
+    icon: <Sparkles className="w-4 h-4" />,
+    keywords: ['ai', 'analysis', 'intelligence', 'smart', 'assistant'],
   },
   {
     id: 'calendar',

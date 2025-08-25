@@ -796,13 +796,13 @@ export const BlockEditor = memo(function BlockEditor({
   return (
     <div className={cn("h-full bg-white flex flex-col", className)}>
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-2">
           <button
             onClick={handleUndo}
             disabled={!commandState.canUndo || readOnly}
             className={cn(
-              "p-1.5 rounded hover:bg-gray-200 transition-colors",
+              "p-1.5 rounded hover:bg-white transition-colors",
               !commandState.canUndo && "opacity-50 cursor-not-allowed"
             )}
             title="Undo (⌘Z)"
