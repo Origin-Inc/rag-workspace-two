@@ -10,6 +10,7 @@ import type {
 import { FilterBuilder } from './FilterBuilder';
 import { SortBuilder } from './SortBuilder';
 import { ViewSwitcher } from './ViewSwitcher';
+import { DataImportModal } from '../data-import/DataImportModal';
 import { cn } from '~/utils/cn';
 
 interface DatabaseToolbarProps {
@@ -46,6 +47,7 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
   const [showFilters, setShowFilters] = useState(false);
   const [showSorts, setShowSorts] = useState(false);
   const [showAddColumn, setShowAddColumn] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [newColumnName, setNewColumnName] = useState('');
   const [newColumnType, setNewColumnType] = useState<DatabaseColumnType>('text');
 
@@ -170,6 +172,15 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
             )}
           </button>
 
+          {/* Import data button */}
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="px-3 py-1 text-sm bg-green-100 text-green-700 hover:bg-green-200 rounded flex items-center space-x-1"
+          >
+            <span>📁</span>
+            <span>Import</span>
+          </button>
+
           {/* Add column button */}
           <button
             onClick={() => setShowAddColumn(!showAddColumn)}
@@ -285,6 +296,22 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && databaseBlock && (
+        <DataImportModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          onImport={async () => {
+            // Reload the page or refresh the database block
+            setShowImportModal(false);
+            // The parent component should handle refreshing the data
+            window.location.reload();
+          }}
+          workspaceId={databaseBlock.workspaceId}
+          pageId={databaseBlock.pageId}
+        />
       )}
     </div>
   );

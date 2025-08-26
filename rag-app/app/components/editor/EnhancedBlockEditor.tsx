@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { cn } from '~/utils/cn';
-import { DatabaseTable } from '~/components/database-block/DatabaseTable';
+import { DatabaseTableWrapper } from '~/components/database-block/DatabaseTableWrapper';
 import { AIBlock } from '~/components/blocks/AIBlock';
+import { SlashMenu } from './SlashMenu';
 import { 
   Plus, 
   GripVertical, 
@@ -82,6 +83,8 @@ const BlockComponent = memo(({
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashMenuPosition, setSlashMenuPosition] = useState({ x: 0, y: 0 });
   const contentRef = useRef<HTMLDivElement>(null);
   const lastContentRef = useRef<string>('');
   const codeTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -158,6 +161,18 @@ const BlockComponent = memo(({
     
     // Store the text immediately to prevent re-renders from resetting it
     lastContentRef.current = text;
+    
+    // Check for slash command
+    if (block.type === 'paragraph' && text === '/') {
+      // Show slash menu
+      const rect = contentRef.current.getBoundingClientRect();
+      setSlashMenuPosition({ x: rect.left, y: rect.bottom + 5 });
+      setShowSlashMenu(true);
+      return;
+    } else if (showSlashMenu && !text.startsWith('/')) {
+      // Hide slash menu if user deleted the slash
+      setShowSlashMenu(false);
+    }
     
     // Check for block transformations
     if (block.type === 'paragraph') {
@@ -266,7 +281,84 @@ const BlockComponent = memo(({
     // Always update on input
     onUpdate(block.id, block.type === 'code' ? { ...block.content, code: text } : text);
     lastContentRef.current = text;
-  }, [block.id, block.type, block.content, onUpdate, onTransform]);
+  }, [block.id, block.type, block.content, onUpdate, onTransform, showSlashMenu]);
+
+  // Handle slash command selection
+  const handleSlashCommand = useCallback((command: any) => {
+    // Clear the slash from content
+    if (contentRef.current) {
+      contentRef.current.textContent = '';
+      lastContentRef.current = '';
+    }
+    
+    // Transform the block based on the command
+    switch (command.type) {
+      case 'database':
+        onTransform(block.id, 'database');
+        onUpdate(block.id, {
+          columns: [
+            { id: 'col1', name: 'Name', type: 'text', position: 0, width: 200 },
+            { id: 'col2', name: 'Status', type: 'select', position: 1, width: 150, options: [
+              { id: 'todo', label: 'To Do', color: 'gray' },
+              { id: 'in_progress', label: 'In Progress', color: 'blue' },
+              { id: 'done', label: 'Done', color: 'green' }
+            ]},
+            { id: 'col3', name: 'Notes', type: 'text', position: 2, width: 300 },
+          ],
+          rows: []
+        });
+        break;
+      case 'ai':
+        onTransform(block.id, 'ai');
+        onUpdate(block.id, { prompt: '', analysis: '', context: {} });
+        break;
+      case 'heading1':
+        onTransform(block.id, 'heading1');
+        onUpdate(block.id, '');
+        break;
+      case 'heading2':
+        onTransform(block.id, 'heading2');
+        onUpdate(block.id, '');
+        break;
+      case 'heading3':
+        onTransform(block.id, 'heading3');
+        onUpdate(block.id, '');
+        break;
+      case 'bulletList':
+        onTransform(block.id, 'bulletList');
+        onUpdate(block.id, '');
+        break;
+      case 'orderedList':
+        onTransform(block.id, 'numberedList');
+        onUpdate(block.id, '');
+        break;
+      case 'todoList':
+        onTransform(block.id, 'todoList');
+        onUpdate(block.id, '');
+        break;
+      case 'blockquote':
+        onTransform(block.id, 'quote');
+        onUpdate(block.id, '');
+        break;
+      case 'codeBlock':
+        onTransform(block.id, 'code');
+        onUpdate(block.id, { code: '', language: 'javascript' });
+        break;
+      default:
+        onUpdate(block.id, '');
+    }
+    
+    setShowSlashMenu(false);
+    
+    // Refocus the content if it's not a special block
+    if (!['database', 'ai', 'code'].includes(command.type)) {
+      setTimeout(() => {
+        if (contentRef.current) {
+          contentRef.current.focus();
+        }
+      }, 0);
+    }
+  }, [block.id, onTransform, onUpdate]);
 
   // Handle key events
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -410,9 +502,9 @@ const BlockComponent = memo(({
         return <hr className="my-4 border-gray-300" />;
       case 'database':
         return (
-          <DatabaseTable
-            initialData={block.content?.data || []}
-            onDataChange={(data) => onUpdate(block.id, { ...block.content, data })}
+          <DatabaseTableWrapper
+            initialData={block.content || {}}
+            onDataChange={(data) => onUpdate(block.id, data)}
             className="w-full"
           />
         );
@@ -574,6 +666,39 @@ const BlockComponent = memo(({
               <Code className="w-4 h-4" />
               Code
             </button>
+            <button
+              onClick={() => {
+                onTransform(block.id, 'database');
+                onUpdate(block.id, {
+                  columns: [
+                    { id: 'col1', name: 'Name', type: 'text', position: 0, width: 200 },
+                    { id: 'col2', name: 'Status', type: 'select', position: 1, width: 150, options: [
+                      { id: 'todo', label: 'To Do', color: 'gray' },
+                      { id: 'in_progress', label: 'In Progress', color: 'blue' },
+                      { id: 'done', label: 'Done', color: 'green' }
+                    ]},
+                    { id: 'col3', name: 'Notes', type: 'text', position: 2, width: 300 },
+                  ],
+                  rows: []
+                });
+                setShowMenu(false);
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+            >
+              <Database className="w-4 h-4" />
+              Database
+            </button>
+            <button
+              onClick={() => {
+                onTransform(block.id, 'ai');
+                onUpdate(block.id, { prompt: '', analysis: '', context: {} });
+                setShowMenu(false);
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+            >
+              <Sparkles className="w-4 h-4" />
+              AI Analysis
+            </button>
             <hr className="my-1 border-gray-200" />
             <button
               onClick={() => {
@@ -593,6 +718,16 @@ const BlockComponent = memo(({
       <div className="ml-8">
         {renderContent()}
       </div>
+      
+      {/* Slash Menu */}
+      {showSlashMenu && (
+        <SlashMenu
+          position={slashMenuPosition}
+          onSelect={handleSlashCommand}
+          onClose={() => setShowSlashMenu(false)}
+          searchQuery=""
+        />
+      )}
     </div>
   );
 });
@@ -684,12 +819,18 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
           if (newType === 'code') {
             newContent = { code: currentContent, language: 'javascript' };
           } else if (newType === 'database') {
-            // Initialize with sample data structure
+            // Initialize with proper database structure
             newContent = {
-              data: [
-                { id: '1', name: 'Sample Item 1', status: 'Active', priority: 'High' },
-                { id: '2', name: 'Sample Item 2', status: 'Pending', priority: 'Medium' },
-              ]
+              columns: [
+                { id: 'col1', name: 'Name', type: 'text', position: 0, width: 200 },
+                { id: 'col2', name: 'Status', type: 'select', position: 1, width: 150, options: [
+                  { id: 'todo', label: 'To Do', color: 'gray' },
+                  { id: 'in_progress', label: 'In Progress', color: 'blue' },
+                  { id: 'done', label: 'Done', color: 'green' }
+                ]},
+                { id: 'col3', name: 'Notes', type: 'text', position: 2, width: 300 },
+              ],
+              rows: []
             };
           } else if (newType === 'ai') {
             // Initialize AI block with empty analysis
