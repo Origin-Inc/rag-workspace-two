@@ -30,7 +30,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const user = await getUser(request);
   
   if (!user) {
-    return redirect("/auth/login");
+    return redirect("/auth/signin");
   }
 
   // Get user's workspaces

@@ -1,6 +1,7 @@
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { useLoaderData, Link } from '@remix-run/react';
-import { requireAuthenticatedUser } from '~/services/auth/unified-auth.server';
+import { requireAuthenticatedUser } from '~/services/auth/auth.server';
+import { prisma } from '~/utils/db.server';
 import { ChatInterface } from '~/components/chat/ChatInterface';
 import { RecentPages } from '~/components/dashboard/RecentPages';
 import { FileText } from 'lucide-react';
@@ -8,10 +9,15 @@ import { FileText } from 'lucide-react';
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = await requireAuthenticatedUser(request);
   
+  // Get workspace details
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: user.workspaceId }
+  });
+  
   return json({
     user,
-    workspaceId: user.currentWorkspaceId,
-    workspaceName: user.currentWorkspace.name
+    workspaceId: user.workspaceId,
+    workspaceName: workspace?.name || 'Workspace'
   });
 }
 

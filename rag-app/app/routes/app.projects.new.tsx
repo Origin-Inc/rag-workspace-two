@@ -10,7 +10,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const user = await getUser(request);
   
   if (!user) {
-    return redirect("/auth/login");
+    return redirect("/auth/signin");
   }
 
   // Get user's current workspace
@@ -36,7 +36,7 @@ export async function action({ request }: ActionFunctionArgs) {
   
   if (!user) {
     console.log("No user found, redirecting to login");
-    return redirect("/auth/login");
+    return redirect("/auth/signin");
   }
 
   const formData = await request.formData();

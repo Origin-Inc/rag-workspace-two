@@ -75,6 +75,35 @@ export class RAGIndexingService {
     this.logger.info('📥 Queueing page for indexing', { pageId, priority });
     
     try {
+      // Apply rate limiting for production
+      if (process.env.NODE_ENV === 'production') {
+        const { indexingRateLimiter } = await import('~/services/rate-limiter.server');
+        const rateLimitResult = await indexingRateLimiter.checkLimit(`page-${pageId}`);
+        
+        if (!rateLimitResult.allowed) {
+          this.logger.warn('Indexing rate limit exceeded', { 
+            pageId, 
+            retryAfter: rateLimitResult.retryAfter 
+          });
+          // Queue with additional delay
+          const delayMs = (rateLimitResult.retryAfter || 60) * 1000;
+          if (this.indexingQueue) {
+            const timestamp = Date.now();
+            const jobId = `page-${pageId}-${timestamp}-delayed`;
+            await this.indexingQueue.add(
+              'index-page',
+              { pageId, priority, timestamp },
+              {
+                delay: delayMs,
+                priority,
+                jobId
+              }
+            );
+            return;
+          }
+        }
+      }
+
       if (this.indexingQueue) {
         // Use BullMQ for queuing with debouncing
         // Include timestamp in jobId to ensure content updates trigger new indexing

@@ -10,7 +10,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   const user = await getUser(request);
   
   if (!user) {
-    return redirect("/auth/login");
+    return redirect("/auth/signin");
   }
 
   const projectId = params.projectId;
@@ -58,7 +58,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
   const user = await getUser(request);
   
   if (!user) {
-    return redirect("/auth/login");
+    return redirect("/auth/signin");
   }
 
   const projectId = params.projectId;
@@ -122,47 +122,29 @@ export async function action({ request, params }: ActionFunctionArgs) {
         workspaceId: project.workspaceId,
         title,
         slug,
-        content: JSON.stringify({}),
-        position: 0,
-        metadata,
-        isPublic: false,
-        isArchived: false,
-        createdBy: user.id,
       });
       
-      const page = await prisma.$executeRaw`
-        INSERT INTO pages (
-          id, project_id, workspace_id, title, slug, content, 
-          position, metadata, is_public, is_archived, created_by
-        ) VALUES (
-          gen_random_uuid(),
-          ${projectId}::uuid,
-          ${project.workspaceId},
-          ${title},
-          ${slug},
-          ${JSON.stringify({})}::jsonb,
-          0,
-          ${JSON.stringify(metadata)}::jsonb,
-          false,
-          false,
-          ${user.id}
-        ) RETURNING id
-      `;
-      
-      // Get the created page ID
-      const createdPage = await prisma.$queryRaw`
-        SELECT id FROM pages 
-        WHERE project_id = ${projectId}::uuid 
-        AND slug = ${slug}
-        ORDER BY created_at DESC
-        LIMIT 1
-      `;
-      
-      const pageId = (createdPage as any[])[0]?.id;
+      // Use Prisma's create method instead of raw SQL
+      const page = await prisma.page.create({
+        data: {
+          projectId,
+          workspaceId: project.workspaceId,
+          title,
+          slug,
+          content: {},
+          position: 0,
+          metadata,
+          isPublic: false,
+          isArchived: false,
+        },
+        select: {
+          id: true
+        }
+      });
 
-      console.log("Page created successfully:", pageId);
+      console.log("Page created successfully:", page.id);
       // Redirect to the editor for the new page
-      return redirect(`/editor/${pageId}`);
+      return redirect(`/editor/${page.id}`);
     } catch (error) {
       console.error("Error creating page - Full error:", error);
       console.error("Error stack:", error instanceof Error ? error.stack : "No stack");

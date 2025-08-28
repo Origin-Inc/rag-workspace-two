@@ -2,7 +2,7 @@ import { createSupabaseAdmin } from '~/utils/supabase.server';
 import type { Block, NewBlock, UpdateBlock, BlockType } from '~/types/supabase';
 import type { BlockContent, BlockPosition, BlockMetadata } from '~/types/blocks';
 import { getDefaultContent } from '~/types/blocks';
-import { autoIndexerService } from './auto-indexer.server';
+import { ragIndexingService } from './rag/rag-indexing.service';
 
 export interface CreateBlockInput {
   pageId: string;
@@ -68,10 +68,11 @@ export class BlockService {
     // Update page's last edited time
     await this.updatePageTimestamp(input.pageId, input.createdBy);
 
-    // Auto-index the new block content
-    const workspace = await this.getWorkspaceForPage(input.pageId);
-    if (workspace) {
-      await autoIndexerService.onBlockChange(data.id, workspace.id, 'create');
+    // Queue page for re-indexing after block creation
+    try {
+      await ragIndexingService.queueForIndexing(input.pageId);
+    } catch (error) {
+      console.error('[Block Service] Failed to queue page for indexing:', error);
     }
 
     return data;
@@ -108,12 +109,11 @@ export class BlockService {
     if (blocks.length > 0) {
       await this.updatePageTimestamp(blocks[0].pageId, blocks[0].createdBy);
       
-      // Auto-index the new blocks
-      const workspace = await this.getWorkspaceForPage(blocks[0].pageId);
-      if (workspace && data) {
-        for (const block of data) {
-          await autoIndexerService.onBlockChange(block.id, workspace.id, 'create');
-        }
+      // Queue page for re-indexing after blocks creation
+      try {
+        await ragIndexingService.queueForIndexing(blocks[0].pageId);
+      } catch (error) {
+        console.error('[Block Service] Failed to queue page for indexing:', error);
       }
     }
 
@@ -181,10 +181,11 @@ export class BlockService {
     if (updates.updatedBy) {
       await this.updatePageTimestamp(data.page_id, updates.updatedBy);
       
-      // Auto-index the updated block content
-      const workspace = await this.getWorkspaceForPage(data.page_id);
-      if (workspace) {
-        await autoIndexerService.onBlockChange(blockId, workspace.id, 'update');
+      // Queue page for re-indexing after block update
+      try {
+        await ragIndexingService.queueForIndexing(data.page_id);
+      } catch (error) {
+        console.error('[Block Service] Failed to queue page for indexing:', error);
       }
     }
 
@@ -308,10 +309,11 @@ export class BlockService {
     // Update page timestamp
     await this.updatePageTimestamp(block.page_id, userId);
     
-    // Auto-index deletion (removes from index)
-    const workspace = await this.getWorkspaceForPage(block.page_id);
-    if (workspace) {
-      await autoIndexerService.onBlockChange(blockId, workspace.id, 'delete');
+    // Queue page for re-indexing after block deletion
+    try {
+      await ragIndexingService.queueForIndexing(block.page_id);
+    } catch (error) {
+      console.error('[Block Service] Failed to queue page for indexing:', error);
     }
 
     return true;

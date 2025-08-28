@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '~/utils/db.server';
 import type { DatabaseRow, DatabaseColumn, Filter, Sort } from '~/types/database-block';
-
-const prisma = new PrismaClient();
 
 interface PaginationOptions {
   page: number;

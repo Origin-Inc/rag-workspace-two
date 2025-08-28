@@ -1,11 +1,17 @@
 import { json } from "@remix-run/node";
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "~/utils/db.server";
 import Redis from "ioredis";
 
-// Initialize connections (in production, these would be cached)
-const prisma = new PrismaClient();
-const redis = new Redis(process.env["REDIS_URL"] || "redis://localhost:6379");
+// Use singleton Redis connection
+let redis: Redis | null = null;
+
+function getRedis() {
+  if (!redis) {
+    redis = new Redis(process.env["REDIS_URL"] || "redis://localhost:6379");
+  }
+  return redis;
+}
 
 export async function loader(_args: LoaderFunctionArgs) {
   const healthStatus: {
@@ -49,7 +55,8 @@ export async function loader(_args: LoaderFunctionArgs) {
   // Check Redis connection
   try {
     const startTime = Date.now();
-    await redis.ping();
+    const redisClient = getRedis();
+    await redisClient.ping();
     healthStatus.services.redis = {
       status: "up",
       latency: Date.now() - startTime,

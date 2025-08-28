@@ -201,6 +201,16 @@ Question: ${query}
 Please provide a comprehensive answer with citations to the relevant passages.`;
 
     try {
+      if (!openai) {
+        throw new Error('OpenAI client is not configured. Check OPENAI_API_KEY environment variable.');
+      }
+
+      this.logger.info('Making OpenAI API call', { 
+        model: 'gpt-4-turbo-preview',
+        contextLength: context.text.length,
+        userPromptLength: userPrompt.length
+      });
+
       const response = await openai.chat.completions.create({
         model: 'gpt-4-turbo-preview',
         messages: [
@@ -211,7 +221,17 @@ Please provide a comprehensive answer with citations to the relevant passages.`;
         max_tokens: 1500
       });
 
+      this.logger.info('OpenAI API response received', {
+        hasChoices: !!response.choices?.length,
+        responseId: response.id,
+        usage: response.usage
+      });
+
       const answer = response.choices[0]?.message?.content || '';
+      
+      if (!answer) {
+        throw new Error('OpenAI returned empty response');
+      }
 
       // Extract cited passage IDs from the answer
       const citedPassageIds = this.extractCitedPassageIds(answer);

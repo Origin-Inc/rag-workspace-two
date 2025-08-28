@@ -1,243 +1,57 @@
-import { redirect } from "@remix-run/node";
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { prisma } from "~/utils/db.server";
-import { verifyAccessToken } from "./jwt.server";
-import { sessionStorage } from "./session.server";
-
-export interface AuthenticatedUser {
-  id: string;
-  email: string;
-  name: string | null;
-  workspaceId?: string;
-  roleId?: string;
-  permissions?: string[];
-}
-
 /**
- * Get user from request headers or cookies
+ * Main Authentication Export
+ * Re-exports from production-auth.server.ts for backward compatibility
  */
-export async function getUser(
-  request: Request
-): Promise<AuthenticatedUser | null> {
-  try {
-    // Check for Bearer token in Authorization header
-    const authHeader = request.headers.get("Authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
-      const payload = verifyAccessToken(token);
-      
-      // Verify session is still valid
-      const session = await prisma.session.findUnique({
-        where: { id: payload.sessionId },
-        include: { user: true },
-      });
 
-      if (!session || session.expiresAt < new Date()) {
-        return null;
-      }
+// Import everything we need first
+import {
+  signUp as _signUp,
+  signIn as _signIn,
+  signOut as _signOut,
+  getUser as _getUser,
+  requireUser as _requireUser,
+  type AuthUser
+} from './production-auth.server';
 
-      return {
-        id: payload.userId,
-        email: payload.email,
-        name: session.user.name,
-        workspaceId: payload.workspaceId,
-        roleId: payload.roleId,
-        permissions: payload.permissions,
-      };
-    }
+// Re-export the functions
+export const signUp = _signUp;
+export const signIn = _signIn;
+export const signOut = _signOut;
+export const getUser = _getUser;
+export const requireUser = _requireUser;
+export type { AuthUser };
+export type AuthenticatedUser = AuthUser; // Alias for backward compatibility
 
-    // Check for session cookie
-    const cookieSession = await sessionStorage.getSession(
-      request.headers.get("Cookie")
-    );
-    
-    // Check for simple session (from login-simple)
-    const simpleUserId = cookieSession.get("userId");
-    const simpleEmail = cookieSession.get("email");
-    if (simpleUserId && simpleEmail) {
-      // For demo purposes, use the userId directly as the user ID
-      return {
-        id: simpleUserId,
-        email: simpleEmail,
-        name: null,
-        workspaceId: undefined,
-        roleId: undefined,
-        permissions: undefined,
-      };
-    }
-    
-    // Check for regular session token
-    const sessionToken = cookieSession.get("sessionToken");
-    if (!sessionToken) {
-      return null;
-    }
+// Additional exports for specific use cases
+export { sessionStorage } from './session.server';
+export { hashPassword, verifyPassword } from './password.server';
+export { generateAccessToken, verifyAccessToken } from './jwt.server';
 
-    const payload = verifyAccessToken(sessionToken);
-    
-    // Verify session is still valid
-    const session = await prisma.session.findUnique({
-      where: { token: sessionToken },
-      include: { user: true },
-    });
+// Backward compatibility functions
+export const requireAuthenticatedUser = _requireUser;
+export const getAuthenticatedUser = _getUser;
 
-    if (!session || session.expiresAt < new Date()) {
-      return null;
-    }
-
-    return {
-      id: payload.userId,
-      email: payload.email,
-      name: session.user.name,
-      workspaceId: payload.workspaceId,
-      roleId: payload.roleId,
-      permissions: payload.permissions,
-    };
-  } catch (error) {
-    console.error("Error getting user from request:", error);
-    return null;
-  }
-}
-
-/**
- * Require user to be authenticated
- */
-export async function requireUser(
-  request: Request,
-  redirectTo = "/auth/login-simple"
-): Promise<AuthenticatedUser> {
-  const user = await getUser(request);
-  
-  if (!user) {
-    const url = new URL(request.url);
-    const params = new URLSearchParams({ 
-      redirectTo: url.pathname + url.search 
-    });
-    throw redirect(`${redirectTo}?${params.toString()}`);
-  }
-
-  return user;
-}
-
-/**
- * Require user to have specific permission
- */
+// Permission helper
 export async function requirePermission(
   request: Request,
   resource: string,
   action: string
-): Promise<AuthenticatedUser> {
-  const user = await requireUser(request);
-
-  if (!user.permissions) {
-    throw new Response("Forbidden", { status: 403 });
-  }
-
+) {
+  const user = await _requireUser(request);
   const permission = `${resource}:${action}`;
-  if (!user.permissions.includes(permission)) {
+  
+  if (!user.permissions?.includes(permission)) {
     throw new Response("Forbidden", { status: 403 });
   }
-
+  
   return user;
 }
 
-/**
- * Require user to be in a specific workspace
- */
-export async function requireWorkspace(
+// Protected loader helper
+export async function protectedLoader(
   request: Request,
-  workspaceId: string
-): Promise<AuthenticatedUser> {
-  const user = await requireUser(request);
-
-  // Check if user has access to the workspace
-  const userWorkspace = await prisma.userWorkspace.findUnique({
-    where: {
-      userId_workspaceId: {
-        userId: user.id,
-        workspaceId,
-      },
-    },
-    include: {
-      role: {
-        include: {
-          permissions: {
-            include: {
-              permission: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!userWorkspace) {
-    throw new Response("Forbidden", { status: 403 });
-  }
-
-  // Update user object with workspace permissions
-  const permissions = userWorkspace.role.permissions.map(
-    (rp) => `${rp.permission.resource}:${rp.permission.action}`
-  );
-
-  return {
-    ...user,
-    workspaceId,
-    roleId: userWorkspace.roleId,
-    permissions,
-  };
-}
-
-/**
- * Log user activity for audit trail
- */
-export async function logActivity(
-  userId: string | null,
-  action: string,
-  resource: string,
-  resourceId?: string,
-  details?: Record<string, any>,
-  request?: Request
-): Promise<void> {
-  try {
-    await prisma.auditLog.create({
-      data: {
-        userId,
-        action,
-        resource,
-        resourceId,
-        details,
-        ipAddress: request?.headers.get("X-Forwarded-For") || 
-                   request?.headers.get("X-Real-IP") || 
-                   undefined,
-        userAgent: request?.headers.get("User-Agent") || undefined,
-      },
-    });
-  } catch (error) {
-    console.error("Failed to log activity:", error);
-    // Don't throw - logging failure shouldn't break the app
-  }
-}
-
-/**
- * Protect a loader function
- */
-export function protectedLoader<T extends LoaderFunctionArgs>(
-  loader: (args: T & { user: AuthenticatedUser }) => any
+  callback: (user: AuthUser) => Promise<any>
 ) {
-  return async (args: T) => {
-    const user = await requireUser(args.request);
-    return loader({ ...args, user });
-  };
-}
-
-/**
- * Protect an action function
- */
-export function protectedAction<T extends ActionFunctionArgs>(
-  action: (args: T & { user: AuthenticatedUser }) => any
-) {
-  return async (args: T) => {
-    const user = await requireUser(args.request);
-    return action({ ...args, user });
-  };
+  const user = await _requireUser(request);
+  return callback(user);
 }

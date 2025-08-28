@@ -1,7 +1,7 @@
 import { useLoaderData } from "@remix-run/react";
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { requireAuthenticatedUser } from "~/services/auth/unified-auth.server";
+import { requireAuthenticatedUser } from "~/services/auth/auth.server";
 import { prisma } from "~/utils/db.server";
 import { ChatInterface } from "~/components/chat/ChatInterface";
 import { FileText, Clock, Folder, ExternalLink } from "lucide-react";
@@ -13,7 +13,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // Get recent pages from the user's current workspace
   const recentPages = await prisma.page.findMany({
     where: {
-      workspaceId: user.currentWorkspaceId,
+      workspaceId: user.workspaceId,
       isArchived: false
     },
     select: {
@@ -51,11 +51,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
       : `/app/pages/${page.id}`
   }));
 
+  // Get workspace details
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: user.workspaceId }
+  });
+
   return json({
     user,
-    currentWorkspace: user.currentWorkspace,
+    currentWorkspace: workspace,
     recentPages: formattedPages,
-    workspaceId: user.currentWorkspaceId
+    workspaceId: user.workspaceId
   });
 }
 

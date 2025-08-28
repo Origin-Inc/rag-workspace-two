@@ -1,0 +1,29 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/indexing",
+      "schedule": "* * * * *"
+    }
+  ],
+  "functions": {
+    "app/routes/api.cron.indexing.ts": {
+      "maxDuration": 30
+    },
+    "app/routes/api.rag-search.tsx": {
+      "maxDuration": 30
+    },
+    "app/routes/editor.$pageId.tsx": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "CRON_SECRET": "@cron-secret",
+    "REDIS_URL": "@redis-url",
+    "DATABASE_URL": "@database-url",
+    "SUPABASE_URL": "@supabase-url",
+    "SUPABASE_ANON_KEY": "@supabase-anon-key",
+    "OPENAI_API_KEY": "@openai-api-key",
+    "JWT_SECRET": "@jwt-secret",
+    "SESSION_SECRET": "@session-secret"
+  }
+}

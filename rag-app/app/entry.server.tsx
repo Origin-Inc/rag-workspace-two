@@ -5,6 +5,16 @@ import { isbot } from "isbot";
 import { PassThrough } from "node:stream";
 import { renderToPipeableStream } from "react-dom/server";
 
+// Import and start workers
+import { startWorkers } from "~/services/rag/workers/start-workers.server";
+
+// Start workers on server startup in development
+if (process.env.NODE_ENV === 'development') {
+  startWorkers().catch(error => {
+    console.error('[Worker Startup] Failed to start workers:', error);
+  });
+}
+
 const ABORT_DELAY = 5_000;
 
 export default function handleRequest(

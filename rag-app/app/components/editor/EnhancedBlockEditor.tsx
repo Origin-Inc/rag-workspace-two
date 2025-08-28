@@ -56,6 +56,7 @@ interface EnhancedBlockEditorProps {
   initialBlocks?: Block[];
   onChange?: (blocks: Block[]) => void;
   onSave?: (blocks: Block[]) => void;
+  workspaceId?: string;
   className?: string;
 }
 
@@ -69,6 +70,7 @@ const BlockComponent = memo(({
   onTransform,
   isSelected,
   onSelect,
+  workspaceId,
 }: {
   block: Block;
   index: number;
@@ -78,6 +80,7 @@ const BlockComponent = memo(({
   onTransform: (id: string, newType: BlockType) => void;
   isSelected: boolean;
   onSelect: (id: string) => void;
+  workspaceId?: string;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -178,11 +181,11 @@ const BlockComponent = memo(({
     if (block.type === 'paragraph') {
       if (text.startsWith('# ')) {
         const newContent = text.slice(2);
-        onTransform(block.id, 'heading1');
-        onUpdate(block.id, newContent);
-        
-        // Update the content after transformation
+        // Defer state updates to avoid React warnings
         setTimeout(() => {
+          onTransform(block.id, 'heading1');
+          onUpdate(block.id, newContent);
+          
           if (contentRef.current) {
             contentRef.current.textContent = newContent;
             lastContentRef.current = newContent;
@@ -204,10 +207,11 @@ const BlockComponent = memo(({
       }
       if (text.startsWith('## ')) {
         const newContent = text.slice(3);
-        onTransform(block.id, 'heading2');
-        onUpdate(block.id, newContent);
-        
+        // Defer state updates to avoid React warnings
         setTimeout(() => {
+          onTransform(block.id, 'heading2');
+          onUpdate(block.id, newContent);
+          
           if (contentRef.current) {
             contentRef.current.textContent = newContent;
             lastContentRef.current = newContent;
@@ -228,10 +232,11 @@ const BlockComponent = memo(({
       }
       if (text.startsWith('### ')) {
         const newContent = text.slice(4);
-        onTransform(block.id, 'heading3');
-        onUpdate(block.id, newContent);
-        
+        // Defer state updates to avoid React warnings
         setTimeout(() => {
+          onTransform(block.id, 'heading3');
+          onUpdate(block.id, newContent);
+          
           if (contentRef.current) {
             contentRef.current.textContent = newContent;
             lastContentRef.current = newContent;
@@ -252,8 +257,11 @@ const BlockComponent = memo(({
       }
       if ((text.startsWith('* ') || text.startsWith('- ')) && text.length === 2) {
         // Only transform if user just typed the pattern
-        onTransform(block.id, 'bulletList');
-        onUpdate(block.id, '');
+        // Defer state updates to avoid React warnings
+        setTimeout(() => {
+          onTransform(block.id, 'bulletList');
+          onUpdate(block.id, '');
+        }, 0);
         
         setTimeout(() => {
           if (contentRef.current) {
@@ -265,21 +273,26 @@ const BlockComponent = memo(({
         return;
       }
       if (text === '```') {
-        onTransform(block.id, 'code');
-        onUpdate(block.id, { code: '', language: 'javascript' });
+        // Defer state updates to avoid React warnings
         setTimeout(() => {
+          onTransform(block.id, 'code');
+          onUpdate(block.id, { code: '', language: 'javascript' });
           // Focus the code textarea if it exists
-          const codeTextarea = document.querySelector(`[data-block-id="${block.id}"] textarea`);
-          if (codeTextarea instanceof HTMLTextAreaElement) {
-            codeTextarea.focus();
-          }
-        }, 50);
+          setTimeout(() => {
+            const codeTextarea = document.querySelector(`[data-block-id="${block.id}"] textarea`);
+            if (codeTextarea instanceof HTMLTextAreaElement) {
+              codeTextarea.focus();
+            }
+          }, 50);
+        }, 0);
         return;
       }
     }
     
-    // Always update on input
-    onUpdate(block.id, block.type === 'code' ? { ...block.content, code: text } : text);
+    // Always update on input - defer to avoid React warnings
+    setTimeout(() => {
+      onUpdate(block.id, block.type === 'code' ? { ...block.content, code: text } : text);
+    }, 0);
     lastContentRef.current = text;
   }, [block.id, block.type, block.content, onUpdate, onTransform, showSlashMenu]);
 
@@ -291,62 +304,64 @@ const BlockComponent = memo(({
       lastContentRef.current = '';
     }
     
-    // Transform the block based on the command
-    switch (command.type) {
-      case 'database':
-        onTransform(block.id, 'database');
-        onUpdate(block.id, {
-          columns: [
-            { id: 'col1', name: 'Name', type: 'text', position: 0, width: 200 },
-            { id: 'col2', name: 'Status', type: 'select', position: 1, width: 150, options: [
-              { id: 'todo', label: 'To Do', color: 'gray' },
-              { id: 'in_progress', label: 'In Progress', color: 'blue' },
-              { id: 'done', label: 'Done', color: 'green' }
-            ]},
-            { id: 'col3', name: 'Notes', type: 'text', position: 2, width: 300 },
-          ],
-          rows: []
-        });
-        break;
-      case 'ai':
-        onTransform(block.id, 'ai');
-        onUpdate(block.id, { prompt: '', analysis: '', context: {} });
-        break;
-      case 'heading1':
-        onTransform(block.id, 'heading1');
-        onUpdate(block.id, '');
-        break;
-      case 'heading2':
-        onTransform(block.id, 'heading2');
-        onUpdate(block.id, '');
-        break;
-      case 'heading3':
-        onTransform(block.id, 'heading3');
-        onUpdate(block.id, '');
-        break;
-      case 'bulletList':
-        onTransform(block.id, 'bulletList');
-        onUpdate(block.id, '');
-        break;
-      case 'orderedList':
-        onTransform(block.id, 'numberedList');
-        onUpdate(block.id, '');
-        break;
-      case 'todoList':
-        onTransform(block.id, 'todoList');
-        onUpdate(block.id, '');
-        break;
-      case 'blockquote':
-        onTransform(block.id, 'quote');
-        onUpdate(block.id, '');
-        break;
-      case 'codeBlock':
-        onTransform(block.id, 'code');
-        onUpdate(block.id, { code: '', language: 'javascript' });
-        break;
-      default:
-        onUpdate(block.id, '');
-    }
+    // Transform the block based on the command - defer to avoid React warnings
+    setTimeout(() => {
+      switch (command.type) {
+        case 'database':
+          onTransform(block.id, 'database');
+          onUpdate(block.id, {
+            columns: [
+              { id: 'col1', name: 'Name', type: 'text', position: 0, width: 200 },
+              { id: 'col2', name: 'Status', type: 'select', position: 1, width: 150, options: [
+                { id: 'todo', label: 'To Do', color: 'gray' },
+                { id: 'in_progress', label: 'In Progress', color: 'blue' },
+                { id: 'done', label: 'Done', color: 'green' }
+              ]},
+              { id: 'col3', name: 'Notes', type: 'text', position: 2, width: 300 },
+            ],
+            rows: []
+          });
+          break;
+        case 'ai':
+          onTransform(block.id, 'ai');
+          onUpdate(block.id, { status: 'idle' });
+          break;
+        case 'heading1':
+          onTransform(block.id, 'heading1');
+          onUpdate(block.id, '');
+          break;
+        case 'heading2':
+          onTransform(block.id, 'heading2');
+          onUpdate(block.id, '');
+          break;
+        case 'heading3':
+          onTransform(block.id, 'heading3');
+          onUpdate(block.id, '');
+          break;
+        case 'bulletList':
+          onTransform(block.id, 'bulletList');
+          onUpdate(block.id, '');
+          break;
+        case 'orderedList':
+          onTransform(block.id, 'numberedList');
+          onUpdate(block.id, '');
+          break;
+        case 'todoList':
+          onTransform(block.id, 'todoList');
+          onUpdate(block.id, '');
+          break;
+        case 'blockquote':
+          onTransform(block.id, 'quote');
+          onUpdate(block.id, '');
+          break;
+        case 'codeBlock':
+          onTransform(block.id, 'code');
+          onUpdate(block.id, { code: '', language: 'javascript' });
+          break;
+        default:
+          onUpdate(block.id, '');
+      }
+    }, 0);
     
     setShowSlashMenu(false);
     
@@ -509,14 +524,25 @@ const BlockComponent = memo(({
           />
         );
       case 'ai':
+        // Parse content if it's a string (from DB storage)
+        let aiContent = block.content;
+        if (typeof aiContent === 'string') {
+          try {
+            aiContent = JSON.parse(aiContent);
+          } catch {
+            aiContent = { status: 'idle' };
+          }
+        }
         return (
           <AIBlock
-            content={block.content}
-            onContentChange={(content) => onUpdate(block.id, content)}
-            context={{
-              blockId: block.id,
-              pageContent: '', // Will be populated from parent
-              metadata: block.metadata
+            id={block.id}
+            content={aiContent || { status: 'idle' }}
+            workspaceId={workspaceId}
+            onUpdate={(content) => onUpdate(block.id, content)}
+            onDelete={() => onDelete(block.id)}
+            onInsertBlock={(content, type = 'paragraph') => {
+              onAddBelow(block.id);
+              // Could implement specific block insertion logic here
             }}
           />
         );
@@ -738,6 +764,7 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
   initialBlocks = [],
   onChange,
   onSave,
+  workspaceId,
   className,
 }: EnhancedBlockEditorProps) {
   const [blocks, setBlocks] = useState<Block[]>(() => 
@@ -760,7 +787,8 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
       const newBlocks = prev.map(block => 
         block.id === id ? { ...block, content, metadata: { ...block.metadata, updatedAt: new Date() } } : block
       );
-      onChange?.(newBlocks);
+      // Defer onChange call to avoid updating parent during render
+      setTimeout(() => onChange?.(newBlocks), 0);
       return newBlocks;
     });
   }, [onChange]);
@@ -770,7 +798,8 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
     
     setBlocks(prev => {
       const newBlocks = prev.filter(b => b.id !== id);
-      onChange?.(newBlocks);
+      // Defer onChange call to avoid updating parent during render
+      setTimeout(() => onChange?.(newBlocks), 0);
       return newBlocks;
     });
   }, [blocks.length, onChange]);
@@ -792,7 +821,8 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
     setBlocks(prev => {
       const newBlocks = [...prev];
       newBlocks.splice(index + 1, 0, newBlock);
-      onChange?.(newBlocks);
+      // Defer onChange call to avoid updating parent during render
+      setTimeout(() => onChange?.(newBlocks), 0);
       return newBlocks;
     });
     
@@ -845,7 +875,8 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
         }
         return block;
       });
-      onChange?.(newBlocks);
+      // Defer onChange call to avoid updating parent during render
+      setTimeout(() => onChange?.(newBlocks), 0);
       return newBlocks;
     });
   }, [onChange]);
@@ -907,7 +938,8 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
                   const [draggedBlock] = newBlocks.splice(draggedIndex, 1);
                   newBlocks.splice(dropIndex, 0, draggedBlock);
                   setBlocks(newBlocks);
-                  onChange?.(newBlocks);
+                  // Defer onChange call to avoid updating parent during render
+      setTimeout(() => onChange?.(newBlocks), 0);
                 }
               }
               setDragOverBlockId(null);
@@ -925,6 +957,7 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
               onTransform={transformBlock}
               isSelected={selectedBlockId === block.id}
               onSelect={setSelectedBlockId}
+              workspaceId={workspaceId}
             />
           </div>
         ))}

@@ -6,7 +6,9 @@ import { workspaceService } from "~/services/workspace.server";
 import { requirePermission } from "~/services/auth/auth.server";
 import { prisma } from "~/utils/db.server";
 
-export const loader = protectedLoader(async ({ request, params, user }) => {
+export const loader = async ({ request, params }: LoaderFunctionArgs) => {
+  const user = await protectedLoader(request, async (authenticatedUser) => authenticatedUser);
+  
   const slug = params.slug;
   if (!slug) {
     throw new Response("Not Found", { status: 404 });
@@ -47,7 +49,7 @@ export const loader = protectedLoader(async ({ request, params, user }) => {
     templates,
     userRole: workspace.userWorkspaces[0].role,
   });
-});
+};
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const slug = params.slug;

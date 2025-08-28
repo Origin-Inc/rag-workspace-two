@@ -1,7 +1,7 @@
 import { json, type ActionFunctionArgs } from '@remix-run/node';
 import { requireUser } from '~/services/auth/auth.server';
-import { pageContentIndexerService } from '~/services/page-content-indexer.server';
-import { indexingQueueWorker } from '~/services/indexing-queue-worker.server';
+import { ragIndexingService } from '~/services/rag/rag-indexing.service';
+import { getWorkersStatus } from '~/services/rag/workers/start-workers.server';
 import { DebugLogger } from '~/utils/debug-logger';
 
 const logger = new DebugLogger('API:IndexContent');
@@ -18,33 +18,17 @@ export async function action({ request }: ActionFunctionArgs) {
     switch (action) {
       case 'indexPage': {
         const pageId = formData.get('pageId') as string;
-        const workspaceId = formData.get('workspaceId') as string;
 
-        if (!pageId || !workspaceId) {
-          return json({ error: 'Missing required fields' }, { status: 400 });
+        if (!pageId) {
+          return json({ error: 'Missing page ID' }, { status: 400 });
         }
 
-        await pageContentIndexerService.indexPage(pageId, workspaceId);
+        // Queue page for indexing
+        await ragIndexingService.queueForIndexing(pageId);
 
         return json({
           success: true,
-          message: 'Page indexed successfully'
-        });
-      }
-
-      case 'indexDatabase': {
-        const databaseId = formData.get('databaseId') as string;
-        const workspaceId = formData.get('workspaceId') as string;
-
-        if (!databaseId || !workspaceId) {
-          return json({ error: 'Missing required fields' }, { status: 400 });
-        }
-
-        await pageContentIndexerService.indexDatabaseBlock(databaseId, workspaceId);
-
-        return json({
-          success: true,
-          message: 'Database indexed successfully'
+          message: 'Page queued for indexing'
         });
       }
 
@@ -55,30 +39,49 @@ export async function action({ request }: ActionFunctionArgs) {
           return json({ error: 'Missing workspace ID' }, { status: 400 });
         }
 
-        await pageContentIndexerService.reindexWorkspace(workspaceId);
+        // Index all pages in workspace
+        const result = await ragIndexingService.indexWorkspacePages(workspaceId);
 
         return json({
           success: true,
-          message: 'Workspace reindexed successfully'
+          message: `Workspace reindexing started: ${result.queued} pages queued, ${result.skipped} skipped`,
+          ...result
         });
       }
 
-      case 'processQueue': {
-        // Manually trigger queue processing
-        indexingQueueWorker.start();
-        
+      case 'reindexAll': {
+        // Admin operation to reindex entire system
+        const result = await ragIndexingService.indexAllPages();
+
         return json({
           success: true,
-          message: 'Queue processing started'
+          message: `System-wide reindexing started: ${result.queued} pages queued, ${result.skipped} skipped`,
+          ...result
         });
       }
 
-      case 'cleanupQueue': {
-        await indexingQueueWorker.cleanupOldTasks();
+      case 'getIndexStatus': {
+        const pageId = formData.get('pageId') as string;
+
+        if (!pageId) {
+          return json({ error: 'Missing page ID' }, { status: 400 });
+        }
+
+        const status = await ragIndexingService.getIndexingStatus(pageId);
+
+        return json({
+          success: true,
+          ...status
+        });
+      }
+
+      case 'getWorkerStatus': {
+        // Get status of background workers
+        const status = await getWorkersStatus();
         
         return json({
           success: true,
-          message: 'Queue cleanup completed'
+          ...status
         });
       }
 

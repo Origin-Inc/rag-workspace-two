@@ -7,7 +7,7 @@
  * - L3: Database with optimized indexes (fallback)
  */
 
-import LRUCache from 'lru-cache';
+import { LRUCache } from 'lru-cache';
 import { redis } from '~/utils/redis.server';
 import { prisma } from '~/utils/db.server';
 import type { DatabaseRow, DatabaseColumn } from '~/types/database-block';
@@ -54,7 +54,7 @@ class DatabaseBlockCacheService {
 
   constructor() {
     this.memoryCache = new LRUCache<string, CacheEntry<any>>({
-      max: this.MEMORY_CACHE_SIZE * 1024 * 1024, // Convert MB to bytes
+      maxSize: this.MEMORY_CACHE_SIZE * 1024 * 1024, // Convert MB to bytes
       ttl: this.DEFAULT_TTL,
       sizeCalculation: (value) => JSON.stringify(value).length,
       dispose: () => this.stats.evictions++,
