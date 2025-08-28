@@ -2,6 +2,7 @@ import { openai } from './openai.server';
 import { createSupabaseAdmin } from '~/utils/supabase.server';
 import { documentChunkingService, type DocumentChunk } from './document-chunking.server';
 import { DebugLogger } from '~/utils/debug-logger';
+import { prisma } from '~/utils/db.server';
 
 interface EmbeddingResult {
   embedding: number[];
@@ -308,14 +309,18 @@ export class EmbeddingGenerationService {
     workspaceId: string,
     queryText: string,
     limit: number = 10,
-    similarityThreshold: number = 0.7
+    similarityThreshold: number = 0.7,
+    pageId?: string // Optional pageId to scope search to specific page
   ): Promise<DocumentWithEmbedding[]> {
-    this.logger.info('Searching similar documents', {
+    this.logger.info('🔍 === STARTING SEARCH SIMILAR DOCUMENTS ===', {
       workspaceId,
+      pageId,
+      queryText: queryText.substring(0, 100),
       queryLength: queryText.length,
       limit,
       similarityThreshold,
-      openaiConfigured: !!openai
+      openaiConfigured: !!openai,
+      timestamp: new Date().toISOString()
     });
 
     try {
@@ -324,45 +329,150 @@ export class EmbeddingGenerationService {
       // Try to generate embedding if OpenAI is configured
       if (openai) {
         try {
+          this.logger.info('📊 Generating embedding for query...');
           const result = await this.generateEmbedding(queryText);
           embedding = result.embedding;
-          this.logger.info('Embedding generated successfully');
+          this.logger.info('✅ Embedding generated successfully', {
+            embeddingLength: embedding?.length,
+            firstValues: embedding?.slice(0, 5)
+          });
         } catch (embError) {
-          this.logger.warn('Failed to generate embedding, falling back to text search', embError);
+          this.logger.warn('⚠️ Failed to generate embedding, falling back to text search', {
+            error: embError instanceof Error ? embError.message : embError,
+            stack: embError instanceof Error ? embError.stack : undefined
+          });
         }
       } else {
-        this.logger.warn('OpenAI not configured, using text-only search');
+        this.logger.warn('⚠️ OpenAI not configured, using text-only search');
       }
 
-      // If we have an embedding, use hybrid search
+      // If we have an embedding, use our new search function
       if (embedding) {
-        // Use the hybrid_search function with proper parameter order
-        const { data, error } = await this.supabase
-          .rpc('hybrid_search', {
-            workspace_uuid: workspaceId,
-            query_text: queryText,
-            query_embedding: embedding,
-            match_count: limit,
-            similarity_threshold: similarityThreshold
-          });
-
-        if (error) {
-          this.logger.error('Hybrid search failed', error);
-          // Fall back to text search if hybrid search fails
-          return this.textOnlySearch(workspaceId, queryText, limit);
-        }
-
-        this.logger.info('Hybrid search completed', { 
-          resultsCount: data?.length || 0 
+        const vectorString = `[${embedding.join(',')}]`;
+        
+        this.logger.info('🔎 Executing vector search', {
+          vectorStringLength: vectorString.length,
+          hasPageId: !!pageId,
+          workspaceId,
+          pageId
+        });
+        
+        // Use the search_embeddings function from our migration
+        // Build the query based on whether pageId is provided
+        const results = pageId 
+          ? await prisma.$queryRaw<any[]>`
+              SELECT 
+                source_type,
+                entity_id,
+                page_id,
+                chunk_text,
+                similarity,
+                metadata
+              FROM search_embeddings(
+                ${vectorString}::vector,
+                ${workspaceId}::uuid,
+                ${pageId}::uuid,
+                ${limit}::integer,
+                ${similarityThreshold}::float
+              )
+            `
+          : await prisma.$queryRaw<any[]>`
+              SELECT 
+                source_type,
+                entity_id,
+                page_id,
+                chunk_text,
+                similarity,
+                metadata
+              FROM search_embeddings(
+                ${vectorString}::vector,
+                ${workspaceId}::uuid,
+                NULL::uuid,
+                ${limit}::integer,
+                ${similarityThreshold}::float
+              )
+            `;
+        
+        this.logger.info('✅ Vector search completed', { 
+          resultsCount: results.length,
+          results: results.map(r => ({
+            source_type: r.source_type,
+            entity_id: r.entity_id,
+            similarity: r.similarity,
+            textPreview: r.chunk_text?.substring(0, 100)
+          }))
         });
 
-        return data || [];
+        // Transform results to match expected format
+        return results.map((r: any) => ({
+          id: r.entity_id,
+          content: r.chunk_text,
+          embedding: [], // Don't return full embedding to save bandwidth
+          metadata: r.metadata || {},
+          passage_id: r.entity_id,
+          chunk_index: r.metadata?.chunkIndex || 0,
+          similarity: r.similarity,
+          rank: r.similarity,
+          pageId: r.page_id,
+          workspace_id: workspaceId,
+          source_type: r.source_type
+        })) as DocumentWithEmbedding[];
       } else {
-        // Use text-only search
-        return this.textOnlySearch(workspaceId, queryText, limit);
+        // Use text-only search on unified view
+        this.logger.info('📝 Using text-only search fallback (no embedding)');
+        const results = pageId
+          ? await prisma.$queryRaw<any[]>`
+              SELECT 
+                source_type,
+                entity_id,
+                page_id,
+                chunk_text,
+                metadata,
+                0.5 as similarity
+              FROM unified_embeddings
+              WHERE 
+                workspace_id = ${workspaceId}::uuid
+                AND page_id = ${pageId}::uuid
+                AND chunk_text ILIKE ${'%' + queryText + '%'}
+              LIMIT ${limit}
+            `
+          : await prisma.$queryRaw<any[]>`
+              SELECT 
+                source_type,
+                entity_id,
+                page_id,
+                chunk_text,
+                metadata,
+                0.5 as similarity
+              FROM unified_embeddings
+              WHERE 
+                workspace_id = ${workspaceId}::uuid
+                AND chunk_text ILIKE ${'%' + queryText + '%'}
+              LIMIT ${limit}
+            `;
+        
+        return results.map((r: any) => ({
+          id: r.entity_id,
+          content: r.chunk_text,
+          embedding: [],
+          metadata: r.metadata || {},
+          passage_id: r.entity_id,
+          chunk_index: r.metadata?.chunkIndex || 0,
+          similarity: r.similarity,
+          rank: r.similarity,
+          pageId: r.page_id,
+          workspace_id: workspaceId,
+          source_type: r.source_type
+        })) as DocumentWithEmbedding[];
       }
     } catch (error) {
-      this.logger.error('Similar documents search failed', error);
+      this.logger.error('❌ === SEARCH SIMILAR DOCUMENTS FAILED ===', {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        workspaceId,
+        pageId,
+        queryText: queryText.substring(0, 100)
+      });
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

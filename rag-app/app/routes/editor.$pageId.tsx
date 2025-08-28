@@ -4,15 +4,17 @@ import { EnhancedBlockEditor } from "~/components/editor/EnhancedBlockEditor";
 import { ClientOnly } from "~/components/ClientOnly";
 import { prisma } from "~/utils/db.server";
 import { requireUser } from "~/services/auth/auth.server";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Block } from "~/types/blocks";
 import { debounce } from "~/utils/performance";
 import type { Prisma } from "@prisma/client";
+import { ragIndexingService } from "~/services/rag/rag-indexing.service";
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { pageId } = params;
   if (!pageId) throw new Response("Page ID required", { status: 400 });
 
+  // Get authenticated user
   const user = await requireUser(request);
 
   // Get page details with project
@@ -139,6 +141,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
   const { pageId } = params;
   if (!pageId) return json({ error: "Page ID required" }, { status: 400 });
 
+  // Get authenticated user
   const user = await requireUser(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
@@ -265,6 +268,12 @@ export async function action({ params, request }: ActionFunctionArgs) {
         });
       }
       
+      // Queue page for indexing (non-blocking)
+      // The RAG indexing service will debounce and batch these requests
+      ragIndexingService.queueForIndexing(pageId).catch(error => {
+        console.error('[Auto-Index] Failed to queue page for indexing:', error);
+      });
+      
     } catch (error: any) {
       // Log error for monitoring
       console.error('[Save Error]', {
@@ -273,6 +282,45 @@ export async function action({ params, request }: ActionFunctionArgs) {
         code: error.code,
         blocks: serializedBlocks ? 'with blocks' : 'without blocks'
       });
+      
+      // Handle database connection errors specifically
+      if (error.code === 'P1001' || error.message?.includes('database') || error.message?.includes('connection')) {
+        console.error('[Database Connection Lost] Attempting to reconnect...');
+        
+        try {
+          // Try to reconnect to database
+          await prisma.$disconnect();
+          await prisma.$connect();
+          
+          // Retry the save operation
+          const contentData: Prisma.JsonValue = content || '';
+          const blocksData: Prisma.JsonValue = serializedBlocks || null;
+          
+          await prisma.page.update({
+            where: { id: pageId },
+            data: {
+              content: contentData,
+              blocks: blocksData,
+              updatedAt: new Date(),
+            }
+          });
+          
+          console.log('[Database Reconnected] Save successful after reconnection');
+          
+          // Queue for indexing after recovery save
+          ragIndexingService.queueForIndexing(pageId).catch(error => {
+            console.error('[Auto-Index] Failed after reconnection:', error);
+          });
+          
+          return json({ success: true, reconnected: true });
+        } catch (reconnectError) {
+          console.error('[Reconnection Failed]', reconnectError);
+          return json({ 
+            error: 'Database connection lost. Please refresh the page and try again.', 
+            connectionLost: true 
+          }, { status: 503 });
+        }
+      }
       
       // Attempt recovery: Save without blocks
       if (serializedBlocks && (
@@ -289,6 +337,11 @@ export async function action({ params, request }: ActionFunctionArgs) {
               blocks: null, // Clear blocks field if there's an issue
               updatedAt: new Date(),
             }
+          });
+          
+          // Queue for indexing after partial save
+          ragIndexingService.queueForIndexing(pageId).catch(error => {
+            console.error('[Auto-Index] Failed after partial save:', error);
           });
           
           return json({ 
@@ -312,6 +365,10 @@ export async function action({ params, request }: ActionFunctionArgs) {
       }, { status: 500 });
     }
 
+    // PRODUCTION: Content indexing is handled by database triggers and the real-time indexing worker
+    // The database trigger will automatically queue indexing when page content changes
+    console.log('[Save Success] Page saved, indexing will be handled by background worker');
+
     return json({ success: true });
   }
 
@@ -324,9 +381,17 @@ export default function EditorPage() {
   const [blocks, setBlocks] = useState(initialBlocks);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
+  const retryTimeoutRef = useRef<NodeJS.Timeout>();
 
-  const handleSave = async (newBlocks: Block[]) => {
+  const handleSave = async (newBlocks: Block[], isRetry = false) => {
+    if (!isRetry) {
+      setRetryCount(0);
+    }
     setIsSaving(true);
+    setSaveError(null);
     const formData = new FormData();
     formData.set("intent", "save-content");
     
@@ -385,15 +450,53 @@ export default function EditorPage() {
     }
   };
 
-  // Update save status when fetcher completes
+  // Update save status when fetcher completes with retry logic
   useEffect(() => {
     if (fetcher.state === 'idle' && fetcher.data) {
       setIsSaving(false);
+      
       if (fetcher.data.success) {
         setLastSaved(new Date());
+        setSaveError(null);
+        setRetryCount(0);
+        
+        // Clear any pending retries
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+        }
+      } else if (fetcher.data.error) {
+        // Handle save errors with retry logic
+        const isConnectionError = fetcher.data.connectionLost || 
+                                 fetcher.data.error.includes('connection') ||
+                                 fetcher.data.error.includes('database');
+        
+        if (isConnectionError && retryCount < maxRetries) {
+          const newRetryCount = retryCount + 1;
+          setRetryCount(newRetryCount);
+          setSaveError(`Connection error. Retrying (${newRetryCount}/${maxRetries})...`);
+          
+          // Exponential backoff: 2s, 4s, 8s
+          const retryDelay = Math.min(2000 * Math.pow(2, retryCount), 8000);
+          
+          retryTimeoutRef.current = setTimeout(() => {
+            console.log(`[Auto-Save Retry] Attempt ${newRetryCount}/${maxRetries}`);
+            handleSave(blocks, true);
+          }, retryDelay);
+        } else {
+          setSaveError(fetcher.data.error || 'Failed to save changes');
+        }
       }
     }
-  }, [fetcher.state, fetcher.data]);
+  }, [fetcher.state, fetcher.data, blocks, retryCount]);
+  
+  // Cleanup retry timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
@@ -412,9 +515,14 @@ export default function EditorPage() {
             {isSaving && (
               <span className="text-xs text-gray-500">Saving...</span>
             )}
-            {!isSaving && lastSaved && (
+            {!isSaving && lastSaved && !saveError && (
               <span className="text-xs text-green-600">
                 Saved at {lastSaved.toLocaleTimeString()}
+              </span>
+            )}
+            {saveError && (
+              <span className="text-xs text-red-600">
+                {saveError}
               </span>
             )}
             {page.is_template && (
@@ -438,6 +546,7 @@ export default function EditorPage() {
             initialBlocks={blocks}
             onChange={handleChange}
             onSave={handleSave}
+            workspaceId={project.workspaceId}
             className="h-full"
           />
         </ClientOnly>

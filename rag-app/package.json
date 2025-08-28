@@ -12,7 +12,9 @@
     "typecheck": "tsc",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "worker": "tsx start-indexing-worker-robust.ts",
+    "worker:dev": "tsx watch start-indexing-worker-robust.ts"
   },
   "keywords": [],
   "author": "",
@@ -56,7 +58,7 @@
     "@types/react-window": "^1.8.8",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
-    "bullmq": "^5.56.9",
+    "bullmq": "^5.58.2",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",

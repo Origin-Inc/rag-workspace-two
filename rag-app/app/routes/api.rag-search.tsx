@@ -2,6 +2,7 @@ import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-r
 import { requireUser } from '~/services/auth/auth.server';
 import { embeddingGenerationService } from '~/services/embedding-generation.server';
 import { ragService } from '~/services/rag.server';
+import { aiBlockService } from '~/services/ai-block-service.server';
 import { DebugLogger } from '~/utils/debug-logger';
 
 const logger = new DebugLogger('API:RAGSearch');
@@ -130,13 +131,58 @@ export async function action({ request }: ActionFunctionArgs) {
       case 'searchAndAnswer': {
         const query = formData.get('query') as string;
         const workspaceId = formData.get('workspaceId') as string;
+        const pageId = formData.get('pageId') as string;
+        const blockId = formData.get('blockId') as string;
 
-        if (!query || !workspaceId) {
-          return json({ error: 'Missing required fields' }, { status: 400 });
+        logger.info('searchAndAnswer request', { query, workspaceId, pageId, blockId });
+
+        if (!query) {
+          logger.error('Missing query parameter');
+          return json({ error: 'Missing query parameter' }, { status: 400 });
         }
 
+        if (!workspaceId) {
+          logger.error('Missing workspaceId parameter');
+          return json({ error: 'Missing workspaceId parameter' }, { status: 400 });
+        }
+
+        // Use the production AI block service for better reliability
+        try {
+          const response = await aiBlockService.processQuery({
+            query,
+            workspaceId,
+            pageId: pageId || undefined,
+            blockId: blockId || undefined,
+            maxRetries: 3,
+            timeoutMs: 25000
+          });
+
+          if (!response.success) {
+            logger.error('AI block service failed', { error: response.error });
+            return json({
+              success: false,
+              error: response.error,
+              debugInfo: response.debugInfo
+            }, { status: 500 });
+          }
+
+          return json({
+            success: true,
+            answer: response.answer,
+            citations: response.citations,
+            debugInfo: response.debugInfo
+          });
+        } catch (error) {
+          logger.error('Unexpected error in AI block service', error);
+          
+          // Fallback to original implementation
+          logger.info('Falling back to original RAG implementation');
+        }
+
+        // Original implementation as fallback
         // Check if this is a summarization request
-        if (query.toLowerCase().includes('summarize this workspace')) {
+        const lowerQuery = query.toLowerCase();
+        if (lowerQuery.includes('summarize this workspace')) {
           const summary = await ragService.generateWorkspaceSummary(
             workspaceId,
             'comprehensive'
@@ -148,6 +194,71 @@ export async function action({ request }: ActionFunctionArgs) {
             citations: summary.citations,
             isWorkspaceSummary: true
           });
+        }
+        
+        // Handle "summarize this page" request
+        if (lowerQuery.includes('summarize this page') || lowerQuery.includes('summarize the page')) {
+          // For page summarization, we'll search for content in the current context
+          // and generate a focused summary
+          const searchResults = await embeddingGenerationService.searchSimilarDocuments(
+            workspaceId,
+            'page content current document', // Search for page-related content
+            5,
+            0.3 // Lower threshold for broader results
+          );
+
+          if (searchResults.length === 0) {
+            return json({
+              success: true,
+              answer: "This page appears to be empty or hasn't been indexed yet. Try adding some content to the page first.",
+              citations: []
+            });
+          }
+
+          // Build context for page summarization
+          const context = await ragService.buildAugmentedContext(
+            'Summarize the following page content',
+            searchResults,
+            {
+              maxTokens: 2000,
+              includeCitations: true
+            }
+          );
+
+          // Generate page summary with timeout protection
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Request timeout after 25 seconds')), 25000);
+          });
+
+          try {
+            const result = await Promise.race([
+              ragService.generateAnswerWithCitations(
+                `Please provide a concise summary of this page's content. Focus on the main topics, key points, and important information.`,
+                context
+              ),
+              timeoutPromise
+            ]) as any;
+
+            logger.info('Page summary generated successfully', { 
+              answerLength: result.answer?.length || 0,
+              citationsCount: result.citations?.length || 0
+            });
+
+            return json({
+              success: true,
+              answer: result.answer,
+              citations: result.citations,
+              isPageSummary: true
+            });
+          } catch (timeoutError) {
+            logger.error('Page summary generation timed out or failed', timeoutError);
+            
+            return json({
+              success: false,
+              error: 'The page summary request took too long to complete. Please try again.',
+              timeout: true
+            }, { status: 408 });
+          }
         }
 
         // Perform search
@@ -176,16 +287,36 @@ export async function action({ request }: ActionFunctionArgs) {
           }
         );
 
-        // Generate answer
-        const result = await ragService.generateAnswerWithCitations(
-          query,
-          context
-        );
-
-        return json({
-          success: true,
-          ...result
+        // Generate answer with timeout protection
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Request timeout after 25 seconds')), 25000);
         });
+
+        try {
+          const result = await Promise.race([
+            ragService.generateAnswerWithCitations(query, context),
+            timeoutPromise
+          ]) as any;
+
+          logger.info('Answer generated successfully', { 
+            answerLength: result.answer?.length || 0,
+            citationsCount: result.citations?.length || 0
+          });
+
+          return json({
+            success: true,
+            ...result
+          });
+        } catch (timeoutError) {
+          logger.error('Answer generation timed out or failed', timeoutError);
+          
+          // Return a timeout-specific error response
+          return json({
+            success: false,
+            error: 'The AI request took too long to complete. Please try with a shorter query.',
+            timeout: true
+          }, { status: 408 });
+        }
       }
 
       default:
