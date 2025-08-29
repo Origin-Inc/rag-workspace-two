@@ -2895,7 +2895,7 @@
         "id": 20,
         "title": "Rebuild Page Editor with Notion/Coda-style Block Architecture",
         "description": "CRITICAL: Complete rebuild of the page editor to implement a production-ready block-based architecture similar to Notion and Coda, replacing the broken drag-and-drop canvas with inline block editing, slash commands, keyboard navigation, and virtual scrolling for optimal performance. This is blocking content creation and must be completed before Task 16 (RAG Infrastructure) since users cannot create content for the RAG system without a functional editor.",
-        "status": "in-progress",
+        "status": "deferred",
         "dependencies": [
           6,
           14
@@ -3390,7 +3390,7 @@
         "id": 23,
         "title": "MVP Pivot - Build AI Block with Inline Chat",
         "description": "Create the AI Block that appears when users press Space anywhere. This is the magic moment - type a question, get grounded answers from your workspace data, insert charts/tables/content directly into the page.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           20
         ],
@@ -3402,7 +3402,7 @@
             "id": 1,
             "title": "Build AI block base component structure",
             "description": "Create AIBlock.tsx component with empty state showing 'Press Space to ask the AI' ghost text and basic block container.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3411,7 +3411,7 @@
             "id": 2,
             "title": "Implement Space hotkey activation",
             "description": "Add keyboard event handler that opens inline chat when Space is pressed in empty AI block using react-hotkeys-hook.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3420,7 +3420,7 @@
             "id": 3,
             "title": "Create context-aware AI chat interface",
             "description": "Build inline chat UI that appears on Space press with awareness of current page, visible database, and project context.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               2
             ],
@@ -3431,7 +3431,7 @@
             "id": 4,
             "title": "Integrate RAG pipeline for grounded responses",
             "description": "Connect AI chat to existing RAG system to retrieve relevant workspace data and generate responses grounded in user's actual content.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               3
             ],
@@ -3442,7 +3442,7 @@
             "id": 5,
             "title": "Implement AI response preview area",
             "description": "Create preview component that displays AI responses with proper formatting, code highlighting, and visual distinction from user input.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               4
             ],
@@ -3453,7 +3453,7 @@
             "id": 6,
             "title": "Build Insert action for AI-generated content",
             "description": "Implement one-click insertion of AI responses as new blocks (text, tables, charts, code) directly into the page.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               5
             ],
@@ -3464,7 +3464,7 @@
             "id": 7,
             "title": "Add dismiss and retry functionality",
             "description": "Implement UI controls to dismiss AI responses, clear chat, or retry with modified prompts.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               5
             ],
@@ -3475,7 +3475,7 @@
             "id": 8,
             "title": "Create the wow factor polish",
             "description": "Add smooth animations, instant response feedback, and delightful interactions that make the AI feel magical and responsive.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               6,
               7
@@ -3489,14 +3489,183 @@
         "id": 24,
         "title": "MVP Pivot - Implement LLM Orchestration Layer",
         "description": "Build Smart AI Response Generation system that makes AI incredibly intelligent about user data. The system should understand natural language questions about databases, documents, and projects, then generate perfect responses with appropriate visualizations (charts, tables, insights) using actual data rather than hallucinations.",
-        "status": "pending",
+        "status": "in-progress",
         "dependencies": [
           23
         ],
         "priority": "high",
         "details": "1. Natural Language Understanding Layer:\n   - Process questions like 'summarize my tasks', 'show revenue by month', 'what are my blocked items'\n   - Intent classification to determine query type (data query, content search, analytics, summary)\n   - Context extraction to identify relevant entities and time ranges\n\n2. Smart Response Determination:\n   - Automatically decide response format: text summary, data table, chart visualization, or combination\n   - For data questions: Query actual database using Prisma, never hallucinate numbers\n   - For content questions: Use RAG retrieval to find relevant documents\n   - For analytics: Generate appropriate visualizations (bar charts for comparisons, line charts for trends)\n\n3. Structured Output Generation:\n   - Use OpenAI Structured Outputs API for 100% JSON schema compliance\n   - Generate valid block formats that integrate seamlessly with editor\n   - Include metadata for confidence scores and data sources\n\n4. Data Integration:\n   - Direct database queries for real-time accurate data\n   - RAG integration for document and content retrieval\n   - Combine multiple data sources for comprehensive answers\n\n5. User Experience:\n   - Response time under 2 seconds for most queries\n   - Clear indication of data sources used\n   - Fallback strategies for ambiguous queries\n   - Make users think 'wow, it actually understands my data!'",
         "testStrategy": "1. Test natural language understanding with diverse queries:\n   - Data queries: 'show my completed tasks', 'revenue last quarter', 'user growth rate'\n   - Content queries: 'find documentation about authentication', 'summarize project requirements'\n   - Mixed queries: 'compare this month's performance to our goals in the planning doc'\n\n2. Verify response format selection:\n   - Numeric comparisons generate bar charts\n   - Time series data generates line charts\n   - Lists generate formatted tables\n   - Summaries generate structured text blocks\n\n3. Test data accuracy:\n   - Compare AI responses against direct database queries\n   - Verify no hallucinated numbers\n   - Test with empty datasets and edge cases\n\n4. Test structured output compliance:\n   - All responses pass JSON schema validation\n   - Generated blocks render correctly in editor\n   - Test error handling for API failures\n\n5. Performance testing:\n   - Response time < 2s for 95% of queries\n   - Concurrent query handling\n   - Graceful degradation under load",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Natural Language Intent Classification Service",
+            "description": "Build a service to classify user queries into categories: data_query, content_search, analytics, summary, mixed. Process questions like 'summarize my tasks', 'show revenue by month', 'what are my blocked items'.",
+            "dependencies": [],
+            "details": "Implement intent classification using OpenAI API with predefined categories and confidence scoring. Create TypeScript types for query classification results and integrate with existing AI controller patterns.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Build Context Extraction Engine",
+            "description": "Extract relevant entities, time ranges, and context from natural language queries to prepare for data source routing.",
+            "dependencies": [
+              "24.1"
+            ],
+            "details": "Parse queries to identify entities (users, projects, dates), time ranges (last month, this quarter), and relevant data sources. Use NLP techniques to extract structured context from unstructured queries.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement Dynamic Query Router",
+            "description": "Route classified queries to appropriate data sources: Prisma for database queries, RAG for content search, analytics engine for visualizations.",
+            "dependencies": [
+              "24.1",
+              "24.2"
+            ],
+            "details": "Create routing logic that determines whether to query database directly, search indexed content, or generate analytics based on query intent and extracted context.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Integrate OpenAI Structured Outputs API",
+            "description": "Implement OpenAI Structured Outputs API for 100% JSON schema compliance in response generation.",
+            "dependencies": [
+              "24.1"
+            ],
+            "details": "Configure OpenAI API calls with JSON schema definitions for different response types. Ensure all AI responses conform to predefined block editor formats with proper validation.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Build Database Query Execution Engine",
+            "description": "Execute real-time database queries using Prisma based on natural language intent, ensuring no hallucinated data.",
+            "dependencies": [
+              "24.3"
+            ],
+            "details": "Create secure Prisma query builder that translates natural language intents into database queries. Include proper filtering, aggregation, and join operations for complex data requests.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Enhance RAG Content Retrieval",
+            "description": "Integrate existing RAG system for document and content retrieval based on natural language queries.",
+            "dependencies": [
+              "24.3"
+            ],
+            "details": "Extend current RAG implementation to handle orchestrated queries from the LLM layer. Optimize retrieval for specific content types and improve relevance scoring.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Create Multi-Source Data Aggregation Service",
+            "description": "Combine data from multiple sources (database, RAG, analytics) into unified responses.",
+            "dependencies": [
+              "24.5",
+              "24.6"
+            ],
+            "details": "Build aggregation service that merges results from database queries, content search, and analytics into coherent responses. Handle data conflicts and provide source attribution.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Build Dynamic Visualization Generation",
+            "description": "Generate appropriate chart visualizations based on data patterns and query context (bar charts for comparisons, line charts for trends).",
+            "dependencies": [
+              "24.5"
+            ],
+            "details": "Implement chart type selection logic based on data characteristics. Integrate with existing visualization components to generate charts dynamically based on query results.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Implement Response Format Determination",
+            "description": "Automatically decide response format: text summary, data table, chart visualization, or combination based on query type and data.",
+            "dependencies": [
+              "24.7",
+              "24.8"
+            ],
+            "details": "Create decision engine that analyzes query intent and data patterns to determine optimal response format. Support mixed responses with multiple visualization types.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Build Block Editor Integration Layer",
+            "description": "Format AI responses into valid block formats that integrate seamlessly with the existing block editor.",
+            "dependencies": [
+              "24.4",
+              "24.9"
+            ],
+            "details": "Create response formatters that convert AI outputs into proper block editor formats. Ensure compatibility with existing block types and editor functionality.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Implement Confidence Scoring System",
+            "description": "Add confidence scores to AI responses with clear indication of data sources and reliability metrics.",
+            "dependencies": [
+              "24.7"
+            ],
+            "details": "Build scoring system that evaluates response confidence based on data source reliability, query clarity, and result consistency. Display confidence indicators to users.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Create Intelligent Caching Strategy",
+            "description": "Implement caching for frequently asked questions and common query patterns to improve response times.",
+            "dependencies": [
+              "24.3"
+            ],
+            "details": "Build Redis-based caching system for common queries with intelligent cache invalidation based on data updates. Cache both query results and processed intents.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 13,
+            "title": "Build Error Handling and Fallback Mechanisms",
+            "description": "Implement robust error handling with graceful fallbacks for ambiguous queries and system failures.",
+            "dependencies": [
+              "24.11"
+            ],
+            "details": "Create comprehensive error handling for all failure scenarios including API timeouts, invalid queries, and data source failures. Implement fallback strategies and user-friendly error messages.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 14,
+            "title": "Optimize Performance for Sub-2-Second Responses",
+            "description": "Optimize the entire orchestration pipeline to achieve response times under 2 seconds for most queries.",
+            "dependencies": [
+              "24.12",
+              "24.13"
+            ],
+            "details": "Profile and optimize all pipeline components including intent classification, query execution, and response generation. Implement parallel processing where possible and optimize database queries.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 15,
+            "title": "Create Comprehensive Testing Framework",
+            "description": "Build thorough testing suite covering NLU accuracy, query routing, data integrity, performance benchmarks, and user experience scenarios.",
+            "dependencies": [
+              "24.14"
+            ],
+            "details": "Implement unit tests for each component, integration tests for end-to-end flows, and performance tests for response time requirements. Include test cases for edge cases and error scenarios.",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
       },
       {
         "id": 25,
@@ -3522,7 +3691,130 @@
         "priority": "high",
         "details": "1. Auto-detect when to show charts vs tables based on data structure and content type\n2. Chart types:\n   - Bar charts for comparisons and rankings\n   - Line charts for trends and time series\n   - Pie charts for percentages and proportions\n   - Funnel charts for conversion and process flows\n3. Beautiful, interactive visualizations:\n   - Smooth animations on load and interaction\n   - Hover tooltips with detailed information\n   - Click interactions for drilling down\n   - Responsive design that looks great at any size\n4. Tables with advanced features:\n   - Sortable columns with visual indicators\n   - Conditional formatting for highlighting key data\n   - Pagination for large datasets\n   - Export capabilities (CSV, JSON)\n5. One-click insert functionality:\n   - AI outputs automatically formatted as blocks\n   - Direct insertion into page editor\n   - Blocks are fully editable after insertion\n   - Maintain data source references\n6. Visual polish and wow factor:\n   - Modern, clean design with subtle gradients\n   - Consistent color schemes across chart types\n   - Professional typography and spacing\n   - Dark mode support\n7. Provenance indicators:\n   - Small badges showing AI-generated status\n   - Expandable source information\n   - Confidence scores where applicable",
         "testStrategy": "1. Test auto-detection logic with various data structures (arrays of objects, time series, categorical data) and verify correct chart type selection\n2. Test each chart type (bar, line, pie, funnel) with real AI response data and verify correct rendering, animations, and interactions\n3. Test table functionality including sorting, filtering, pagination with datasets of 10, 100, 1000+ rows\n4. Test one-click insertion into page editor, ensuring blocks maintain data and are fully editable\n5. Test visual consistency across light/dark themes and different viewport sizes\n6. Test performance with large datasets (10,000+ data points) ensuring smooth interactions\n7. Test provenance indicators display correctly and source information is accessible\n8. Test accessibility features including keyboard navigation and screen reader support",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design AI Output Detection System",
+            "description": "Create a robust system to analyze AI responses and automatically detect when chart or table visualization would be most appropriate based on data structure and content patterns",
+            "dependencies": [],
+            "details": "Implement a detector service that analyzes AI response content using pattern matching and data structure analysis. Detect arrays of objects, time series data, categorical comparisons, percentages/proportions, and key-value pairs. Create confidence scoring for chart type selection (bar, line, pie, funnel) vs table display. Handle edge cases like mixed data types and nested structures.",
+            "status": "pending",
+            "testStrategy": "Test detection logic with 50+ different AI response structures including financial data, time series, categorical data, and edge cases. Verify correct chart type selection with 95% accuracy. Test confidence scoring thresholds. Measure detection time < 10ms for typical responses."
+          },
+          {
+            "id": 2,
+            "title": "Create Chart Output Block Component",
+            "description": "Build the main ChartOutputBlock React component that renders beautiful, interactive Recharts visualizations with smooth animations and professional styling",
+            "dependencies": [
+              "26.1"
+            ],
+            "details": "Create ChartOutputBlock.tsx component that accepts AI response data and chart type. Implement support for BarChart, LineChart, PieChart, and FunnelChart from Recharts. Add responsive container wrapper for automatic resizing. Include default color schemes with gradient support. Implement hover tooltips, click interactions, and smooth load animations. Add dark mode support with theme-aware colors.",
+            "status": "pending",
+            "testStrategy": "Test each chart type with real AI data. Verify responsive behavior at different viewport sizes. Test animations render smoothly at 60fps. Verify dark/light mode transitions. Test interaction handlers (hover, click) work correctly. Measure initial render time < 100ms."
+          },
+          {
+            "id": 3,
+            "title": "Create Table Output Block Component",
+            "description": "Build a sophisticated TableOutputBlock component with advanced features like sorting, conditional formatting, and pagination",
+            "dependencies": [
+              "26.1"
+            ],
+            "details": "Create TableOutputBlock.tsx with virtual scrolling for performance. Implement sortable columns with visual indicators (arrows). Add conditional formatting engine for highlighting cells based on values (e.g., negative numbers in red, highest values in green). Implement client-side pagination with configurable page sizes. Add column width auto-adjustment and text truncation with tooltips.",
+            "status": "pending",
+            "testStrategy": "Test table rendering with datasets of 10, 100, 1000, and 10000 rows. Verify sorting works for string, number, and date columns. Test conditional formatting rules apply correctly. Verify pagination controls work smoothly. Test virtual scrolling maintains 60fps with large datasets."
+          },
+          {
+            "id": 4,
+            "title": "Implement Export Functionality",
+            "description": "Add export capabilities for both charts and tables supporting CSV, JSON, and image formats",
+            "dependencies": [
+              "26.2",
+              "26.3"
+            ],
+            "details": "For tables: implement CSV export using papaparse, JSON export with proper formatting. For charts: implement PNG/SVG export using canvas/svg conversion. Add download buttons with appropriate icons. Include filename generation with timestamp. Handle large dataset exports with progress indicators. Add copy-to-clipboard functionality for quick sharing.",
+            "status": "pending",
+            "testStrategy": "Test CSV export with special characters and Unicode. Verify JSON export maintains data types. Test chart image export quality at different resolutions. Verify large dataset exports (10000+ rows) complete without browser freezing. Test clipboard functionality across browsers."
+          },
+          {
+            "id": 5,
+            "title": "Build Insert-to-Page Integration",
+            "description": "Create seamless one-click insertion functionality to add AI-generated charts and tables directly into the page editor",
+            "dependencies": [
+              "26.2",
+              "26.3"
+            ],
+            "details": "Add 'Insert to Page' button on each output block. Implement block conversion from AI output to editor block format. Maintain data references and provenance information. Handle insertion at cursor position or end of page. Preserve all formatting and interactivity after insertion. Add undo/redo support for insertions.",
+            "status": "pending",
+            "testStrategy": "Test insertion into TiptapBlockEditor at different cursor positions. Verify inserted blocks maintain full interactivity. Test undo/redo functionality. Verify data references are preserved. Test insertion of multiple blocks in sequence. Measure insertion time < 50ms."
+          },
+          {
+            "id": 6,
+            "title": "Add Provenance and Confidence Indicators",
+            "description": "Implement visual indicators showing AI-generated status, confidence scores, and expandable source information",
+            "dependencies": [
+              "26.2",
+              "26.3"
+            ],
+            "details": "Create ProvenanceBadge component with AI sparkle icon. Add confidence score display (when available) with color coding. Implement expandable panel showing source query, model used, timestamp, and raw data. Add subtle visual distinction for AI-generated vs user-created content. Include 'Regenerate' button to refresh with updated data.",
+            "status": "pending",
+            "testStrategy": "Test badge rendering on all block types. Verify expandable panel shows correct metadata. Test confidence score color gradients. Verify regenerate functionality triggers new AI query. Test visual indicators in both light and dark modes."
+          },
+          {
+            "id": 7,
+            "title": "Implement Auto-Layout and Responsive Design",
+            "description": "Create intelligent auto-layout system that ensures charts and tables look professional at any size with responsive breakpoints",
+            "dependencies": [
+              "26.2",
+              "26.3"
+            ],
+            "details": "Implement responsive container that adjusts chart dimensions based on viewport. Add breakpoint system for mobile/tablet/desktop layouts. Create aspect ratio preservation for charts. Implement dynamic font sizing for readability. Add full-screen expansion mode for detailed viewing. Handle orientation changes smoothly.",
+            "status": "pending",
+            "testStrategy": "Test responsive behavior at common breakpoints (320px, 768px, 1024px, 1920px). Verify charts maintain readability on mobile. Test full-screen mode transitions. Verify aspect ratios are preserved during resize. Test performance during continuous resizing."
+          },
+          {
+            "id": 8,
+            "title": "Add Advanced Chart Interactions",
+            "description": "Implement sophisticated interaction features including drill-down capabilities, data point selection, and interactive legends",
+            "dependencies": [
+              "26.2"
+            ],
+            "details": "Add click handlers for drilling into data points. Implement multi-select for comparing specific data points. Create interactive legends for toggling series visibility. Add zoom and pan for time series charts. Implement crosshair cursor for precise value reading. Add animation controls (play/pause for time series).",
+            "status": "pending",
+            "testStrategy": "Test drill-down navigation maintains context. Verify multi-select works across different chart types. Test legend interactions update chart correctly. Verify zoom/pan maintains performance. Test crosshair accuracy on dense datasets."
+          },
+          {
+            "id": 9,
+            "title": "Create Visual Polish and Theme System",
+            "description": "Implement beautiful visual design with gradients, shadows, professional typography, and cohesive color schemes",
+            "dependencies": [
+              "26.2",
+              "26.3",
+              "26.7"
+            ],
+            "details": "Design gradient color schemes for each chart type. Add subtle shadows and hover effects. Implement professional typography with proper hierarchy. Create cohesive color palette system. Add smooth transitions for all state changes. Implement loading skeletons for async data. Add empty state designs.",
+            "status": "pending",
+            "testStrategy": "Visual regression testing for all components. Test color contrast meets WCAG standards. Verify animations run at 60fps. Test theme consistency across all block types. Verify loading states appear correctly."
+          },
+          {
+            "id": 10,
+            "title": "Performance Optimization and Testing",
+            "description": "Optimize rendering performance for handling 10,000+ data points and create comprehensive test suite",
+            "dependencies": [
+              "26.1",
+              "26.2",
+              "26.3",
+              "26.4",
+              "26.5",
+              "26.6",
+              "26.7",
+              "26.8",
+              "26.9"
+            ],
+            "details": "Implement data decimation for large datasets in charts. Add WebWorker for heavy data processing. Optimize React re-renders with memo and callbacks. Implement progressive loading for large tables. Add performance monitoring. Create comprehensive test suite covering all features. Document performance benchmarks.",
+            "status": "pending",
+            "testStrategy": "Benchmark rendering with datasets of 100, 1000, 10000, 100000 points. Verify 60fps maintained during interactions. Test memory usage stays under 100MB. Load test with 50 simultaneous charts. Verify no memory leaks during extended use."
+          }
+        ]
       },
       {
         "id": 27,
@@ -3712,7 +4004,109 @@
         "priority": "high",
         "details": "1. Amazing first-time experience - sample data that shows off capabilities, pre-populated with compelling examples that demonstrate AI-powered analytics immediately.\n2. Interactive tutorial - 'Try pressing Space to ask AI about this data' with guided tooltips and progressive disclosure of features.\n3. Delightful micro-interactions - subtle animations on data updates, smooth transitions between views, optional sound effects for key actions, haptic feedback on mobile.\n4. Smart defaults - detect CSV on clipboard and offer instant import, suggest relevant questions based on data schema, auto-configure visualizations based on data types.\n5. Shareable demos - let users share their AI-generated insights with public links, embed widgets, or export as interactive reports.\n6. The final wow - it just works beautifully with zero configuration, instant responses, and intelligent assistance throughout.\n7. Security hardening - implement input sanitization, rate limiting (100 req/min), XSS/CSRF protection.\n8. Production monitoring - set up error tracking (Sentry), performance monitoring, uptime checks for 99.9% availability.\n9. Rollback procedures - automated rollback on critical errors, feature flags for gradual rollout.",
         "testStrategy": "Test first-time user experience with fresh accounts and sample data loading. Verify interactive tutorial completion rates and user engagement metrics. Test micro-interactions perform at 60fps across devices. Validate smart defaults correctly detect and suggest based on various data types. Test sharing features generate working public links with proper access controls. Load test to ensure <200ms response times for AI queries. Security audit for input sanitization and rate limiting. Test monitoring alerts trigger correctly. Verify rollback procedures work within 5 minutes.",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement React Window Virtual Scrolling",
+            "description": "Replace existing table implementations with react-window VariableSizeGrid to handle 50k+ records at 60fps",
+            "dependencies": [],
+            "details": "Update VirtualizedDataGrid and database table components to use VariableSizeGrid with dynamic row heights and column widths. Implement SizeCache for efficient measurement caching. Add AutoSizer for responsive container sizing. Configure overscan counts for smooth scrolling. Ensure proper cell recycling and memoization with areEqual comparisons.",
+            "status": "pending",
+            "testStrategy": "Load test with 50,000 records verifying 60fps scrolling performance. Test dynamic row height calculations. Verify memory usage stays under 100MB. Test virtual DOM recycling efficiency."
+          },
+          {
+            "id": 2,
+            "title": "Create Interactive Onboarding Tutorial System",
+            "description": "Build guided tutorial with progressive disclosure and contextual tooltips",
+            "dependencies": [],
+            "details": "Implement tutorial overlay system with spotlight effect for highlighting UI elements. Create step-by-step walkthrough for first-time users with skip option. Add contextual tooltips triggered by user actions like 'Press Space to ask AI about this data'. Store tutorial progress in localStorage. Implement progressive disclosure revealing features as users advance.",
+            "status": "pending",
+            "testStrategy": "Test tutorial completion rates with fresh accounts. Verify tooltip triggers work correctly. Test skip functionality preserves user state. Measure engagement metrics for each tutorial step."
+          },
+          {
+            "id": 3,
+            "title": "Add Sample Data Generator and Import System",
+            "description": "Create compelling sample datasets that showcase AI analytics capabilities immediately",
+            "dependencies": [],
+            "details": "Extend seed.ts to generate realistic sample data including sales analytics, customer behavior, and financial metrics. Create multiple dataset templates users can choose from. Implement one-click import for sample data. Add sample AI queries that demonstrate powerful insights. Include pre-configured visualizations that show data relationships.",
+            "status": "pending",
+            "testStrategy": "Verify sample data loads within 2 seconds. Test all sample queries return meaningful results. Validate sample visualizations render correctly. Test data cleanup when switching templates."
+          },
+          {
+            "id": 4,
+            "title": "Implement Delightful Micro-Interactions",
+            "description": "Add subtle animations and transitions that make the UI feel responsive and magical",
+            "dependencies": [
+              "30.1"
+            ],
+            "details": "Add spring animations for data updates using framer-motion. Implement smooth transitions between database views (table/gallery/board). Add subtle hover effects on interactive elements. Create loading skeletons with shimmer effects. Add success/error animations for user actions. Implement optional sound effects for key actions with user preference storage.",
+            "status": "pending",
+            "testStrategy": "Verify all animations run at 60fps across devices. Test animations don't cause layout shifts (CLS < 0.1). Validate sound preferences persist across sessions. Test animations are disabled in reduced-motion mode."
+          },
+          {
+            "id": 5,
+            "title": "Build Smart Defaults and Auto-Detection System",
+            "description": "Implement intelligent detection and configuration based on user data and behavior",
+            "dependencies": [
+              "30.3"
+            ],
+            "details": "Detect CSV data on clipboard and offer instant import with preview. Auto-detect data types and suggest appropriate column configurations. Generate relevant AI question suggestions based on detected schema. Auto-configure chart types based on data characteristics. Implement smart column width calculations based on content.",
+            "status": "pending",
+            "testStrategy": "Test clipboard detection works across browsers. Verify data type detection accuracy > 95%. Test auto-generated questions are contextually relevant. Validate chart suggestions match data types correctly."
+          },
+          {
+            "id": 6,
+            "title": "Implement Production Monitoring with Sentry",
+            "description": "Set up comprehensive error tracking and performance monitoring",
+            "dependencies": [],
+            "details": "Integrate Sentry SDK in monitoring/sentry.client.ts with proper environment configuration. Set up error boundaries to catch React errors gracefully. Implement custom error context with user and workspace info. Configure performance monitoring for Core Web Vitals. Set up alerts for error rate spikes and performance degradation.",
+            "status": "pending",
+            "testStrategy": "Verify errors are captured in Sentry dashboard. Test performance metrics (LCP, FCP, CLS) are tracked. Validate error boundaries prevent app crashes. Test alert thresholds trigger appropriately."
+          },
+          {
+            "id": 7,
+            "title": "Add Advanced Rate Limiting and Security Hardening",
+            "description": "Implement comprehensive security measures for production deployment",
+            "dependencies": [],
+            "details": "Enhance RateLimiter service to support 100 req/min with sliding window algorithm. Implement input sanitization for all user inputs preventing XSS attacks. Add CSRF protection using existing csrf.server.ts with proper token validation. Implement request signing for API endpoints. Add SQL injection prevention with parameterized queries.",
+            "status": "pending",
+            "testStrategy": "Load test rate limiting with 200 concurrent requests. Test XSS prevention with malicious payloads. Verify CSRF tokens are validated correctly. Test SQL injection attempts are blocked."
+          },
+          {
+            "id": 8,
+            "title": "Create Shareable Analytics and Export System",
+            "description": "Enable users to share insights with public links and embeddable widgets",
+            "dependencies": [
+              "30.5"
+            ],
+            "details": "Generate unique shareable links for AI-generated insights with expiration options. Create embeddable widget generator with customizable themes. Implement export functionality for interactive HTML reports. Add social media sharing with preview cards. Create read-only public view with optional password protection.",
+            "status": "pending",
+            "testStrategy": "Verify shared links work without authentication. Test embed widgets render in iframes correctly. Validate exports maintain interactivity. Test social media previews display correctly."
+          },
+          {
+            "id": 9,
+            "title": "Implement Rollback and Feature Flag System",
+            "description": "Create deployment safety mechanisms with automatic rollback capabilities",
+            "dependencies": [
+              "30.6",
+              "30.7"
+            ],
+            "details": "Build feature flag system for gradual rollout of new features. Implement health check endpoints monitoring critical paths. Create automatic rollback triggers based on error rates exceeding thresholds. Add deployment versioning with ability to revert to previous versions. Implement canary deployments with percentage-based rollout.",
+            "status": "pending",
+            "testStrategy": "Test rollback triggers when error rate > 5%. Verify feature flags toggle functionality correctly. Test canary deployments with 10% traffic allocation. Validate health checks detect service degradation."
+          },
+          {
+            "id": 10,
+            "title": "Optimize Performance with Caching and Lazy Loading",
+            "description": "Implement comprehensive performance optimizations for production scale",
+            "dependencies": [
+              "30.1"
+            ],
+            "details": "Add IndexedDB caching layer for frequently accessed data with 24-hour TTL. Implement request debouncing for search and filter operations (300ms delay). Add progressive loading with IntersectionObserver for infinite scroll. Optimize SQL queries with proper indexes on frequently queried columns. Implement query result caching with Redis. Add memory monitoring to prevent leaks.",
+            "status": "pending",
+            "testStrategy": "Verify IndexedDB cache reduces API calls by 70%. Test debouncing prevents redundant requests. Validate infinite scroll loads smoothly without janks. Measure query performance improvements with indexes."
+          }
+        ]
       },
       {
         "id": 31,
@@ -3729,11 +4123,123 @@
         ],
         "priority": "medium",
         "subtasks": []
+      },
+      {
+        "id": 32,
+        "title": "Create Knowledge Graph Infrastructure for RAG System",
+        "description": "Build a simplified GraphRAG system using PostgreSQL native features to dramatically reduce token usage and enable intelligent querying of database blocks with 50,000+ rows through hybrid graph traversal and vector search.",
+        "details": "1. Create PostgreSQL schema for knowledge graph entities and relationships:\n```sql\nCREATE TABLE entities (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  name TEXT NOT NULL,\n  type TEXT NOT NULL, -- 'person', 'product', 'concept', etc.\n  description TEXT,\n  source_block_id UUID,\n  source_page_id UUID,\n  metadata JSONB DEFAULT '{}',\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE relationships (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  source_entity_id UUID REFERENCES entities(id),\n  target_entity_id UUID REFERENCES entities(id),\n  relationship_type TEXT NOT NULL,\n  strength FLOAT DEFAULT 1.0,\n  metadata JSONB DEFAULT '{}',\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE communities (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  name TEXT NOT NULL,\n  level INTEGER DEFAULT 0,\n  summary TEXT,\n  entity_ids UUID[],\n  parent_community_id UUID REFERENCES communities(id),\n  metadata JSONB DEFAULT '{}'\n);\n```\n\n2. Implement entity extraction service using OpenAI:\n```typescript\n// app/services/knowledge-graph/entity-extractor.server.ts\nexport class EntityExtractor {\n  async extractEntities(content: string, blockId: string): Promise<Entity[]> {\n    const completion = await openai.chat.completions.create({\n      model: \"gpt-4\",\n      messages: [{\n        role: \"system\",\n        content: \"Extract entities and relationships from text. Return JSON with entities array containing {name, type, description} and relationships array with {source, target, type, strength}.\"\n      }, {\n        role: \"user\",\n        content: content\n      }]\n    });\n    return this.parseAndStoreEntities(completion, blockId);\n  }\n}\n```\n\n3. Create community detection algorithm using Louvain method:\n```typescript\n// app/services/knowledge-graph/community-detector.server.ts\nexport class CommunityDetector {\n  async detectCommunities(workspaceId: string): Promise<Community[]> {\n    // Use recursive CTEs for graph traversal\n    const communities = await prisma.$queryRaw`\n      WITH RECURSIVE graph_traverse AS (\n        SELECT source_entity_id, target_entity_id, strength\n        FROM relationships \n        WHERE workspace_id = ${workspaceId}\n      ),\n      community_seeds AS (\n        -- Implement modularity optimization\n        SELECT entity_id, community_id\n        FROM (\n          -- Complex CTE for community detection\n        ) subq\n      )\n      SELECT * FROM community_seeds;\n    `;\n    return this.generateCommunitySummaries(communities);\n  }\n}\n```\n\n4. Build hybrid query router that intelligently chooses between graph traversal and vector search:\n```typescript\n// app/services/knowledge-graph/query-router.server.ts\nexport class QueryRouter {\n  async routeQuery(query: string, workspaceId: string): Promise<SearchResult> {\n    const queryType = await this.classifyQuery(query);\n    \n    if (queryType === 'factual' || queryType === 'relationship') {\n      // Use graph traversal for factual queries\n      return this.graphSearch(query, workspaceId);\n    } else if (queryType === 'semantic' || queryType === 'exploratory') {\n      // Use vector search for semantic queries\n      return this.vectorSearch(query, workspaceId);\n    } else {\n      // Hybrid approach for complex queries\n      return this.hybridSearch(query, workspaceId);\n    }\n  }\n  \n  private async graphSearch(query: string, workspaceId: string): Promise<SearchResult> {\n    // Parse query to identify entities and relationships\n    const entities = await this.extractQueryEntities(query);\n    \n    // Use recursive CTE for graph traversal\n    const results = await prisma.$queryRaw`\n      WITH RECURSIVE entity_paths AS (\n        SELECT e.id, e.name, e.type, 1 as depth, ARRAY[e.id] as path\n        FROM entities e\n        WHERE e.workspace_id = ${workspaceId}\n          AND e.name = ANY(${entities})\n        \n        UNION ALL\n        \n        SELECT e2.id, e2.name, e2.type, ep.depth + 1, ep.path || e2.id\n        FROM entity_paths ep\n        JOIN relationships r ON ep.id = r.source_entity_id\n        JOIN entities e2 ON r.target_entity_id = e2.id\n        WHERE ep.depth < 3 AND NOT e2.id = ANY(ep.path)\n      )\n      SELECT * FROM entity_paths;\n    `;\n    \n    return this.formatGraphResults(results);\n  }\n}\n```\n\n5. Integrate with existing RAG pipeline for incremental updates:\n```typescript\n// app/services/knowledge-graph/incremental-indexer.server.ts\nexport class IncrementalGraphIndexer {\n  async updateGraphFromBlock(blockId: string, content: string) {\n    // Extract new entities and relationships\n    const newEntities = await this.entityExtractor.extractEntities(content, blockId);\n    \n    // Find existing entities to merge\n    const existingEntities = await this.findSimilarEntities(newEntities);\n    \n    // Update communities only for affected subgraphs\n    const affectedCommunities = await this.getAffectedCommunities(newEntities);\n    await this.recomputeCommunities(affectedCommunities);\n  }\n}\n```\n\n6. Create GraphRAG query interface that reduces token usage:\n```typescript\n// app/services/knowledge-graph/graphrag-query.server.ts\nexport class GraphRAGQuery {\n  async query(userQuery: string, workspaceId: string): Promise<GraphRAGResult> {\n    // Get relevant community summaries instead of full documents\n    const relevantCommunities = await this.findRelevantCommunities(userQuery, workspaceId);\n    \n    // Use hierarchical summarization to minimize tokens\n    const contextSummary = await this.buildHierarchicalContext(relevantCommunities);\n    \n    // Query with minimal token usage (26-97% reduction)\n    const response = await openai.chat.completions.create({\n      model: \"gpt-4\",\n      messages: [{\n        role: \"system\",\n        content: `Answer using this knowledge graph context: ${contextSummary}`\n      }, {\n        role: \"user\", \n        content: userQuery\n      }]\n    });\n    \n    return {\n      answer: response.choices[0].message.content,\n      sources: this.extractSources(relevantCommunities),\n      tokensSaved: this.calculateTokenSavings(contextSummary)\n    };\n  }\n}\n```\n\n7. Add database indexes for performance at scale:\n```sql\nCREATE INDEX entities_workspace_type_idx ON entities(workspace_id, type);\nCREATE INDEX entities_name_gin_idx ON entities USING gin(to_tsvector('english', name));\nCREATE INDEX relationships_source_target_idx ON relationships(source_entity_id, target_entity_id);\nCREATE INDEX relationships_workspace_strength_idx ON relationships(workspace_id, strength DESC);\nCREATE INDEX communities_workspace_level_idx ON communities(workspace_id, level);\n```",
+        "testStrategy": "1. Load test entity extraction with 50,000+ database rows, verify extraction completes within 5 minutes and identifies 90%+ of named entities with correct types and relationships. 2. Test community detection algorithm creates hierarchical communities with meaningful groupings, verify modularity score > 0.3 and community summaries accurately represent member entities. 3. Validate recursive CTE graph traversal performance with queries spanning 3+ relationship hops on 10,000+ entity graphs, ensure response time < 500ms. 4. Test hybrid query routing correctly classifies query types (factual vs semantic) with 85%+ accuracy and routes to appropriate search method. 5. Verify token usage reduction by comparing GraphRAG responses to traditional RAG, measure 26-97% reduction in input tokens while maintaining answer quality. 6. Test incremental indexing updates only affected communities when new entities are added, verify community recomputation completes within 30 seconds for affected subgraphs. 7. Load test workspace-wide knowledge graph with multiple concurrent users, verify query performance remains sub-second with proper PostgreSQL connection pooling. 8. Test cross-page entity relationship detection by creating entities in different pages and verifying relationships are properly identified and traversed. 9. Validate community summary quality by having human evaluators rate summary accuracy and completeness on 100+ test communities. 10. Test graph query accuracy by comparing factual query results to ground truth data, ensure 95%+ precision for relationship queries like 'Which customers bought product X?'",
+        "status": "pending",
+        "dependencies": [
+          6,
+          16,
+          19,
+          20
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create PostgreSQL Schema for Knowledge Graph Entities",
+            "description": "Design and implement the database schema for entities, relationships, and communities tables with proper indexes and foreign key constraints",
+            "dependencies": [],
+            "details": "Create three core tables: entities (storing extracted entities with type, description, and source references), relationships (storing connections between entities with strength and type), and communities (storing hierarchical groupings of related entities). Include JSONB metadata fields for flexibility, UUID primary keys for distributed systems, and workspace-based multi-tenancy support. Add appropriate indexes for graph traversal performance including GIN indexes for JSONB fields and composite indexes for workspace-based queries.",
+            "status": "pending",
+            "testStrategy": "Verify table creation with proper constraints, test foreign key relationships work correctly, ensure indexes improve query performance for graph traversal operations, validate workspace isolation works properly"
+          },
+          {
+            "id": 2,
+            "title": "Build Entity Extraction Service with OpenAI Integration",
+            "description": "Implement service to extract entities from content using OpenAI GPT-4 with structured output parsing",
+            "dependencies": [
+              "32.1"
+            ],
+            "details": "Create EntityExtractor class in app/services/knowledge-graph/entity-extractor.server.ts that uses OpenAI's function calling to extract entities (people, products, concepts, etc.) from text content. Parse the structured JSON response to identify entity names, types, descriptions, and relationships. Implement batch processing for multiple content blocks, handle rate limiting with exponential backoff, and store extracted entities in the database with proper deduplication logic.",
+            "status": "pending",
+            "testStrategy": "Test entity extraction accuracy with sample content, verify deduplication works for similar entities, test batch processing handles 100+ blocks efficiently, validate OpenAI error handling and retry logic"
+          },
+          {
+            "id": 3,
+            "title": "Implement Relationship Detection and Mapping Service",
+            "description": "Create service to identify and map relationships between entities with strength scoring",
+            "dependencies": [
+              "32.2"
+            ],
+            "details": "Build RelationshipMapper class that analyzes extracted entities to identify relationships like 'works_with', 'belongs_to', 'relates_to', etc. Calculate relationship strength based on proximity in text, co-occurrence frequency, and semantic similarity. Use OpenAI to classify relationship types and validate connections. Store relationships in the database with bidirectional support and handle transitive relationship inference.",
+            "status": "pending",
+            "testStrategy": "Verify relationship detection identifies common patterns correctly, test strength calculation produces meaningful scores, validate bidirectional relationships are properly stored, test transitive relationship inference works"
+          },
+          {
+            "id": 4,
+            "title": "Create Community Detection Algorithm Using Louvain Method",
+            "description": "Implement graph-based community detection to group related entities into hierarchical communities",
+            "dependencies": [
+              "32.3"
+            ],
+            "details": "Implement CommunityDetector class using PostgreSQL recursive CTEs to perform community detection based on the Louvain modularity optimization algorithm. Create hierarchical communities at multiple levels (0-3) where higher levels represent broader groupings. Generate AI-powered summaries for each community using GPT-4 to describe the group's main themes and relationships. Store communities with entity membership arrays and parent-child relationships.",
+            "status": "pending",
+            "testStrategy": "Test community detection creates meaningful groupings from sample graph data, verify hierarchical structure maintains consistency, test summary generation produces accurate descriptions, validate performance with 10,000+ entities"
+          },
+          {
+            "id": 5,
+            "title": "Integrate Knowledge Graph with Existing pgvector Infrastructure",
+            "description": "Connect knowledge graph entities with existing vector embeddings for hybrid search capabilities",
+            "dependencies": [
+              "32.1",
+              "32.2"
+            ],
+            "details": "Modify existing embedding generation service to link embeddings with entity IDs. Create bidirectional references between passage embeddings and extracted entities. Update the indexing pipeline to trigger entity extraction alongside embedding generation. Implement entity-aware similarity search that boosts results containing relevant entities. Ensure the integration maintains backward compatibility with existing RAG queries.",
+            "status": "pending",
+            "testStrategy": "Test entity-embedding linking maintains referential integrity, verify hybrid search returns entity-boosted results, test backward compatibility with existing vector search, validate performance impact is minimal"
+          },
+          {
+            "id": 6,
+            "title": "Build Hybrid Query Router for Intelligent Search Strategy",
+            "description": "Create query classification and routing system to choose optimal search strategy based on query type",
+            "dependencies": [
+              "32.4",
+              "32.5"
+            ],
+            "details": "Implement QueryRouter class in app/services/knowledge-graph/query-router.server.ts that classifies queries as factual, relationship-based, semantic, or exploratory using OpenAI. Route factual queries through graph traversal using recursive CTEs, semantic queries through vector search, and complex queries through hybrid approach. Implement query entity extraction to identify entities mentioned in user queries. Build result merging logic that combines graph and vector results with proper ranking.",
+            "status": "pending",
+            "testStrategy": "Test query classification accuracy across different query types, verify graph traversal returns correct entity paths, test hybrid search merges results properly, validate performance meets <200ms requirement"
+          },
+          {
+            "id": 7,
+            "title": "Implement Database Block Entity Extraction Pipeline",
+            "description": "Create specialized extraction pipeline for database blocks that processes structured data at scale",
+            "dependencies": [
+              "32.2",
+              "32.6"
+            ],
+            "details": "Build DatabaseBlockEntityExtractor that processes database block rows to extract entities from structured data. Handle different column types (text, select, multi-select, relation) with appropriate extraction strategies. Implement batched processing for 50,000+ rows using cursor-based pagination. Create entity relationships based on database block relations and foreign keys. Include formula column results in entity extraction when they produce meaningful text.",
+            "status": "pending",
+            "testStrategy": "Test extraction from 50,000 row database block completes within 5 minutes, verify entities are correctly extracted from different column types, test relationship creation from database relations, validate memory usage stays under 1GB"
+          },
+          {
+            "id": 8,
+            "title": "Create Performance Testing and Optimization Suite",
+            "description": "Build comprehensive testing framework and optimize the knowledge graph system for production scale",
+            "dependencies": [
+              "32.1",
+              "32.2",
+              "32.3",
+              "32.4",
+              "32.5",
+              "32.6",
+              "32.7"
+            ],
+            "details": "Implement load testing suite that validates entity extraction at 50,000+ record scale, graph traversal performance with 100,000+ entities, and community detection with complex graph structures. Add database indexes for frequently accessed paths including composite indexes for workspace-based queries. Implement query result caching using Redis for repeated graph traversals. Monitor and optimize token usage to achieve 26-97% reduction compared to standard RAG. Create performance dashboard to track extraction speed, query latency, and token savings.",
+            "status": "pending",
+            "testStrategy": "Load test with production-scale data (50k+ rows, 100k+ entities), verify 90%+ entity extraction accuracy, test query response times stay under 200ms, validate token usage reduction meets targets"
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-08-26T11:41:44.524Z",
+      "updated": "2025-08-29T09:02:30.171Z",
       "description": "Tasks for master context"
     }
   }
