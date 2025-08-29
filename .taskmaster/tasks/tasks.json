@@ -3820,7 +3820,7 @@
         "id": 27,
         "title": "MVP Pivot - Create Provenance and Citation System",
         "description": "Every AI answer shows where it came from. Users can see which documents, databases, or pages the AI used. This builds trust - the AI isn't making things up.",
-        "status": "pending",
+        "status": "in-progress",
         "dependencies": [
           24,
           26
@@ -4252,7 +4252,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-08-29T18:58:38.405Z",
+      "updated": "2025-08-29T20:09:43.288Z",
       "description": "Tasks for master context"
     }
   }

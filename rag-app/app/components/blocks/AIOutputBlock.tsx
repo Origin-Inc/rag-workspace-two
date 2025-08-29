@@ -3,6 +3,9 @@ import { ChartOutputBlock, type ChartType, type ChartData } from './ChartOutputB
 import { TableOutputBlock, type TableColumn, type TableRow } from './TableOutputBlock';
 import { AlertCircle, Sparkles, RefreshCw, Wand2 } from 'lucide-react';
 import type { StructuredResponse } from '~/services/llm-orchestration/structured-output.server';
+import { CitationWrapper, type CitationData } from '~/components/citations/CitationWrapper';
+import { ProvenanceBadge } from '~/components/citations/ProvenanceBadge';
+import { TrustScore } from '~/components/citations/ConfidenceIndicator';
 
 export type OutputBlockType = 'chart' | 'table' | 'text' | 'insight' | 'list' | 'action_confirmation' | 'error';
 
@@ -12,6 +15,8 @@ export interface AIOutputBlockProps {
   onRegenerate?: () => void;
   className?: string;
   theme?: 'light' | 'dark';
+  citations?: CitationData;
+  showCitations?: boolean;
 }
 
 interface TextBlockProps {
@@ -228,6 +233,8 @@ export const AIOutputBlock: React.FC<AIOutputBlockProps> = ({
   onRegenerate,
   className = '',
   theme = 'light',
+  citations,
+  showCitations = true,
 }) => {
   const renderBlock = (block: any, index: number) => {
     const key = `block-${index}`;
@@ -327,20 +334,45 @@ export const AIOutputBlock: React.FC<AIOutputBlockProps> = ({
     }
   };
   
+  const content = (
+    <>
+      {/* Render all blocks */}
+      {response.blocks && response.blocks.length > 0 ? (
+        response.blocks.map((block, index) => renderBlock(block, index))
+      ) : (
+        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p>No content to display</p>
+        </div>
+      )}
+    </>
+  );
+  
   return (
     <div className={`ai-output-block space-y-4 ${className}`}>
-      {/* Header with metadata */}
+      {/* Header with metadata and citations */}
       {response.metadata && (
         <div className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
               AI Response
             </span>
-            {response.metadata.confidence && (
+            {response.metadata.confidence && !citations && (
               <span className="text-xs text-gray-600 dark:text-gray-400">
                 ({Math.round(response.metadata.confidence * 100)}% confidence)
               </span>
+            )}
+            {citations && showCitations && (
+              <ProvenanceBadge
+                sourceCount={citations.sources.length}
+                sourceTypes={citations.sources.map(s => s.type)}
+                confidence={citations.overallConfidence}
+                compact
+              />
+            )}
+            {citations && citations.overallConfidence && (
+              <TrustScore score={citations.overallConfidence} size="sm" />
             )}
           </div>
           
@@ -356,13 +388,18 @@ export const AIOutputBlock: React.FC<AIOutputBlockProps> = ({
         </div>
       )}
       
-      {/* Render all blocks */}
-      {response.blocks && response.blocks.length > 0 ? (
-        response.blocks.map((block, index) => renderBlock(block, index))
+      {/* Wrap content with citations if available */}
+      {citations && showCitations ? (
+        <CitationWrapper 
+          citations={citations} 
+          showInlineBadge={false}
+          className="space-y-4"
+        >
+          {content}
+        </CitationWrapper>
       ) : (
-        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-          <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p>No content to display</p>
+        <div className="space-y-4">
+          {content}
         </div>
       )}
       
