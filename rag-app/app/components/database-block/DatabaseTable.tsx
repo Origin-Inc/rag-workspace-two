@@ -12,6 +12,7 @@ import { DatabaseCell } from './DatabaseCell';
 import { ColumnHeader } from './ColumnHeader';
 import { DatabaseToolbar } from './DatabaseToolbar';
 import { RowContextMenu } from './RowContextMenu';
+import { DatabaseAnalytics } from './DatabaseAnalytics';
 import { cn } from '~/utils/cn';
 
 interface DatabaseTableProps {
@@ -19,13 +20,15 @@ interface DatabaseTableProps {
   userId?: string;
   userName?: string;
   className?: string;
+  onAnalyzeWithAI?: (context: any) => void;
 }
 
 export const DatabaseTable = memo(function DatabaseTable({
   databaseBlockId,
   userId,
   userName,
-  className
+  className,
+  onAnalyzeWithAI
 }: DatabaseTableProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -127,6 +130,34 @@ export const DatabaseTable = memo(function DatabaseTable({
     setContextMenu({ rowId, x: e.clientX, y: e.clientY });
   }, []);
 
+  // Handle AI analysis
+  const handleAnalyzeWithAI = useCallback(() => {
+    if (!databaseBlock || !onAnalyzeWithAI) return;
+    
+    // Create context object with all database information
+    const context = {
+      blockId: databaseBlock.id,
+      blockName: databaseBlock.name,
+      description: databaseBlock.description,
+      columns: columns.map(col => ({
+        name: col.name,
+        type: col.type,
+        width: col.width,
+        options: col.options
+      })),
+      rows: rows.slice(0, 100), // Send first 100 rows for analysis
+      totalRows: totalCount,
+      filters,
+      sorts,
+      metadata: {
+        createdAt: databaseBlock.createdAt,
+        updatedAt: databaseBlock.updatedAt
+      }
+    };
+    
+    onAnalyzeWithAI(context);
+  }, [databaseBlock, columns, rows, totalCount, filters, sorts, onAnalyzeWithAI]);
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -171,6 +202,7 @@ export const DatabaseTable = memo(function DatabaseTable({
         filters={filters}
         sorts={sorts}
         selectedRows={selectedRows}
+        currentView="table"
         onAddRow={() => addRow()}
         onAddColumn={addColumn}
         onApplyFilters={applyFilters}
@@ -179,6 +211,8 @@ export const DatabaseTable = memo(function DatabaseTable({
           selectedRows.forEach(rowId => deleteRow(rowId));
           setSelectedRows(new Set());
         }}
+        onViewChange={() => {}}
+        onAnalyzeWithAI={handleAnalyzeWithAI}
       />
 
       {/* Table */}
@@ -366,6 +400,17 @@ export const DatabaseTable = memo(function DatabaseTable({
           </div>
         )}
       </div>
+
+      {/* Analytics Panel */}
+      <DatabaseAnalytics
+        databaseBlockId={databaseBlockId}
+        columns={columns.map(col => ({
+          id: col.columnId,
+          name: col.name,
+          type: col.type
+        }))}
+        rows={rows.map(row => row.data)}
+      />
 
       {/* Context menu */}
       {contextMenu && (

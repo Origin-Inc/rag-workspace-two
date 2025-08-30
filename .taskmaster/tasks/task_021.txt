@@ -1,0 +1,37 @@
+# Task ID: 21
+# Title: MVP Pivot - Simplify Database Block to Dataset Preview
+# Status: pending
+# Dependencies: 4
+# Priority: high
+# Description: Transform the complex database block into a simple dataset preview component showing 10 rows max, with read-only display, basic stats, and an 'Analyze' button that opens AI block. Remove complex views (Kanban, Calendar, Timeline), formula engine, and virtual scrolling.
+# Details:
+
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Remove complex database block views [pending]
+### Dependencies: None
+### Description: Delete Kanban, Calendar, Timeline, and Gallery view components from DatabaseBlock. Keep only the basic table view for dataset preview.
+### Details:
+
+
+## 2. Strip formula engine and dependencies [pending]
+### Dependencies: None
+### Description: Remove all formula-related code including formula parser, evaluator, and dependency tracking. Simplify column system to basic types only.
+### Details:
+
+
+## 3. Create DatasetBlock component [pending]
+### Dependencies: None
+### Description: Build new simplified DatasetBlock component that shows 10-row preview, basic statistics, and column information in read-only mode.
+### Details:
+
+
+## 4. Add Analyze button with AI block integration [pending]
+### Dependencies: None
+### Description: Implement 'Analyze' button that creates a new AI block prefilled with dataset context and opens inline chat automatically.
+### Details:
+
+

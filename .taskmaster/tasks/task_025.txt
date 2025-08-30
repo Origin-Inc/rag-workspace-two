@@ -1,0 +1,11 @@
+# Task ID: 25
+# Title: MVP Pivot - Build Numeric Analytics Engine
+# Status: pending
+# Dependencies: 22
+# Priority: high
+# Description: Create server-side analytics engine for exact numeric computations on datasets. Implement SQL query builder for aggregations, group-by operations, statistical calculations, and result caching. This ensures accurate numeric answers come from database, not LLM.
+# Details:
+
+
+# Test Strategy:
+

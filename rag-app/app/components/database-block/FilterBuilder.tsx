@@ -1,10 +1,11 @@
 import { useState, memo } from 'react';
-import type { DatabaseColumn, Filter, FilterOperator } from '~/types/database-block';
+import type { DatabaseColumn, Filter, FilterOperator, ViewType } from '~/types/database-block';
 import { cn } from '~/utils/cn';
 
 interface FilterBuilderProps {
   columns: DatabaseColumn[];
   filters: Filter[];
+  currentView?: ViewType;
   onApply: (filters: Filter[]) => void;
   onCancel: () => void;
 }
@@ -12,13 +13,14 @@ interface FilterBuilderProps {
 export const FilterBuilder = memo(function FilterBuilder({
   columns,
   filters: initialFilters,
+  currentView = 'table',
   onApply,
   onCancel
 }: FilterBuilderProps) {
   const [filters, setFilters] = useState<Filter[]>(
     initialFilters.length > 0 ? initialFilters : [{
-      id: crypto.randomUUID(),
-      columnId: columns[0]?.columnId || '',
+      id: generateId(),
+      columnId: columns[0]?.id || '',
       operator: 'contains',
       value: ''
     }]
@@ -67,11 +69,10 @@ export const FilterBuilder = memo(function FilterBuilder({
 
   const addFilter = () => {
     setFilters([...filters, {
-      id: crypto.randomUUID(),
-      columnId: columns[0]?.columnId || '',
+      id: generateId(),
+      columnId: columns[0]?.id || '',
       operator: 'contains',
-      value: '',
-      conjunction: 'and'
+      value: ''
     }]);
   };
 
@@ -108,7 +109,7 @@ export const FilterBuilder = memo(function FilterBuilder({
 
       <div className="space-y-2">
         {filters.map((filter, index) => {
-          const column = columns.find(c => c.columnId === filter.columnId);
+          const column = columns.find(c => c.id === filter.columnId);
           const availableOperators = column ? getOperatorsForColumn(column) : [];
 
           return (
@@ -130,7 +131,7 @@ export const FilterBuilder = memo(function FilterBuilder({
                 className="px-3 py-1 text-sm border border-gray-300 rounded flex-1"
               >
                 {columns.map(col => (
-                  <option key={col.columnId} value={col.columnId}>
+                  <option key={col.id} value={col.id}>
                     {col.name}
                   </option>
                 ))}
@@ -188,3 +189,7 @@ export const FilterBuilder = memo(function FilterBuilder({
     </div>
   );
 });
+
+function generateId() {
+  return `filter-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}

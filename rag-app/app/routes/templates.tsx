@@ -1,24 +1,28 @@
 // Task 12.9: Templates page for workspace template gallery
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { useLoaderData, Link } from '@remix-run/react';
-import { requireUser } from '~/services/auth/auth.server';
+import { requireAuthenticatedUser } from '~/services/auth/auth.server';
+import { prisma } from '~/utils/db.server';
 import { TemplatesGallery } from '~/components/dashboard/TemplatesGallery';
 import { ArrowLeft, FileText, Sparkles } from 'lucide-react';
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const user = await requireUser(request);
+  const user = await requireAuthenticatedUser(request);
   
-  // For now, using a hardcoded workspace ID - you should get this from the user's session or database
-  const workspaceId = '550e8400-e29b-41d4-a716-446655440000';
+  // Get workspace details
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: user.workspaceId }
+  });
   
   return json({
     user,
-    workspaceId
+    workspaceId: user.workspaceId,
+    workspaceName: workspace?.name || 'Workspace'
   });
 }
 
 export default function Templates() {
-  const { user, workspaceId } = useLoaderData<typeof loader>();
+  const { user, workspaceId, workspaceName } = useLoaderData<typeof loader>();
   
   return (
     <div className="min-h-screen bg-gray-50">
@@ -44,89 +48,68 @@ export default function Templates() {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600">
+                {workspaceName}
+              </span>
+              <span className="text-sm text-gray-600">
                 {user.email}
               </span>
             </div>
           </div>
         </div>
       </header>
-      
-      {/* Hero Section */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
-        <div className="max-w-7xl mx-auto px-6 py-12">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <Sparkles className="w-8 h-8" />
-                <h2 className="text-3xl font-bold">
-                  Get Started with Templates
-                </h2>
-              </div>
-              <p className="text-lg text-blue-100 max-w-2xl">
-                Jump-start your workspace with professionally designed templates. 
-                From project management to CRM systems, we have everything you need 
-                to be productive from day one.
-              </p>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto py-8 px-6">
+        {/* Hero Section */}
+        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl p-8 mb-8 text-white">
+          <div className="flex items-center gap-3 mb-4">
+            <Sparkles className="w-8 h-8" />
+            <h2 className="text-3xl font-bold">Get Started Quickly</h2>
+          </div>
+          <p className="text-lg opacity-90 mb-6">
+            Choose from our curated collection of workspace templates to jumpstart your projects.
+            Each template includes pre-configured pages, database schemas, and workflows.
+          </p>
+          <div className="flex gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">15+</span>
+              <span className="opacity-90">Templates Available</span>
             </div>
-            <div className="hidden lg:block">
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <div className="text-2xl font-bold mb-1">6+</div>
-                <div className="text-sm text-blue-100">Templates Available</div>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">5 min</span>
+              <span className="opacity-90">Average Setup Time</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">100%</span>
+              <span className="opacity-90">Customizable</span>
             </div>
           </div>
         </div>
-      </div>
-      
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <TemplatesGallery 
-          workspaceId={workspaceId}
-          onTemplateApplied={() => {
-            // Could redirect or show a success message
-            console.log('Template applied successfully!');
-          }}
-        />
-        
-        {/* Benefits section */}
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg p-6 border border-gray-200">
-            <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
-              <FileText className="w-6 h-6 text-blue-500" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Ready-to-Use Structure
-            </h3>
-            <p className="text-sm text-gray-600">
-              Each template comes with pre-configured pages, databases, and workflows 
-              tailored to specific use cases.
-            </p>
-          </div>
-          
-          <div className="bg-white rounded-lg p-6 border border-gray-200">
-            <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center mb-4">
-              <Sparkles className="w-6 h-6 text-green-500" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Best Practices Built-In
-            </h3>
-            <p className="text-sm text-gray-600">
-              Templates are designed following industry best practices, ensuring 
-              you start with a solid foundation.
-            </p>
-          </div>
-          
-          <div className="bg-white rounded-lg p-6 border border-gray-200">
-            <div className="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center mb-4">
-              <ArrowLeft className="w-6 h-6 text-purple-500 rotate-180" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Fully Customizable
-            </h3>
-            <p className="text-sm text-gray-600">
-              Start with a template and make it your own. Every aspect can be 
-              customized to fit your needs.
-            </p>
+
+        {/* Templates Gallery */}
+        <TemplatesGallery workspaceId={workspaceId} />
+
+        {/* CTA Section */}
+        <div className="mt-12 bg-gray-100 rounded-lg p-8 text-center">
+          <h3 className="text-xl font-semibold text-gray-900 mb-3">
+            Can't find what you're looking for?
+          </h3>
+          <p className="text-gray-600 mb-6">
+            Create your own custom template or request one from our team.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <Link
+              to="/app/projects/new"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Create Custom Template
+            </Link>
+            <Link
+              to="/app/settings"
+              className="px-6 py-2 bg-white text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+            >
+              Request Template
+            </Link>
           </div>
         </div>
       </main>

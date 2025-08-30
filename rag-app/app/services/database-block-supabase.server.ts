@@ -1,4 +1,5 @@
 import { createSupabaseAdmin } from '~/utils/supabase.server';
+import { ragIndexingService } from './rag/rag-indexing.service';
 import type { 
   DatabaseBlock, 
   DatabaseColumn, 
@@ -10,7 +11,6 @@ import type {
   Sort,
   DatabaseColumnType
 } from '~/types/database-block';
-import { autoIndexerService } from './auto-indexer.server';
 
 /**
  * Production-ready Database Block Service using Supabase
@@ -52,10 +52,14 @@ export class DatabaseBlockSupabaseService {
     // Create initial rows with sample data
     await this.createInitialRows(data.id);
 
-    // Auto-index the database for RAG
-    const workspace = await this.getWorkspaceForBlock(blockId);
-    if (workspace) {
-      await autoIndexerService.onDatabaseChange(data.id, workspace.id, 'create');
+    // Queue the parent page for re-indexing when database block is created
+    const pageId = await this.getPageIdForBlock(blockId);
+    if (pageId) {
+      try {
+        await ragIndexingService.queueForIndexing(pageId);
+      } catch (error) {
+        console.error('[Database Block] Failed to queue page for indexing:', error);
+      }
     }
 
     return this.mapDatabaseBlock(data);
@@ -125,7 +129,15 @@ export class DatabaseBlockSupabaseService {
     // Auto-index the updated database
     const workspace = await this.getWorkspaceForDatabaseBlock(id);
     if (workspace) {
-      await autoIndexerService.onDatabaseChange(id, workspace.id, 'update');
+      // Re-index parent page when database structure changes
+      const pageId = await this.getPageIdForBlock(dbBlock.block_id);
+      if (pageId) {
+        try {
+          await ragIndexingService.queueForIndexing(pageId);
+        } catch (error) {
+          console.error('[Database Block] Failed to queue page for indexing:', error);
+        }
+      }
     }
 
     return this.mapDatabaseBlock(data);
@@ -465,7 +477,15 @@ export class DatabaseBlockSupabaseService {
     // Auto-index the database after row changes
     const workspace = await this.getWorkspaceForDatabaseBlock(dbBlock.id);
     if (workspace) {
-      await autoIndexerService.onDatabaseChange(dbBlock.id, workspace.id, 'update');
+      // Re-index parent page when database rows change
+      const pageId = await this.getPageIdForBlock(dbBlock.block_id);
+      if (pageId) {
+        try {
+          await ragIndexingService.queueForIndexing(pageId);
+        } catch (error) {
+          console.error('[Database Block] Failed to queue page for indexing:', error);
+        }
+      }
     }
 
     return this.mapRow(row);
@@ -515,7 +535,23 @@ export class DatabaseBlockSupabaseService {
     if (dbRow) {
       const workspace = await this.getWorkspaceForDatabaseBlock(dbRow.db_block_id);
       if (workspace) {
-        await autoIndexerService.onDatabaseChange(dbRow.db_block_id, workspace.id, 'update');
+        // Re-index parent page when database row changes
+        const { data: dbBlock } = await this.supabase
+          .from('db_blocks')
+          .select('block_id')
+          .eq('id', dbRow.db_block_id)
+          .single();
+        
+        if (dbBlock?.block_id) {
+          const pageId = await this.getPageIdForBlock(dbBlock.block_id);
+          if (pageId) {
+            try {
+              await ragIndexingService.queueForIndexing(pageId);
+            } catch (error) {
+              console.error('[Database Block] Failed to queue page for indexing:', error);
+            }
+          }
+        }
       }
     }
 
@@ -862,6 +898,22 @@ export class DatabaseBlockSupabaseService {
     }
 
     return { id: data.page.workspace_id };
+  }
+  
+  // Helper to get page ID for a block
+  private async getPageIdForBlock(blockId: string): Promise<string | null> {
+    const { data, error } = await this.supabase
+      .from('blocks')
+      .select('page_id')
+      .eq('id', blockId)
+      .single();
+
+    if (error || !data?.page_id) {
+      console.error('Error getting page for block:', error);
+      return null;
+    }
+
+    return data.page_id;
   }
 
   // Helper to get workspace for a database block

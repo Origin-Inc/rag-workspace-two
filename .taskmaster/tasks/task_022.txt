@@ -1,0 +1,45 @@
+# Task ID: 22
+# Title: MVP Pivot - Implement CSV Ingestion with Papa Parse
+# Status: pending
+# Dependencies: 21
+# Priority: high
+# Description: Build file upload and ingestion system supporting both CSV (via Papa Parse) and Excel (.xlsx via SheetJS) formats with web workers for performance. Include unified schema inference, type detection, statistics computation, and sample generation for previews. Handle files up to 10MB with streaming and create dataset storage in PostgreSQL.
+# Details:
+Implement a dual-format file ingestion system that supports both CSV and Excel files through a unified processing pipeline. Use Papa Parse for CSV parsing (already optimized for streaming) and SheetJS for Excel parsing (3x faster than ExcelJS). Both parsers will feed into the same schema inference engine, type detection system, and statistics computation pipeline. The system should handle multi-sheet Excel files by allowing sheet selection during upload, while maintaining the same 10MB file size limit and web worker architecture for performance.
+
+# Test Strategy:
+1. Test CSV upload with Papa Parse: verify streaming for 5MB+ files, test various delimiters and encodings, validate schema inference accuracy.
+
+2. Test Excel upload with SheetJS: verify .xlsx parsing performance is 3x faster than baseline, test multi-sheet detection and selection, ensure formulas are evaluated to values.
+
+3. Test unified pipeline: upload identical data in CSV and Excel formats, verify schema inference produces same results, confirm statistics match between formats.
+
+4. Test web worker performance: verify non-blocking UI during 10MB file processing, test concurrent uploads of CSV and Excel files.
+
+5. Test error handling: malformed CSV files, corrupted Excel files, unsupported formats (.xls, .ods), files exceeding 10MB limit.
+
+# Subtasks:
+## 1. Install and configure SheetJS for Excel parsing [pending]
+### Dependencies: None
+### Description: Install SheetJS (xlsx package) and configure for browser-based Excel file parsing with web worker support for non-blocking processing.
+### Details:
+
+
+## 2. Create unified file upload component [pending]
+### Dependencies: None
+### Description: Build FileUpload component that accepts both .csv and .xlsx files with drag-and-drop support, file type detection, and size validation (10MB limit).
+### Details:
+
+
+## 3. Implement Excel sheet selection UI [pending]
+### Dependencies: None
+### Description: Create sheet selector modal for multi-sheet Excel files, showing sheet names, row counts, and preview of each sheet to help users choose which sheet to import.
+### Details:
+
+
+## 4. Build unified data processing pipeline [pending]
+### Dependencies: None
+### Description: Create common processing pipeline that accepts parsed data from either Papa Parse (CSV) or SheetJS (Excel) and performs schema inference, type detection, and statistics computation.
+### Details:
+
+

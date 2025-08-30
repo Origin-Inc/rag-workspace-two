@@ -1,0 +1,25 @@
+# Task ID: 23
+# Title: MVP Pivot - Build AI Block with Inline Chat
+# Status: pending
+# Dependencies: 20
+# Priority: high
+# Description: Create the centerpiece AI Block component with Space hotkey activation for inline chat. Implement scope management (page vs @global workspace), preview area for AI responses, and Insert/Dismiss actions. This is the primary interface for RAG-grounded AI interactions.
+# Details:
+
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Build AI block base component structure [pending]
+### Dependencies: None
+### Description: Create AIBlock.tsx component with empty state showing 'Press Space to ask the AI' ghost text and basic block container.
+### Details:
+
+
+## 2. Implement Space hotkey activation [pending]
+### Dependencies: None
+### Description: Add keyboard event handler that opens inline chat when Space is pressed in empty AI block using react-hotkeys-hook.
+### Details:
+
+

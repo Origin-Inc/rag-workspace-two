@@ -5,6 +5,7 @@ import {
   Scripts,
   ScrollRestoration,
   useLoaderData,
+  useRouteLoaderData,
   isRouteErrorResponse,
   useRouteError,
 } from "@remix-run/react";
@@ -98,7 +99,9 @@ function Document({
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const data = useLoaderData<typeof loader>();
+  // Use useRouteLoaderData to safely access loader data in Layout
+  // This returns undefined if in an error boundary
+  const data = useRouteLoaderData<typeof loader>("root");
   
   return (
     <Document env={data?.env}>

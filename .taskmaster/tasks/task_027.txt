@@ -1,0 +1,11 @@
+# Task ID: 27
+# Title: MVP Pivot - Create Provenance and Citation System
+# Status: pending
+# Dependencies: 24, 26
+# Priority: high
+# Description: Implement comprehensive provenance tracking for all AI outputs. Store prompt snapshots, retrieved references, model versions, and timestamps. Display citation indicators on generated blocks with expandable details. Ensure every AI claim has at least one supporting reference.
+# Details:
+
+
+# Test Strategy:
+

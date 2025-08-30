@@ -1,0 +1,11 @@
+# Task ID: 26
+# Title: MVP Pivot - Implement Chart and Table Output Blocks
+# Status: pending
+# Dependencies: 24
+# Priority: high
+# Description: Build Chart Block component supporting line/bar/funnel visualizations using Recharts, and Table Block for structured data display. Both blocks must include provenance indicators showing evidence sources. These are the primary output formats for AI-generated content.
+# Details:
+
+
+# Test Strategy:
+

@@ -1,24 +1,28 @@
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { useLoaderData, Link } from '@remix-run/react';
-import { requireUser } from '~/services/auth/auth.server';
+import { requireAuthenticatedUser } from '~/services/auth/auth.server';
+import { prisma } from '~/utils/db.server';
 import { ChatInterface } from '~/components/chat/ChatInterface';
 import { RecentPages } from '~/components/dashboard/RecentPages';
 import { FileText } from 'lucide-react';
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const user = await requireUser(request);
+  const user = await requireAuthenticatedUser(request);
   
-  // For now, using a hardcoded workspace ID - you should get this from the user's session or database
-  const workspaceId = '550e8400-e29b-41d4-a716-446655440000';
+  // Get workspace details
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: user.workspaceId }
+  });
   
   return json({
     user,
-    workspaceId
+    workspaceId: user.workspaceId,
+    workspaceName: workspace?.name || 'Workspace'
   });
 }
 
 export default function Dashboard() {
-  const { user, workspaceId } = useLoaderData<typeof loader>();
+  const { user, workspaceId, workspaceName } = useLoaderData<typeof loader>();
   
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -26,9 +30,14 @@ export default function Dashboard() {
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              RAG Workspace
-            </h1>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                RAG Workspace
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Working in: {workspaceName}
+              </p>
+            </div>
             <div className="flex items-center gap-4">
               <Link
                 to="/templates"
@@ -40,23 +49,67 @@ export default function Dashboard() {
               <span className="text-sm text-gray-600 dark:text-gray-400">
                 {user.email}
               </span>
+              <Link
+                to="/auth/logout"
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              >
+                Logout
+              </Link>
             </div>
           </div>
         </div>
       </header>
-      
-      {/* Main content area with 70/30 split */}
-      <main className="h-[calc(100vh-73px)]"> {/* Subtract header height */}
-        <div className="h-full flex gap-4 p-4">
-          {/* Chat Interface - 70% width */}
-          <div className="flex-1" style={{ flexBasis: '70%' }}>
-            <ChatInterface workspaceId={workspaceId} />
+
+      {/* Main content */}
+      <main className="max-w-7xl mx-auto py-8 px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Chat Interface - 2 columns */}
+          <div className="lg:col-span-2">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                AI Assistant
+              </h2>
+              <ChatInterface workspaceId={workspaceId} />
+            </div>
           </div>
+
+          {/* Recent Pages - 1 column */}
+          <div className="lg:col-span-1">
+            <RecentPages workspaceId={workspaceId} />
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Link
+            to="/app/projects/new"
+            className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+          >
+            <h3 className="font-medium text-gray-900 dark:text-white">Create Project</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Start a new project
+            </p>
+          </Link>
           
-          {/* Recent Pages - 30% width */}
-          <div className="flex-shrink-0" style={{ width: '30%', minWidth: '300px', maxWidth: '400px' }}>
-            <RecentPages />
-          </div>
+          <Link
+            to="/app/projects/new"
+            className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+          >
+            <h3 className="font-medium text-gray-900 dark:text-white">Page Editor</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Create and edit pages
+            </p>
+          </Link>
+          
+          <Link
+            to="/app/projects"
+            className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+          >
+            <h3 className="font-medium text-gray-900 dark:text-white">Database Blocks</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Work with structured data
+            </p>
+          </Link>
         </div>
       </main>
     </div>

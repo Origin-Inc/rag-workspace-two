@@ -179,6 +179,11 @@ export interface AIBlockContent {
   status: 'idle' | 'generating' | 'complete' | 'error';
   error?: string;
   tokens?: number;
+  citations?: Array<{
+    passage_id: string;
+    source_block_id?: string;
+    excerpt: string;
+  }>;
 }
 
 // Union type for all block contents

@@ -153,7 +153,8 @@ model Page {
   projectId   String      @map("project_id") @db.Uuid
   title       String      @db.VarChar(500)
   slug        String      @db.VarChar(500)
-  content     String?     @db.Text
+  content     Json?       @db.JsonB // Changed to match actual database schema
+  blocks      Json?       @db.JsonB // Store block-based content
   icon        String?     @db.VarChar(100)
   coverImage  String?     @map("cover_image") @db.Text
   metadata    Json?       @db.JsonB
@@ -355,4 +356,83 @@ model Webhook {
   @@index([integrationId])
   @@index([isActive])
   @@map("webhooks")
+}
+
+model DatabaseBlock {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pageId      String?        @map("page_id") @db.Uuid
+  name        String         @db.VarChar(255)
+  description String?        @db.Text
+  viewType    String         @default("table") @map("view_type") @db.VarChar(50) // table, gallery, board, calendar, etc.
+  settings    Json?          @db.JsonB // View-specific settings
+  metadata    Json?          @db.JsonB
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  columns    DatabaseColumn[]
+  rows       DatabaseRow[]
+  queryAudits QueryAuditLog[]
+  
+  @@index([pageId])
+  @@map("database_blocks")
+}
+
+model DatabaseColumn {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  databaseId   String        @map("database_id") @db.Uuid
+  name         String        @db.VarChar(255)
+  type         String        @db.VarChar(50) // text, number, select, multi-select, date, checkbox, url, email, etc.
+  width        Int           @default(200)
+  position     Int
+  config       Json?         @db.JsonB // Type-specific configuration (options for select, format for number, etc.)
+  isVisible    Boolean       @default(true) @map("is_visible")
+  isLocked     Boolean       @default(false) @map("is_locked")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  database    DatabaseBlock @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+  
+  @@index([databaseId])
+  @@index([position])
+  @@map("database_columns")
+}
+
+model DatabaseRow {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  databaseId String        @map("database_id") @db.Uuid
+  cells      Json          @db.JsonB // Key-value pairs where key is columnId
+  position   Int
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  database   DatabaseBlock @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+  
+  @@index([databaseId])
+  @@index([position])
+  @@map("database_rows")
+}
+
+model QueryAuditLog {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  blockId        String        @map("block_id") @db.Uuid
+  query          String        @db.Text // Original query text
+  parsedQuery    Json          @map("parsed_query") @db.JsonB // Structured query
+  success        Boolean
+  error          String?       @db.Text
+  executedAt     DateTime      @map("executed_at") @db.Timestamptz(6)
+  executionTime  Int?          @map("execution_time") // milliseconds
+  rowsReturned   Int?          @map("rows_returned")
+  cached         Boolean       @default(false)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  databaseBlock  DatabaseBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  
+  @@index([blockId])
+  @@index([executedAt])
+  @@index([success])
+  @@map("query_audit_logs")
 }
