@@ -117,6 +117,56 @@ export class BlockManipulator {
       type: command.parameters.newType || 'paragraph',
       content: command.parameters.content || ''
     };
+    
+    // Handle database creation
+    if (newBlock.type === 'database' && command.parameters.databaseData) {
+      console.log('[BlockManipulator] Creating database block with data:', command.parameters.databaseData);
+      
+      // Format the database content for the DatabaseTableWrapper component
+      const columns = command.parameters.databaseData.columns || [
+        { id: 'col1', name: 'Column 1', type: 'text' },
+        { id: 'col2', name: 'Column 2', type: 'text' }
+      ];
+      
+      // Ensure rows have IDs and match column structure
+      const rows = (command.parameters.databaseData.rows || []).map((row: any, index: number) => {
+        // Add ID if missing
+        if (!row.id) {
+          row.id = `row${index + 1}`;
+        }
+        return row;
+      });
+      
+      // If no rows provided, create one empty row
+      if (rows.length === 0) {
+        const emptyRow: any = { id: 'row1' };
+        columns.forEach(col => {
+          emptyRow[col.id] = '';
+        });
+        rows.push(emptyRow);
+      }
+      
+      newBlock.content = {
+        columns,
+        rows,
+        title: command.parameters.title || 'Database Table'
+      };
+    } else if (newBlock.type === 'database') {
+      // Default empty database if no data provided
+      console.log('[BlockManipulator] Creating empty database block');
+      newBlock.content = {
+        columns: [
+          { id: 'col1', name: 'Column 1', type: 'text' },
+          { id: 'col2', name: 'Column 2', type: 'text' },
+          { id: 'col3', name: 'Column 3', type: 'text' }
+        ],
+        rows: [
+          { id: 'row1', col1: '', col2: '', col3: '' },
+          { id: 'row2', col1: '', col2: '', col3: '' }
+        ],
+        title: 'New Table'
+      };
+    }
 
     // Handle chart creation
     if (newBlock.type === 'chart') {

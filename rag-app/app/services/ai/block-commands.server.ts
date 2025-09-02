@@ -696,6 +696,28 @@ IMPORTANT: For chart creation commands:
   - parameters.chartType: "bar"
   - parameters.title: (extract from command or generate appropriate title)
 
+IMPORTANT: For database/table creation commands:
+- The action should be "create"
+- Set parameters.newType to "database"
+- Parse and structure data from the command OR from selected block content
+- Example: "create a database with columns name, age, city" should result in:
+  - action: "create"
+  - parameters.newType: "database"
+  - parameters.databaseData: {
+      columns: [
+        { id: "name", name: "Name", type: "text" },
+        { id: "age", name: "Age", type: "number" },
+        { id: "city", name: "City", type: "text" }
+      ],
+      rows: [] // Empty initially unless data provided
+    }
+- If data rows provided: "create table: John, 25, NYC | Jane, 30, LA" → parse into:
+  - columns: [{ id: "col1", name: "Name", type: "text" }, { id: "col2", name: "Age", type: "number" }, { id: "col3", name: "City", type: "text" }]
+  - rows: [{ id: "row1", col1: "John", col2: 25, col3: "NYC" }, { id: "row2", col1: "Jane", col2: 30, col3: "LA" }]
+- If CSV-like: "name,age,city\nJohn,25,NYC\nJane,30,LA" → parse headers and rows
+- If list format: Parse each line as a row, detect columns by delimiters (comma, pipe, colon)
+- From selected block: Extract tabular data from paragraph text, lists, or existing content
+
 References can be:
 - Positional: "first", "last", "second", "third"
 - Relative: "this", "above", "below", "selected"
@@ -772,7 +794,30 @@ References can be:
               },
               title: {
                 type: 'string',
-                description: 'Title for the chart'
+                description: 'Title for the chart or table'
+              },
+              databaseData: {
+                type: 'object',
+                description: 'For database/table creation: the structured data',
+                properties: {
+                  columns: {
+                    type: 'array',
+                    items: { 
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string' },
+                        name: { type: 'string' },
+                        type: { type: 'string', enum: ['text', 'number', 'date', 'boolean', 'select'] }
+                      }
+                    },
+                    description: 'Column definitions for the table'
+                  },
+                  rows: {
+                    type: 'array',
+                    items: { type: 'object' },
+                    description: 'Array of row objects with column values'
+                  }
+                }
               },
               position: {
                 type: 'string',
