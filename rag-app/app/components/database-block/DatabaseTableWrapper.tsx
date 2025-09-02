@@ -41,8 +41,32 @@ export function DatabaseTableWrapper({
   });
 
   const [rows, setRows] = useState<DatabaseRow[]>(() => {
-    if (initialData?.rows) {
-      return initialData.rows;
+    if (initialData?.rows && Array.isArray(initialData.rows)) {
+      // Ensure all rows have proper structure with cells property
+      return initialData.rows.map((row: any, index: number) => {
+        // If row doesn't have cells property, create it
+        if (!row.cells) {
+          console.warn('[DatabaseTableWrapper] Row missing cells property:', row);
+          row.cells = {};
+          // Try to extract cell data from row properties
+          columns.forEach(col => {
+            if (row[col.id] !== undefined) {
+              row.cells[col.id] = row[col.id];
+            } else {
+              row.cells[col.id] = col.type === 'select' ? col.options?.[0]?.id || '' : '';
+            }
+          });
+        }
+        // Ensure all required properties exist
+        return {
+          id: row.id || `row_${uuidv4()}`,
+          blockId: row.blockId || '',
+          cells: row.cells || {},
+          position: row.position !== undefined ? row.position : index,
+          createdAt: row.createdAt || new Date().toISOString(),
+          updatedAt: row.updatedAt || new Date().toISOString()
+        };
+      });
     }
     // Start with one empty row
     const rowId = `row_${uuidv4()}`;
@@ -219,7 +243,7 @@ export function DatabaseTableWrapper({
                   <td key={column.id} className="px-4 py-2">
                     {column.type === 'select' ? (
                       <select
-                        value={row.cells[column.id] || ''}
+                        value={row.cells?.[column.id] || ''}
                         onChange={(e) => handleUpdateRow(row.id, { [column.id]: e.target.value })}
                         className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
@@ -232,7 +256,7 @@ export function DatabaseTableWrapper({
                     ) : (
                       <input
                         type="text"
-                        value={row.cells[column.id] || ''}
+                        value={row.cells?.[column.id] || ''}
                         onChange={(e) => handleUpdateRow(row.id, { [column.id]: e.target.value })}
                         className="w-full px-2 py-1 text-sm border border-transparent hover:border-gray-200 focus:border-blue-500 rounded focus:outline-none"
                         placeholder={`Enter ${column.name.toLowerCase()}...`}

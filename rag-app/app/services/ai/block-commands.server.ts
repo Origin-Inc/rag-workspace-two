@@ -700,23 +700,34 @@ IMPORTANT: For database/table creation commands:
 - The action should be "create"
 - Set parameters.newType to "database"
 - Parse and structure data from the command OR from selected block content
-- Example: "create a database with columns name, age, city" should result in:
-  - action: "create"
-  - parameters.newType: "database"
-  - parameters.databaseData: {
-      columns: [
-        { id: "name", name: "Name", type: "text" },
-        { id: "age", name: "Age", type: "number" },
-        { id: "city", name: "City", type: "text" }
-      ],
-      rows: [] // Empty initially unless data provided
-    }
-- If data rows provided: "create table: John, 25, NYC | Jane, 30, LA" → parse into:
-  - columns: [{ id: "col1", name: "Name", type: "text" }, { id: "col2", name: "Age", type: "number" }, { id: "col3", name: "City", type: "text" }]
-  - rows: [{ id: "row1", col1: "John", col2: 25, col3: "NYC" }, { id: "row2", col1: "Jane", col2: 30, col3: "LA" }]
-- If CSV-like: "name,age,city\nJohn,25,NYC\nJane,30,LA" → parse headers and rows
-- If list format: Parse each line as a row, detect columns by delimiters (comma, pipe, colon)
-- From selected block: Extract tabular data from paragraph text, lists, or existing content
+
+CRITICAL: When user says "create a database/table from this" or "turn this into a database":
+- USE THE SELECTED BLOCK'S FULL CONTENT (provided above) to extract and structure data
+- Parse the selected block content to identify columns and rows
+- DO NOT create an empty database - extract actual data from the content
+
+Data extraction patterns:
+- CSV format: "name,age,city\nJohn,25,NYC\nJane,30,LA" → parse headers and rows
+- List with delimiters: "John: 25, NYC" → extract columns from pattern
+- Bullet points: Parse each bullet as a row, find common structure
+- Numbered lists: Each item becomes a row
+- Paragraphs with patterns: Extract structured data from text
+- JSON/Object notation: Parse directly into columns and rows
+
+Examples:
+1. "create a database with columns name, age, city" → Create empty structure:
+   - columns: [{ id: "name", name: "Name", type: "text" }, { id: "age", name: "Age", type: "number" }, { id: "city", name: "City", type: "text" }]
+   - rows: [] // Empty since no data provided
+
+2. "create table: John, 25, NYC | Jane, 30, LA" → Parse data:
+   - columns: [{ id: "col1", name: "Name", type: "text" }, { id: "col2", name: "Age", type: "number" }, { id: "col3", name: "City", type: "text" }]
+   - rows: [{ id: "row1", col1: "John", col2: 25, col3: "NYC" }, { id: "row2", col1: "Jane", col2: 30, col3: "LA" }]
+
+3. "create a database from this" (with selected block containing "Apple: $2.50\nBanana: $1.20\nOrange: $3.00") → Extract:
+   - columns: [{ id: "item", name: "Item", type: "text" }, { id: "price", name: "Price", type: "text" }]
+   - rows: [{ id: "row1", item: "Apple", price: "$2.50" }, { id: "row2", item: "Banana", price: "$1.20" }, { id: "row3", item: "Orange", price: "$3.00" }]
+
+ALWAYS populate parameters.databaseData with actual extracted data when content is available!
 
 References can be:
 - Positional: "first", "last", "second", "third"

@@ -123,25 +123,57 @@ export class BlockManipulator {
       console.log('[BlockManipulator] Creating database block with data:', command.parameters.databaseData);
       
       // Format the database content for the DatabaseTableWrapper component
-      const columns = command.parameters.databaseData.columns || [
+      const columns = (command.parameters.databaseData.columns || [
         { id: 'col1', name: 'Column 1', type: 'text' },
         { id: 'col2', name: 'Column 2', type: 'text' }
-      ];
+      ]).map((col: any, index: number) => ({
+        id: col.id || `col${index + 1}`,
+        name: col.name || `Column ${index + 1}`,
+        type: col.type || 'text',
+        position: col.position !== undefined ? col.position : index,
+        width: col.width || 200,
+        options: col.options || undefined
+      }));
       
-      // Ensure rows have IDs and match column structure
+      // Ensure rows have IDs and cells property matching column structure
       const rows = (command.parameters.databaseData.rows || []).map((row: any, index: number) => {
-        // Add ID if missing
-        if (!row.id) {
-          row.id = `row${index + 1}`;
-        }
-        return row;
+        // Create properly formatted row with cells property
+        const formattedRow: any = {
+          id: row.id || `row${index + 1}`,
+          blockId: '',
+          cells: {},
+          position: index,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        // Copy cell data into cells property
+        columns.forEach(col => {
+          // Check if data exists in row object (either in cells or directly)
+          if (row.cells && row.cells[col.id] !== undefined) {
+            formattedRow.cells[col.id] = row.cells[col.id];
+          } else if (row[col.id] !== undefined) {
+            formattedRow.cells[col.id] = row[col.id];
+          } else {
+            formattedRow.cells[col.id] = '';
+          }
+        });
+        
+        return formattedRow;
       });
       
       // If no rows provided, create one empty row
       if (rows.length === 0) {
-        const emptyRow: any = { id: 'row1' };
+        const emptyRow: any = { 
+          id: 'row1',
+          blockId: '',
+          cells: {},
+          position: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
         columns.forEach(col => {
-          emptyRow[col.id] = '';
+          emptyRow.cells[col.id] = '';
         });
         rows.push(emptyRow);
       }
@@ -156,13 +188,27 @@ export class BlockManipulator {
       console.log('[BlockManipulator] Creating empty database block');
       newBlock.content = {
         columns: [
-          { id: 'col1', name: 'Column 1', type: 'text' },
-          { id: 'col2', name: 'Column 2', type: 'text' },
-          { id: 'col3', name: 'Column 3', type: 'text' }
+          { id: 'col1', name: 'Column 1', type: 'text', position: 0, width: 200 },
+          { id: 'col2', name: 'Column 2', type: 'text', position: 1, width: 200 },
+          { id: 'col3', name: 'Column 3', type: 'text', position: 2, width: 200 }
         ],
         rows: [
-          { id: 'row1', col1: '', col2: '', col3: '' },
-          { id: 'row2', col1: '', col2: '', col3: '' }
+          { 
+            id: 'row1', 
+            blockId: '',
+            cells: { col1: '', col2: '', col3: '' },
+            position: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          },
+          { 
+            id: 'row2',
+            blockId: '',
+            cells: { col1: '', col2: '', col3: '' },
+            position: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
         ],
         title: 'New Table'
       };
