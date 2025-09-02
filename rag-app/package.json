@@ -79,6 +79,7 @@
     "lowlight": "^2.9.0",
     "lru-cache": "^11.1.0",
     "lucide-react": "^0.539.0",
+    "marked": "^16.2.1",
     "node-fetch": "^3.3.2",
     "openai": "^5.12.2",
     "p-limit": "^7.0.0",

@@ -1,25 +1,61 @@
 # Task ID: 23
 # Title: MVP Pivot - Build AI Block with Inline Chat
-# Status: pending
+# Status: done
 # Dependencies: 20
 # Priority: high
-# Description: Create the centerpiece AI Block component with Space hotkey activation for inline chat. Implement scope management (page vs @global workspace), preview area for AI responses, and Insert/Dismiss actions. This is the primary interface for RAG-grounded AI interactions.
+# Description: Create the AI Block that appears when users press Space anywhere. This is the magic moment - type a question, get grounded answers from your workspace data, insert charts/tables/content directly into the page.
 # Details:
-
+1. Press Space in any block to activate AI. 2. Inline chat UI appears with context awareness. 3. AI knows what's on the page, what database you're looking at, what project you're in. 4. Responses are grounded in YOUR data via RAG. 5. One-click insert of AI-generated content as new blocks. 6. This is the core wow - AI that actually knows your content.
 
 # Test Strategy:
-
+Test Space hotkey activation from any block type. Verify context awareness captures current page content, visible database schemas, and project scope. Test RAG integration returns relevant workspace data. Verify AI responses can generate and insert various block types (text, tables, charts). Test performance with instant UI response on Space press. Validate that AI context includes page hierarchy and block relationships.
 
 # Subtasks:
-## 1. Build AI block base component structure [pending]
+## 1. Build AI block base component structure [done]
 ### Dependencies: None
 ### Description: Create AIBlock.tsx component with empty state showing 'Press Space to ask the AI' ghost text and basic block container.
 ### Details:
 
 
-## 2. Implement Space hotkey activation [pending]
+## 2. Implement Space hotkey activation [done]
 ### Dependencies: None
 ### Description: Add keyboard event handler that opens inline chat when Space is pressed in empty AI block using react-hotkeys-hook.
 ### Details:
 
+
+## 3. Create context-aware AI chat interface [done]
+### Dependencies: 23.2
+### Description: Build inline chat UI that appears on Space press with awareness of current page, visible database, and project context.
+### Details:
+Capture current block content, page hierarchy, visible database schemas, and project metadata to provide as context to AI.
+
+## 4. Integrate RAG pipeline for grounded responses [done]
+### Dependencies: 23.3
+### Description: Connect AI chat to existing RAG system to retrieve relevant workspace data and generate responses grounded in user's actual content.
+### Details:
+Use existing rag.server.ts service with pgvector similarity search to find relevant documents and provide as context.
+
+## 5. Implement AI response preview area [done]
+### Dependencies: 23.4
+### Description: Create preview component that displays AI responses with proper formatting, code highlighting, and visual distinction from user input.
+### Details:
+Support markdown rendering, code blocks with syntax highlighting, and preview of generated charts/tables.
+
+## 6. Build Insert action for AI-generated content [done]
+### Dependencies: 23.5
+### Description: Implement one-click insertion of AI responses as new blocks (text, tables, charts, code) directly into the page.
+### Details:
+Parse AI response to determine block type, create appropriate block data structure, and insert at cursor position.
+
+## 7. Add dismiss and retry functionality [done]
+### Dependencies: 23.5
+### Description: Implement UI controls to dismiss AI responses, clear chat, or retry with modified prompts.
+### Details:
+Include keyboard shortcuts (Esc to dismiss, Cmd+R to retry) and visual buttons.
+
+## 8. Create the wow factor polish [done]
+### Dependencies: 23.6, 23.7
+### Description: Add smooth animations, instant response feedback, and delightful interactions that make the AI feel magical and responsive.
+### Details:
+Implement typing indicators, smooth transitions, subtle particle effects on insertion, and sub-50ms response times.
 

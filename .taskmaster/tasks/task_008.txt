@@ -1,6 +1,6 @@
 # Task ID: 8
 # Title: Build Background Workers and Job Queue System
-# Status: pending
+# Status: deferred
 # Dependencies: 7
 # Priority: medium
 # Description: Implement Supabase Edge Functions for async tasks including embedding generation, formula computation, and document indexing with database-backed job tracking

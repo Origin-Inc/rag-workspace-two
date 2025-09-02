@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "framer-motion": "^12.23.12",
     "react-contenteditable": "^3.3.7"
   }
 }

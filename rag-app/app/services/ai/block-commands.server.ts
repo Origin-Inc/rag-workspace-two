@@ -664,9 +664,18 @@ ${selectedBlockContent ? `Full content of SELECTED block:\n"${selectedBlockConte
 Available block types: paragraph, heading1, heading2, heading3, bulletList, numberedList, todoList, quote, code, divider, database, ai, image, video, table, chart
 
 Parse the user's command to identify:
-1. The action to perform (create, edit, delete, move, transform, duplicate, merge, split)
+1. The action to perform:
+   - "create": For adding NEW blocks (charts, tables, paragraphs, etc.)
+   - "edit": For modifying content (shorten, expand, rewrite)
+   - "transform": For changing an EXISTING block's type (paragraph to list, etc.)
+   - "delete", "move", "duplicate", "merge", "split": As named
 2. The target block(s) referenced
 3. Any parameters needed for the action
+
+IMPORTANT DISTINCTIONS:
+- "make a chart", "create a chart", "add a chart" = action: "create", newType: "chart"
+- "make a database", "create a table" = action: "create", newType: "database"
+- "turn this into a chart", "convert to chart" = action: "transform", newType: "chart"
 
 IMPORTANT: For content modification commands (shorten, expand, rewrite, etc.):
 - The action should be "edit"

@@ -1,0 +1,240 @@
+# Task ID: 31
+# Title: Implement Production Infrastructure Hardening
+# Status: deferred
+# Dependencies: 3, 6, 16, 20
+# Priority: medium
+# Description: Build critical production-ready infrastructure including queue processing system for indexing_queue, rate limiting, differential updates, optimistic locking, database optimizations, and performance monitoring to support medium to large scale deployments.
+# Details:
+1. **Queue Processing System (CRITICAL - HIGH PRIORITY)**
+   - Implement BullMQ worker to process indexing_queue table entries:
+   ```typescript
+   // app/services/queue/indexing-processor.ts
+   import { Worker, Queue } from 'bullmq';
+   import { redis } from '~/services/redis.server';
+   
+   const indexingQueue = new Queue('indexing', { connection: redis });
+   
+   const worker = new Worker('indexing', async (job) => {
+     const { pageId, blockIds, action } = job.data;
+     try {
+       // Process embeddings for changed blocks
+       const blocks = await prisma.block.findMany({ where: { id: { in: blockIds } } });
+       const embeddings = await generateEmbeddings(blocks);
+       await storeEmbeddings(embeddings);
+       
+       // Mark queue entry as processed
+       await prisma.indexingQueue.update({
+         where: { id: job.data.queueId },
+         data: { status: 'completed', processedAt: new Date() }
+       });
+     } catch (error) {
+       // Move to dead letter queue after 3 retries
+       if (job.attemptsMade >= 3) {
+         await deadLetterQueue.add('failed-indexing', job.data);
+       }
+       throw error;
+     }
+   }, { connection: redis, concurrency: 5 });
+   ```
+   - Implement dead letter queue for failed items with alerting
+   - Add queue depth monitoring and auto-scaling triggers
+   - Create cleanup job to remove processed entries older than 7 days
+
+2. **Rate Limiting (HIGH PRIORITY)**
+   - Implement middleware using Redis for per-user rate limiting:
+   ```typescript
+   // app/middleware/rate-limit.ts
+   import { RateLimiterRedis } from 'rate-limiter-flexible';
+   
+   const rateLimiter = new RateLimiterRedis({
+     storeClient: redis,
+     keyPrefix: 'rl:page-save',
+     points: 30, // 30 saves
+     duration: 60, // per minute
+     blockDuration: 60, // block for 1 minute if exceeded
+   });
+   
+   export async function rateLimitMiddleware(request: Request, userId: string) {
+     try {
+       await rateLimiter.consume(userId);
+     } catch (rejRes) {
+       throw new Response('Rate limit exceeded', { 
+         status: 429,
+         headers: { 'Retry-After': String(Math.round(rejRes.msBeforeNext / 1000)) }
+       });
+     }
+   }
+   ```
+   - Add rate limit headers to responses (X-RateLimit-Limit, X-RateLimit-Remaining)
+   - Implement sliding window algorithm for smooth rate limiting
+   - Create admin bypass for system operations
+
+3. **Optimistic Locking (MEDIUM PRIORITY)**
+   - Add version field to Pages table:
+   ```sql
+   ALTER TABLE pages ADD COLUMN version INTEGER DEFAULT 1;
+   
+   -- Create optimistic lock check in update trigger
+   CREATE OR REPLACE FUNCTION check_page_version()
+   RETURNS TRIGGER AS $$
+   BEGIN
+     IF OLD.version != NEW.version - 1 THEN
+       RAISE EXCEPTION 'Concurrent modification detected';
+     END IF;
+     RETURN NEW;
+   END;
+   $$ LANGUAGE plpgsql;
+   ```
+   - Implement version checking in save operations:
+   ```typescript
+   async function savePage(pageId: string, data: any, currentVersion: number) {
+     const result = await prisma.page.update({
+       where: { id: pageId, version: currentVersion },
+       data: { ...data, version: { increment: 1 } }
+     });
+     if (!result) throw new ConflictError('Page was modified by another user');
+     return result;
+   }
+   ```
+
+4. **Differential Updates (MEDIUM PRIORITY)**
+   - Implement JSON Patch (RFC 6902) for block updates:
+   ```typescript
+   // app/services/diff/block-differ.ts
+   import { compare } from 'fast-json-patch';
+   
+   export function calculateBlockDiff(oldBlocks: Block[], newBlocks: Block[]) {
+     const patches = compare(oldBlocks, newBlocks);
+     return patches.filter(patch => 
+       patch.op === 'add' || patch.op === 'replace' || patch.op === 'remove'
+     );
+   }
+   
+   // Send only patches over network
+   async function saveBlockChanges(pageId: string, patches: Operation[]) {
+     await fetch('/api/pages/patch', {
+       method: 'PATCH',
+       body: JSON.stringify({ pageId, patches }),
+       headers: { 'Content-Type': 'application/json-patch+json' }
+     });
+   }
+   ```
+   - Store full snapshots every 10 changes for recovery
+   - Implement patch validation and conflict resolution
+
+5. **Database Optimizations**
+   - Add strategic indexes:
+   ```sql
+   -- Partial index for recent updates (90% queries are for last 7 days)
+   CREATE INDEX pages_updated_recent_idx ON pages(updated_at DESC)
+   WHERE updated_at > NOW() - INTERVAL '7 days';
+   
+   -- GIN index for JSONB blocks searching
+   CREATE INDEX blocks_data_gin_idx ON blocks USING gin(data);
+   
+   -- Composite index for workspace queries
+   CREATE INDEX pages_workspace_updated_idx ON pages(workspace_id, updated_at DESC);
+   ```
+   - Configure Prisma connection pooling:
+   ```typescript
+   // app/services/db.server.ts
+   const prisma = new PrismaClient({
+     datasources: {
+       db: {
+         url: process.env.DATABASE_URL,
+       },
+     },
+     log: ['error', 'warn'],
+     // Connection pool settings
+     connectionLimit: 20,
+     pool: {
+       min: 5,
+       max: 20,
+       idleTimeoutMillis: 30000,
+       createTimeoutMillis: 30000,
+       acquireTimeoutMillis: 30000,
+     },
+   });
+   ```
+   - Implement TTL-based cleanup for indexing_queue
+
+6. **Performance Monitoring (LOW PRIORITY)**
+   - Add Prometheus metrics:
+   ```typescript
+   // app/services/metrics.server.ts
+   import { Histogram, Counter, Gauge, register } from 'prom-client';
+   
+   export const metrics = {
+     saveDuration: new Histogram({
+       name: 'page_save_duration_seconds',
+       help: 'Duration of page save operations',
+       labelNames: ['workspace_id', 'status'],
+       buckets: [0.1, 0.5, 1, 2, 5]
+     }),
+     saveErrors: new Counter({
+       name: 'page_save_errors_total',
+       help: 'Total number of page save errors',
+       labelNames: ['workspace_id', 'error_type']
+     }),
+     queueDepth: new Gauge({
+       name: 'indexing_queue_depth',
+       help: 'Current depth of indexing queue'
+     }),
+     blockCount: new Gauge({
+       name: 'blocks_per_page',
+       help: 'Number of blocks per page',
+       labelNames: ['workspace_id']
+     })
+   };
+   ```
+   - Create /metrics endpoint for Prometheus scraping
+   - Add performance logging middleware
+   - Set up alerting rules for critical thresholds
+
+# Test Strategy:
+1. **Queue Processing Tests**:
+   - Load test with 10,000 queue entries and verify processing rate > 100/second
+   - Test retry mechanism by simulating failures and verify 3 retry attempts
+   - Verify dead letter queue captures failed items after max retries
+   - Test cleanup job removes entries older than 7 days
+   - Monitor queue depth remains < 1000 under sustained load
+
+2. **Rate Limiting Tests**:
+   - Test single user can make exactly 30 saves per minute
+   - Verify 429 response with Retry-After header when limit exceeded
+   - Test rate limit resets after 60 seconds
+   - Verify admin bypass token allows unlimited saves
+   - Load test with 1000 concurrent users each making 30 saves/minute
+
+3. **Optimistic Locking Tests**:
+   - Simulate concurrent edits to same page from 2 users
+   - Verify second save fails with ConflictError
+   - Test version increments correctly on successful saves
+   - Verify version field doesn't cause migration issues with existing data
+
+4. **Differential Updates Tests**:
+   - Compare bandwidth usage: full save (100KB) vs patch (2KB) for typical edit
+   - Test patch generation for add/remove/modify block operations
+   - Verify patches apply correctly and result matches expected state
+   - Test snapshot creation after 10 patches
+   - Verify patch validation rejects malformed patches
+
+5. **Database Optimization Tests**:
+   - Query performance: pages_updated_recent_idx reduces query time from 500ms to 10ms
+   - Test GIN index speeds up JSONB searches by 90%
+   - Verify connection pool handles 100 concurrent connections without exhaustion
+   - Test indexing_queue cleanup removes 10,000 old entries in < 1 second
+
+6. **Performance Monitoring Tests**:
+   - Verify all metrics expose correctly at /metrics endpoint
+   - Test histogram buckets capture p50, p95, p99 latencies accurately
+   - Verify error counter increments for each failure type
+   - Test gauge metrics update in real-time
+   - Load test monitoring overhead adds < 1% to response times
+
+7. **Integration Tests**:
+   - End-to-end test: User saves page → Rate limit check → Optimistic lock → Differential update → Queue entry → Processing → Metrics update
+   - Stress test: 500 concurrent users editing 100 pages with 1000 blocks each
+   - Verify system remains responsive (p95 < 200ms) under load
+   - Test graceful degradation when queue backs up
+   - Verify no data loss during peak load conditions

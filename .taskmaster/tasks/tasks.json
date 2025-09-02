@@ -4242,17 +4242,117 @@
         "description": "Implement a natural language command system that allows users to create, edit, transform, and manipulate blocks through conversational AI, enabling commands like 'Add a chart after this paragraph', 'Convert this list to a table', or 'Move this block above that one' with full context awareness and visual feedback.",
         "details": "1. Create intelligent command parser using OpenAI GPT-4 with specialized prompt engineering:\n```typescript\ninterface BlockCommand {\n  action: 'create' | 'edit' | 'transform' | 'move' | 'merge' | 'split' | 'delete';\n  targetBlocks: string[]; // Block IDs identified from context\n  parameters: Record<string, any>;\n  confidence: number;\n}\n\nconst parseCommand = async (command: string, pageContext: PageContext) => {\n  const completion = await openai.chat.completions.create({\n    model: 'gpt-4',\n    messages: [\n      {\n        role: 'system',\n        content: `Parse block manipulation commands. Current page has ${pageContext.blocks.length} blocks.\n        Available block types: ${pageContext.availableTypes.join(', ')}.\n        User can reference blocks by: position (first, last, after, before), content (\"the paragraph about X\"), type (\"the chart\"), or ID.`\n      },\n      { role: 'user', content: command }\n    ],\n    functions: [blockManipulationSchema],\n    function_call: { name: 'execute_block_command' }\n  });\n  return JSON.parse(completion.choices[0].message.function_call.arguments);\n};\n```\n\n2. Implement block identification system with fuzzy matching and context awareness:\n```typescript\nclass BlockIdentifier {\n  identifyTargets(reference: string, blocks: Block[]): Block[] {\n    // Handle positional references\n    if (reference.match(/^(first|last|second|third)/i)) {\n      return this.getByPosition(reference, blocks);\n    }\n    \n    // Handle relative references\n    if (reference.match(/(before|after|above|below)/i)) {\n      return this.getRelativeBlocks(reference, blocks);\n    }\n    \n    // Content-based search using embeddings\n    if (reference.includes('about') || reference.includes('contains')) {\n      return this.searchByContent(reference, blocks);\n    }\n    \n    // Type-based identification\n    if (reference.match(/(table|chart|list|paragraph|heading)/i)) {\n      return this.getByType(reference, blocks);\n    }\n  }\n}\n```\n\n3. Build command execution engine with transaction support and rollback:\n```typescript\nclass BlockManipulator {\n  async execute(command: BlockCommand): Promise<ExecutionResult> {\n    const transaction = new BlockTransaction();\n    \n    try {\n      switch (command.action) {\n        case 'create':\n          return await this.createBlock(command, transaction);\n        case 'transform':\n          return await this.transformBlock(command, transaction);\n        case 'move':\n          return await this.moveBlock(command, transaction);\n        case 'merge':\n          return await this.mergeBlocks(command, transaction);\n        case 'split':\n          return await this.splitBlock(command, transaction);\n      }\n      \n      await transaction.commit();\n      return { success: true, affectedBlocks: transaction.changes };\n    } catch (error) {\n      await transaction.rollback();\n      throw error;\n    }\n  }\n}\n```\n\n4. Implement intelligent block transformations with content preservation:\n```typescript\nclass BlockTransformer {\n  async transform(source: Block, targetType: BlockType): Promise<Block> {\n    const transformers = {\n      'list-to-table': this.listToTable,\n      'paragraph-to-list': this.paragraphToList,\n      'table-to-chart': this.tableToChart,\n      'markdown-to-blocks': this.markdownToBlocks\n    };\n    \n    const key = `${source.type}-to-${targetType}`;\n    if (transformers[key]) {\n      return await transformers[key](source);\n    }\n    \n    // Use AI for complex transformations\n    return await this.aiTransform(source, targetType);\n  }\n  \n  private async aiTransform(source: Block, targetType: BlockType): Promise<Block> {\n    const completion = await openai.chat.completions.create({\n      model: 'gpt-4',\n      messages: [\n        {\n          role: 'system',\n          content: `Transform block content from ${source.type} to ${targetType}. Preserve all information.`\n        },\n        { role: 'user', content: JSON.stringify(source.content) }\n      ]\n    });\n    return this.parseTransformation(completion.choices[0].message.content, targetType);\n  }\n}\n```\n\n5. Create visual feedback system with preview and animations:\n```typescript\nclass BlockManipulationUI {\n  async showPreview(command: BlockCommand): Promise<boolean> {\n    const preview = document.createElement('div');\n    preview.className = 'block-manipulation-preview';\n    \n    // Generate visual preview of changes\n    const changes = await this.generatePreview(command);\n    \n    // Show ghost blocks for new content\n    if (command.action === 'create') {\n      this.showGhostBlock(changes.position, changes.content);\n    }\n    \n    // Highlight affected blocks\n    changes.affected.forEach(blockId => {\n      this.highlightBlock(blockId, 'will-change');\n    });\n    \n    // Show confirmation dialog\n    return await this.confirmDialog({\n      title: `${command.action} Block`,\n      preview: changes,\n      message: `This will ${command.action} ${changes.affected.length} block(s)`\n    });\n  }\n  \n  animateExecution(result: ExecutionResult): void {\n    // Smooth transitions for moves\n    if (result.type === 'move') {\n      this.animateMove(result.from, result.to);\n    }\n    \n    // Fade in for new blocks\n    if (result.type === 'create') {\n      this.fadeIn(result.newBlockId);\n    }\n    \n    // Morph animation for transformations\n    if (result.type === 'transform') {\n      this.morphBlock(result.blockId, result.newContent);\n    }\n  }\n}\n```\n\n6. Implement comprehensive undo/redo system with command history:\n```typescript\nclass CommandHistory {\n  private history: BlockCommand[] = [];\n  private pointer: number = -1;\n  private snapshots: Map<number, PageSnapshot> = new Map();\n  \n  async execute(command: BlockCommand): Promise<void> {\n    // Take snapshot before execution\n    const snapshot = await this.takeSnapshot();\n    \n    // Execute command\n    const result = await this.manipulator.execute(command);\n    \n    // Store in history\n    this.history = this.history.slice(0, this.pointer + 1);\n    this.history.push(command);\n    this.snapshots.set(++this.pointer, snapshot);\n    \n    // Limit history size\n    if (this.history.length > 100) {\n      this.history.shift();\n      this.snapshots.delete(this.pointer - 100);\n    }\n  }\n  \n  async undo(): Promise<void> {\n    if (this.pointer >= 0) {\n      const snapshot = this.snapshots.get(this.pointer--);\n      await this.restoreSnapshot(snapshot);\n    }\n  }\n}\n```\n\n7. Add natural language feedback and error handling:\n```typescript\nclass AIFeedback {\n  async explainAction(command: BlockCommand, result: ExecutionResult): Promise<string> {\n    if (result.success) {\n      return this.generateSuccessMessage(command, result);\n    }\n    \n    // Explain why command failed\n    const completion = await openai.chat.completions.create({\n      model: 'gpt-4',\n      messages: [\n        {\n          role: 'system',\n          content: 'Explain in simple terms why the block manipulation failed and suggest alternatives.'\n        },\n        {\n          role: 'user',\n          content: JSON.stringify({ command, error: result.error })\n        }\n      ]\n    });\n    \n    return completion.choices[0].message.content;\n  }\n}\n```\n\n8. Integrate with existing LLM orchestration and page context:\n```typescript\nclass BlockManipulationIntegration {\n  constructor(\n    private llmOrchestrator: LLMOrchestrationService,\n    private pageContext: PageContextService,\n    private blockService: DatabaseBlockService\n  ) {}\n  \n  async processNaturalLanguageCommand(input: string): Promise<void> {\n    // Get current page context\n    const context = await this.pageContext.getCurrentContext();\n    \n    // Parse command with LLM orchestration\n    const command = await this.llmOrchestrator.parseBlockCommand(input, context);\n    \n    // Show preview with confidence score\n    if (command.confidence < 0.7) {\n      const clarification = await this.requestClarification(command);\n      if (!clarification.confirmed) return;\n    }\n    \n    // Execute with visual feedback\n    const ui = new BlockManipulationUI();\n    if (await ui.showPreview(command)) {\n      const result = await this.manipulator.execute(command);\n      ui.animateExecution(result);\n      \n      // Store in command history\n      await this.history.execute(command);\n    }\n  }\n}\n```",
         "testStrategy": "1. Test natural language parsing with 50+ diverse commands including 'Add a table after the second paragraph', 'Move the chart above the introduction', 'Convert this bullet list to a numbered list', verifying 90%+ accuracy in command interpretation and target block identification.\n\n2. Verify block identification correctly handles positional references (first, last, third), relative references (before/after/above/below), content-based references ('the paragraph about pricing'), and type-based references ('all tables', 'the chart').\n\n3. Test complex transformations preserve all content when converting between types: list→table, table→chart, paragraph→list, markdown→blocks, ensuring no data loss and proper formatting.\n\n4. Verify preview system shows accurate visual representation of changes before execution, with ghost blocks for additions, highlights for modifications, and animation previews for moves.\n\n5. Test undo/redo maintains complete history for last 100 operations, correctly restores page state including block positions, content, and metadata.\n\n6. Load test with rapid command execution (10 commands/second) to verify transaction integrity and no race conditions in concurrent block manipulations.\n\n7. Test error handling provides helpful natural language feedback when commands fail, suggesting alternatives and explaining why the operation couldn't be completed.\n\n8. Verify integration with existing LLM orchestration service correctly passes page context and receives structured commands.\n\n9. Test accessibility with screen readers, ensuring all visual feedback has appropriate ARIA labels and announcements.\n\n10. Measure performance: command parsing < 500ms, preview generation < 200ms, execution with animations < 300ms for typical operations.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           24
         ],
         "priority": "medium",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Natural Language Command Parser",
+            "description": "Implement AI-powered command parser that interprets natural language block manipulation requests using GPT-4",
+            "details": "Build a command parser that can understand requests like 'Add a chart after this paragraph' and convert them to structured BlockCommand objects with action types, target blocks, and parameters. Include confidence scoring.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 33
+          },
+          {
+            "id": 2,
+            "title": "Build Block Identification System",
+            "description": "Create a system that can identify blocks by position, content, type, or relative references",
+            "details": "Implement BlockIdentifier class with methods like getByPosition (first, last, second), getRelativeBlocks (before/after/above/below), searchByContent (using embeddings), and getByType. Support fuzzy matching and context awareness.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 33
+          },
+          {
+            "id": 3,
+            "title": "Implement Block Manipulation Engine",
+            "description": "Create BlockManipulator class with transaction support for executing block operations",
+            "details": "Build execution engine that handles create, transform, move, merge, split, and delete operations. Include transaction support with rollback capability, proper error handling, and integration with the existing CommandManager for undo/redo.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 33
+          },
+          {
+            "id": 4,
+            "title": "Create Block Transformation System",
+            "description": "Build intelligent transformations between block types with content preservation",
+            "details": "Implement BlockTransformer class with specific transformations: list-to-table, table-to-chart, paragraph-to-list, markdown-to-blocks. Use AI for complex transformations that don't have predefined rules. Ensure all content is preserved during transformations.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 33
+          },
+          {
+            "id": 5,
+            "title": "Build Visual Feedback and Preview System",
+            "description": "Create UI components for showing previews, ghost blocks, and animations",
+            "details": "Implement BlockManipulationUI class with showPreview method for visual representation of changes, ghost blocks for new content, highlights for affected blocks, and confirmation dialogs with confidence scores. Include smooth animations for moves, fades, and morphing transformations.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 33
+          },
+          {
+            "id": 6,
+            "title": "Implement AI-Powered Chart Creation",
+            "description": "Enable creation of charts from natural language commands and data extraction",
+            "details": "Build chart generation system that can: 1) Parse chart creation commands like 'create a bar chart of sales data', 2) Extract data from text/tables automatically, 3) Determine appropriate chart types (bar, line, pie, scatter), 4) Generate chart configuration with proper labels and formatting, 5) Support data visualization libraries like Chart.js or D3.js.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 33
+          },
+          {
+            "id": 7,
+            "title": "Create Natural Language Feedback System",
+            "description": "Build AI feedback system for explaining actions and handling errors",
+            "details": "Implement AIFeedback class that provides: 1) Success messages explaining what was done, 2) Error explanations in simple terms when commands fail, 3) Alternative suggestions when operations can't be completed, 4) Clarification requests when confidence is low, 5) Progress updates for long-running operations.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 33
+          },
+          {
+            "id": 8,
+            "title": "Integrate with Existing Editor and Services",
+            "description": "Connect the block manipulation system with current editor components and services",
+            "details": "Create BlockManipulationIntegration class to: 1) Connect with existing LLMOrchestrationService, 2) Integrate with PageContextService for current page state, 3) Use DatabaseBlockService for block operations, 4) Hook into existing CommandManager for undo/redo, 5) Update TiptapEditor and BlockEditor components to support new commands.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 33
+          },
+          {
+            "id": 9,
+            "title": "Add Command Input UI Component",
+            "description": "Create a command bar interface for entering natural language block commands",
+            "details": "Build a command input component with: 1) Floating command bar that can be triggered with hotkey (Cmd+K), 2) Auto-complete suggestions based on command history, 3) Real-time syntax highlighting for recognized commands, 4) Command history dropdown, 5) Voice input support option, 6) Integration with the command preview system.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 33
+          },
+          {
+            "id": 10,
+            "title": "Write Comprehensive Tests and Documentation",
+            "description": "Create test suite and documentation for the block manipulation system",
+            "details": "Implement tests for: 1) Natural language parsing accuracy (50+ test commands), 2) Block identification edge cases, 3) Transformation data preservation, 4) Animation performance benchmarks, 5) Undo/redo transaction integrity, 6) Error handling scenarios. Create documentation with examples of supported commands, API reference, and integration guide.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 33
+          },
+          {
+            "id": 11,
+            "title": "Implement Contextual AI Assistant for Individual Blocks",
+            "description": "Add AI invocation capability directly on each block through toolbars, context menus, and keyboard shortcuts",
+            "details": "Create a contextual AI assistant system that allows users to invoke AI on specific blocks without describing their location. Implementation includes:\n\n1. BlockAIAssistant class with type-specific suggestions:\n   - Text blocks: 'Shorten', 'Make formal', 'Translate', 'Add bullet points'\n   - Database blocks: 'Add column', 'Filter empty rows', 'Generate statistics', 'Create chart from data'\n   - Chart blocks: 'Change type', 'Update colors', 'Add trendline'\n   - Code blocks: 'Add comments', 'Refactor', 'Add error handling'\n\n2. Multiple entry points for AI invocation:\n   - AI button (✨) in block toolbars\n   - Right-click context menu option\n   - Keyboard shortcut (Cmd+Shift+A when block focused)\n   - Three-dot menu integration\n\n3. AIContextPanel component:\n   - Quick actions based on block type\n   - Custom command input field\n   - Recent commands for this block type\n   - Inline preview of changes\n\n4. Block context passing:\n   - Automatic blockId, blockType, blockContent inclusion\n   - No need for users to describe which block\n   - Sibling blocks and page context awareness\n\n5. Integration with existing systems:\n   - Connect with BlockManipulator from subtask 33.3\n   - Use command parser from subtask 33.1\n   - Show previews using system from subtask 33.5\n   - Store in command history from subtask 33.9\n\nExample implementation:\n```typescript\ninterface BlockAIContext {\n  blockId: string;\n  blockType: BlockType;\n  blockContent: any;\n  position: BlockPosition;\n  onCommand: (command: string) => void;\n}\n\n<BlockContainer>\n  <BlockToolbar>\n    <AIButton onClick={() => openAIAssistant(blockContext)} />\n  </BlockToolbar>\n  {showAI && <AIContextPanel context={blockContext} />}\n</BlockContainer>\n```\n\nThis provides intuitive, context-aware AI assistance exactly where users need it, complementing the global command bar from subtask 33.9.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 33
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-08-29T21:22:59.338Z",
+      "updated": "2025-09-02T04:35:44.189Z",
       "description": "Tasks for master context"
     }
   }

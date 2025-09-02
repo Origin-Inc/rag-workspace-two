@@ -3,7 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { cn } from '~/utils/cn';
 import { DatabaseTableWrapper } from '~/components/database-block/DatabaseTableWrapper';
 import { AIBlock } from '~/components/blocks/AIBlock';
+import { ChartBlock } from '~/components/blocks/ChartBlock';
 import { SlashMenu } from './SlashMenu';
+import { CommandBar } from './CommandBar';
+import { AIContextPanel } from './AIContextPanel';
 import { 
   Plus, 
   GripVertical, 
@@ -56,6 +59,7 @@ interface EnhancedBlockEditorProps {
   initialBlocks?: Block[];
   onChange?: (blocks: Block[]) => void;
   onSave?: (blocks: Block[]) => void;
+  onAICommand?: (command: string, selectedBlockId?: string) => Promise<void>;
   workspaceId?: string;
   className?: string;
 }
@@ -71,6 +75,7 @@ const BlockComponent = memo(({
   isSelected,
   onSelect,
   workspaceId,
+  onAIAction,
 }: {
   block: Block;
   index: number;
@@ -81,6 +86,7 @@ const BlockComponent = memo(({
   isSelected: boolean;
   onSelect: (id: string) => void;
   workspaceId?: string;
+  onAIAction?: (blockId: string, command: string) => Promise<void>;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -88,6 +94,8 @@ const BlockComponent = memo(({
   const [isDragging, setIsDragging] = useState(false);
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [slashMenuPosition, setSlashMenuPosition] = useState({ x: 0, y: 0 });
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [aiPanelPosition, setAIPanelPosition] = useState({ x: 0, y: 0 });
   const contentRef = useRef<HTMLDivElement>(null);
   const lastContentRef = useRef<string>('');
   const codeTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -106,8 +114,16 @@ const BlockComponent = memo(({
     if (contentRef.current && block.type !== 'code' && !isEditing) {
       const blockContent = typeof block.content === 'string' ? block.content : '';
       const currentText = contentRef.current.textContent || '';
+      console.log('[EditableBlock] Content sync check:', {
+        blockId: block.id,
+        blockContent,
+        currentText,
+        lastContent: lastContentRef.current,
+        shouldUpdate: currentText !== blockContent
+      });
       // Only update if content is different from what's in the DOM
-      if (currentText !== blockContent && lastContentRef.current !== currentText) {
+      if (currentText !== blockContent) {
+        console.log('[EditableBlock] Updating DOM content for block:', block.id);
         contentRef.current.textContent = blockContent;
         lastContentRef.current = blockContent;
       }
@@ -546,6 +562,24 @@ const BlockComponent = memo(({
             }}
           />
         );
+      case 'chart':
+        // Parse content if it's a string (from DB storage)
+        let chartContent = block.content;
+        if (typeof chartContent === 'string') {
+          try {
+            chartContent = JSON.parse(chartContent);
+          } catch {
+            chartContent = {};
+          }
+        }
+        return (
+          <ChartBlock
+            id={block.id}
+            content={chartContent || {}}
+            onUpdate={(content) => onUpdate(block.id, content)}
+            onDelete={() => onDelete(block.id)}
+          />
+        );
       default:
         return <div {...commonProps} />;
     }
@@ -727,6 +761,19 @@ const BlockComponent = memo(({
             </button>
             <hr className="my-1 border-gray-200" />
             <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                setAIPanelPosition({ x: rect.left, y: rect.top });
+                setShowAIPanel(true);
+                setShowMenu(false);
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+            >
+              <Sparkles className="w-4 h-4" />
+              AI Assistant
+            </button>
+            <button
               onClick={() => {
                 onDelete(block.id);
                 setShowMenu(false);
@@ -754,6 +801,20 @@ const BlockComponent = memo(({
           searchQuery=""
         />
       )}
+      
+      {/* AI Context Panel */}
+      {showAIPanel && onAIAction && (
+        <AIContextPanel
+          show={showAIPanel}
+          block={block}
+          onClose={() => setShowAIPanel(false)}
+          onAction={async (command) => {
+            await onAIAction(block.id, command);
+            setShowAIPanel(false);
+          }}
+          position={aiPanelPosition}
+        />
+      )}
     </div>
   );
 });
@@ -764,6 +825,7 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
   initialBlocks = [],
   onChange,
   onSave,
+  onAICommand,
   workspaceId,
   className,
 }: EnhancedBlockEditorProps) {
@@ -779,8 +841,17 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
     }]
   );
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  
+  // Sync blocks when initialBlocks changes (e.g., from AI updates)
+  useEffect(() => {
+    if (initialBlocks && initialBlocks.length > 0) {
+      console.log('[EnhancedBlockEditor] Syncing blocks from props:', initialBlocks);
+      setBlocks(initialBlocks);
+    }
+  }, [initialBlocks]);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [dragOverBlockId, setDragOverBlockId] = useState<string | null>(null);
+  const [showCommandBar, setShowCommandBar] = useState(false);
 
   const updateBlock = useCallback((id: string, content: any) => {
     setBlocks(prev => {
@@ -881,17 +952,41 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
     });
   }, [onChange]);
 
-  // Save shortcut
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Save shortcut
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
         onSave?.(blocks);
+      }
+      // AI Command Bar shortcut
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowCommandBar(true);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [blocks, onSave]);
+
+  // Handle AI commands
+  const handleAICommand = useCallback(async (command: string) => {
+    if (onAICommand) {
+      await onAICommand(command, selectedBlockId || undefined);
+    }
+  }, [onAICommand, selectedBlockId]);
+
+  const handleBlockAIAction = useCallback(async (blockId: string, command: string) => {
+    console.log('[EnhancedBlockEditor] handleBlockAIAction called:', { blockId, command, hasOnAICommand: !!onAICommand });
+    if (onAICommand) {
+      // For block-specific actions, ensure the block is selected
+      setSelectedBlockId(blockId);
+      await onAICommand(command, blockId);
+    } else {
+      console.error('[EnhancedBlockEditor] onAICommand is not defined!');
+    }
+  }, [onAICommand]);
 
   return (
     <div className={cn("h-full bg-white flex flex-col", className)}>
@@ -958,6 +1053,7 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
               isSelected={selectedBlockId === block.id}
               onSelect={setSelectedBlockId}
               workspaceId={workspaceId}
+              onAIAction={handleBlockAIAction}
             />
           </div>
         ))}
@@ -984,6 +1080,15 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
           </button>
         </div>
       </div>
+      
+      {/* AI Command Bar */}
+      <CommandBar
+        show={showCommandBar}
+        onClose={() => setShowCommandBar(false)}
+        onCommand={handleAICommand}
+        blocks={blocks}
+        selectedBlockId={selectedBlockId || undefined}
+      />
     </div>
   );
 });

@@ -441,3 +441,6 @@ export class BlockTransformer {
     };
   }
 }
+
+// Export singleton instance
+export const blockTransformer = BlockTransformer.getInstance();
