@@ -227,3 +227,6 @@ export class AIStreamingService {
     }
   }
 }
+
+// Export singleton instance
+export const aiStreamingService = new AIStreamingService();
