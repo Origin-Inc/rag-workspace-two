@@ -190,6 +190,59 @@ await prisma.$transaction(async (tx) => {
 - Components must handle loading and error states
 - Services must include proper error handling and logging
 
+### DATABASE SCHEMA CHANGES - CRITICAL
+**NEVER modify database schema without proper migrations:**
+
+1. **For ANY database changes (tables, columns, indexes, etc.):**
+   ```bash
+   # ALWAYS create a migration - NEVER use db push for schema changes
+   npx prisma migrate dev --name descriptive_migration_name
+   ```
+
+2. **Migration Requirements:**
+   - ALWAYS update the Prisma schema first (`prisma/schema.prisma`)
+   - ALWAYS create a migration before applying changes
+   - NEVER use `prisma db push` for production schema changes (only for initial prototyping)
+   - ALWAYS ensure migrations are committed to git (they are NOT gitignored)
+
+3. **Process for Database Changes:**
+   ```bash
+   # 1. Modify prisma/schema.prisma with your changes
+   
+   # 2. Create migration
+   npx prisma migrate dev --name add_user_avatar_column
+   
+   # 3. Migration will auto-apply to your local database
+   
+   # 4. Commit BOTH schema.prisma AND the new migration folder
+   git add prisma/schema.prisma prisma/migrations/
+   git commit -m "feat: Add avatar column to users table"
+   ```
+
+4. **Common Scenarios:**
+   - **Adding a table**: Update schema → Create migration → Commit both
+   - **Adding a column**: Update schema → Create migration → Commit both  
+   - **Removing a column**: Update schema → Create migration (handles data loss warning) → Commit both
+   - **Adding indexes**: Update schema → Create migration → Commit both
+   - **Changing column types**: Update schema → Create migration (may need manual SQL) → Commit both
+
+5. **What NOT to do:**
+   - ❌ NEVER manually create/alter tables via SQL without updating Prisma schema
+   - ❌ NEVER use `prisma db push` for anything except initial prototyping
+   - ❌ NEVER forget to commit migration files
+   - ❌ NEVER edit existing migration files after they're committed
+   - ❌ NEVER delete migrations that have been applied to any environment
+
+6. **If you accidentally used `db push`:**
+   ```bash
+   # Generate a migration from current database state
+   npx prisma migrate dev --name sync_database_state --create-only
+   # Review the migration, then mark as applied
+   npx prisma migrate resolve --applied [migration_name]
+   ```
+
+**WHY THIS MATTERS:** Other developers need to replicate the exact database structure when they pull the repository. Without migrations, they cannot set up the application correctly.
+
 ## Common Patterns
 
 ### Remix Action Pattern
