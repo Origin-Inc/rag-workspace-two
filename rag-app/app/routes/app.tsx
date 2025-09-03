@@ -3,12 +3,10 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { getUser } from "~/services/auth/auth.server";
 import { prisma } from "~/utils/db.server";
-import { workspaceService } from "~/services/workspace.server";
 import { pageHierarchyService } from "~/services/page-hierarchy.server";
 import { PageTreeNavigation } from "~/components/navigation/PageTreeNavigation";
+import type { PageTreeNode } from "~/components/navigation/PageTreeNavigation";
 import { useState, useEffect } from "react";
-import crypto from "crypto";
-import { Breadcrumbs } from "~/components/navigation/Breadcrumbs";
 import { CommandPalette } from "~/components/navigation/CommandPalette";
 import { UserMenu } from "~/components/navigation/UserMenu";
 import { ClientOnly } from "~/components/ClientOnly";
@@ -16,16 +14,13 @@ import { ThemeToggle } from "~/components/theme/ThemeToggle";
 import { 
   HomeIcon, 
   DocumentIcon, 
-  FolderIcon,
   Cog6ToothIcon,
   MagnifyingGlassIcon,
   BellIcon,
-  UserCircleIcon,
   Bars3Icon,
   XMarkIcon,
   ChevronDownIcon,
   PlusIcon,
-  ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -36,7 +31,22 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   // Get user's workspaces
-  let userWorkspaces = [];
+  let userWorkspaces: Array<{
+    id: string;
+    userId: string;
+    workspaceId: string;
+    roleId: string;
+    workspace: {
+      id: string;
+      name: string;
+      slug: string;
+      description: string | null;
+    };
+    role: {
+      id: string;
+      name: string;
+    };
+  }> = [];
   try {
     userWorkspaces = await prisma.userWorkspace.findMany({
       where: { userId: user.id },
@@ -70,7 +80,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       }
       
       // Create workspace and user association
-      const workspace = await prisma.workspace.create({
+      await prisma.workspace.create({
         data: {
           name: 'My Workspace',
           slug,
@@ -91,7 +101,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         user,
         workspaces: [],
         currentWorkspace: null,
-        projects: []
+        pageTree: []
       }, { status: 500 });
     }
 
@@ -100,36 +110,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   // Get current workspace from cookie/session or use first one
-  const currentWorkspaceId = user.workspaceId || userWorkspaces[0].workspace.id;
-  const currentWorkspace = userWorkspaces.find(uw => uw.workspace.id === currentWorkspaceId)?.workspace || userWorkspaces[0].workspace;
+  const currentWorkspaceId = user.workspaceId || userWorkspaces[0]?.workspace.id;
+  const currentWorkspace = userWorkspaces.find(uw => uw?.workspace.id === currentWorkspaceId)?.workspace || userWorkspaces[0]?.workspace || null;
 
   // Get page tree for current workspace
-  let pageTree = [];
-  try {
-    pageTree = await pageHierarchyService.getPageTree(currentWorkspace.id, 5);
-  } catch (e) {
-    console.error('Error fetching page tree:', e);
-    // Continue with empty array
-  }
-
-  // Get projects for current workspace - handle potential missing table
-  let projects = [];
-  try {
-    projects = await prisma.project.findMany({
-      where: { workspaceId: currentWorkspace.id },
-      orderBy: { name: 'asc' },
-      take: 10,
-    });
-  } catch (e) {
-    console.error('Error fetching projects:', e);
-    // Continue with empty array
+  let pageTree: PageTreeNode[] = [];
+  if (currentWorkspace) {
+    try {
+      pageTree = await pageHierarchyService.getPageTree(currentWorkspace.id, 5);
+    } catch (e) {
+      console.error('Error fetching page tree:', e);
+      // Continue with empty array
+    }
   }
 
   return json({
     user,
     workspaces: userWorkspaces,
     currentWorkspace,
-    projects,
     pageTree,
   });
 }
@@ -142,12 +140,10 @@ interface NavigationItem {
 }
 
 export default function AppLayout() {
-  const { user, workspaces, currentWorkspace, projects, pageTree } = useLoaderData<typeof loader>();
+  const { user, workspaces, currentWorkspace, pageTree } = useLoaderData<typeof loader>();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
-  const [projectsExpanded, setProjectsExpanded] = useState(false);
-  const [pagesExpanded, setPagesExpanded] = useState(true);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   // Main navigation items
@@ -214,9 +210,9 @@ export default function AppLayout() {
             >
               <div className="flex items-center min-w-0">
                 <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold">
-                  {currentWorkspace.name.charAt(0).toUpperCase()}
+                  {currentWorkspace?.name.charAt(0).toUpperCase() || 'W'}
                 </div>
-                <span className="ml-3 truncate">{currentWorkspace.name}</span>
+                <span className="ml-3 truncate">{currentWorkspace?.name || 'Workspace'}</span>
               </div>
               <ChevronDownIcon className="ml-2 h-4 w-4 text-gray-500 flex-shrink-0" />
             </button>
@@ -227,13 +223,13 @@ export default function AppLayout() {
                 <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Workspaces
                 </div>
-                {workspaces.map((uw) => (
+                {workspaces.map((uw) => uw && (
                   <Link
                     key={uw.workspace.id}
                     to={`/app/workspace/${uw.workspace.slug}`}
                     className={`
                       flex items-center px-3 py-2 text-sm dark:bg-[rgba(33,33,33,1)] dark:hover:bg-gray-50
-                      ${uw.workspace.id === currentWorkspace.id ? 'bg-blue-50 text-blue-700 dark:text-white' : 'text-gray-700'}
+                      ${uw.workspace.id === currentWorkspace?.id ? 'bg-blue-50 text-blue-700 dark:text-white' : 'text-gray-700'}
                     `}
                   >
                     <div className="flex-shrink-0 w-6 h-6 bg-gradient-to-br from-gray-400 to-gray-500 rounded flex items-center justify-center text-white text-xs font-semibold">
@@ -261,7 +257,6 @@ export default function AppLayout() {
         <nav className="flex-1 overflow-y-auto p-4 space-y-1" aria-label="Primary navigation">
           {navigation.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.href;
             
             // Special handling for Search - opens command palette instead of navigating
             if (item.name === 'Search') {
@@ -314,8 +309,8 @@ export default function AppLayout() {
             {/* Page Tree Navigation */}
             <div className="mt-1">
               <PageTreeNavigation
-                workspaceSlug={currentWorkspace.slug}
-                pages={pageTree}
+                workspaceSlug={currentWorkspace?.slug || ''}
+                pages={pageTree as PageTreeNode[]}
                 currentPageId={undefined}
                 onCreatePage={(parentId) => {
                   // Navigate to create page route
@@ -356,7 +351,7 @@ export default function AppLayout() {
 
         {/* User Menu */}
         <div className="flex-shrink-0 p-4 border-t border-gray-200">
-          <UserMenu user={user} currentWorkspace={currentWorkspace} />
+          <UserMenu user={user} currentWorkspace={currentWorkspace ? { id: currentWorkspace.id, name: currentWorkspace.name } : undefined} />
         </div>
       </aside>
 
