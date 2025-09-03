@@ -5,8 +5,6 @@
 
 import { json, type LoaderFunctionArgs } from '@remix-run/node';
 import { prisma } from '~/utils/db.server';
-import { redis } from '~/utils/redis.server';
-import { Queue } from 'bullmq';
 import { DebugLogger } from '~/utils/debug-logger';
 
 const logger = new DebugLogger('HealthCheck');
@@ -71,6 +69,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   // Check Redis
   try {
+    const { redis } = await import('~/utils/redis.server');
     if (redis) {
       const redisStart = Date.now();
       await redis.ping();
@@ -94,26 +93,35 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   // Check Queue (if Redis is up)
-  if (health.services.redis.status === 'up' && redis) {
+  if (health.services.redis.status === 'up') {
     try {
-      const queue = new Queue('page-indexing', { connection: redis });
-      const counts = await queue.getJobCounts();
-      
-      health.services.queue = { status: 'up' };
-      
-      if (detailed) {
-        health.metrics = {
-          ...health.metrics,
-          queueDepth: counts.waiting,
-          activeJobs: counts.active,
-          failedJobs: counts.failed
-        };
-      }
+      const { Queue } = await import('bullmq');
+      const { redis } = await import('~/utils/redis.server');
+      if (redis) {
+        const queue = new Queue('page-indexing', { connection: redis });
+        const counts = await queue.getJobCounts();
+        
+        health.services.queue = { status: 'up' };
+        
+        if (detailed) {
+          health.metrics = {
+            ...health.metrics,
+            queueDepth: counts.waiting,
+            activeJobs: counts.active,
+            failedJobs: counts.failed
+          };
+        }
 
-      // Mark as degraded if too many failed jobs
-      if (counts.failed > 100) {
-        health.services.queue.status = 'degraded';
-        health.status = 'degraded';
+        // Mark as degraded if too many failed jobs
+        if (counts.failed > 100) {
+          health.services.queue.status = 'degraded';
+          health.status = 'degraded';
+        }
+      } else {
+        health.services.queue = {
+          status: 'down',
+          error: 'Redis not available for queue'
+        };
       }
     } catch (error) {
       health.services.queue = {
