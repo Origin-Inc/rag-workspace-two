@@ -1,6 +1,6 @@
 # Task ID: 7
 # Title: Implement Real-time Collaboration with Yjs
-# Status: pending
+# Status: deferred
 # Dependencies: 6, 13, 14
 # Priority: medium
 # Description: Build the real-time collaboration system using Supabase Realtime for conflict-free collaborative editing with built-in synchronization and presence features

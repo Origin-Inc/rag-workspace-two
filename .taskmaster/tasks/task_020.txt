@@ -1,6 +1,6 @@
 # Task ID: 20
 # Title: Rebuild Page Editor with Notion/Coda-style Block Architecture
-# Status: in-progress
+# Status: deferred
 # Dependencies: 6, 14
 # Priority: high
 # Description: CRITICAL: Complete rebuild of the page editor to implement a production-ready block-based architecture similar to Notion and Coda, replacing the broken drag-and-drop canvas with inline block editing, slash commands, keyboard navigation, and virtual scrolling for optimal performance. This is blocking content creation and must be completed before Task 16 (RAG Infrastructure) since users cannot create content for the RAG system without a functional editor.
@@ -276,7 +276,7 @@ Create selection state management. Implement Shift+Click for range selection. Ad
 ### Details:
 Build paragraph block with rich text. Create heading blocks (h1-h6). Implement ordered/unordered lists with nesting. Add code blocks with Prism.js syntax highlighting. Create block transformation logic between types.
 
-## 8. Add basic advanced block types [pending]
+## 8. Add basic advanced block types [deferred]
 ### Dependencies: 20.7, 20.10, 20.11, 20.12, 20.13, 20.14
 ### Description: Implement embedding, toggle, and callout blocks as advanced block types
 ### Details:
@@ -312,79 +312,79 @@ Build a secure formula engine using expr-eval or similar, implement dependency g
 ### Details:
 Create multiple view types with virtual scrolling, implement filtering and sorting UI, add grouping capabilities, build view-specific features (drag-drop for kanban, date navigation for calendar), and optimize for 50k+ records.
 
-## 14. Database Block Performance & Scale Optimization [in-progress]
+## 14. Database Block Performance & Scale Optimization [done]
 ### Dependencies: 20.10, 20.11, 20.12, 20.13
 ### Description: Optimize the database block to handle 50,000+ records with 40+ properties efficiently
 ### Details:
 Implement virtual scrolling with react-window, add Redis caching layer, optimize queries with proper indexes, implement pagination and lazy loading, add performance monitoring, and ensure smooth operation with 50k+ records.
 
-## 15. Implement client-side caching and memoization [pending]
+## 15. Implement client-side caching and memoization [deferred]
 ### Dependencies: 20.1
 ### Description: Add caching layers for optimal performance during editing
 ### Details:
 Implement IndexedDB for block caching. Add React.memo for block components. Create block diff detection. Build intelligent cache invalidation. Add memory management for long sessions.
 
-## 16. Build debounced auto-save with conflict resolution [pending]
+## 16. Build debounced auto-save with conflict resolution [deferred]
 ### Dependencies: 20.5, 20.15
 ### Description: Create reliable auto-save system with conflict handling
 ### Details:
 Implement 500ms debounced save. Create diff detection for changed blocks. Build conflict resolution UI. Add offline queue for failed saves. Implement retry logic with exponential backoff.
 
-## 17. Add real-time collaboration infrastructure [pending]
+## 17. Add real-time collaboration infrastructure [deferred]
 ### Dependencies: 20.16
 ### Description: Implement multi-user editing with Supabase Realtime
 ### Details:
 Set up Supabase Realtime channels. Implement presence tracking with cursors. Build operational transform for conflicts. Add user awareness indicators. Create collaboration permissions.
 
-## 18. Create block plugin system [pending]
+## 18. Create block plugin system [deferred]
 ### Dependencies: 20.7, 20.8
 ### Description: Build extensible architecture for custom block types
 ### Details:
 Design plugin API for custom blocks. Create block registry system. Implement plugin lifecycle hooks. Build plugin configuration UI. Add plugin sandboxing for security.
 
-## 19. Implement mobile touch interactions [pending]
+## 19. Implement mobile touch interactions [deferred]
 ### Dependencies: 20.5, 20.6
 ### Description: Add comprehensive touch support for mobile editing
 ### Details:
 Add touch gesture recognition. Implement long-press for selection. Create touch-friendly block handles. Build mobile-optimized toolbar. Add viewport management for mobile keyboards.
 
-## 20. Add accessibility features [pending]
+## 20. Add accessibility features [deferred]
 ### Dependencies: 20.4, 20.5
 ### Description: Ensure WCAG 2.1 AA compliance with comprehensive accessibility
 ### Details:
 Add ARIA labels and roles. Implement screen reader announcements. Create high contrast mode. Build keyboard-only navigation. Add focus indicators and skip links.
 
-## 21. Build content migration tool [pending]
+## 21. Build content migration tool [deferred]
 ### Dependencies: 20.7
 ### Description: Create tool to migrate existing canvas-based content to block format
 ### Details:
 Analyze existing page content structure. Build migration transformers for each element type. Create batch migration system. Add rollback capability. Implement migration progress tracking.
 
-## 22. Create comprehensive test suite [pending]
+## 22. Create comprehensive test suite [deferred]
 ### Dependencies: 20.1, 20.3, 20.5, 20.7
 ### Description: Build unit, integration, and e2e tests for editor reliability
 ### Details:
 Write unit tests for all components. Create integration tests for features. Build e2e tests with Playwright. Add performance benchmarks. Implement visual regression tests.
 
-## 23. Performance testing and optimization [pending]
+## 23. Performance testing and optimization [deferred]
 ### Dependencies: 20.22
 ### Description: Conduct thorough performance testing and optimization
 ### Details:
 Test with 10,000+ block documents. Profile memory usage patterns. Optimize render performance. Add performance monitoring. Create performance dashboard.
 
-## 24. Cross-browser compatibility testing [pending]
+## 24. Cross-browser compatibility testing [deferred]
 ### Dependencies: 20.22
 ### Description: Ensure editor works across all major browsers
 ### Details:
 Test on Chrome, Firefox, Safari, Edge. Verify feature parity across browsers. Fix browser-specific issues. Add browser detection and polyfills. Create compatibility matrix.
 
-## 25. Production deployment preparation [pending]
+## 25. Production deployment preparation [deferred]
 ### Dependencies: 20.23, 20.24
 ### Description: Prepare editor for production deployment with monitoring
 ### Details:
 Set up feature flags for gradual rollout. Add error tracking with Sentry. Implement analytics and telemetry. Create rollback procedures. Build admin monitoring dashboard.
 
-## 26. Create base view components for table, kanban, and gallery views [pending]
+## 26. Create base view components for table, kanban, and gallery views [deferred]
 ### Dependencies: 20.1, 20.2
 ### Description: Implement the foundational view components with proper abstraction for data display, virtual scrolling support, and view-specific interactions while maintaining shared functionality across all view types
 ### Details:
@@ -396,19 +396,19 @@ Build ViewRenderer abstract base component with shared state management, impleme
 ### Details:
 Create CalendarView component with month grid layout using CSS Grid, implement week and day views with time slots, build TimelineView with horizontal scrolling and zoom levels (day/week/month/quarter/year), add date range picker for navigation, implement smart data fetching based on visible date range, create recurring event support for calendar entries, add drag-to-reschedule functionality for both views, integrate with existing date/datetime column types
 
-## 28. Build advanced filtering and grouping UI with query builder [pending]
+## 28. Build advanced filtering and grouping UI with query builder [deferred]
 ### Dependencies: None
 ### Description: Create sophisticated filter builder with AND/OR logic, nested conditions, saved filter sets, and dynamic grouping capabilities that update views in real-time without full data reload
 ### Details:
 Implement FilterBuilder component with nested condition groups, create filter operators specific to each column type (text contains/starts/ends, number ranges, date before/after/between), build GroupingSelector with multi-level grouping support, add saved filter presets stored per view, implement filter chip display with quick toggle, create server-side filter compilation to SQL WHERE clauses, optimize with indexed columns for common filters, add filter validation and error handling
 
-## 29. Implement view-specific features and interactions [pending]
+## 29. Implement view-specific features and interactions [deferred]
 ### Dependencies: None
 ### Description: Add specialized functionality for each view type including kanban swimlanes, calendar event details, gallery card customization, and timeline milestones with proper performance optimization
 ### Details:
 For Kanban: implement swimlanes with collapsible groups, add WIP limits per column, create card preview on hover, build quick edit inline forms. For Calendar: add event creation by clicking dates, implement recurring events UI, create event detail popover. For Gallery: build card template editor, add image lazy loading with intersection observer, implement masonry vs grid layout toggle. For Timeline: add milestone markers, implement dependency lines between items, create zoom-to-fit functionality
 
-## 30. Optimize rendering performance for 50k+ records across all views [pending]
+## 30. Optimize rendering performance for 50k+ records across all views [deferred]
 ### Dependencies: None
 ### Description: Implement advanced performance optimizations including windowing, memoization, request debouncing, and progressive data loading to ensure smooth interaction with massive datasets
 ### Details:

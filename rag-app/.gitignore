@@ -9,7 +9,7 @@ node_modules
 .netlify
 .vercel
 
-/prisma/migrations
+# Database files but NOT migrations
 *.db
 *.db-journal
 

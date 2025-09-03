@@ -150,7 +150,8 @@ model Project {
 
 model Page {
   id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  projectId   String      @map("project_id") @db.Uuid
+  projectId   String?     @map("project_id") @db.Uuid // Made optional for subpage hierarchy
+  workspaceId String      @map("workspace_id") @db.Uuid // Now required for direct workspace→page structure
   title       String      @db.VarChar(500)
   slug        String      @db.VarChar(500)
   content     Json?       @db.JsonB // Changed to match actual database schema
@@ -166,19 +167,18 @@ model Page {
   updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
   
   // Relations
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade) // Made optional
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade) // Now required
   parent      Page?    @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children    Page[]   @relation("PageHierarchy")
 
-  // For backward compatibility - will remove later
-  workspaceId String?     @map("workspace_id") @db.Uuid
-  workspace   Workspace?  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@unique([projectId, slug])
+  @@unique([workspaceId, slug]) // New unique constraint for workspace-based slugs
+  @@unique([projectId, slug]) // Keep for backward compatibility
   @@index([projectId])
   @@index([parentId])
   @@index([position])
   @@index([workspaceId])
+  @@index([workspaceId, parentId]) // New index for hierarchy queries
   @@map("pages")
 }
 

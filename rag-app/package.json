@@ -14,7 +14,9 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "worker": "tsx start-indexing-worker-robust.ts",
-    "worker:dev": "tsx watch start-indexing-worker-robust.ts"
+    "worker:dev": "tsx watch start-indexing-worker-robust.ts",
+    "migrate:hierarchy": "tsx scripts/migrate-projects-to-pages.ts",
+    "rollback:hierarchy": "tsx scripts/rollback-to-projects.ts"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +28,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@faker-js/faker": "^10.0.0",
+    "@headlessui/react": "^2.2.7",
     "@heroicons/react": "^2.2.0",
     "@lexical/list": "^0.34.0",
     "@lexical/react": "^0.34.0",
@@ -79,6 +82,7 @@
     "lowlight": "^2.9.0",
     "lru-cache": "^11.1.0",
     "lucide-react": "^0.539.0",
+    "marked": "^16.2.1",
     "node-fetch": "^3.3.2",
     "openai": "^5.12.2",
     "p-limit": "^7.0.0",

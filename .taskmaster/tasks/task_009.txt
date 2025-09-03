@@ -1,6 +1,6 @@
 # Task ID: 9
 # Title: Implement Formula Engine with AI Assistance
-# Status: pending
+# Status: deferred
 # Dependencies: 8
 # Priority: low
 # Description: Build formula system for database block columns with parser, Supabase-backed evaluator, manual formula editor, server-side validation/recalculation, and AI-powered formula builder via Edge Functions

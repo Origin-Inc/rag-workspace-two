@@ -9,6 +9,8 @@ import type { Block } from "~/types/blocks";
 import { debounce } from "~/utils/performance";
 import type { Prisma } from "@prisma/client";
 import { ragIndexingService } from "~/services/rag/rag-indexing.service";
+import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
+import { pageHierarchyService } from "~/services/page-hierarchy.server";
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { pageId } = params;
@@ -17,14 +19,16 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   // Get authenticated user
   const user = await requireUser(request);
 
-  // Get page details with project
+  // Get page details with workspace (no project required)
   const page = await prisma.page.findUnique({
     where: { id: pageId },
     include: {
-      project: {
-        include: {
-          workspace: true
-        }
+      workspace: true,
+      parent: true,
+      children: {
+        where: { isArchived: false },
+        orderBy: { position: 'asc' },
+        select: { id: true, title: true, icon: true }
       }
     }
   });
@@ -33,12 +37,12 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     throw new Response("Page not found", { status: 404 });
   }
 
-  // Check if user has access to this project's workspace
+  // Check if user has access to this page's workspace
   try {
     const hasAccess = await prisma.userWorkspace.findFirst({
       where: {
         userId: user.id,
-        workspaceId: page.project.workspaceId,
+        workspaceId: page.workspaceId,
       }
     });
 
@@ -53,6 +57,9 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 
   // For now, allow editing if user has access
   const canEdit = true;
+  
+  // Get page breadcrumb path for navigation
+  const breadcrumbPath = await pageHierarchyService.getPagePath(pageId);
 
   // Extract blocks or convert content to blocks
   const metadata = typeof page.metadata === 'object' && page.metadata ? page.metadata : {};
@@ -130,7 +137,10 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 
   return json({
     page,
-    project: page.project,
+    workspace: page.workspace,
+    parent: page.parent,
+    children: page.children,
+    breadcrumbPath,
     content,
     blocks,
     canEdit,
@@ -145,6 +155,99 @@ export async function action({ params, request }: ActionFunctionArgs) {
   const user = await requireUser(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
+
+  if (intent === "ai-command") {
+    console.log('[AI Command Action] Received AI command request');
+    // Handle AI block manipulation commands
+    const command = formData.get("command") as string;
+    const selectedBlockId = formData.get("selectedBlockId") as string | null;
+    const blocksJson = formData.get("blocks") as string;
+    
+    console.log('[AI Command Action] Command:', command, 'Selected Block:', selectedBlockId);
+    
+    if (!command) {
+      return json({ error: "No command provided" }, { status: 400 });
+    }
+    
+    let blocks: Block[] = [];
+    if (blocksJson) {
+      try {
+        blocks = JSON.parse(blocksJson);
+        console.log('[AI Command Action] Parsed', blocks.length, 'blocks');
+      } catch (e) {
+        return json({ error: "Invalid blocks data" }, { status: 400 });
+      }
+    }
+
+    try {
+      console.log('[AI Command Action] Calling blockManipulationIntegration service');
+      // Use the integration service for AI commands
+      const result = await blockManipulationIntegration.processNaturalLanguageCommand(
+        command,
+        {
+          blocks,
+          selectedBlockId: selectedBlockId || undefined,
+          pageId,
+          userId: user.id,
+          workspaceId: undefined // Add if available
+        },
+        {
+          autoSave: false, // We'll handle saving manually
+          showPreview: false, // Direct execution for now
+          confirmThreshold: 0.5
+        }
+      );
+      
+      if (result.requiresConfirmation) {
+        return json({
+          success: false,
+          requiresConfirmation: true,
+          message: result.message,
+          preview: result.preview
+        });
+      }
+      
+      if (!result.success) {
+        return json({ 
+          success: false, 
+          error: result.message || "Command failed" 
+        });
+      }
+
+      // Save the updated blocks to database
+      const serializedBlocks = result.blocks!.map((block, index) => ({
+        id: block.id || `block-${index}`,
+        type: block.type || 'paragraph',
+        content: typeof block.content === 'string' ? block.content : JSON.stringify(block.content)
+      }));
+
+      await prisma.page.update({
+        where: { id: pageId },
+        data: {
+          blocks: serializedBlocks as Prisma.JsonValue,
+          updatedAt: new Date()
+        }
+      });
+
+      // Queue for indexing
+      ragIndexingService.queueForIndexing(pageId).catch(error => {
+        console.error('[AI Command] Failed to queue for indexing:', error);
+      });
+
+      return json({ 
+        success: true, 
+        blocks: result.blocks,
+        message: result.message
+      });
+
+    } catch (error) {
+      console.error('[AI Command Error]', error);
+      return json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'AI command failed' 
+      }, { status: 500 });
+    }
+  }
 
   if (intent === "save-content") {
     const content = formData.get("content") as string;
@@ -164,7 +267,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
     const page = await prisma.page.findUnique({
       where: { id: pageId },
       include: {
-        project: true
+        workspace: true
       }
     });
 
@@ -178,7 +281,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
       const hasAccess = await prisma.userWorkspace.findFirst({
         where: {
           userId: user.id,
-          workspaceId: page.project.workspaceId,
+          workspaceId: page.workspaceId,
         }
       });
 
@@ -376,13 +479,14 @@ export async function action({ params, request }: ActionFunctionArgs) {
 }
 
 export default function EditorPage() {
-  const { page, project, content: initialContent, blocks: initialBlocks, canEdit } = useLoaderData<typeof loader>();
+  const { page, workspace, parent, children, breadcrumbPath, content: initialContent, blocks: initialBlocks, canEdit } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [blocks, setBlocks] = useState(initialBlocks);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [processingAI, setProcessingAI] = useState(false);
   const maxRetries = 3;
   const retryTimeoutRef = useRef<NodeJS.Timeout>();
 
@@ -450,12 +554,40 @@ export default function EditorPage() {
     }
   };
 
+  // Handle AI command execution
+  const handleAICommand = useCallback(async (command: string, selectedBlockId?: string) => {
+    console.log('[editor.$pageId] handleAICommand called:', { command, selectedBlockId, blocksCount: blocks.length });
+    setProcessingAI(true);
+    setSaveError(null);
+    
+    const formData = new FormData();
+    formData.set("intent", "ai-command");
+    formData.set("command", command);
+    if (selectedBlockId) {
+      formData.set("selectedBlockId", selectedBlockId);
+    }
+    formData.set("blocks", JSON.stringify(blocks));
+    
+    console.log('[editor.$pageId] Submitting AI command to backend');
+    fetcher.submit(formData, { method: "POST" });
+  }, [blocks, fetcher]);
+
   // Update save status when fetcher completes with retry logic
   useEffect(() => {
     if (fetcher.state === 'idle' && fetcher.data) {
+      console.log('[editor.$pageId] Fetcher response:', fetcher.data);
       setIsSaving(false);
+      setProcessingAI(false);
       
       if (fetcher.data.success) {
+        // Handle AI command success
+        if (fetcher.data.blocks) {
+          console.log('[editor.$pageId] Updating blocks from AI response:', fetcher.data.blocks);
+          console.log('[editor.$pageId] Current blocks before update:', blocks);
+          console.log('[editor.$pageId] Block[0] content type:', typeof fetcher.data.blocks[0]?.content);
+          setBlocks(fetcher.data.blocks);
+        }
+        
         setLastSaved(new Date());
         setSaveError(null);
         setRetryCount(0);
@@ -505,7 +637,7 @@ export default function EditorPage() {
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xs text-gray-500">
-              {project.name} / {page.parent_id ? "..." : "Pages"}
+              {workspace.name} / {breadcrumbPath?.map(p => p.title).join(' / ') || 'Pages'}
             </div>
             <h1 className="text-xl font-semibold text-gray-900">
               {page.title || "Untitled Page"}
@@ -546,8 +678,9 @@ export default function EditorPage() {
             initialBlocks={blocks}
             onChange={handleChange}
             onSave={handleSave}
-            workspaceId={project.workspaceId}
+            workspaceId={workspace.id}
             className="h-full"
+            onAICommand={handleAICommand}
           />
         </ClientOnly>
       </div>

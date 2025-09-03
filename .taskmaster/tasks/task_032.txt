@@ -1,0 +1,249 @@
+# Task ID: 32
+# Title: Create Knowledge Graph Infrastructure for RAG System
+# Status: pending
+# Dependencies: 6, 16, 19, 20
+# Priority: high
+# Description: Build a simplified GraphRAG system using PostgreSQL native features to dramatically reduce token usage and enable intelligent querying of database blocks with 50,000+ rows through hybrid graph traversal and vector search.
+# Details:
+1. Create PostgreSQL schema for knowledge graph entities and relationships:
+```sql
+CREATE TABLE entities (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  workspace_id UUID REFERENCES workspaces(id),
+  name TEXT NOT NULL,
+  type TEXT NOT NULL, -- 'person', 'product', 'concept', etc.
+  description TEXT,
+  source_block_id UUID,
+  source_page_id UUID,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE relationships (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  workspace_id UUID REFERENCES workspaces(id),
+  source_entity_id UUID REFERENCES entities(id),
+  target_entity_id UUID REFERENCES entities(id),
+  relationship_type TEXT NOT NULL,
+  strength FLOAT DEFAULT 1.0,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE communities (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  workspace_id UUID REFERENCES workspaces(id),
+  name TEXT NOT NULL,
+  level INTEGER DEFAULT 0,
+  summary TEXT,
+  entity_ids UUID[],
+  parent_community_id UUID REFERENCES communities(id),
+  metadata JSONB DEFAULT '{}'
+);
+```
+
+2. Implement entity extraction service using OpenAI:
+```typescript
+// app/services/knowledge-graph/entity-extractor.server.ts
+export class EntityExtractor {
+  async extractEntities(content: string, blockId: string): Promise<Entity[]> {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [{
+        role: "system",
+        content: "Extract entities and relationships from text. Return JSON with entities array containing {name, type, description} and relationships array with {source, target, type, strength}."
+      }, {
+        role: "user",
+        content: content
+      }]
+    });
+    return this.parseAndStoreEntities(completion, blockId);
+  }
+}
+```
+
+3. Create community detection algorithm using Louvain method:
+```typescript
+// app/services/knowledge-graph/community-detector.server.ts
+export class CommunityDetector {
+  async detectCommunities(workspaceId: string): Promise<Community[]> {
+    // Use recursive CTEs for graph traversal
+    const communities = await prisma.$queryRaw`
+      WITH RECURSIVE graph_traverse AS (
+        SELECT source_entity_id, target_entity_id, strength
+        FROM relationships 
+        WHERE workspace_id = ${workspaceId}
+      ),
+      community_seeds AS (
+        -- Implement modularity optimization
+        SELECT entity_id, community_id
+        FROM (
+          -- Complex CTE for community detection
+        ) subq
+      )
+      SELECT * FROM community_seeds;
+    `;
+    return this.generateCommunitySummaries(communities);
+  }
+}
+```
+
+4. Build hybrid query router that intelligently chooses between graph traversal and vector search:
+```typescript
+// app/services/knowledge-graph/query-router.server.ts
+export class QueryRouter {
+  async routeQuery(query: string, workspaceId: string): Promise<SearchResult> {
+    const queryType = await this.classifyQuery(query);
+    
+    if (queryType === 'factual' || queryType === 'relationship') {
+      // Use graph traversal for factual queries
+      return this.graphSearch(query, workspaceId);
+    } else if (queryType === 'semantic' || queryType === 'exploratory') {
+      // Use vector search for semantic queries
+      return this.vectorSearch(query, workspaceId);
+    } else {
+      // Hybrid approach for complex queries
+      return this.hybridSearch(query, workspaceId);
+    }
+  }
+  
+  private async graphSearch(query: string, workspaceId: string): Promise<SearchResult> {
+    // Parse query to identify entities and relationships
+    const entities = await this.extractQueryEntities(query);
+    
+    // Use recursive CTE for graph traversal
+    const results = await prisma.$queryRaw`
+      WITH RECURSIVE entity_paths AS (
+        SELECT e.id, e.name, e.type, 1 as depth, ARRAY[e.id] as path
+        FROM entities e
+        WHERE e.workspace_id = ${workspaceId}
+          AND e.name = ANY(${entities})
+        
+        UNION ALL
+        
+        SELECT e2.id, e2.name, e2.type, ep.depth + 1, ep.path || e2.id
+        FROM entity_paths ep
+        JOIN relationships r ON ep.id = r.source_entity_id
+        JOIN entities e2 ON r.target_entity_id = e2.id
+        WHERE ep.depth < 3 AND NOT e2.id = ANY(ep.path)
+      )
+      SELECT * FROM entity_paths;
+    `;
+    
+    return this.formatGraphResults(results);
+  }
+}
+```
+
+5. Integrate with existing RAG pipeline for incremental updates:
+```typescript
+// app/services/knowledge-graph/incremental-indexer.server.ts
+export class IncrementalGraphIndexer {
+  async updateGraphFromBlock(blockId: string, content: string) {
+    // Extract new entities and relationships
+    const newEntities = await this.entityExtractor.extractEntities(content, blockId);
+    
+    // Find existing entities to merge
+    const existingEntities = await this.findSimilarEntities(newEntities);
+    
+    // Update communities only for affected subgraphs
+    const affectedCommunities = await this.getAffectedCommunities(newEntities);
+    await this.recomputeCommunities(affectedCommunities);
+  }
+}
+```
+
+6. Create GraphRAG query interface that reduces token usage:
+```typescript
+// app/services/knowledge-graph/graphrag-query.server.ts
+export class GraphRAGQuery {
+  async query(userQuery: string, workspaceId: string): Promise<GraphRAGResult> {
+    // Get relevant community summaries instead of full documents
+    const relevantCommunities = await this.findRelevantCommunities(userQuery, workspaceId);
+    
+    // Use hierarchical summarization to minimize tokens
+    const contextSummary = await this.buildHierarchicalContext(relevantCommunities);
+    
+    // Query with minimal token usage (26-97% reduction)
+    const response = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [{
+        role: "system",
+        content: `Answer using this knowledge graph context: ${contextSummary}`
+      }, {
+        role: "user", 
+        content: userQuery
+      }]
+    });
+    
+    return {
+      answer: response.choices[0].message.content,
+      sources: this.extractSources(relevantCommunities),
+      tokensSaved: this.calculateTokenSavings(contextSummary)
+    };
+  }
+}
+```
+
+7. Add database indexes for performance at scale:
+```sql
+CREATE INDEX entities_workspace_type_idx ON entities(workspace_id, type);
+CREATE INDEX entities_name_gin_idx ON entities USING gin(to_tsvector('english', name));
+CREATE INDEX relationships_source_target_idx ON relationships(source_entity_id, target_entity_id);
+CREATE INDEX relationships_workspace_strength_idx ON relationships(workspace_id, strength DESC);
+CREATE INDEX communities_workspace_level_idx ON communities(workspace_id, level);
+```
+
+# Test Strategy:
+1. Load test entity extraction with 50,000+ database rows, verify extraction completes within 5 minutes and identifies 90%+ of named entities with correct types and relationships. 2. Test community detection algorithm creates hierarchical communities with meaningful groupings, verify modularity score > 0.3 and community summaries accurately represent member entities. 3. Validate recursive CTE graph traversal performance with queries spanning 3+ relationship hops on 10,000+ entity graphs, ensure response time < 500ms. 4. Test hybrid query routing correctly classifies query types (factual vs semantic) with 85%+ accuracy and routes to appropriate search method. 5. Verify token usage reduction by comparing GraphRAG responses to traditional RAG, measure 26-97% reduction in input tokens while maintaining answer quality. 6. Test incremental indexing updates only affected communities when new entities are added, verify community recomputation completes within 30 seconds for affected subgraphs. 7. Load test workspace-wide knowledge graph with multiple concurrent users, verify query performance remains sub-second with proper PostgreSQL connection pooling. 8. Test cross-page entity relationship detection by creating entities in different pages and verifying relationships are properly identified and traversed. 9. Validate community summary quality by having human evaluators rate summary accuracy and completeness on 100+ test communities. 10. Test graph query accuracy by comparing factual query results to ground truth data, ensure 95%+ precision for relationship queries like 'Which customers bought product X?'
+
+# Subtasks:
+## 1. Create PostgreSQL Schema for Knowledge Graph Entities [pending]
+### Dependencies: None
+### Description: Design and implement the database schema for entities, relationships, and communities tables with proper indexes and foreign key constraints
+### Details:
+Create three core tables: entities (storing extracted entities with type, description, and source references), relationships (storing connections between entities with strength and type), and communities (storing hierarchical groupings of related entities). Include JSONB metadata fields for flexibility, UUID primary keys for distributed systems, and workspace-based multi-tenancy support. Add appropriate indexes for graph traversal performance including GIN indexes for JSONB fields and composite indexes for workspace-based queries.
+
+## 2. Build Entity Extraction Service with OpenAI Integration [pending]
+### Dependencies: 32.1
+### Description: Implement service to extract entities from content using OpenAI GPT-4 with structured output parsing
+### Details:
+Create EntityExtractor class in app/services/knowledge-graph/entity-extractor.server.ts that uses OpenAI's function calling to extract entities (people, products, concepts, etc.) from text content. Parse the structured JSON response to identify entity names, types, descriptions, and relationships. Implement batch processing for multiple content blocks, handle rate limiting with exponential backoff, and store extracted entities in the database with proper deduplication logic.
+
+## 3. Implement Relationship Detection and Mapping Service [pending]
+### Dependencies: 32.2
+### Description: Create service to identify and map relationships between entities with strength scoring
+### Details:
+Build RelationshipMapper class that analyzes extracted entities to identify relationships like 'works_with', 'belongs_to', 'relates_to', etc. Calculate relationship strength based on proximity in text, co-occurrence frequency, and semantic similarity. Use OpenAI to classify relationship types and validate connections. Store relationships in the database with bidirectional support and handle transitive relationship inference.
+
+## 4. Create Community Detection Algorithm Using Louvain Method [pending]
+### Dependencies: 32.3
+### Description: Implement graph-based community detection to group related entities into hierarchical communities
+### Details:
+Implement CommunityDetector class using PostgreSQL recursive CTEs to perform community detection based on the Louvain modularity optimization algorithm. Create hierarchical communities at multiple levels (0-3) where higher levels represent broader groupings. Generate AI-powered summaries for each community using GPT-4 to describe the group's main themes and relationships. Store communities with entity membership arrays and parent-child relationships.
+
+## 5. Integrate Knowledge Graph with Existing pgvector Infrastructure [pending]
+### Dependencies: 32.1, 32.2
+### Description: Connect knowledge graph entities with existing vector embeddings for hybrid search capabilities
+### Details:
+Modify existing embedding generation service to link embeddings with entity IDs. Create bidirectional references between passage embeddings and extracted entities. Update the indexing pipeline to trigger entity extraction alongside embedding generation. Implement entity-aware similarity search that boosts results containing relevant entities. Ensure the integration maintains backward compatibility with existing RAG queries.
+
+## 6. Build Hybrid Query Router for Intelligent Search Strategy [pending]
+### Dependencies: 32.4, 32.5
+### Description: Create query classification and routing system to choose optimal search strategy based on query type
+### Details:
+Implement QueryRouter class in app/services/knowledge-graph/query-router.server.ts that classifies queries as factual, relationship-based, semantic, or exploratory using OpenAI. Route factual queries through graph traversal using recursive CTEs, semantic queries through vector search, and complex queries through hybrid approach. Implement query entity extraction to identify entities mentioned in user queries. Build result merging logic that combines graph and vector results with proper ranking.
+
+## 7. Implement Database Block Entity Extraction Pipeline [pending]
+### Dependencies: 32.2, 32.6
+### Description: Create specialized extraction pipeline for database blocks that processes structured data at scale
+### Details:
+Build DatabaseBlockEntityExtractor that processes database block rows to extract entities from structured data. Handle different column types (text, select, multi-select, relation) with appropriate extraction strategies. Implement batched processing for 50,000+ rows using cursor-based pagination. Create entity relationships based on database block relations and foreign keys. Include formula column results in entity extraction when they produce meaningful text.
+
+## 8. Create Performance Testing and Optimization Suite [pending]
+### Dependencies: 32.1, 32.2, 32.3, 32.4, 32.5, 32.6, 32.7
+### Description: Build comprehensive testing framework and optimize the knowledge graph system for production scale
+### Details:
+Implement load testing suite that validates entity extraction at 50,000+ record scale, graph traversal performance with 100,000+ entities, and community detection with complex graph structures. Add database indexes for frequently accessed paths including composite indexes for workspace-based queries. Implement query result caching using Redis for repeated graph traversals. Monitor and optimize token usage to achieve 26-97% reduction compared to standard RAG. Create performance dashboard to track extraction speed, query latency, and token savings.
+

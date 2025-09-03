@@ -1,0 +1,382 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [uuid_ossp(map: "uuid-ossp")]
+}
+
+model audit_logs {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String?  @db.Uuid
+  action      String   @db.VarChar(100)
+  resource    String   @db.VarChar(100)
+  resource_id String?  @db.VarChar(255)
+  details     Json?
+  ip_address  String?  @db.VarChar(45)
+  user_agent  String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  users       users?   @relation(fields: [user_id], references: [id])
+
+  @@index([action])
+  @@index([created_at])
+  @@index([resource])
+  @@index([user_id])
+}
+
+model database_blocks {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  page_id          String?            @db.Uuid
+  name             String             @db.VarChar(255)
+  description      String?
+  view_type        String             @default("table") @db.VarChar(50)
+  settings         Json?
+  metadata         Json?
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @db.Timestamptz(6)
+  database_columns database_columns[]
+  database_rows    database_rows[]
+  query_audit_logs query_audit_logs[]
+
+  @@index([page_id])
+}
+
+model database_columns {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  database_id     String          @db.Uuid
+  name            String          @db.VarChar(255)
+  type            String          @db.VarChar(50)
+  width           Int             @default(200)
+  position        Int
+  config          Json?
+  is_visible      Boolean         @default(true)
+  is_locked       Boolean         @default(false)
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime        @db.Timestamptz(6)
+  database_blocks database_blocks @relation(fields: [database_id], references: [id], onDelete: Cascade)
+
+  @@index([database_id])
+  @@index([position])
+}
+
+model database_rows {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  database_id     String          @db.Uuid
+  cells           Json
+  position        Int
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime        @db.Timestamptz(6)
+  database_blocks database_blocks @relation(fields: [database_id], references: [id], onDelete: Cascade)
+
+  @@index([database_id])
+  @@index([position])
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model documents {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String       @db.Uuid
+  title      String       @db.VarChar(500)
+  content    String?
+  file_path  String?      @db.VarChar(500)
+  file_type  String?      @db.VarChar(50)
+  metadata   Json?
+  created_at DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at DateTime     @db.Timestamptz(6)
+  users      users        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  embeddings embeddings[]
+
+  @@index([user_id])
+}
+
+model embeddings {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  document_id String    @db.Uuid
+  chunk_text  String
+  chunk_index Int
+  metadata    Json?
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  documents   documents @relation(fields: [document_id], references: [id], onDelete: Cascade)
+
+  @@index([document_id])
+}
+
+model integration_credentials {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspace_id   String     @db.Uuid
+  provider       String     @db.VarChar(50)
+  access_token   String?
+  refresh_token  String?
+  token_expiry   DateTime?  @db.Timestamptz(6)
+  metadata       Json?
+  is_active      Boolean    @default(true)
+  last_synced_at DateTime?  @db.Timestamptz(6)
+  created_at     DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime   @db.Timestamptz(6)
+  workspaces     workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  webhooks       webhooks[]
+
+  @@unique([workspace_id, provider])
+  @@index([provider])
+  @@index([workspace_id])
+}
+
+model invitations {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String     @db.VarChar(255)
+  workspace_id  String     @db.Uuid
+  role_id       String     @db.Uuid
+  invited_by_id String     @db.Uuid
+  token         String     @unique @db.VarChar(500)
+  status        String     @default("pending") @db.VarChar(50)
+  accepted_at   DateTime?  @db.Timestamptz(6)
+  expires_at    DateTime   @db.Timestamptz(6)
+  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+  users         users      @relation(fields: [invited_by_id], references: [id], onDelete: Cascade)
+  roles         roles      @relation(fields: [role_id], references: [id])
+  workspaces    workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([expires_at])
+  @@index([status])
+  @@index([token])
+  @@index([workspace_id])
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model pages {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id   String?    @db.Uuid
+  title        String     @db.VarChar(500)
+  slug         String     @db.VarChar(500)
+  icon         String?    @db.VarChar(100)
+  cover_image  String?
+  metadata     Json?
+  parent_id    String?    @db.Uuid
+  position     Int        @default(0)
+  is_public    Boolean    @default(false)
+  is_archived  Boolean    @default(false)
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime   @db.Timestamptz(6)
+  workspace_id String     @db.Uuid
+  blocks       Json?
+  content      Json?
+  pages        pages?     @relation("pagesTopages", fields: [parent_id], references: [id])
+  other_pages  pages[]    @relation("pagesTopages")
+  projects     projects?  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  workspaces   workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_id, slug])
+  @@unique([workspace_id, slug])
+  @@index([parent_id])
+  @@index([position])
+  @@index([project_id])
+  @@index([workspace_id])
+  @@index([workspace_id, parent_id])
+}
+
+model permissions {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  resource         String             @db.VarChar(100)
+  action           String             @db.VarChar(100)
+  description      String?
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  role_permissions role_permissions[]
+
+  @@unique([resource, action])
+  @@index([resource])
+}
+
+model projects {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspace_id String     @db.Uuid
+  name         String     @db.VarChar(255)
+  slug         String     @db.VarChar(255)
+  description  String?
+  icon         String?    @db.VarChar(100)
+  color        String?    @db.VarChar(7)
+  settings     Json?
+  is_archived  Boolean    @default(false)
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime   @db.Timestamptz(6)
+  pages        pages[]
+  workspaces   workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+
+  @@unique([workspace_id, slug])
+  @@index([is_archived])
+  @@index([workspace_id])
+}
+
+model queries {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String   @db.Uuid
+  query_text       String
+  response_text    String?
+  context_used     Json?
+  model_used       String?  @db.VarChar(100)
+  tokens_used      Int?
+  response_time_ms Int?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  users            users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model query_audit_logs {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  block_id        String          @db.Uuid
+  query           String
+  parsed_query    Json
+  success         Boolean
+  error           String?
+  executed_at     DateTime        @db.Timestamptz(6)
+  execution_time  Int?
+  rows_returned   Int?
+  cached          Boolean         @default(false)
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  database_blocks database_blocks @relation(fields: [block_id], references: [id], onDelete: Cascade)
+
+  @@index([block_id])
+  @@index([executed_at])
+  @@index([success])
+}
+
+model refresh_tokens {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String    @db.Uuid
+  token        String    @unique @db.VarChar(500)
+  family       String    @db.VarChar(255)
+  browser_info String?
+  expires_at   DateTime  @db.Timestamptz(6)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  replaced_by  String?   @db.VarChar(500)
+  replaced_at  DateTime? @db.Timestamptz(6)
+  revoked_at   DateTime? @db.Timestamptz(6)
+  users        users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([family])
+  @@index([token])
+  @@index([user_id])
+}
+
+model role_permissions {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role_id       String      @db.Uuid
+  permission_id String      @db.Uuid
+  created_at    DateTime    @default(now()) @db.Timestamptz(6)
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, permission_id])
+}
+
+model roles {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String             @unique @db.VarChar(50)
+  display_name     String             @db.VarChar(100)
+  description      String?
+  is_system        Boolean            @default(false)
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @db.Timestamptz(6)
+  invitations      invitations[]
+  role_permissions role_permissions[]
+  user_workspaces  user_workspaces[]
+}
+
+model sessions {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  token      String   @unique @db.VarChar(500)
+  ip_address String?  @db.VarChar(45)
+  user_agent String?
+  expires_at DateTime @db.Timestamptz(6)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([expires_at], map: "idx_sessions_expires_at")
+  @@index([expires_at])
+  @@index([token])
+  @@index([user_id])
+}
+
+model user_workspaces {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String     @db.Uuid
+  workspace_id String     @db.Uuid
+  role_id      String     @db.Uuid
+  joined_at    DateTime   @default(now()) @db.Timestamptz(6)
+  roles        roles      @relation(fields: [role_id], references: [id])
+  users        users      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  workspaces   workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, workspace_id])
+  @@index([user_id])
+  @@index([workspace_id])
+}
+
+model users {
+  id                       String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                    String            @unique @db.VarChar(255)
+  password_hash            String            @db.VarChar(255)
+  name                     String?           @db.VarChar(255)
+  email_verified           Boolean           @default(false)
+  email_verification_token String?           @unique @db.VarChar(255)
+  reset_password_token     String?           @unique @db.VarChar(255)
+  reset_password_expires   DateTime?         @db.Timestamptz(6)
+  two_factor_secret        String?           @db.VarChar(255)
+  two_factor_enabled       Boolean           @default(false)
+  failed_login_attempts    Int               @default(0)
+  lockout_until            DateTime?         @db.Timestamptz(6)
+  last_login_at            DateTime?         @db.Timestamptz(6)
+  created_at               DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime          @db.Timestamptz(6)
+  audit_logs               audit_logs[]
+  documents                documents[]
+  invitations              invitations[]
+  queries                  queries[]
+  refresh_tokens           refresh_tokens[]
+  sessions                 sessions[]
+  user_workspaces          user_workspaces[]
+
+  @@index([email])
+  @@index([email_verification_token])
+  @@index([reset_password_token])
+}
+
+model webhooks {
+  id                      String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  integration_id          String                  @db.Uuid
+  url                     String
+  secret                  String?
+  events                  String[]
+  is_active               Boolean                 @default(true)
+  last_triggered          DateTime?               @db.Timestamptz(6)
+  failure_count           Int                     @default(0)
+  metadata                Json?
+  created_at              DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                @db.Timestamptz(6)
+  integration_credentials integration_credentials @relation(fields: [integration_id], references: [id], onDelete: Cascade)
+
+  @@index([integration_id])
+  @@index([is_active])
+}
+
+model workspaces {
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String                    @db.VarChar(255)
+  slug                    String                    @unique @db.VarChar(255)
+  description             String?
+  settings                Json?
+  created_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                  @db.Timestamptz(6)
+  integration_credentials integration_credentials[]
+  invitations             invitations[]
+  pages                   pages[]
+  projects                projects[]
+  user_workspaces         user_workspaces[]
+
+  @@index([slug])
+}

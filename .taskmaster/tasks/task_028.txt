@@ -1,11 +1,25 @@
 # Task ID: 28
-# Title: MVP Pivot - Implement Google Sheets Snapshot Integration
-# Status: pending
+# Title: Future: Google Sheets Integration
+# Status: deferred
 # Dependencies: 22
-# Priority: medium
-# Description: Build Google Sheets integration for read-only snapshot capture. Implement OAuth flow, data fetching via Sheets API, schema mapping to dataset format, and automatic refresh scheduling. Store snapshots as datasets for AI analysis.
+# Priority: low
+# Description: Post-MVP feature to sync with Google Sheets. Not essential for wow factor - users can upload CSV exports from Sheets instead.
 # Details:
+1. This is a nice-to-have, not core MVP.
+2. Users can export from Google Sheets as CSV and upload.
+3. Focus on core wow factors first: AI that knows your data, beautiful outputs, seamless editing.
+4. Revisit after MVP success.
 
+Original implementation plan (for future reference):
+- OAuth flow for Google Sheets access
+- Data fetching via Sheets API
+- Schema mapping to dataset format
+- Automatic refresh scheduling
+- Store snapshots as datasets for AI analysis
 
 # Test Strategy:
-
+To be defined when feature is prioritized post-MVP. Will include:
+- OAuth flow testing
+- API integration testing
+- Data mapping validation
+- Refresh scheduling verification
