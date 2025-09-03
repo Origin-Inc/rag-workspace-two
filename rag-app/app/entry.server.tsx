@@ -5,8 +5,14 @@ import { isbot } from "isbot";
 import { PassThrough } from "node:stream";
 import { renderToPipeableStream } from "react-dom/server";
 
+// Import environment validation
+import { validateEnvironmentOnStartup } from "~/utils/env-validation.server";
+
 // Import and start workers
 import { startWorkers } from "~/services/rag/workers/start-workers.server";
+
+// Validate environment variables on startup
+validateEnvironmentOnStartup();
 
 // Start workers on server startup in development
 if (process.env.NODE_ENV === 'development') {

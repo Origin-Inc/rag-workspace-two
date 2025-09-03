@@ -1,247 +1,276 @@
 # Production Deployment Guide
 
-## Deployment Architecture
+## Overview
+This guide covers deploying the RAG Workspace application to production using Vercel (frontend/backend) and Supabase (database).
 
-- **Frontend & API**: Vercel (Serverless)
-- **Database**: Supabase PostgreSQL with pgvector
-- **Background Jobs**: Vercel Cron Jobs + BullMQ
-- **Redis**: Upstash Redis (Vercel-optimized) or Supabase Redis
-- **File Storage**: Supabase Storage
+## Prerequisites
+- Vercel account (https://vercel.com)
+- Supabase account (https://supabase.com)
+- GitHub repository connected to Vercel
+- Upstash Redis account (recommended for Vercel) or alternative Redis provider
+- OpenAI API key with billing enabled
 
-## Pre-Deployment Setup
+## 1. Database Setup (Supabase)
 
-### 1. Supabase Setup
+### 1.1 Create Supabase Project
+1. Go to https://app.supabase.com
+2. Create new project with a strong database password
+3. Select region closest to your users
+4. Wait for project initialization (~2 minutes)
 
-1. Create a new Supabase project at https://supabase.com
-2. Enable pgvector extension:
-   ```sql
-   CREATE EXTENSION IF NOT EXISTS vector;
-   ```
-3. Run database migrations:
-   ```bash
-   npx prisma migrate deploy
-   ```
-
-### 2. Redis Setup
-
-#### Option A: Upstash Redis (Recommended for Vercel)
-1. Create account at https://upstash.com
-2. Create a Redis database in the same region as your Vercel deployment
-3. Copy the Redis URL from the dashboard
-
-#### Option B: Supabase Redis (if available in your plan)
-1. Enable Redis addon in Supabase dashboard
-2. Copy the Redis connection string
-
-### 3. Environment Variables
-
-Set these in Vercel Dashboard → Settings → Environment Variables:
-
-```bash
-# Required
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
-DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres?pgbouncer=true&connection_limit=1
-REDIS_URL=redis://default:password@endpoint.upstash.io:port
-OPENAI_API_KEY=sk-...
-JWT_SECRET=[generate 32+ char random string]
-SESSION_SECRET=[generate 32+ char random string]
-CRON_SECRET=[generate random string for cron auth]
+### 1.2 Enable pgvector Extension
+```sql
+-- Run in Supabase SQL Editor
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 ```
 
-### 4. Generate Secrets
-
+### 1.3 Apply Database Migrations
+1. Get connection string from Supabase dashboard:
+   - Go to Settings → Database
+   - Copy "Connection string" (use Transaction mode for migrations)
+   
+2. Run migrations locally:
 ```bash
-# Generate secure random strings
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# Set the production database URL temporarily
+export DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-ID].supabase.co:5432/postgres"
+
+# Apply all migrations
+npx prisma migrate deploy
+
+# Generate Prisma client
+npx prisma generate
 ```
 
-## Deployment Steps
+### 1.4 Configure Connection Pooling
+- Use the "Connection pooling" connection string from Supabase
+- Add `?pgbouncer=true&connection_limit=1` to the connection string
+- This is critical for serverless environments
 
-### 1. Install Vercel CLI
+## 2. Redis Setup (Upstash Recommended)
+
+### 2.1 Create Upstash Redis Database
+1. Sign up at https://upstash.com
+2. Create new Redis database
+3. Select region matching your Vercel deployment
+4. Copy the Redis URL (includes authentication)
+
+### 2.2 Alternative: Redis Cloud
+- If using Redis Cloud or other providers
+- Ensure SSL/TLS is enabled
+- Get connection URL with authentication
+
+## 3. Environment Variables Setup
+
+### 3.1 Required Variables
+Copy `.env.example` and fill in production values:
+
 ```bash
+# Database (Supabase with connection pooling)
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres?pgbouncer=true&connection_limit=1
+
+# Supabase
+SUPABASE_URL=https://[PROJECT].supabase.co
+SUPABASE_ANON_KEY=eyJ...  # From API settings
+SUPABASE_SERVICE_ROLE_KEY=eyJ...  # Keep secure!
+
+# Redis (Upstash)
+REDIS_URL=redis://default:[PASSWORD]@[ENDPOINT].upstash.io:[PORT]
+
+# OpenAI
+OPENAI_API_KEY=sk-...  # Your production key
+
+# Security (Generate new for production!)
+JWT_SECRET=[32+ char random string]  # openssl rand -hex 32
+SESSION_SECRET=[Different 32+ char string]  # openssl rand -hex 32
+ENCRYPTION_SECRET=[Base64 32-byte key]  # openssl rand -base64 32
+CRON_SECRET=[Random string for Vercel crons]  # openssl rand -hex 32
+
+# Application
+NODE_ENV=production
+APP_URL=https://your-app.vercel.app
+WS_URL=wss://your-app.vercel.app
+```
+
+### 3.2 Add to Vercel
+1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables
+2. Add each variable from above
+3. Ensure "Production" environment is selected
+4. Save all variables
+
+## 4. Vercel Deployment
+
+### 4.1 Initial Setup
+```bash
+# Install Vercel CLI
 npm i -g vercel
-```
 
-### 2. Deploy to Vercel
-```bash
-# From the rag-app directory
-cd rag-app
-
-# Login to Vercel
-vercel login
-
-# Deploy (first time)
-vercel --prod
-
-# Or connect to existing project
+# Link to project
 vercel link
-vercel --prod
+
+# Configure build settings
+vercel --build-env NODE_ENV=production
 ```
 
-### 3. Configure Cron Jobs
+### 4.2 vercel.json Configuration
+Create `vercel.json` in project root:
+```json
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "public",
+  "framework": "remix",
+  "regions": ["iad1"],
+  "functions": {
+    "app/routes/api.*.ts": {
+      "maxDuration": 30
+    },
+    "app/routes/editor.$pageId.tsx": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/indexing",
+      "schedule": "*/1 * * * *"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
+```
 
-Vercel will automatically detect `vercel.json` and set up the cron job for indexing.
+### 4.3 Deploy
+```bash
+# Production deployment
+vercel --prod
 
-The indexing cron runs every minute and:
-- Processes pending indexing jobs
-- Auto-scales based on queue size
-- Respects rate limits
-- Has built-in error recovery
+# Or push to main branch for auto-deploy
+git push origin main
+```
 
-### 4. Verify Deployment
+## 5. Post-Deployment Tasks
 
-1. Check cron job is running:
-   - Vercel Dashboard → Functions → Cron tab
-   - Should show `/api/cron/indexing` running every minute
+### 5.1 Verify Services
+1. Check health endpoint: `https://your-app.vercel.app/health`
+2. Verify all services show "up" status
+3. Check database connectivity
+4. Test Redis connection
+5. Verify OpenAI integration
 
-2. Test health endpoint:
+### 5.2 Set Up Monitoring
+1. **Vercel Analytics**: Enable in Vercel dashboard
+2. **Error Tracking** (Optional):
+   - Add Sentry integration
+   - Set SENTRY_DSN environment variable
+
+### 5.3 Configure Cron Jobs
+1. Go to Vercel Dashboard → Functions → Crons
+2. Verify indexing cron is running every minute
+3. Add CRON_SECRET to authenticate cron requests
+
+### 5.4 Database Indexes
+Run these for optimal performance:
+```sql
+-- In Supabase SQL Editor
+CREATE INDEX idx_pages_workspace_id ON pages(workspace_id);
+CREATE INDEX idx_blocks_page_id ON blocks(page_id);
+CREATE INDEX idx_page_embeddings_workspace ON page_embeddings(workspace_id);
+CREATE INDEX idx_block_embeddings_workspace ON block_embeddings(workspace_id);
+
+-- Vector indexes for similarity search
+CREATE INDEX idx_page_embeddings_vector ON page_embeddings 
+USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
+
+CREATE INDEX idx_block_embeddings_vector ON block_embeddings 
+USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
+```
+
+## 6. Security Checklist
+
+- [ ] All secrets regenerated for production
+- [ ] Environment variables set in Vercel (not in code)
+- [ ] Database uses connection pooling
+- [ ] Rate limiting configured
+- [ ] CORS settings appropriate for production
+- [ ] Session secrets are unique and secure
+- [ ] Service role key not exposed to client
+- [ ] API keys have appropriate scopes/limits
+- [ ] Database backups configured in Supabase
+- [ ] Row Level Security (RLS) policies reviewed
+
+## 7. Performance Optimization
+
+### 7.1 Edge Functions
+- API routes automatically deploy as Edge Functions
+- Ensure functions don't exceed 1MB compressed
+
+### 7.2 Caching Strategy
+- Redis caches frequently accessed data
+- Set appropriate TTLs for cache entries
+- Monitor Redis memory usage
+
+### 7.3 Database Optimization
+- Use connection pooling for all queries
+- Implement pagination for large datasets
+- Monitor slow queries in Supabase dashboard
+
+## 8. Troubleshooting
+
+### Common Issues
+
+#### Database Connection Errors
+- Ensure using pooled connection string
+- Add `?pgbouncer=true&connection_limit=1`
+- Check Supabase connection limits
+
+#### Redis Connection Failed
+- Verify REDIS_URL includes authentication
+- Check firewall/network settings
+- Ensure Redis instance is running
+
+#### OpenAI Rate Limits
+- Implement exponential backoff
+- Monitor usage in OpenAI dashboard
+- Consider upgrading API tier
+
+#### Deployment Failures
+- Check Vercel build logs
+- Verify all environment variables set
+- Ensure dependencies installed correctly
+
+## 9. Rollback Strategy
+
+If issues occur:
+1. Revert to previous deployment in Vercel
+2. Run database rollback if schema changed:
    ```bash
-   curl -X POST https://your-app.vercel.app/api/cron/indexing \
-     -H "Content-Type: application/x-www-form-urlencoded" \
-     -d "action=health"
+   npx prisma migrate resolve --rolled-back [migration_name]
    ```
+3. Clear Redis cache if needed
+4. Monitor error logs for root cause
 
-3. Monitor logs:
-   - Vercel Dashboard → Functions → Logs
-   - Filter by `api/cron/indexing` to see indexing jobs
+## 10. Maintenance
 
-## Production Optimizations
+### Regular Tasks
+- Monitor database size and performance
+- Check Redis memory usage
+- Review API usage and costs
+- Update dependencies monthly
+- Backup database weekly (automated in Supabase)
+- Review security logs
 
-### Database Connection Pooling
-
-The production `DATABASE_URL` includes:
-- `?pgbouncer=true` - Uses Supabase's connection pooler
-- `&connection_limit=1` - Serverless-friendly connection limit
-
-### Redis Configuration
-
-Upstash Redis is optimized for serverless with:
-- HTTP-based connections (no persistent connections)
-- Auto-scaling
-- Global replication options
-
-### Rate Limiting
-
-Built-in rate limiting for:
-- OpenAI API calls: 10/minute
-- Indexing jobs: 10/minute
-- Concurrent jobs: 3 max
-
-### Error Tracking (Optional)
-
-Add Sentry for production error tracking:
-
-1. Create account at https://sentry.io
-2. Create a new project
-3. Add `SENTRY_DSN` to environment variables
-4. Errors will auto-report to Sentry dashboard
-
-## Monitoring
-
-### Key Metrics to Monitor
-
-1. **Cron Job Health**
-   - Success rate (should be >95%)
-   - Execution time (should be <25s)
-   - Queue depth
-
-2. **Database**
-   - Connection pool usage
-   - Query performance
-   - Storage usage
-
-3. **Redis**
-   - Memory usage
-   - Command latency
-   - Queue sizes
-
-4. **OpenAI API**
-   - Token usage
-   - API errors
-   - Rate limit hits
-
-### Monitoring Tools
-
-- **Vercel Analytics**: Built-in performance monitoring
-- **Supabase Dashboard**: Database metrics and logs
-- **Upstash Console**: Redis metrics and monitoring
-- **OpenAI Usage**: API usage dashboard
-
-## Troubleshooting
-
-### Indexing Not Working
-
-1. Check cron job logs in Vercel dashboard
-2. Verify Redis connection:
-   ```bash
-   curl -X POST https://your-app.vercel.app/api/cron/indexing \
-     -H "Content-Type: application/x-www-form-urlencoded" \
-     -d "action=health"
-   ```
-3. Check OpenAI API key is valid
-4. Verify database has vector extension enabled
-
-### Slow Performance
-
-1. Check Vercel function logs for timeouts
-2. Verify database connection pooling is enabled
-3. Consider upgrading Vercel plan for longer function duration
-4. Check Redis memory usage
-
-### High Costs
-
-1. Monitor OpenAI token usage
-2. Implement caching for repeated queries
-3. Optimize chunk sizes for embeddings
-4. Consider rate limiting per user
-
-## Scaling Considerations
-
-### When to Scale
-
-- Queue depth consistently >100 jobs
-- Cron job execution time approaching 30s limit
-- Database connections maxing out
-
-### How to Scale
-
-1. **Increase Cron Frequency**
-   - Change from `* * * * *` to `*/30 * * * * *` (every 30 seconds)
-   - Note: Requires Vercel Pro plan
-
-2. **Optimize Job Processing**
-   - Increase `MAX_CONCURRENT_INDEXING_JOBS`
-   - Batch embed multiple chunks in single API call
-
-3. **Database Scaling**
-   - Upgrade Supabase plan for more connections
-   - Enable read replicas for search queries
-
-4. **Redis Scaling**
-   - Upgrade Upstash plan for more memory
-   - Enable global replication for multi-region
-
-## Security Checklist
-
-- [ ] All secrets are in environment variables (not in code)
-- [ ] CRON_SECRET is set and verified
-- [ ] Database URL uses SSL (`?sslmode=require`)
-- [ ] API routes verify authentication
-- [ ] Rate limiting is configured
-- [ ] CORS is properly configured
-- [ ] Input validation on all endpoints
-
-## Post-Deployment
-
-1. Test user registration and login
-2. Create a test page with content
-3. Verify AI block can search and answer questions
-4. Check indexing is happening automatically
-5. Monitor first 24 hours for any issues
+### Scaling Considerations
+- Upgrade Supabase plan for more connections
+- Increase Redis memory as needed
+- Consider dedicated instances for high traffic
+- Implement read replicas if needed
 
 ## Support
 
+For deployment issues:
 - Vercel Support: https://vercel.com/support
 - Supabase Support: https://supabase.com/support
-- Upstash Support: https://upstash.com/support
+- Application Issues: Create issue in GitHub repository
