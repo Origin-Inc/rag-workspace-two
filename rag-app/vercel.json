@@ -1,29 +1,49 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/indexing",
-      "schedule": "* * * * *"
-    }
-  ],
+  "buildCommand": "npm run build",
+  "outputDirectory": "public",
+  "framework": "remix",
+  "regions": ["iad1"],
   "functions": {
-    "app/routes/api.cron.indexing.ts": {
+    "app/routes/api.*.ts": {
       "maxDuration": 30
     },
-    "app/routes/api.rag-search.tsx": {
+    "app/routes/api.*.tsx": {
       "maxDuration": 30
     },
     "app/routes/editor.$pageId.tsx": {
+      "maxDuration": 60
+    },
+    "app/routes/api.cron.indexing.ts": {
       "maxDuration": 30
     }
   },
-  "env": {
-    "CRON_SECRET": "@cron-secret",
-    "REDIS_URL": "@redis-url",
-    "DATABASE_URL": "@database-url",
-    "SUPABASE_URL": "@supabase-url",
-    "SUPABASE_ANON_KEY": "@supabase-anon-key",
-    "OPENAI_API_KEY": "@openai-api-key",
-    "JWT_SECRET": "@jwt-secret",
-    "SESSION_SECRET": "@session-secret"
-  }
+  "crons": [
+    {
+      "path": "/api/cron/indexing",
+      "schedule": "*/1 * * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options", 
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
+  ]
 }
