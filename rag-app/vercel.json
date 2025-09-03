@@ -20,7 +20,7 @@
   "crons": [
     {
       "path": "/api/cron/indexing",
-      "schedule": "*/1 * * * *"
+      "schedule": "0 0 * * *"
     }
   ],
   "headers": [
