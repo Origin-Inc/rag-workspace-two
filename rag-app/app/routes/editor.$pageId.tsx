@@ -10,6 +10,7 @@ import { debounce } from "~/utils/performance";
 import type { Prisma } from "@prisma/client";
 import { ragIndexingService } from "~/services/rag/rag-indexing.service";
 import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
+import { pageHierarchyService } from "~/services/page-hierarchy.server";
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { pageId } = params;
@@ -18,14 +19,16 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   // Get authenticated user
   const user = await requireUser(request);
 
-  // Get page details with project
+  // Get page details with workspace (no project required)
   const page = await prisma.page.findUnique({
     where: { id: pageId },
     include: {
-      project: {
-        include: {
-          workspace: true
-        }
+      workspace: true,
+      parent: true,
+      children: {
+        where: { isArchived: false },
+        orderBy: { position: 'asc' },
+        select: { id: true, title: true, icon: true }
       }
     }
   });
@@ -34,12 +37,12 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     throw new Response("Page not found", { status: 404 });
   }
 
-  // Check if user has access to this project's workspace
+  // Check if user has access to this page's workspace
   try {
     const hasAccess = await prisma.userWorkspace.findFirst({
       where: {
         userId: user.id,
-        workspaceId: page.project.workspaceId,
+        workspaceId: page.workspaceId,
       }
     });
 
@@ -54,6 +57,9 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 
   // For now, allow editing if user has access
   const canEdit = true;
+  
+  // Get page breadcrumb path for navigation
+  const breadcrumbPath = await pageHierarchyService.getPagePath(pageId);
 
   // Extract blocks or convert content to blocks
   const metadata = typeof page.metadata === 'object' && page.metadata ? page.metadata : {};
@@ -131,7 +137,10 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 
   return json({
     page,
-    project: page.project,
+    workspace: page.workspace,
+    parent: page.parent,
+    children: page.children,
+    breadcrumbPath,
     content,
     blocks,
     canEdit,
@@ -258,7 +267,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
     const page = await prisma.page.findUnique({
       where: { id: pageId },
       include: {
-        project: true
+        workspace: true
       }
     });
 
@@ -272,7 +281,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
       const hasAccess = await prisma.userWorkspace.findFirst({
         where: {
           userId: user.id,
-          workspaceId: page.project.workspaceId,
+          workspaceId: page.workspaceId,
         }
       });
 
@@ -470,7 +479,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
 }
 
 export default function EditorPage() {
-  const { page, project, content: initialContent, blocks: initialBlocks, canEdit } = useLoaderData<typeof loader>();
+  const { page, workspace, parent, children, breadcrumbPath, content: initialContent, blocks: initialBlocks, canEdit } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [blocks, setBlocks] = useState(initialBlocks);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -628,7 +637,7 @@ export default function EditorPage() {
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xs text-gray-500">
-              {project.name} / {page.parent_id ? "..." : "Pages"}
+              {workspace.name} / {breadcrumbPath?.map(p => p.title).join(' / ') || 'Pages'}
             </div>
             <h1 className="text-xl font-semibold text-gray-900">
               {page.title || "Untitled Page"}
@@ -669,7 +678,7 @@ export default function EditorPage() {
             initialBlocks={blocks}
             onChange={handleChange}
             onSave={handleSave}
-            workspaceId={project.workspaceId}
+            workspaceId={workspace.id}
             className="h-full"
             onAICommand={handleAICommand}
           />

@@ -97,7 +97,7 @@ async function main() {
 
   console.log('✅ Created sample projects');
 
-  // Create sample pages
+  // Create sample pages - now with workspaceId for new hierarchy structure
   await prisma.page.createMany({
     data: [
       {
@@ -105,6 +105,7 @@ async function main() {
         slug: 'getting-started',
         content: '# Getting Started\n\nWelcome to our documentation!',
         projectId: project1.id,
+        workspaceId: workspace.id, // Added required workspaceId
         isPublic: true,
       },
       {
@@ -112,6 +113,7 @@ async function main() {
         slug: 'api-reference',
         content: '# API Reference\n\nAPI endpoints documentation.',
         projectId: project2.id,
+        workspaceId: workspace.id, // Added required workspaceId
         isPublic: true,
       },
       {
@@ -119,6 +121,7 @@ async function main() {
         slug: 'architecture-overview',
         content: '# Architecture\n\nSystem architecture overview.',
         projectId: project1.id,
+        workspaceId: workspace.id, // Added required workspaceId
         isPublic: true,
       },
     ],

@@ -4,6 +4,8 @@ import { json, redirect } from "@remix-run/node";
 import { getUser } from "~/services/auth/auth.server";
 import { prisma } from "~/utils/db.server";
 import { workspaceService } from "~/services/workspace.server";
+import { pageHierarchyService } from "~/services/page-hierarchy.server";
+import { PageTreeNavigation } from "~/components/navigation/PageTreeNavigation";
 import { useState, useEffect } from "react";
 import crypto from "crypto";
 import { Breadcrumbs } from "~/components/navigation/Breadcrumbs";
@@ -101,6 +103,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const currentWorkspaceId = user.workspaceId || userWorkspaces[0].workspace.id;
   const currentWorkspace = userWorkspaces.find(uw => uw.workspace.id === currentWorkspaceId)?.workspace || userWorkspaces[0].workspace;
 
+  // Get page tree for current workspace
+  let pageTree = [];
+  try {
+    pageTree = await pageHierarchyService.getPageTree(currentWorkspace.id, 5);
+  } catch (e) {
+    console.error('Error fetching page tree:', e);
+    // Continue with empty array
+  }
+
   // Get projects for current workspace - handle potential missing table
   let projects = [];
   try {
@@ -119,6 +130,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     workspaces: userWorkspaces,
     currentWorkspace,
     projects,
+    pageTree,
   });
 }
 
@@ -130,11 +142,12 @@ interface NavigationItem {
 }
 
 export default function AppLayout() {
-  const { user, workspaces, currentWorkspace, projects } = useLoaderData<typeof loader>();
+  const { user, workspaces, currentWorkspace, projects, pageTree } = useLoaderData<typeof loader>();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
-  const [projectsExpanded, setProjectsExpanded] = useState(true);
+  const [projectsExpanded, setProjectsExpanded] = useState(false);
+  const [pagesExpanded, setPagesExpanded] = useState(true);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   // Main navigation items
@@ -282,54 +295,62 @@ export default function AppLayout() {
             );
           })}
 
-          {/* Projects Section */}
+          {/* Pages Section */}
           <div className="pt-4">
-            <button
-              onClick={() => setProjectsExpanded(!projectsExpanded)}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
-              aria-expanded={projectsExpanded}
-              aria-controls="projects-list"
-            >
+            <div className="flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300">
               <div className="flex items-center">
-                <FolderIcon className="mr-3 h-5 w-5" />
-                Projects
+                <DocumentIcon className="mr-3 h-5 w-5" />
+                <span>Pages</span>
               </div>
-              <ChevronRightIcon className={`h-4 w-4 transition-transform ${projectsExpanded ? 'rotate-90' : ''}`} />
-            </button>
+              <Link
+                to="/app/pages/new"
+                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
+                aria-label="Create new page"
+              >
+                <PlusIcon className="h-4 w-4" />
+              </Link>
+            </div>
             
-            {projectsExpanded && (
-              <div className="mt-1 space-y-1">
-                {projects.length > 0 ? (
-                  projects.map((project) => (
-                    <NavLink
-                      key={project.id}
-                      to={`/app/project/${project.id}`}
-                      className={({ isActive }) => `
-                        flex items-center pl-11 pr-3 py-2 text-sm rounded-lg transition-colors
-                        ${isActive 
-                          ? 'bg-blue-50 text-blue-700' 
-                          : 'text-gray-600 hover:bg-gray-50'
-                        }
-                      `}
-                    >
-                      <DocumentIcon className="mr-3 h-4 w-4 flex-shrink-0" />
-                      <span className="truncate">{project.name}</span>
-                    </NavLink>
-                  ))
-                ) : (
-                  <div className="pl-11 pr-3 py-2 text-sm text-gray-500">
-                    No projects yet
-                  </div>
-                )}
-                <Link
-                  to="/app/projects/new"
-                  className="flex items-center pl-11 pr-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg"
-                >
-                  <PlusIcon className="mr-3 h-4 w-4" />
-                  New project
-                </Link>
-              </div>
-            )}
+            {/* Page Tree Navigation */}
+            <div className="mt-1">
+              <PageTreeNavigation
+                workspaceSlug={currentWorkspace.slug}
+                pages={pageTree}
+                currentPageId={undefined}
+                onCreatePage={(parentId) => {
+                  // Navigate to create page route
+                  window.location.href = `/app/pages/new${parentId ? `?parentId=${parentId}` : ''}`;
+                }}
+                onMovePage={async (pageId, newParentId) => {
+                  // Call API to move page
+                  const formData = new FormData();
+                  if (newParentId) formData.append('parentId', newParentId);
+                  
+                  const response = await fetch(`/api/pages/${pageId}`, {
+                    method: 'PATCH',
+                    body: formData
+                  });
+                  
+                  if (response.ok) {
+                    window.location.reload();
+                  } else {
+                    console.error('Failed to move page');
+                  }
+                }}
+                onDeletePage={async (pageId) => {
+                  // Call API to delete page
+                  const response = await fetch(`/api/pages/${pageId}`, {
+                    method: 'DELETE'
+                  });
+                  
+                  if (response.ok) {
+                    window.location.reload();
+                  } else {
+                    console.error('Failed to delete page');
+                  }
+                }}
+              />
+            </div>
           </div>
         </nav>
 

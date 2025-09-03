@@ -22,10 +22,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
       content: true,
       icon: true,
       updatedAt: true,
-      project: {
+      parent: {
         select: {
           id: true,
-          slug: true
+          title: true
         }
       }
     },
@@ -46,9 +46,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       : 'No content yet...',
     type: page.icon || 'document',
     lastAccessed: page.updatedAt,
-    url: page.project 
-      ? `/app/projects/${page.project.id}/pages/${page.id}`
-      : `/app/pages/${page.id}`
+    url: `/editor/${page.id}`,
+    parentTitle: page.parent?.title
   }));
 
   // Get workspace details
@@ -168,10 +167,10 @@ export default function AppIndex() {
                     No pages yet. Create your first page to get started!
                   </p>
                   <Link
-                    to="/app/projects/new"
+                    to="/app/pages/new"
                     className="inline-flex items-center px-4 py-2 mt-4 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
                   >
-                    Create Project
+                    Create Page
                   </Link>
                 </div>
               )}
@@ -179,10 +178,10 @@ export default function AppIndex() {
             {recentPages.length > 0 && (
               <div className="p-4 border-t border-gray-200 dark:border-gray-700">
                 <Link
-                  to="/app/projects"
+                  to="/app/pages"
                   className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                 >
-                  View all projects →
+                  View all pages →
                 </Link>
               </div>
             )}
@@ -193,22 +192,22 @@ export default function AppIndex() {
       {/* Quick Actions */}
       <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Link
-          to="/app/projects/new"
+          to="/app/pages/new"
           className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
         >
-          <h3 className="font-medium text-gray-900 dark:text-white">Create Project</h3>
+          <h3 className="font-medium text-gray-900 dark:text-white">Create Page</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Start a new project in your workspace
+            Start a new page in your workspace
           </p>
         </Link>
         
         <Link
-          to="/app/projects/new"
+          to="/app/pages"
           className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
         >
-          <h3 className="font-medium text-gray-900 dark:text-white">Open Editor</h3>
+          <h3 className="font-medium text-gray-900 dark:text-white">Browse Pages</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Create and edit pages with blocks
+            View and organize your workspace pages
           </p>
         </Link>
         

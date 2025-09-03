@@ -4127,9 +4127,7 @@
       {
         "id": 32,
         "title": "Create Knowledge Graph Infrastructure for RAG System",
-        "description": "Build a simplified GraphRAG system using PostgreSQL native features to dramatically reduce token usage and enable intelligent querying of database blocks with 50,000+ rows through hybrid graph traversal and vector search.",
-        "details": "1. Create PostgreSQL schema for knowledge graph entities and relationships:\n```sql\nCREATE TABLE entities (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  name TEXT NOT NULL,\n  type TEXT NOT NULL, -- 'person', 'product', 'concept', etc.\n  description TEXT,\n  source_block_id UUID,\n  source_page_id UUID,\n  metadata JSONB DEFAULT '{}',\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE relationships (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  source_entity_id UUID REFERENCES entities(id),\n  target_entity_id UUID REFERENCES entities(id),\n  relationship_type TEXT NOT NULL,\n  strength FLOAT DEFAULT 1.0,\n  metadata JSONB DEFAULT '{}',\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE communities (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  name TEXT NOT NULL,\n  level INTEGER DEFAULT 0,\n  summary TEXT,\n  entity_ids UUID[],\n  parent_community_id UUID REFERENCES communities(id),\n  metadata JSONB DEFAULT '{}'\n);\n```\n\n2. Implement entity extraction service using OpenAI:\n```typescript\n// app/services/knowledge-graph/entity-extractor.server.ts\nexport class EntityExtractor {\n  async extractEntities(content: string, blockId: string): Promise<Entity[]> {\n    const completion = await openai.chat.completions.create({\n      model: \"gpt-4\",\n      messages: [{\n        role: \"system\",\n        content: \"Extract entities and relationships from text. Return JSON with entities array containing {name, type, description} and relationships array with {source, target, type, strength}.\"\n      }, {\n        role: \"user\",\n        content: content\n      }]\n    });\n    return this.parseAndStoreEntities(completion, blockId);\n  }\n}\n```\n\n3. Create community detection algorithm using Louvain method:\n```typescript\n// app/services/knowledge-graph/community-detector.server.ts\nexport class CommunityDetector {\n  async detectCommunities(workspaceId: string): Promise<Community[]> {\n    // Use recursive CTEs for graph traversal\n    const communities = await prisma.$queryRaw`\n      WITH RECURSIVE graph_traverse AS (\n        SELECT source_entity_id, target_entity_id, strength\n        FROM relationships \n        WHERE workspace_id = ${workspaceId}\n      ),\n      community_seeds AS (\n        -- Implement modularity optimization\n        SELECT entity_id, community_id\n        FROM (\n          -- Complex CTE for community detection\n        ) subq\n      )\n      SELECT * FROM community_seeds;\n    `;\n    return this.generateCommunitySummaries(communities);\n  }\n}\n```\n\n4. Build hybrid query router that intelligently chooses between graph traversal and vector search:\n```typescript\n// app/services/knowledge-graph/query-router.server.ts\nexport class QueryRouter {\n  async routeQuery(query: string, workspaceId: string): Promise<SearchResult> {\n    const queryType = await this.classifyQuery(query);\n    \n    if (queryType === 'factual' || queryType === 'relationship') {\n      // Use graph traversal for factual queries\n      return this.graphSearch(query, workspaceId);\n    } else if (queryType === 'semantic' || queryType === 'exploratory') {\n      // Use vector search for semantic queries\n      return this.vectorSearch(query, workspaceId);\n    } else {\n      // Hybrid approach for complex queries\n      return this.hybridSearch(query, workspaceId);\n    }\n  }\n  \n  private async graphSearch(query: string, workspaceId: string): Promise<SearchResult> {\n    // Parse query to identify entities and relationships\n    const entities = await this.extractQueryEntities(query);\n    \n    // Use recursive CTE for graph traversal\n    const results = await prisma.$queryRaw`\n      WITH RECURSIVE entity_paths AS (\n        SELECT e.id, e.name, e.type, 1 as depth, ARRAY[e.id] as path\n        FROM entities e\n        WHERE e.workspace_id = ${workspaceId}\n          AND e.name = ANY(${entities})\n        \n        UNION ALL\n        \n        SELECT e2.id, e2.name, e2.type, ep.depth + 1, ep.path || e2.id\n        FROM entity_paths ep\n        JOIN relationships r ON ep.id = r.source_entity_id\n        JOIN entities e2 ON r.target_entity_id = e2.id\n        WHERE ep.depth < 3 AND NOT e2.id = ANY(ep.path)\n      )\n      SELECT * FROM entity_paths;\n    `;\n    \n    return this.formatGraphResults(results);\n  }\n}\n```\n\n5. Integrate with existing RAG pipeline for incremental updates:\n```typescript\n// app/services/knowledge-graph/incremental-indexer.server.ts\nexport class IncrementalGraphIndexer {\n  async updateGraphFromBlock(blockId: string, content: string) {\n    // Extract new entities and relationships\n    const newEntities = await this.entityExtractor.extractEntities(content, blockId);\n    \n    // Find existing entities to merge\n    const existingEntities = await this.findSimilarEntities(newEntities);\n    \n    // Update communities only for affected subgraphs\n    const affectedCommunities = await this.getAffectedCommunities(newEntities);\n    await this.recomputeCommunities(affectedCommunities);\n  }\n}\n```\n\n6. Create GraphRAG query interface that reduces token usage:\n```typescript\n// app/services/knowledge-graph/graphrag-query.server.ts\nexport class GraphRAGQuery {\n  async query(userQuery: string, workspaceId: string): Promise<GraphRAGResult> {\n    // Get relevant community summaries instead of full documents\n    const relevantCommunities = await this.findRelevantCommunities(userQuery, workspaceId);\n    \n    // Use hierarchical summarization to minimize tokens\n    const contextSummary = await this.buildHierarchicalContext(relevantCommunities);\n    \n    // Query with minimal token usage (26-97% reduction)\n    const response = await openai.chat.completions.create({\n      model: \"gpt-4\",\n      messages: [{\n        role: \"system\",\n        content: `Answer using this knowledge graph context: ${contextSummary}`\n      }, {\n        role: \"user\", \n        content: userQuery\n      }]\n    });\n    \n    return {\n      answer: response.choices[0].message.content,\n      sources: this.extractSources(relevantCommunities),\n      tokensSaved: this.calculateTokenSavings(contextSummary)\n    };\n  }\n}\n```\n\n7. Add database indexes for performance at scale:\n```sql\nCREATE INDEX entities_workspace_type_idx ON entities(workspace_id, type);\nCREATE INDEX entities_name_gin_idx ON entities USING gin(to_tsvector('english', name));\nCREATE INDEX relationships_source_target_idx ON relationships(source_entity_id, target_entity_id);\nCREATE INDEX relationships_workspace_strength_idx ON relationships(workspace_id, strength DESC);\nCREATE INDEX communities_workspace_level_idx ON communities(workspace_id, level);\n```",
-        "testStrategy": "1. Load test entity extraction with 50,000+ database rows, verify extraction completes within 5 minutes and identifies 90%+ of named entities with correct types and relationships. 2. Test community detection algorithm creates hierarchical communities with meaningful groupings, verify modularity score > 0.3 and community summaries accurately represent member entities. 3. Validate recursive CTE graph traversal performance with queries spanning 3+ relationship hops on 10,000+ entity graphs, ensure response time < 500ms. 4. Test hybrid query routing correctly classifies query types (factual vs semantic) with 85%+ accuracy and routes to appropriate search method. 5. Verify token usage reduction by comparing GraphRAG responses to traditional RAG, measure 26-97% reduction in input tokens while maintaining answer quality. 6. Test incremental indexing updates only affected communities when new entities are added, verify community recomputation completes within 30 seconds for affected subgraphs. 7. Load test workspace-wide knowledge graph with multiple concurrent users, verify query performance remains sub-second with proper PostgreSQL connection pooling. 8. Test cross-page entity relationship detection by creating entities in different pages and verifying relationships are properly identified and traversed. 9. Validate community summary quality by having human evaluators rate summary accuracy and completeness on 100+ test communities. 10. Test graph query accuracy by comparing factual query results to ground truth data, ensure 95%+ precision for relationship queries like 'Which customers bought product X?'",
+        "description": "Build a simplified GraphRAG system using PostgreSQL native features to dramatically reduce token usage and enable intelligent querying with 50,000+ rows through hybrid graph traversal and vector search, now integrated with Notion-style page hierarchy.",
         "status": "pending",
         "dependencies": [
           6,
@@ -4138,101 +4136,116 @@
           20
         ],
         "priority": "high",
+        "details": "1. Create PostgreSQL schema for knowledge graph entities with page hierarchy support:\n```sql\nCREATE TABLE entities (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  name TEXT NOT NULL,\n  type TEXT NOT NULL, -- 'person', 'product', 'concept', etc.\n  description TEXT,\n  source_block_id UUID,\n  source_page_id UUID REFERENCES pages(id),\n  page_hierarchy_path UUID[], -- Array of ancestor page IDs from root to parent\n  page_depth INTEGER DEFAULT 0, -- Depth in page tree (0 = root level)\n  metadata JSONB DEFAULT '{}',\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE relationships (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  source_entity_id UUID REFERENCES entities(id),\n  target_entity_id UUID REFERENCES entities(id),\n  relationship_type TEXT NOT NULL,\n  strength FLOAT DEFAULT 1.0, -- Boosted by page proximity\n  page_proximity TEXT, -- 'parent-child', 'siblings', 'cousins', 'distant'\n  metadata JSONB DEFAULT '{}',\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n);\n\nCREATE TABLE communities (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  name TEXT NOT NULL,\n  level INTEGER DEFAULT 0,\n  summary TEXT,\n  entity_ids UUID[],\n  page_branch_root UUID, -- Root page of this community branch\n  parent_community_id UUID REFERENCES communities(id),\n  metadata JSONB DEFAULT '{}'\n);\n```\n\n2. Implement hierarchical entity extraction with inheritance:\n```typescript\n// app/services/knowledge-graph/entity-extractor.server.ts\nexport class EntityExtractor {\n  async extractEntitiesFromPageTree(pageId: string): Promise<Entity[]> {\n    // Get page with all ancestors and descendants\n    const pageTree = await this.getPageTreeWithHierarchy(pageId);\n    \n    // Extract entities with hierarchy metadata\n    const entities = await this.extractEntities(pageTree.content, {\n      pageId: pageTree.id,\n      hierarchyPath: pageTree.ancestorIds,\n      depth: pageTree.depth\n    });\n    \n    // Inherit entities from parent pages\n    const inheritedEntities = await this.getInheritedEntities(pageTree.ancestorIds);\n    \n    return this.mergeWithInheritance(entities, inheritedEntities);\n  }\n}\n```\n\n3. Create hierarchy-aware community detection:\n```typescript\n// app/services/knowledge-graph/community-detector.server.ts\nexport class CommunityDetector {\n  async detectCommunitiesWithHierarchy(workspaceId: string): Promise<Community[]> {\n    // Pages in same tree branch form natural communities\n    const pageBranches = await prisma.$queryRaw`\n      WITH RECURSIVE page_tree AS (\n        SELECT id, parent_id, title, 0 as depth, ARRAY[id] as path\n        FROM pages\n        WHERE workspace_id = ${workspaceId} AND parent_id IS NULL\n        \n        UNION ALL\n        \n        SELECT p.id, p.parent_id, p.title, pt.depth + 1, pt.path || p.id\n        FROM pages p\n        JOIN page_tree pt ON p.parent_id = pt.id\n      )\n      SELECT * FROM page_tree;\n    `;\n    \n    return this.createHierarchicalCommunities(pageBranches);\n  }\n}\n```\n\n4. Build hierarchy-aware query router with context operators:\n```typescript\n// app/services/knowledge-graph/query-router.server.ts\nexport class QueryRouter {\n  async routeQuery(query: string, pageId: string, workspaceId: string): Promise<SearchResult> {\n    const context = this.parseContextOperators(query); // @parent, @ancestors, @children\n    \n    if (context.includes('@parent')) {\n      return this.searchParentContext(query, pageId);\n    } else if (context.includes('@ancestors')) {\n      return this.searchAncestorContext(query, pageId);\n    } else if (context.includes('@children')) {\n      return this.searchChildContext(query, pageId);\n    }\n    \n    // Standard routing with hierarchy awareness\n    return this.hierarchicalSearch(query, pageId, workspaceId);\n  }\n  \n  private async hierarchicalSearch(query: string, pageId: string, workspaceId: string): Promise<SearchResult> {\n    const pageHierarchy = await this.getPageHierarchy(pageId);\n    \n    // Boost entities based on page proximity\n    const results = await prisma.$queryRaw`\n      WITH RECURSIVE entity_search AS (\n        SELECT \n          e.*,\n          CASE \n            WHEN e.source_page_id = ${pageId} THEN 1.0 -- Current page\n            WHEN ${pageId} = ANY(e.page_hierarchy_path) THEN 0.8 -- Parent page\n            WHEN e.page_hierarchy_path && ${pageHierarchy} THEN 0.6 -- Sibling/cousin\n            ELSE 0.3 -- Distant relation\n          END as proximity_boost\n        FROM entities e\n        WHERE e.workspace_id = ${workspaceId}\n      )\n      SELECT * FROM entity_search\n      ORDER BY proximity_boost DESC;\n    `;\n    \n    return this.formatHierarchicalResults(results);\n  }\n}\n```\n\n5. Implement relationship strength boosting based on page proximity:\n```typescript\n// app/services/knowledge-graph/relationship-mapper.server.ts\nexport class RelationshipMapper {\n  async mapRelationshipsWithProximity(entities: Entity[]): Promise<Relationship[]> {\n    const relationships = await this.detectRelationships(entities);\n    \n    return relationships.map(rel => {\n      const proximity = this.calculatePageProximity(\n        rel.sourceEntity.pageHierarchyPath,\n        rel.targetEntity.pageHierarchyPath\n      );\n      \n      // Boost strength based on proximity\n      const strengthMultiplier = {\n        'parent-child': 2.0,\n        'siblings': 1.5,\n        'cousins': 1.2,\n        'distant': 1.0\n      }[proximity];\n      \n      return {\n        ...rel,\n        strength: rel.strength * strengthMultiplier,\n        pageProximity: proximity\n      };\n    });\n  }\n}\n```\n\n6. Create hierarchical summarization service:\n```typescript\n// app/services/knowledge-graph/hierarchical-summarizer.server.ts\nexport class HierarchicalSummarizer {\n  async summarizePageTree(pageId: string): Promise<HierarchicalSummary> {\n    // Get entities from current page and all children\n    const pageEntities = await this.getPageTreeEntities(pageId);\n    \n    // Bubble up important entities from children to parent\n    const importantEntities = await this.identifyImportantEntities(pageEntities);\n    \n    // Generate hierarchical summary\n    const summary = await openai.chat.completions.create({\n      model: \"gpt-4\",\n      messages: [{\n        role: \"system\",\n        content: \"Create a hierarchical summary that captures key entities and relationships from parent and child pages, emphasizing inheritance and hierarchical patterns.\"\n      }, {\n        role: \"user\",\n        content: JSON.stringify(importantEntities)\n      }]\n    });\n    \n    return this.storeHierarchicalSummary(pageId, summary);\n  }\n}\n```\n\n7. Add database indexes for hierarchical queries:\n```sql\nCREATE INDEX entities_hierarchy_path_gin ON entities USING gin(page_hierarchy_path);\nCREATE INDEX entities_page_depth_idx ON entities(workspace_id, page_depth);\nCREATE INDEX entities_source_page_hierarchy ON entities(source_page_id, page_depth);\nCREATE INDEX relationships_proximity_idx ON relationships(workspace_id, page_proximity, strength DESC);\nCREATE INDEX communities_page_branch_idx ON communities(workspace_id, page_branch_root);\n```",
+        "testStrategy": "1. Test hierarchical entity extraction processes entire page trees correctly, verify entities inherit from parent pages with proper hierarchy metadata, ensure extraction completes within 5 minutes for 50,000+ rows across nested pages. 2. Validate page-based community detection creates natural communities from page tree branches, test communities properly reflect page hierarchy with meaningful summaries. 3. Test context operators (@parent, @ancestors, @children) filter results correctly based on page hierarchy, verify queries respect page boundaries and inheritance. 4. Measure relationship strength boosting produces higher scores for entities in same page branch (parent-child > siblings > cousins), validate proximity calculations are accurate. 5. Test hierarchical summarization bubbles up important entities from child to parent pages, verify summaries maintain context from entire page tree. 6. Load test with deeply nested page hierarchies (10+ levels) containing 100,000+ entities, ensure graph traversal maintains sub-second performance. 7. Test token usage reduction achieves 26-97% savings by using hierarchical summaries instead of full content, validate answer quality remains high. 8. Verify incremental updates when pages are moved in hierarchy trigger appropriate entity re-indexing and community recomputation only for affected branches. 9. Test cross-page entity relationships are properly detected and traversed even across different hierarchy branches, validate relationship strength reflects actual page proximity. 10. Benchmark query performance with hierarchy-aware filtering ensures <200ms response time even with complex page trees and 50,000+ entities per branch.",
         "subtasks": [
           {
             "id": 1,
-            "title": "Create PostgreSQL Schema for Knowledge Graph Entities",
-            "description": "Design and implement the database schema for entities, relationships, and communities tables with proper indexes and foreign key constraints",
-            "dependencies": [],
-            "details": "Create three core tables: entities (storing extracted entities with type, description, and source references), relationships (storing connections between entities with strength and type), and communities (storing hierarchical groupings of related entities). Include JSONB metadata fields for flexibility, UUID primary keys for distributed systems, and workspace-based multi-tenancy support. Add appropriate indexes for graph traversal performance including GIN indexes for JSONB fields and composite indexes for workspace-based queries.",
+            "title": "Create PostgreSQL Schema with Page Hierarchy Support",
+            "description": "Design and implement the database schema for entities, relationships, and communities tables with page hierarchy tracking and proper indexes",
             "status": "pending",
-            "testStrategy": "Verify table creation with proper constraints, test foreign key relationships work correctly, ensure indexes improve query performance for graph traversal operations, validate workspace isolation works properly"
+            "dependencies": [],
+            "details": "Create three core tables with hierarchy enhancements: entities table now includes page_hierarchy_path (array of ancestor page IDs) and page_depth for tracking position in page tree. Relationships table adds page_proximity field to track how close entities are in the page hierarchy (parent-child, siblings, cousins, distant). Communities table includes page_branch_root to identify which page tree branch forms the community. Add GIN indexes for array operations on hierarchy paths and composite indexes for hierarchy-based queries. Ensure all tables maintain workspace isolation while supporting cross-page entity inheritance.",
+            "testStrategy": "Verify table creation with hierarchy fields and constraints work correctly, test array operations on page_hierarchy_path perform efficiently, validate page proximity calculations in relationships, ensure indexes improve hierarchical query performance"
           },
           {
             "id": 2,
-            "title": "Build Entity Extraction Service with OpenAI Integration",
-            "description": "Implement service to extract entities from content using OpenAI GPT-4 with structured output parsing",
-            "dependencies": [
-              "32.1"
-            ],
-            "details": "Create EntityExtractor class in app/services/knowledge-graph/entity-extractor.server.ts that uses OpenAI's function calling to extract entities (people, products, concepts, etc.) from text content. Parse the structured JSON response to identify entity names, types, descriptions, and relationships. Implement batch processing for multiple content blocks, handle rate limiting with exponential backoff, and store extracted entities in the database with proper deduplication logic.",
+            "title": "Build Hierarchical Entity Extraction Service",
+            "description": "Implement service to extract entities from entire page trees with inheritance from parent pages",
             "status": "pending",
-            "testStrategy": "Test entity extraction accuracy with sample content, verify deduplication works for similar entities, test batch processing handles 100+ blocks efficiently, validate OpenAI error handling and retry logic"
+            "dependencies": [
+              1
+            ],
+            "details": "Create EntityExtractor class that processes page trees instead of isolated pages. When extracting entities from a page, automatically include its position in the hierarchy (depth, ancestor path). Implement entity inheritance where entities from parent pages are accessible to child pages with appropriate proximity weighting. Use OpenAI to extract entities while maintaining hierarchical context. Support batch processing of entire page branches efficiently. Store extracted entities with full hierarchy metadata for later traversal.",
+            "testStrategy": "Test entity extraction from nested page trees maintains hierarchy metadata, verify parent page entities are properly inherited by children, test batch processing of 10+ level deep hierarchies, validate extraction performance with 50,000+ rows"
           },
           {
             "id": 3,
-            "title": "Implement Relationship Detection and Mapping Service",
-            "description": "Create service to identify and map relationships between entities with strength scoring",
-            "dependencies": [
-              "32.2"
-            ],
-            "details": "Build RelationshipMapper class that analyzes extracted entities to identify relationships like 'works_with', 'belongs_to', 'relates_to', etc. Calculate relationship strength based on proximity in text, co-occurrence frequency, and semantic similarity. Use OpenAI to classify relationship types and validate connections. Store relationships in the database with bidirectional support and handle transitive relationship inference.",
+            "title": "Implement Page Proximity-Based Relationship Mapping",
+            "description": "Create service to map entity relationships with strength boosting based on page hierarchy proximity",
             "status": "pending",
-            "testStrategy": "Verify relationship detection identifies common patterns correctly, test strength calculation produces meaningful scores, validate bidirectional relationships are properly stored, test transitive relationship inference works"
+            "dependencies": [
+              2
+            ],
+            "details": "Build RelationshipMapper that analyzes page proximity when creating entity relationships. Calculate proximity as: parent-child (directly connected pages), siblings (same parent), cousins (same grandparent), or distant (different branches). Apply strength multipliers: 2.0x for parent-child, 1.5x for siblings, 1.2x for cousins, 1.0x for distant. Store page proximity type with each relationship for query optimization. Handle edge cases like moved pages and orphaned entities.",
+            "testStrategy": "Verify proximity calculations correctly identify parent-child, sibling, and cousin relationships, test strength boosting produces expected multipliers, validate relationship updates when pages move in hierarchy"
           },
           {
             "id": 4,
-            "title": "Create Community Detection Algorithm Using Louvain Method",
-            "description": "Implement graph-based community detection to group related entities into hierarchical communities",
-            "dependencies": [
-              "32.3"
-            ],
-            "details": "Implement CommunityDetector class using PostgreSQL recursive CTEs to perform community detection based on the Louvain modularity optimization algorithm. Create hierarchical communities at multiple levels (0-3) where higher levels represent broader groupings. Generate AI-powered summaries for each community using GPT-4 to describe the group's main themes and relationships. Store communities with entity membership arrays and parent-child relationships.",
+            "title": "Create Hierarchy-Aware Community Detection",
+            "description": "Implement community detection that leverages page tree structure as natural community boundaries",
             "status": "pending",
-            "testStrategy": "Test community detection creates meaningful groupings from sample graph data, verify hierarchical structure maintains consistency, test summary generation produces accurate descriptions, validate performance with 10,000+ entities"
+            "dependencies": [
+              3
+            ],
+            "details": "Implement CommunityDetector that uses page hierarchy as the primary community structure. Pages in the same tree branch naturally form communities with their shared context. Use recursive CTEs to traverse page trees and group entities. Create multi-level communities where higher levels represent broader page branches. Generate AI summaries that capture the hierarchical nature of the community. Support dynamic community updates when pages are reorganized.",
+            "testStrategy": "Test communities correctly group entities from same page branches, verify multi-level communities maintain hierarchy consistency, test summary generation captures branch context, validate performance with deep page trees"
           },
           {
             "id": 5,
-            "title": "Integrate Knowledge Graph with Existing pgvector Infrastructure",
-            "description": "Connect knowledge graph entities with existing vector embeddings for hybrid search capabilities",
-            "dependencies": [
-              "32.1",
-              "32.2"
-            ],
-            "details": "Modify existing embedding generation service to link embeddings with entity IDs. Create bidirectional references between passage embeddings and extracted entities. Update the indexing pipeline to trigger entity extraction alongside embedding generation. Implement entity-aware similarity search that boosts results containing relevant entities. Ensure the integration maintains backward compatibility with existing RAG queries.",
+            "title": "Integrate with pgvector for Hybrid Hierarchical Search",
+            "description": "Connect knowledge graph with vector embeddings while maintaining page hierarchy context",
             "status": "pending",
-            "testStrategy": "Test entity-embedding linking maintains referential integrity, verify hybrid search returns entity-boosted results, test backward compatibility with existing vector search, validate performance impact is minimal"
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Modify embedding generation to include page hierarchy metadata in vector storage. Create bidirectional links between embeddings and entities with hierarchy paths. Implement hierarchy-aware similarity search that boosts results from same page branch. Support filtering embeddings by page depth or specific ancestor pages. Maintain backward compatibility while adding hierarchy features to existing vector search.",
+            "testStrategy": "Test embedding-entity links maintain hierarchy metadata, verify similarity search respects page proximity boosting, test filtering by page depth and ancestors works correctly, validate backward compatibility"
           },
           {
             "id": 6,
-            "title": "Build Hybrid Query Router for Intelligent Search Strategy",
-            "description": "Create query classification and routing system to choose optimal search strategy based on query type",
-            "dependencies": [
-              "32.4",
-              "32.5"
-            ],
-            "details": "Implement QueryRouter class in app/services/knowledge-graph/query-router.server.ts that classifies queries as factual, relationship-based, semantic, or exploratory using OpenAI. Route factual queries through graph traversal using recursive CTEs, semantic queries through vector search, and complex queries through hybrid approach. Implement query entity extraction to identify entities mentioned in user queries. Build result merging logic that combines graph and vector results with proper ranking.",
+            "title": "Build Hierarchy-Aware Query Router with Context Operators",
+            "description": "Create intelligent query routing that supports @parent, @ancestors, and @children context operators",
             "status": "pending",
-            "testStrategy": "Test query classification accuracy across different query types, verify graph traversal returns correct entity paths, test hybrid search merges results properly, validate performance meets <200ms requirement"
+            "dependencies": [
+              4,
+              5
+            ],
+            "details": "Implement QueryRouter that parses context operators in queries: @parent (search parent page only), @ancestors (search all ancestor pages), @children (search descendant pages), @siblings (search pages with same parent). Route queries based on both content type and hierarchical context. Implement hierarchical filtering in graph traversal queries using page_hierarchy_path arrays. Build result ranking that considers page proximity to the current context. Support combining multiple context operators.",
+            "testStrategy": "Test context operators correctly filter search scope, verify @parent/@ancestors/@children return appropriate results, test combination of operators works, validate performance with deep hierarchies"
           },
           {
             "id": 7,
-            "title": "Implement Database Block Entity Extraction Pipeline",
-            "description": "Create specialized extraction pipeline for database blocks that processes structured data at scale",
-            "dependencies": [
-              "32.2",
-              "32.6"
-            ],
-            "details": "Build DatabaseBlockEntityExtractor that processes database block rows to extract entities from structured data. Handle different column types (text, select, multi-select, relation) with appropriate extraction strategies. Implement batched processing for 50,000+ rows using cursor-based pagination. Create entity relationships based on database block relations and foreign keys. Include formula column results in entity extraction when they produce meaningful text.",
+            "title": "Implement Hierarchical Summarization Service",
+            "description": "Create service that bubbles up important entities from child pages to parent summaries",
             "status": "pending",
-            "testStrategy": "Test extraction from 50,000 row database block completes within 5 minutes, verify entities are correctly extracted from different column types, test relationship creation from database relations, validate memory usage stays under 1GB"
+            "dependencies": [
+              2,
+              6
+            ],
+            "details": "Build HierarchicalSummarizer that creates multi-level summaries of page trees. Identify important entities in child pages using frequency, relationship count, and AI ranking. Bubble up key entities to parent page summaries while maintaining context. Generate hierarchical summaries that capture both local page content and inherited child context. Use these summaries for token-efficient GraphRAG queries. Update summaries incrementally when child pages change.",
+            "testStrategy": "Test entity importance ranking identifies key entities correctly, verify bubbling up maintains proper context, test summaries accurately represent page trees, validate incremental updates work efficiently"
           },
           {
             "id": 8,
-            "title": "Create Performance Testing and Optimization Suite",
-            "description": "Build comprehensive testing framework and optimize the knowledge graph system for production scale",
-            "dependencies": [
-              "32.1",
-              "32.2",
-              "32.3",
-              "32.4",
-              "32.5",
-              "32.6",
-              "32.7"
-            ],
-            "details": "Implement load testing suite that validates entity extraction at 50,000+ record scale, graph traversal performance with 100,000+ entities, and community detection with complex graph structures. Add database indexes for frequently accessed paths including composite indexes for workspace-based queries. Implement query result caching using Redis for repeated graph traversals. Monitor and optimize token usage to achieve 26-97% reduction compared to standard RAG. Create performance dashboard to track extraction speed, query latency, and token savings.",
+            "title": "Process Database Blocks Within Page Hierarchy",
+            "description": "Adapt database block entity extraction to work with page tree structure",
             "status": "pending",
-            "testStrategy": "Load test with production-scale data (50k+ rows, 100k+ entities), verify 90%+ entity extraction accuracy, test query response times stay under 200ms, validate token usage reduction meets targets"
+            "dependencies": [
+              2,
+              7
+            ],
+            "details": "Extend DatabaseBlockEntityExtractor to process database blocks within their page hierarchy context. Extract entities from structured data while maintaining page depth and ancestry information. Handle relation columns that reference entities in other pages, respecting hierarchy. Process 50,000+ row database blocks efficiently using the page tree for natural batching. Create relationships between database entities and page-level entities based on hierarchy proximity.",
+            "testStrategy": "Test extraction from large database blocks maintains hierarchy context, verify cross-page relations respect hierarchy, test 50,000+ row processing completes in 5 minutes, validate memory usage stays reasonable"
+          },
+          {
+            "id": 9,
+            "title": "Create Performance Testing Suite for Hierarchical System",
+            "description": "Build comprehensive testing and optimization for hierarchy-aware knowledge graph",
+            "status": "pending",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "details": "Implement load testing that validates performance with deeply nested page hierarchies (10+ levels). Test entity extraction at scale with 100,000+ entities across complex page trees. Verify graph traversal with hierarchy filtering maintains sub-200ms response times. Monitor token usage reduction (target 26-97% savings) when using hierarchical summaries. Create performance dashboard tracking extraction speed, query latency, hierarchy depth impact, and token savings. Add database indexes optimized for array operations and hierarchical queries.",
+            "testStrategy": "Load test with 10+ level hierarchies and 100k+ entities, verify query response times <200ms with hierarchy filtering, test token reduction meets 26-97% target, validate system handles page reorganization efficiently"
           }
         ]
       },
@@ -4348,11 +4361,118 @@
             "parentTaskId": 33
           }
         ]
+      },
+      {
+        "id": 34,
+        "title": "Implement Migration from Project-Based to Notion-Style Subpage Hierarchy",
+        "description": "Transform the current Workspace→Project→Page structure to a direct Workspace→Page hierarchy with infinite nesting capabilities, preserving all data with zero downtime and enabling natural inheritance through page hierarchies",
+        "details": "1. **Database Schema Migration with Backwards Compatibility**:\n```sql\n-- Add hierarchy columns to pages table\nALTER TABLE pages ADD COLUMN parent_id UUID REFERENCES pages(id);\nALTER TABLE pages ADD COLUMN path_ids UUID[] DEFAULT '{}';\nALTER TABLE pages ADD COLUMN depth INTEGER DEFAULT 0;\nALTER TABLE pages ADD COLUMN position INTEGER DEFAULT 0;\nALTER TABLE pages ADD COLUMN is_migrated BOOLEAN DEFAULT FALSE;\n\n-- Create materialized path index for efficient tree queries\nCREATE INDEX idx_pages_path_ids ON pages USING GIN (path_ids);\nCREATE INDEX idx_pages_parent_id ON pages (parent_id);\nCREATE INDEX idx_pages_workspace_parent ON pages (workspace_id, parent_id, position);\n\n-- Create migration tracking table\nCREATE TABLE hierarchy_migration_status (\n  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n  workspace_id UUID REFERENCES workspaces(id),\n  project_id UUID,\n  migration_phase TEXT, -- 'preparing', 'migrating', 'validating', 'completed'\n  pages_migrated INTEGER DEFAULT 0,\n  total_pages INTEGER,\n  started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n  completed_at TIMESTAMP WITH TIME ZONE\n);\n\n-- Function to update materialized paths\nCREATE OR REPLACE FUNCTION update_page_paths() RETURNS TRIGGER AS $$\nBEGIN\n  IF NEW.parent_id IS NULL THEN\n    NEW.path_ids = ARRAY[NEW.id];\n    NEW.depth = 0;\n  ELSE\n    SELECT path_ids || NEW.id, depth + 1\n    INTO NEW.path_ids, NEW.depth\n    FROM pages WHERE id = NEW.parent_id;\n  END IF;\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\n\nCREATE TRIGGER page_path_trigger\nBEFORE INSERT OR UPDATE OF parent_id ON pages\nFOR EACH ROW EXECUTE FUNCTION update_page_paths();\n```\n\n2. **Zero-Downtime Migration Strategy**:\n```typescript\n// app/services/hierarchy-migration.server.ts\nexport class HierarchyMigrationService {\n  async migrateWorkspace(workspaceId: string, options: MigrationOptions) {\n    // Phase 1: Prepare dual-write mode\n    await this.enableDualWriteMode(workspaceId);\n    \n    // Phase 2: Migrate existing project structure\n    const projects = await prisma.project.findMany({\n      where: { workspaceId },\n      include: { pages: true }\n    });\n    \n    for (const project of projects) {\n      // Create project as top-level page\n      const projectPage = await prisma.page.create({\n        data: {\n          workspaceId,\n          title: project.name,\n          type: 'project_container',\n          parent_id: null,\n          metadata: { originalProjectId: project.id },\n          is_migrated: true\n        }\n      });\n      \n      // Migrate project pages as children\n      await this.migrateProjectPages(project.pages, projectPage.id);\n    }\n    \n    // Phase 3: Switch read path to new hierarchy\n    await this.switchReadPath(workspaceId);\n    \n    // Phase 4: Validate and cleanup\n    await this.validateMigration(workspaceId);\n  }\n  \n  async enableDualWriteMode(workspaceId: string) {\n    // Configure service layer to write to both old and new structures\n    await prisma.workspaceConfig.upsert({\n      where: { workspaceId },\n      create: { workspaceId, dualWriteEnabled: true },\n      update: { dualWriteEnabled: true }\n    });\n  }\n}\n```\n\n3. **Service Layer Modifications for Hierarchy Permissions**:\n```typescript\n// app/services/page-hierarchy.server.ts\nexport class PageHierarchyService {\n  async getPageWithAncestors(pageId: string) {\n    const page = await prisma.$queryRaw`\n      WITH RECURSIVE page_tree AS (\n        SELECT * FROM pages WHERE id = ${pageId}\n        UNION ALL\n        SELECT p.* FROM pages p\n        INNER JOIN page_tree pt ON p.id = pt.parent_id\n      )\n      SELECT * FROM page_tree ORDER BY depth;\n    `;\n    return page;\n  }\n  \n  async checkInheritedPermissions(userId: string, pageId: string) {\n    const ancestors = await this.getPageWithAncestors(pageId);\n    \n    // Check permissions from root to leaf\n    for (const ancestor of ancestors) {\n      const permission = await prisma.pagePermission.findFirst({\n        where: {\n          pageId: ancestor.id,\n          OR: [\n            { userId },\n            { role: { users: { some: { id: userId } } } }\n          ]\n        }\n      });\n      \n      if (permission) {\n        return this.mergePermissions(permission, ancestor.depth);\n      }\n    }\n    \n    return null;\n  }\n  \n  async moveSubtree(pageId: string, newParentId: string | null) {\n    // Get all descendants\n    const descendants = await prisma.$queryRaw`\n      SELECT id, path_ids, depth FROM pages\n      WHERE ${pageId} = ANY(path_ids)\n      ORDER BY depth;\n    `;\n    \n    // Update paths in transaction\n    await prisma.$transaction(async (tx) => {\n      for (const desc of descendants) {\n        const newPath = await this.calculateNewPath(desc.id, newParentId);\n        await tx.page.update({\n          where: { id: desc.id },\n          data: { path_ids: newPath, depth: newPath.length - 1 }\n        });\n      }\n    });\n  }\n}\n```\n\n4. **API Endpoints for Page Tree Operations**:\n```typescript\n// app/routes/api.pages.$pageId.tree.ts\nexport const loader: LoaderFunction = async ({ params }) => {\n  const tree = await prisma.$queryRaw`\n    WITH RECURSIVE page_tree AS (\n      SELECT *, 0 as level FROM pages WHERE id = ${params.pageId}\n      UNION ALL\n      SELECT p.*, pt.level + 1 FROM pages p\n      INNER JOIN page_tree pt ON p.parent_id = pt.id\n    )\n    SELECT * FROM page_tree ORDER BY level, position;\n  `;\n  \n  return json({ tree: buildTreeStructure(tree) });\n};\n\n// app/routes/api.pages.move.ts\nexport const action: ActionFunction = async ({ request }) => {\n  const { pageId, targetParentId, position } = await request.json();\n  \n  // Validate no circular references\n  if (targetParentId) {\n    const isDescendant = await checkIfDescendant(pageId, targetParentId);\n    if (isDescendant) {\n      return json({ error: 'Cannot move page to its own descendant' }, 400);\n    }\n  }\n  \n  await pageHierarchyService.moveSubtree(pageId, targetParentId);\n  return json({ success: true });\n};\n```\n\n5. **UI Components for Nested Navigation**:\n```typescript\n// app/components/PageTree.tsx\nexport function PageTree({ workspaceId, currentPageId }: PageTreeProps) {\n  const [expanded, setExpanded] = useState<Set<string>>(new Set());\n  const { data: tree } = useFetcher();\n  \n  return (\n    <DndContext onDragEnd={handleDragEnd}>\n      <SortableContext items={tree.pages}>\n        <TreeNode\n          pages={tree.pages}\n          level={0}\n          expanded={expanded}\n          onToggle={toggleExpanded}\n          currentPageId={currentPageId}\n        />\n      </SortableContext>\n    </DndContext>\n  );\n}\n\n// app/components/TreeNode.tsx\nfunction TreeNode({ page, level, children }: TreeNodeProps) {\n  const { attributes, listeners, setNodeRef, transform } = useSortable({\n    id: page.id,\n    data: { type: 'page', page }\n  });\n  \n  return (\n    <div\n      ref={setNodeRef}\n      style={{\n        transform: CSS.Transform.toString(transform),\n        paddingLeft: `${level * 20}px`\n      }}\n      {...attributes}\n      {...listeners}\n    >\n      <div className=\"flex items-center gap-2\">\n        {children?.length > 0 && <ChevronIcon />}\n        <PageIcon type={page.type} />\n        <span>{page.title}</span>\n      </div>\n      {expanded && children && (\n        <div className=\"ml-4\">\n          {children.map(child => (\n            <TreeNode key={child.id} page={child} level={level + 1} />\n          ))}\n        </div>\n      )}\n    </div>\n  );\n}\n```\n\n6. **AI Context Flow Through Hierarchies**:\n```typescript\n// app/services/ai-hierarchy-context.server.ts\nexport class AIHierarchyContextService {\n  async buildHierarchicalContext(pageId: string, maxDepth = 3) {\n    const context = [];\n    \n    // Get ancestors for context\n    const ancestors = await this.getAncestors(pageId, maxDepth);\n    for (const ancestor of ancestors) {\n      context.push({\n        level: 'ancestor',\n        depth: ancestor.depth,\n        content: await this.summarizePage(ancestor.id),\n        metadata: ancestor.metadata\n      });\n    }\n    \n    // Get current page context\n    const currentPage = await this.getPageWithBlocks(pageId);\n    context.push({\n      level: 'current',\n      content: currentPage,\n      fullContent: true\n    });\n    \n    // Get children summaries\n    const children = await this.getChildren(pageId, 1);\n    for (const child of children) {\n      context.push({\n        level: 'child',\n        content: await this.summarizePage(child.id),\n        metadata: child.metadata\n      });\n    }\n    \n    return this.formatContextForAI(context);\n  }\n}\n```",
+        "testStrategy": "1. **Migration Integrity Tests**:\n   - Create test workspace with 100 projects containing 1000 total pages\n   - Run migration and verify all pages are accessible through new hierarchy\n   - Confirm no data loss by comparing checksums of page content before/after\n   - Verify all project→page relationships are preserved as parent→child\n\n2. **Zero Downtime Validation**:\n   - Start migration on active workspace with simulated user traffic\n   - Monitor API response times stay under 200ms during migration\n   - Verify dual-write mode maintains consistency between old and new structures\n   - Test rollback mechanism can revert to project structure if needed\n\n3. **Hierarchy Operations Testing**:\n   - Test moving page with 50 descendants completes in under 2 seconds\n   - Verify circular reference prevention when attempting invalid moves\n   - Test depth limits (max 10 levels) are enforced\n   - Confirm path_ids array updates correctly for all descendants\n\n4. **Permission Inheritance Tests**:\n   - Create 5-level deep hierarchy with different permissions at each level\n   - Verify user access correctly inherits from nearest ancestor with permissions\n   - Test permission changes propagate to descendants within 100ms\n   - Confirm workspace admin can always access all pages regardless of hierarchy\n\n5. **UI Component Tests**:\n   - Load tree with 1000 nodes and verify rendering under 500ms\n   - Test drag-and-drop moves update database and UI correctly\n   - Verify expand/collapse state persists across page refreshes\n   - Test keyboard navigation through tree structure\n\n6. **AI Context Flow Tests**:\n   - Create hierarchy with rich content at multiple levels\n   - Verify AI receives appropriate context from ancestors (summaries) and current page (full)\n   - Test context size limits are respected (max 50KB per request)\n   - Confirm AI can reference parent page information when generating child content",
+        "status": "done",
+        "dependencies": [
+          2,
+          4,
+          6,
+          19
+        ],
+        "priority": "medium",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Database Schema Migration - Make projectId Optional",
+            "description": "Modify pages table to make projectId nullable while preserving existing data and relationships",
+            "details": "1. Create migration file: prisma/migrations/make_project_id_optional\n2. Alter pages table: ALTER TABLE pages ALTER COLUMN project_id DROP NOT NULL\n3. Ensure workspace_id is set for all pages from their projects\n4. Add indexes for workspace-based queries\n5. Update Prisma schema to reflect nullable projectId\n6. Test with existing data to ensure no breaks",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 34
+          },
+          {
+            "id": 2,
+            "title": "Create Page Hierarchy Service Layer",
+            "description": "Implement PageHierarchyService with methods for managing page trees, permissions inheritance, and navigation",
+            "details": "File: app/services/page-hierarchy.server.ts\nMethods to implement:\n- createWorkspacePage(): Create pages directly under workspace\n- validatePageHierarchyPermissions(): Check permissions through parent chain\n- getPageWithAncestors(): Retrieve page with full ancestor chain\n- moveSubtree(): Move page and all descendants to new parent\n- getPagePath(): Build breadcrumb path for page\n- checkCircularReference(): Prevent page becoming its own ancestor",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 34
+          },
+          {
+            "id": 3,
+            "title": "Remove Project-Specific Routes and APIs",
+            "description": "Remove or redirect all 17 project-dependent routes and 9 project-specific API endpoints",
+            "details": "Files to modify/remove:\n- app/routes/projects.tsx\n- app/routes/projects.$projectId.tsx\n- app/routes/app.projects._index.tsx\n- app/routes/app.projects.new.tsx\n- app/routes/app.project.$projectId.tsx\n- app/routes/api.projects.tsx\n- app/routes/api.projects.search.tsx\n- app/routes/api.projects.$projectId.pages.tsx\n- app/routes/api.projects.$projectId.collaborators.tsx\nCreate redirects from old URLs to new workspace/page structure",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 34
+          },
+          {
+            "id": 4,
+            "title": "Build PageTreeNavigation UI Component",
+            "description": "Create React component for nested page navigation with expand/collapse, drag-and-drop, and visual hierarchy",
+            "details": "File: app/components/navigation/PageTreeNavigation.tsx\nFeatures:\n- Recursive tree rendering with infinite nesting\n- Expand/collapse state management with localStorage persistence\n- Drag-and-drop to reorganize pages (using @dnd-kit/sortable)\n- Visual indentation based on depth level\n- Current page highlighting\n- Keyboard navigation support (arrow keys)\n- Context menu for page operations (create child, delete, rename)",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 34
+          },
+          {
+            "id": 5,
+            "title": "Create Data Migration Script for Existing Projects",
+            "description": "Build script to migrate all existing project-page relationships to workspace-page hierarchy structure",
+            "details": "File: scripts/migrate-projects-to-pages.ts\nOperations:\n1. For each project, create a root page with project metadata\n2. Update all pages to set workspace_id from their project\n3. Transform project pages into children of new root page\n4. Preserve all page content, blocks, and metadata\n5. Create migration log for rollback capability\n6. Batch processing for large datasets (process 100 pages at a time)\n7. Progress tracking and error recovery",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 34
+          },
+          {
+            "id": 6,
+            "title": "Update Editor Route for Direct Page Access",
+            "description": "Modify editor.$pageId.tsx to work without project context and validate permissions through page hierarchy",
+            "details": "File: app/routes/editor.$pageId.tsx\nChanges:\n1. Remove project fetching and validation (lines 22-30)\n2. Check workspace access directly through page.workspaceId\n3. Update permission checks to use PageHierarchyService\n4. Modify breadcrumb generation to show page ancestry\n5. Update page creation to work without projectId\n6. Ensure block editor receives correct hierarchy context",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 34
+          },
+          {
+            "id": 7,
+            "title": "Implement AI Hierarchical Context Service",
+            "description": "Create service to provide AI with page hierarchy context including parent, ancestors, and sibling information",
+            "details": "File: app/services/ai/page-context-hierarchy.server.ts\nFunctions:\n1. getHierarchicalContext(): Retrieve full page context with ancestors/descendants\n2. resolveParentContext(): Support @parent context reference in AI commands\n3. resolveAncestorsContext(): Support @ancestors context reference\n4. extractPageSummary(): Generate summaries for parent/child context\n5. buildContextPrompt(): Format hierarchy data for AI consumption\n6. Support context depth limits to manage token usage",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 34
+          },
+          {
+            "id": 8,
+            "title": "Update Main App Navigation Sidebar",
+            "description": "Replace project-based navigation in app.tsx sidebar with page tree navigation",
+            "details": "File: app/routes/app.tsx\nChanges needed (lines 286-333):\n1. Remove Projects section with expand/collapse\n2. Replace with PageTreeNavigation component\n3. Update navigation to fetch workspace root pages\n4. Remove 'New project' link, add 'New page' action\n5. Update state management for expanded pages instead of projects\n6. Ensure navigation updates when pages are created/moved",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 34
+          },
+          {
+            "id": 9,
+            "title": "Create Comprehensive Test Suite for Migration",
+            "description": "Build tests to validate data integrity, permission inheritance, and UI functionality during and after migration",
+            "details": "Files: app/services/__tests__/page-hierarchy.test.ts, scripts/__tests__/migration.test.ts\nTest cases:\n1. Verify all pages accessible after migration\n2. Test permission inheritance through 5-level hierarchy\n3. Validate no circular references in page moves\n4. Ensure workspace isolation maintained\n5. Test rollback restores original project structure\n6. Verify UI tree renders 1000+ pages efficiently\n7. Test AI context includes correct ancestor information",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 34
+          },
+          {
+            "id": 10,
+            "title": "Implement Rollback Strategy and Safety Mechanisms",
+            "description": "Create emergency rollback procedure and monitoring to safely revert to project structure if issues arise",
+            "details": "File: scripts/rollback-to-projects.ts\nComponents:\n1. Backup current state before migration begins\n2. Track migration progress in database table\n3. Implement rollback script to restore project structure\n4. Create health checks for hierarchy operations\n5. Add feature flags for gradual rollout\n6. Monitor query performance during transition\n7. Set up alerts for anomalies in page access patterns\n8. Document rollback procedures for operations team",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 34
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-09-02T04:35:44.189Z",
+      "updated": "2025-09-03T16:56:17.331Z",
       "description": "Tasks for master context"
     }
   }
