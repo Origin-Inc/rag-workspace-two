@@ -34,7 +34,7 @@ interface QueryCacheKey {
   pageSize?: number;
 }
 
-class DatabaseBlockCacheService {
+export class DatabaseBlockCacheService {
   // L1: In-memory LRU cache
   private memoryCache: LRUCache<string, CacheEntry<any>>;
   
