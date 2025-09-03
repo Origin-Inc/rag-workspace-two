@@ -3,20 +3,6 @@
   "outputDirectory": "public",
   "framework": "remix",
   "regions": ["iad1"],
-  "functions": {
-    "app/routes/api.*.ts": {
-      "maxDuration": 30
-    },
-    "app/routes/api.*.tsx": {
-      "maxDuration": 30
-    },
-    "app/routes/editor.$pageId.tsx": {
-      "maxDuration": 60
-    },
-    "app/routes/api.cron.indexing.ts": {
-      "maxDuration": 30
-    }
-  },
   "crons": [
     {
       "path": "/api/cron/indexing",
