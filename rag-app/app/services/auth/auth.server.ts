@@ -30,6 +30,7 @@ export { generateAccessToken, verifyAccessToken } from './jwt.server';
 // Backward compatibility functions
 export const requireAuthenticatedUser = _requireUser;
 export const getAuthenticatedUser = _getUser;
+export const requireAuth = _requireUser; // Alias for routes expecting requireAuth
 
 // Permission helper
 export async function requirePermission(

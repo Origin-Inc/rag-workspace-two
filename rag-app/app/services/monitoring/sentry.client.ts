@@ -1,6 +1,13 @@
-import * as Sentry from '@sentry/remix';
+// Sentry integration temporarily disabled - uncomment when @sentry/remix is installed
+// import * as Sentry from '@sentry/remix';
 
 export function initSentry() {
+  // Sentry initialization disabled until package is installed
+  console.log('Sentry monitoring not configured');
+  return;
+  
+  // Original code preserved for when Sentry is enabled:
+  /*
   // Only initialize in production or staging environments
   if (typeof window === 'undefined') return;
   
@@ -55,9 +62,15 @@ export function initSentry() {
       build: env.BUILD_ID || 'unknown',
     });
   });
+  */
 }
 
 export function captureException(error: Error, context?: Record<string, any>) {
+  // Log to console until Sentry is configured
+  console.error('Error captured:', error, context);
+  return;
+  
+  /*
   const env = (window as any).ENV || {};
   if (env.NODE_ENV === 'development' && !env.ENABLE_SENTRY_DEV) {
     console.error('Error captured (Sentry disabled):', error, context);
@@ -72,26 +85,39 @@ export function captureException(error: Error, context?: Record<string, any>) {
     }
     Sentry.captureException(error);
   });
+  */
 }
 
-export function captureMessage(message: string, level: Sentry.SeverityLevel = 'info') {
+export function captureMessage(message: string, level: string = 'info') {
+  // Log to console until Sentry is configured
+  console.log(`Message captured (${level}):`, message);
+  return;
+  
+  /*
   const env = (window as any).ENV || {};
   if (env.NODE_ENV === 'development' && !env.ENABLE_SENTRY_DEV) {
     console.log(`Message captured (${level}):`, message);
     return;
   }
   
-  Sentry.captureMessage(message, level);
+  Sentry.captureMessage(message, level as Sentry.SeverityLevel);
+  */
 }
 
 export function setUser(user: { id: string; email?: string; username?: string }) {
-  Sentry.setUser(user);
+  // Disabled until Sentry is configured
+  console.log('User context:', user);
+  // Sentry.setUser(user);
 }
 
 export function clearUser() {
-  Sentry.setUser(null);
+  // Disabled until Sentry is configured
+  console.log('User context cleared');
+  // Sentry.setUser(null);
 }
 
-export function addBreadcrumb(breadcrumb: Sentry.Breadcrumb) {
-  Sentry.addBreadcrumb(breadcrumb);
+export function addBreadcrumb(breadcrumb: any) {
+  // Disabled until Sentry is configured
+  console.log('Breadcrumb:', breadcrumb);
+  // Sentry.addBreadcrumb(breadcrumb);
 }
