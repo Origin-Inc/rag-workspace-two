@@ -23,7 +23,7 @@ export type { AuthUser };
 export type AuthenticatedUser = AuthUser; // Alias for backward compatibility
 
 // Additional exports for specific use cases
-export { sessionStorage } from './session.server';
+export { sessionStorage, createUserSession } from './session.server';
 export { hashPassword, verifyPassword } from './password.server';
 export { generateAccessToken, verifyAccessToken } from './jwt.server';
 

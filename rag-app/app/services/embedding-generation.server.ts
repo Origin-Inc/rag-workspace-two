@@ -359,8 +359,9 @@ export class EmbeddingGenerationService {
         
         // Use the search_embeddings function from our migration
         // Build the query based on whether pageId is provided
+        // Use Prisma.sql for proper type handling
         const results = pageId 
-          ? await prisma.$queryRaw<any[]>`
+          ? await prisma.$queryRawUnsafe<any[]>(`
               SELECT 
                 source_type,
                 entity_id,
@@ -369,14 +370,14 @@ export class EmbeddingGenerationService {
                 similarity,
                 metadata
               FROM search_embeddings(
-                ${vectorString}::vector,
-                ${workspaceId}::uuid,
-                ${pageId}::uuid,
-                ${limit}::integer,
-                ${similarityThreshold}::float
+                $1::vector,
+                $2::uuid,
+                $3::uuid,
+                $4::integer,
+                $5::float
               )
-            `
-          : await prisma.$queryRaw<any[]>`
+            `, vectorString, workspaceId, pageId, limit, similarityThreshold)
+          : await prisma.$queryRawUnsafe<any[]>(`
               SELECT 
                 source_type,
                 entity_id,
@@ -385,13 +386,13 @@ export class EmbeddingGenerationService {
                 similarity,
                 metadata
               FROM search_embeddings(
-                ${vectorString}::vector,
-                ${workspaceId}::uuid,
+                $1::vector,
+                $2::uuid,
                 NULL::uuid,
-                ${limit}::integer,
-                ${similarityThreshold}::float
+                $3::integer,
+                $4::float
               )
-            `;
+            `, vectorString, workspaceId, limit, similarityThreshold);
         
         this.logger.info('✅ Vector search completed', { 
           resultsCount: results.length,
@@ -420,8 +421,9 @@ export class EmbeddingGenerationService {
       } else {
         // Use text-only search on unified view
         this.logger.info('📝 Using text-only search fallback (no embedding)');
+        const searchPattern = `%${queryText}%`;
         const results = pageId
-          ? await prisma.$queryRaw<any[]>`
+          ? await prisma.$queryRawUnsafe<any[]>(`
               SELECT 
                 source_type,
                 entity_id,
@@ -431,12 +433,12 @@ export class EmbeddingGenerationService {
                 0.5 as similarity
               FROM unified_embeddings
               WHERE 
-                workspace_id = ${workspaceId}::uuid
-                AND page_id = ${pageId}::uuid
-                AND chunk_text ILIKE ${'%' + queryText + '%'}
-              LIMIT ${limit}
-            `
-          : await prisma.$queryRaw<any[]>`
+                workspace_id = $1::uuid
+                AND page_id = $2::uuid
+                AND chunk_text ILIKE $3
+              LIMIT $4
+            `, workspaceId, pageId, searchPattern, limit)
+          : await prisma.$queryRawUnsafe<any[]>(`
               SELECT 
                 source_type,
                 entity_id,
@@ -446,10 +448,10 @@ export class EmbeddingGenerationService {
                 0.5 as similarity
               FROM unified_embeddings
               WHERE 
-                workspace_id = ${workspaceId}::uuid
-                AND chunk_text ILIKE ${'%' + queryText + '%'}
-              LIMIT ${limit}
-            `;
+                workspace_id = $1::uuid
+                AND chunk_text ILIKE $2
+              LIMIT $3
+            `, workspaceId, searchPattern, limit);
         
         return results.map((r: any) => ({
           id: r.entity_id,
