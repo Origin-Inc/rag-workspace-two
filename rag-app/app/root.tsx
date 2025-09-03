@@ -47,11 +47,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // Pass environment variables to the client
   return json({
     env: {
-      SUPABASE_URL: process.env["SUPABASE_URL"],
-      SUPABASE_ANON_KEY: process.env["SUPABASE_ANON_KEY"],
-      SENTRY_DSN: process.env["SENTRY_DSN"],
-      NODE_ENV: process.env.NODE_ENV,
-      ENABLE_SENTRY_DEV: process.env["ENABLE_SENTRY_DEV"],
+      SUPABASE_URL: process.env["SUPABASE_URL"] || "",
+      SUPABASE_ANON_KEY: process.env["SUPABASE_ANON_KEY"] || "",
+      SENTRY_DSN: process.env["SENTRY_DSN"] || "",
+      NODE_ENV: process.env.NODE_ENV || "development",
+      ENABLE_SENTRY_DEV: process.env["ENABLE_SENTRY_DEV"] || "false",
     },
   });
 }
