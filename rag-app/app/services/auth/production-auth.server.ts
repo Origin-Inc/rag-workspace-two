@@ -166,7 +166,12 @@ export async function signIn(
   email: string,
   password: string
 ): Promise<{ user: AuthUser; sessionToken: string } | { error: string }> {
+  console.log('[SIGNIN] Starting signin attempt for email:', email);
+  console.log('[SIGNIN] Environment:', process.env.NODE_ENV);
+  console.log('[SIGNIN] Database URL prefix:', process.env.DATABASE_URL?.substring(0, 50));
+  
   try {
+    console.log('[SIGNIN] Step 1: Looking up user in database');
     // Find user
     const user = await prisma.user.findUnique({
       where: { email },
@@ -192,43 +197,82 @@ export async function signIn(
       }
     });
 
+    console.log('[SIGNIN] Step 2: User lookup result');
+    console.log('[SIGNIN] User found:', !!user);
+    if (user) {
+      console.log('[SIGNIN] User ID:', user.id);
+      console.log('[SIGNIN] User email:', user.email);
+      console.log('[SIGNIN] User has password hash:', !!user.passwordHash);
+      console.log('[SIGNIN] Password hash length:', user.passwordHash?.length);
+      console.log('[SIGNIN] UserWorkspaces count:', user.userWorkspaces?.length);
+    }
+
     if (!user) {
+      console.log('[SIGNIN] User not found for email:', email);
       return { error: "Invalid email or password" };
     }
 
+    console.log('[SIGNIN] Step 3: Verifying password');
+    console.log('[SIGNIN] Input password length:', password?.length);
     // Verify password
     const isValid = await verifyPassword(password, user.passwordHash);
+    console.log('[SIGNIN] Password verification result:', isValid);
     if (!isValid) {
+      console.log('[SIGNIN] Password verification failed');
       return { error: "Invalid email or password" };
     }
 
+    console.log('[SIGNIN] Step 4: Checking lockout status');
     // Check if user is locked out
     if (user.lockoutUntil && user.lockoutUntil > new Date()) {
+      console.log('[SIGNIN] User is locked out until:', user.lockoutUntil);
       return { error: "Your account is temporarily locked. Please try again later." };
     }
+    console.log('[SIGNIN] User not locked out');
 
+    console.log('[SIGNIN] Step 5: Getting user workspace');
     // Get first workspace
     const userWorkspace = user.userWorkspaces[0];
+    console.log('[SIGNIN] UserWorkspace found:', !!userWorkspace);
+    if (userWorkspace) {
+      console.log('[SIGNIN] Workspace ID:', userWorkspace.workspaceId);
+      console.log('[SIGNIN] Role ID:', userWorkspace.roleId);
+      console.log('[SIGNIN] Role name:', userWorkspace.role?.name);
+      console.log('[SIGNIN] Permissions count:', userWorkspace.role?.permissions?.length);
+    }
+    
     if (!userWorkspace) {
+      console.log('[SIGNIN] ERROR: No workspace found for user');
       return { error: "No workspace found for this user" };
     }
 
+    console.log('[SIGNIN] Step 6: Creating session');
     // Create session
     const sessionToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+    console.log('[SIGNIN] Session token generated, length:', sessionToken.length);
+    console.log('[SIGNIN] Session expires at:', expiresAt);
 
-    await prisma.session.create({
-      data: {
-        userId: user.id,
-        token: sessionToken,
-        expiresAt
-      }
-    });
+    try {
+      const session = await prisma.session.create({
+        data: {
+          userId: user.id,
+          token: sessionToken,
+          expiresAt
+        }
+      });
+      console.log('[SIGNIN] Session created with ID:', session.id);
+    } catch (sessionError) {
+      console.error('[SIGNIN] ERROR creating session:', sessionError);
+      throw sessionError;
+    }
 
+    console.log('[SIGNIN] Step 7: Building permissions array');
     const permissions = userWorkspace.role.permissions.map(
       rp => `${rp.permission.resource}:${rp.permission.action}`
     );
+    console.log('[SIGNIN] Permissions built:', permissions.length, 'permissions');
 
     const authUser: AuthUser = {
       id: user.id,
@@ -239,9 +283,17 @@ export async function signIn(
       permissions
     };
 
+    console.log('[SIGNIN] Step 8: Signin successful');
+    console.log('[SIGNIN] Returning user:', authUser.email, 'with workspace:', authUser.workspaceId);
     return { user: authUser, sessionToken };
   } catch (error) {
     console.error('Signin error:', error);
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      console.error('Detailed signin error:', error.message, error.stack);
+      // Return the actual error message for debugging
+      return { error: `Signin failed: ${error.message}` };
+    }
     return { error: "Failed to sign in. Please try again." };
   }
 }
