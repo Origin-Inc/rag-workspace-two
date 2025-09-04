@@ -1,9 +1,8 @@
-import { json, redirect } from "@remix-run/node";
+import { redirect } from "@remix-run/node";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { Form, Link, useActionData } from "@remix-run/react";
 import { signUp, getUser } from "~/services/auth/production-auth.server";
 import { sessionStorage } from "~/services/auth/session.server";
-import { createUserSession } from "~/services/auth/auth.server";
 import { z } from "zod";
 
 const signupSchema = z.object({
@@ -23,7 +22,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return redirect('/app');
   }
   
-  return json({});
+  return {};
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -42,25 +41,20 @@ export async function action({ request }: ActionFunctionArgs) {
   });
 
   if (!validation.success) {
-    return json(
-      { 
-        error: validation.error.errors[0].message,
-        values: { email, name }
-      },
-      { status: 400 }
-    );
+    const firstError = validation.error.errors[0];
+    return { 
+      error: firstError?.message || "Validation failed",
+      values: { email, name }
+    };
   }
 
   const result = await signUp(email, password, name);
 
   if ('error' in result) {
-    return json(
-      { 
-        error: result.error,
-        values: { email, name }
-      },
-      { status: 400 }
-    );
+    return { 
+      error: result.error,
+      values: { email, name }
+    };
   }
 
   // Create session cookie
@@ -104,7 +98,7 @@ export default function SignUp() {
                 type="text"
                 autoComplete="name"
                 defaultValue={actionData?.values?.name}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm text-gray-900"
                 placeholder="John Doe"
               />
             </div>
@@ -120,7 +114,7 @@ export default function SignUp() {
                 autoComplete="email"
                 required
                 defaultValue={actionData?.values?.email}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm text-gray-900"
                 placeholder="you@example.com"
               />
             </div>
@@ -135,7 +129,7 @@ export default function SignUp() {
                 type="password"
                 autoComplete="new-password"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm text-gray-900"
                 placeholder="••••••••"
               />
               <p className="mt-1 text-xs text-gray-500">
@@ -153,7 +147,7 @@ export default function SignUp() {
                 type="password"
                 autoComplete="new-password"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm text-gray-900"
                 placeholder="••••••••"
               />
             </div>

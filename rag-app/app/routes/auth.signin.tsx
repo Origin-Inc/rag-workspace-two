@@ -1,4 +1,4 @@
-import { json, redirect } from "@remix-run/node";
+import { redirect } from "@remix-run/node";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { Form, Link, useActionData } from "@remix-run/react";
 import { signIn, getUser } from "~/services/auth/production-auth.server";
@@ -11,36 +11,45 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return redirect('/app');
   }
   
-  return json({});
+  return {};
 }
 
 export async function action({ request }: ActionFunctionArgs) {
+  console.log('[SIGNIN_ROUTE] Action started');
   const formData = await request.formData();
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
+  console.log('[SIGNIN_ROUTE] Form data received');
+  console.log('[SIGNIN_ROUTE] Email:', email);
+  console.log('[SIGNIN_ROUTE] Password length:', password?.length);
+
   if (!email || !password) {
-    return json(
-      { error: "Email and password are required" },
-      { status: 400 }
-    );
+    console.log('[SIGNIN_ROUTE] Missing email or password');
+    return { error: "Email and password are required" };
   }
 
+  console.log('[SIGNIN_ROUTE] Calling signIn function');
   const result = await signIn(email, password);
+  console.log('[SIGNIN_ROUTE] SignIn result:', 'error' in result ? 'ERROR' : 'SUCCESS');
 
   if ('error' in result) {
-    return json({ error: result.error }, { status: 400 });
+    console.log('[SIGNIN_ROUTE] SignIn error:', result.error);
+    return { error: result.error };
   }
 
+  console.log('[SIGNIN_ROUTE] SignIn successful, creating session');
   // Create session cookie
   const session = await sessionStorage.getSession();
   session.set("sessionToken", result.sessionToken);
   session.set("userId", result.user.id);
   session.set("email", result.user.email);
+  console.log('[SIGNIN_ROUTE] Session data set');
 
   // Get redirect URL from query params or default to editor
   const url = new URL(request.url);
   const redirectTo = url.searchParams.get("redirectTo") || "/app";
+  console.log('[SIGNIN_ROUTE] Redirecting to:', redirectTo);
 
   return redirect(redirectTo, {
     headers: {
@@ -76,7 +85,7 @@ export default function SignIn() {
                 type="email"
                 autoComplete="email"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-900"
                 placeholder="you@example.com"
               />
             </div>
@@ -91,7 +100,7 @@ export default function SignIn() {
                 type="password"
                 autoComplete="current-password"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-900"
                 placeholder="••••••••"
               />
             </div>
