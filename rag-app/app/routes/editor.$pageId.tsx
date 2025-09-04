@@ -9,6 +9,7 @@ import type { Block } from "~/types/blocks";
 import { debounce } from "~/utils/performance";
 import type { Prisma } from "@prisma/client";
 import { ragIndexingService } from "~/services/rag/rag-indexing.service";
+import { optimizedIndexingService } from "~/services/rag/optimized-indexing.service";
 import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
 import { pageHierarchyService } from "~/services/page-hierarchy.server";
 
@@ -229,9 +230,12 @@ export async function action({ params, request }: ActionFunctionArgs) {
         }
       });
 
-      // Queue for indexing
-      ragIndexingService.queueForIndexing(pageId).catch(error => {
-        console.error('[AI Command] Failed to queue for indexing:', error);
+      // Queue for immediate indexing after AI command
+      optimizedIndexingService.indexPage(pageId, {
+        immediate: true, // AI commands need immediate indexing
+        skipCache: false,
+      }).catch(error => {
+        console.error('[AI Command] Failed to index:', error);
       });
 
       return json({ 
@@ -371,10 +375,17 @@ export async function action({ params, request }: ActionFunctionArgs) {
         });
       }
       
-      // Queue page for indexing (non-blocking)
-      // The RAG indexing service will debounce and batch these requests
-      ragIndexingService.queueForIndexing(pageId).catch(error => {
-        console.error('[Auto-Index] Failed to queue page for indexing:', error);
+      // Use optimized indexing for immediate availability
+      // This will debounce rapid saves and process efficiently
+      optimizedIndexingService.indexPage(pageId, {
+        immediate: false, // Use debouncing for normal saves
+        skipCache: false, // Clear cache to ensure fresh results
+      }).catch(error => {
+        console.error('[Optimized-Index] Failed to index page:', error);
+        // Fallback to original indexing service
+        ragIndexingService.queueForIndexing(pageId).catch(fallbackError => {
+          console.error('[Auto-Index] Fallback also failed:', fallbackError);
+        });
       });
       
     } catch (error: any) {
@@ -410,9 +421,12 @@ export async function action({ params, request }: ActionFunctionArgs) {
           
           console.log('[Database Reconnected] Save successful after reconnection');
           
-          // Queue for indexing after recovery save
-          ragIndexingService.queueForIndexing(pageId).catch(error => {
-            console.error('[Auto-Index] Failed after reconnection:', error);
+          // Queue for indexing after recovery save (immediate mode for recovery)
+          optimizedIndexingService.indexPage(pageId, {
+            immediate: true, // Process immediately after recovery
+            skipCache: false,
+          }).catch(error => {
+            console.error('[Optimized-Index] Failed after reconnection:', error);
           });
           
           return json({ success: true, reconnected: true });
