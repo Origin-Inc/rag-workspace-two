@@ -2,6 +2,94 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+# ⚠️ CRITICAL RULES - ALWAYS CHECK FIRST ⚠️
+
+## 🔴 DATABASE CHANGES - STOP AND READ
+
+### NEVER modify database without migrations:
+1. **❌ NEVER use direct SQL** for schema changes (CREATE, ALTER, DROP)
+2. **❌ NEVER use `prisma db push`** for production schema changes
+3. **❌ NEVER use MCP `execute_sql`** for anything except SELECT queries
+4. **✅ ALWAYS create a migration file** BEFORE any database change
+5. **✅ ALWAYS commit migrations** to git
+
+### Correct Process for ANY Database Change:
+```bash
+# 1. ALWAYS modify schema.prisma first
+# 2. ALWAYS create migration
+npx prisma migrate dev --name descriptive_name
+# 3. Migration auto-applies locally
+# 4. ALWAYS commit both schema AND migration
+git add prisma/schema.prisma prisma/migrations/
+```
+
+### Common Scenarios & What to Do:
+- **Adding table/column**: Update schema → Create migration → Commit both
+- **Removing column**: Update schema → Create migration → Commit both
+- **Adding indexes**: Update schema → Create migration → Commit both
+- **Creating views**: Write SQL in migration file → Apply migration → Commit
+- **If you accidentally used `db push`**:
+  ```bash
+  npx prisma migrate dev --name sync_database_state --create-only
+  npx prisma migrate resolve --applied [migration_name]
+  ```
+
+### When Using Supabase MCP:
+- **FOR SCHEMA CHANGES**: Use `mcp__supabase__apply_migration` ONLY
+- **FOR DATA QUERIES**: Use `mcp__supabase__execute_sql` (SELECT only)
+- **NEVER**: Use execute_sql for CREATE VIEW, CREATE TABLE, ALTER, DROP
+
+### Trigger Phrases Requiring Migrations:
+If user mentions any of these, YOU MUST use migration files:
+- "fix the database" / "update the database"
+- "column doesn't exist" / "missing column"
+- "create view" / "create table" / "alter table"
+- "missing table" / "table doesn't exist"
+- "update schema" / "change schema"
+- "add index" / "add constraint"
+
+### Examples of What NOT to Do:
+```typescript
+// ❌ WRONG - Direct SQL execution
+mcp__supabase__execute_sql("CREATE VIEW unified_embeddings AS...")
+
+// ✅ CORRECT - Create migration first
+// 1. Update schema/write SQL in migration file
+// 2. Then use:
+mcp__supabase__apply_migration({
+  name: "add_unified_embeddings_view",
+  query: "CREATE VIEW..."
+})
+```
+
+## 🔴 SECURITY - NEVER COMMIT SECRETS
+
+### NEVER commit sensitive credentials:
+- **❌ NEVER** real API keys in any committed file
+- **❌ NEVER** passwords or secrets in code
+- **✅ ALWAYS** use placeholders in .env.example
+- **✅ ALWAYS** verify before committing:
+  - No API keys (OpenAI, Supabase, etc.)
+  - No database passwords
+  - No JWT/session secrets
+  - No service role keys
+
+### Before EVERY Commit:
+```bash
+# Check for exposed secrets
+git diff --staged | grep -E "sk-|key=|secret=|password="
+```
+
+## 🔴 PRODUCTION CODE ONLY - NO DEMOS
+
+### NEVER create demo/test routes:
+- **❌ NEVER** create `/app.demo.tsx` or `/app.*-test.tsx`
+- **❌ NEVER** create playground/example implementations
+- **✅ ALWAYS** modify existing production routes
+- **✅ ALWAYS** integrate into `/app/editor/$editorId.tsx` for editor features
+
+---
+
 ## Project Overview
 
 Production-ready Retrieval-Augmented Generation (RAG) application with a Notion/Coda-style block editor currently being rebuilt.
@@ -207,58 +295,6 @@ await prisma.$transaction(async (tx) => {
   - Vercel/deployment platform environment variables
   - NEVER in committed code or configuration files
 
-### DATABASE SCHEMA CHANGES - CRITICAL
-**NEVER modify database schema without proper migrations:**
-
-1. **For ANY database changes (tables, columns, indexes, etc.):**
-   ```bash
-   # ALWAYS create a migration - NEVER use db push for schema changes
-   npx prisma migrate dev --name descriptive_migration_name
-   ```
-
-2. **Migration Requirements:**
-   - ALWAYS update the Prisma schema first (`prisma/schema.prisma`)
-   - ALWAYS create a migration before applying changes
-   - NEVER use `prisma db push` for production schema changes (only for initial prototyping)
-   - ALWAYS ensure migrations are committed to git (they are NOT gitignored)
-
-3. **Process for Database Changes:**
-   ```bash
-   # 1. Modify prisma/schema.prisma with your changes
-   
-   # 2. Create migration
-   npx prisma migrate dev --name add_user_avatar_column
-   
-   # 3. Migration will auto-apply to your local database
-   
-   # 4. Commit BOTH schema.prisma AND the new migration folder
-   git add prisma/schema.prisma prisma/migrations/
-   git commit -m "feat: Add avatar column to users table"
-   ```
-
-4. **Common Scenarios:**
-   - **Adding a table**: Update schema → Create migration → Commit both
-   - **Adding a column**: Update schema → Create migration → Commit both  
-   - **Removing a column**: Update schema → Create migration (handles data loss warning) → Commit both
-   - **Adding indexes**: Update schema → Create migration → Commit both
-   - **Changing column types**: Update schema → Create migration (may need manual SQL) → Commit both
-
-5. **What NOT to do:**
-   - ❌ NEVER manually create/alter tables via SQL without updating Prisma schema
-   - ❌ NEVER use `prisma db push` for anything except initial prototyping
-   - ❌ NEVER forget to commit migration files
-   - ❌ NEVER edit existing migration files after they're committed
-   - ❌ NEVER delete migrations that have been applied to any environment
-
-6. **If you accidentally used `db push`:**
-   ```bash
-   # Generate a migration from current database state
-   npx prisma migrate dev --name sync_database_state --create-only
-   # Review the migration, then mark as applied
-   npx prisma migrate resolve --applied [migration_name]
-   ```
-
-**WHY THIS MATTERS:** Other developers need to replicate the exact database structure when they pull the repository. Without migrations, they cannot set up the application correctly.
 
 ## Common Patterns
 
