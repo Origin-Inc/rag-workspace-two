@@ -56,7 +56,8 @@ export async function signUp(
           name: 'owner',
           displayName: 'Owner',
           description: 'Full workspace access',
-          isSystem: true
+          isSystem: true,
+          updatedAt: new Date()
         }
       });
     }
@@ -139,6 +140,21 @@ export async function signUp(
     return { user: authUser, sessionToken };
   } catch (error) {
     console.error('Signup error:', error);
+    // Provide more specific error messages in development
+    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'production') {
+      if (error instanceof Error) {
+        console.error('Detailed error:', error.message, error.stack);
+        // Check for specific Prisma errors
+        if (error.message.includes('Unique constraint')) {
+          return { error: "This email is already registered" };
+        }
+        if (error.message.includes('Foreign key constraint')) {
+          return { error: "Database relationship error - please contact support" };
+        }
+        // Return the actual error message for debugging
+        return { error: `Signup failed: ${error.message}` };
+      }
+    }
     return { error: "Failed to create account. Please try again." };
   }
 }
