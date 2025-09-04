@@ -9,6 +9,9 @@ import type { Block } from "~/types/blocks";
 import { debounce } from "~/utils/performance";
 import type { Prisma } from "@prisma/client";
 import { ragIndexingService } from "~/services/rag/rag-indexing.service";
+import { optimizedIndexingService } from "~/services/rag/optimized-indexing.service";
+import { memoryOptimizedIndexingService } from "~/services/rag/memory-optimized-indexing.service";
+import { ultraLightIndexingService } from "~/services/rag/ultra-light-indexing.service";
 import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
 import { pageHierarchyService } from "~/services/page-hierarchy.server";
 
@@ -229,9 +232,9 @@ export async function action({ params, request }: ActionFunctionArgs) {
         }
       });
 
-      // Queue for indexing
-      ragIndexingService.queueForIndexing(pageId).catch(error => {
-        console.error('[AI Command] Failed to queue for indexing:', error);
+      // Queue for immediate indexing after AI command (ultra-light mode)
+      ultraLightIndexingService.indexPage(pageId, true).catch(error => {
+        console.error('[AI Command] Failed to index:', error);
       });
 
       return json({ 
@@ -371,10 +374,14 @@ export async function action({ params, request }: ActionFunctionArgs) {
         });
       }
       
-      // Queue page for indexing (non-blocking)
-      // The RAG indexing service will debounce and batch these requests
-      ragIndexingService.queueForIndexing(pageId).catch(error => {
-        console.error('[Auto-Index] Failed to queue page for indexing:', error);
+      // Use ultra-light indexing for severely constrained environments
+      // This works with 10MB request limit and 100MB Redis with eviction
+      ultraLightIndexingService.indexPage(pageId, false).catch(error => {
+        console.error('[Ultra-Light-Index] Failed:', error);
+        // Try fallback to even simpler approach if needed
+        ragIndexingService.queueForIndexing(pageId).catch(fallbackError => {
+          console.error('[Fallback-Index] Also failed:', fallbackError);
+        });
       });
       
     } catch (error: any) {
@@ -410,9 +417,9 @@ export async function action({ params, request }: ActionFunctionArgs) {
           
           console.log('[Database Reconnected] Save successful after reconnection');
           
-          // Queue for indexing after recovery save
-          ragIndexingService.queueForIndexing(pageId).catch(error => {
-            console.error('[Auto-Index] Failed after reconnection:', error);
+          // Queue for indexing after recovery save (ultra-light immediate mode)
+          ultraLightIndexingService.indexPage(pageId, true).catch(error => {
+            console.error('[Ultra-Light-Index] Failed after reconnection:', error);
           });
           
           return json({ success: true, reconnected: true });

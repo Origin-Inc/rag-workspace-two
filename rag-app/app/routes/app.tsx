@@ -11,6 +11,7 @@ import { CommandPalette } from "~/components/navigation/CommandPalette";
 import { UserMenu } from "~/components/navigation/UserMenu";
 import { ClientOnly } from "~/components/ClientOnly";
 import { ThemeToggle } from "~/components/theme/ThemeToggle";
+import { redisHealthChecker } from "~/services/redis-health-check.server";
 import { 
   HomeIcon, 
   DocumentIcon, 
@@ -123,6 +124,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
       // Continue with empty array
     }
   }
+  
+  // Check Redis health in background (non-blocking)
+  redisHealthChecker.checkHealth().then(status => {
+    if (status.warnings.length > 0) {
+      console.warn('Redis health warnings:', status.warnings);
+      status.warnings.forEach(warning => {
+        if (warning.includes('Eviction policy')) {
+          console.log(warning); // This will appear in logs
+        }
+      });
+    }
+  }).catch(error => {
+    console.error('Redis health check failed:', error);
+  });
 
   return json({
     user,
