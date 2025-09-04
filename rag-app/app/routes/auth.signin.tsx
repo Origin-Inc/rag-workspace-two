@@ -1,4 +1,4 @@
-import { json, redirect } from "@remix-run/node";
+import { redirect } from "@remix-run/node";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { Form, Link, useActionData } from "@remix-run/react";
 import { signIn, getUser } from "~/services/auth/production-auth.server";
@@ -11,7 +11,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return redirect('/app');
   }
   
-  return json({});
+  return {};
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -26,10 +26,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
   if (!email || !password) {
     console.log('[SIGNIN_ROUTE] Missing email or password');
-    return json(
-      { error: "Email and password are required" },
-      { status: 400 }
-    );
+    return { error: "Email and password are required" };
   }
 
   console.log('[SIGNIN_ROUTE] Calling signIn function');
@@ -38,7 +35,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
   if ('error' in result) {
     console.log('[SIGNIN_ROUTE] SignIn error:', result.error);
-    return json({ error: result.error }, { status: 400 });
+    return { error: result.error };
   }
 
   console.log('[SIGNIN_ROUTE] SignIn successful, creating session');
