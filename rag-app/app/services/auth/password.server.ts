@@ -23,7 +23,19 @@ export async function verifyPassword(
   password: string,
   hash: string
 ): Promise<boolean> {
-  return bcrypt.compare(password, hash);
+  console.log('[PASSWORD_VERIFY] Starting password verification');
+  console.log('[PASSWORD_VERIFY] Password length:', password?.length);
+  console.log('[PASSWORD_VERIFY] Hash length:', hash?.length);
+  console.log('[PASSWORD_VERIFY] Hash prefix:', hash?.substring(0, 7));
+  
+  try {
+    const result = await bcrypt.compare(password, hash);
+    console.log('[PASSWORD_VERIFY] Comparison result:', result);
+    return result;
+  } catch (error) {
+    console.error('[PASSWORD_VERIFY] Error during comparison:', error);
+    throw error;
+  }
 }
 
 /**
