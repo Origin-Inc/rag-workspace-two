@@ -32,8 +32,8 @@ END $$;
 -- Create unified view for all embeddings
 CREATE OR REPLACE VIEW unified_embeddings AS
   SELECT 
-    'page' AS source_type,
-    id AS entity_id,
+    'page'::text AS source_type,
+    id::text AS entity_id,
     page_id,
     workspace_id,
     chunk_text,
@@ -41,14 +41,17 @@ CREATE OR REPLACE VIEW unified_embeddings AS
     embedding,
     metadata,
     created_at,
-    updated_at
+    updated_at,
+    'page'::text AS entity_type,
+    id::text AS id
   FROM page_embeddings
+  WHERE embedding IS NOT NULL
   
   UNION ALL
   
   SELECT 
-    'block' AS source_type,
-    id AS entity_id,
+    'block'::text AS source_type,
+    id::text AS entity_id,
     page_id,
     workspace_id,
     chunk_text,
@@ -56,23 +59,29 @@ CREATE OR REPLACE VIEW unified_embeddings AS
     embedding,
     metadata,
     created_at,
-    updated_at
+    updated_at,
+    'block'::text AS entity_type,
+    id::text AS id
   FROM block_embeddings
+  WHERE embedding IS NOT NULL
   
   UNION ALL
   
   SELECT 
-    'database_row' AS source_type,
-    id AS entity_id,
+    'database_row'::text AS source_type,
+    id::text AS entity_id,
     page_id,
     workspace_id,
     chunk_text,
-    0 AS chunk_index, -- Database rows don't have chunk indexes
+    NULL::integer AS chunk_index, -- Database rows don't have chunk indexes
     embedding,
     metadata,
     created_at,
-    updated_at
-  FROM database_row_embeddings;
+    updated_at,
+    'database_row'::text AS entity_type,
+    id::text AS id
+  FROM database_row_embeddings
+  WHERE embedding IS NOT NULL;
 
 -- Create the search_embeddings function
 CREATE OR REPLACE FUNCTION search_embeddings(
