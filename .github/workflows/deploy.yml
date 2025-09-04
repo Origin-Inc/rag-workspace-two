@@ -9,29 +9,32 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+    - name: Setup SSH Key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SERVER_SSH_KEY_BASE64 }}" | base64 -d > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -H 178.156.186.87 >> ~/.ssh/known_hosts
+    
     - name: Deploy to server
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: 178.156.186.87
-        username: root
-        key: ${{ secrets.SERVER_SSH_KEY }}
-        port: 22
-        script: |
-          cd /opt/rag-app
-          
-          # Pull latest changes
-          git pull origin main
-          
-          # Build and restart containers
-          docker compose -f docker-compose.production.yml build
-          docker compose -f docker-compose.production.yml down
-          docker compose -f docker-compose.production.yml up -d
-          
-          # Run migrations
-          docker exec rag-app npx prisma migrate deploy
-          
-          # Health check
-          sleep 10
-          curl -f http://localhost:3000/api/health || exit 1
-          
-          echo "Deployment completed successfully!"
+      run: |
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@178.156.186.87 << 'ENDSSH'
+        cd /opt/rag-app
+        
+        # Pull latest changes
+        git pull origin main
+        
+        # Build and restart containers
+        docker compose -f docker-compose.production.yml build
+        docker compose -f docker-compose.production.yml down
+        docker compose -f docker-compose.production.yml up -d
+        
+        # Run migrations
+        docker exec rag-app npx prisma migrate deploy
+        
+        # Health check
+        sleep 10
+        curl -f http://localhost:3000/api/health || exit 1
+        
+        echo "Deployment completed successfully!"
+        ENDSSH
