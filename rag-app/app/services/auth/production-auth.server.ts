@@ -5,7 +5,7 @@
 
 import { redirect } from "@remix-run/node";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { prisma } from "~/utils/db.server";
+import { prisma, withRetry } from "~/utils/db.server";
 import { sessionStorage } from "./session.server";
 import { hashPassword, verifyPassword } from "./password.server";
 import { generateAccessToken, verifyAccessToken } from "./jwt.server";
@@ -29,10 +29,12 @@ export async function signUp(
   name?: string
 ): Promise<{ user: AuthUser; sessionToken: string } | { error: string }> {
   try {
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    });
+    // Check if user already exists (with retry for prepared statement errors)
+    const existingUser = await withRetry(() => 
+      prisma.user.findUnique({
+        where: { email }
+      })
+    );
 
     if (existingUser) {
       return { error: "User with this email already exists" };
@@ -45,13 +47,15 @@ export async function signUp(
     const workspaceName = `${name || email.split('@')[0]}'s Workspace`;
     const workspaceSlug = workspaceName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-    // Get or create the owner role
-    let ownerRole = await prisma.role.findUnique({
-      where: { name: 'owner' }
-    });
+    // Get or create the owner role (with retry for prepared statement errors)
+    let ownerRole = await withRetry(() => 
+      prisma.role.findUnique({
+        where: { name: 'owner' }
+      })
+    );
 
     if (!ownerRole) {
-      ownerRole = await prisma.role.create({
+      ownerRole = await withRetry(() => prisma.role.create({
         data: {
           name: 'owner',
           displayName: 'Owner',
@@ -59,11 +63,11 @@ export async function signUp(
           isSystem: true,
           updatedAt: new Date()
         }
-      });
+      }));
     }
 
-    // Create user, workspace, and relationship in a transaction
-    const result = await prisma.$transaction(async (tx) => {
+    // Create user, workspace, and relationship in a transaction (with retry)
+    const result = await withRetry(() => prisma.$transaction(async (tx) => {
       // Step 1: Create the user first
       const user = await tx.user.create({
         data: {
@@ -113,20 +117,20 @@ export async function signUp(
         roleId: ownerRole.id,
         permissions
       };
-    });
+    }));
 
     // Create session
     const sessionToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-    await prisma.session.create({
+    await withRetry(() => prisma.session.create({
       data: {
         userId: result.user.id,
         token: sessionToken,
         expiresAt
       }
-    });
+    }));
 
     const authUser: AuthUser = {
       id: result.user.id,
@@ -172,30 +176,32 @@ export async function signIn(
   
   try {
     console.log('[SIGNIN] Step 1: Looking up user in database');
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: {
-        userWorkspaces: {
-          include: {
-            workspace: true,
-            role: {
-              include: {
-                permissions: {
-                  include: {
-                    permission: true
+    // Find user (with retry for prepared statement errors)
+    const user = await withRetry(() => 
+      prisma.user.findUnique({
+        where: { email },
+        include: {
+          userWorkspaces: {
+            include: {
+              workspace: true,
+              role: {
+                include: {
+                  permissions: {
+                    include: {
+                      permission: true
+                    }
                   }
                 }
               }
-            }
-          },
-          orderBy: {
-            joinedAt: 'asc'
-          },
-          take: 1
+            },
+            orderBy: {
+              joinedAt: 'asc'
+            },
+            take: 1
+          }
         }
-      }
-    });
+      })
+    );
 
     console.log('[SIGNIN] Step 2: User lookup result');
     console.log('[SIGNIN] User found:', !!user);
@@ -255,13 +261,15 @@ export async function signIn(
     console.log('[SIGNIN] Session expires at:', expiresAt);
 
     try {
-      const session = await prisma.session.create({
-        data: {
-          userId: user.id,
-          token: sessionToken,
-          expiresAt
-        }
-      });
+      const session = await withRetry(() =>
+        prisma.session.create({
+          data: {
+            userId: user.id,
+            token: sessionToken,
+            expiresAt
+          }
+        })
+      );
       console.log('[SIGNIN] Session created with ID:', session.id);
     } catch (sessionError) {
       console.error('[SIGNIN] ERROR creating session:', sessionError);
