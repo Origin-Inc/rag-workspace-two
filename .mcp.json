@@ -5,6 +5,17 @@
 			"command": "npx",
 			"args": ["-y", "--package=task-master-ai", "task-master-ai"],
 			"env": {}
-		}
+		},
+		"supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--project-ref=PROJECT-REDACTED"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_d015c02788315b93d4054cac6274942acc9a6683"
+      }
+    }
 	}
 }
