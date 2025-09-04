@@ -11,6 +11,7 @@ import type { Prisma } from "@prisma/client";
 import { ragIndexingService } from "~/services/rag/rag-indexing.service";
 import { optimizedIndexingService } from "~/services/rag/optimized-indexing.service";
 import { memoryOptimizedIndexingService } from "~/services/rag/memory-optimized-indexing.service";
+import { ultraLightIndexingService } from "~/services/rag/ultra-light-indexing.service";
 import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
 import { pageHierarchyService } from "~/services/page-hierarchy.server";
 
@@ -231,11 +232,8 @@ export async function action({ params, request }: ActionFunctionArgs) {
         }
       });
 
-      // Queue for immediate indexing after AI command
-      optimizedIndexingService.indexPage(pageId, {
-        immediate: true, // AI commands need immediate indexing
-        skipCache: false,
-      }).catch(error => {
+      // Queue for immediate indexing after AI command (ultra-light mode)
+      ultraLightIndexingService.indexPage(pageId, true).catch(error => {
         console.error('[AI Command] Failed to index:', error);
       });
 
@@ -376,34 +374,15 @@ export async function action({ params, request }: ActionFunctionArgs) {
         });
       }
       
-      // Use appropriate indexing based on Redis availability
-      // If Redis has proper config (512MB+, noeviction), use optimized
-      // Otherwise fallback to memory-optimized version
-      const useOptimized = process.env.REDIS_MEMORY_MB && parseInt(process.env.REDIS_MEMORY_MB) >= 512;
-      
-      if (useOptimized) {
-        optimizedIndexingService.indexPage(pageId, {
-          immediate: false, // Use debouncing for normal saves
-          skipCache: false, // Clear cache to ensure fresh results
-        }).catch(error => {
-          console.error('[Optimized-Index] Failed, falling back:', error);
-          // Fallback to memory-optimized
-          memoryOptimizedIndexingService.indexPage(pageId, {
-            immediate: false,
-            skipCache: false,
-          }).catch(fallbackError => {
-            console.error('[Memory-Optimized] Also failed:', fallbackError);
-          });
+      // Use ultra-light indexing for severely constrained environments
+      // This works with 10MB request limit and 100MB Redis with eviction
+      ultraLightIndexingService.indexPage(pageId, false).catch(error => {
+        console.error('[Ultra-Light-Index] Failed:', error);
+        // Try fallback to even simpler approach if needed
+        ragIndexingService.queueForIndexing(pageId).catch(fallbackError => {
+          console.error('[Fallback-Index] Also failed:', fallbackError);
         });
-      } else {
-        // Use memory-optimized for constrained environments
-        memoryOptimizedIndexingService.indexPage(pageId, {
-          immediate: false,
-          skipCache: false,
-        }).catch(error => {
-          console.error('[Memory-Optimized-Index] Failed:', error);
-        });
-      }
+      });
       
     } catch (error: any) {
       // Log error for monitoring
@@ -438,12 +417,9 @@ export async function action({ params, request }: ActionFunctionArgs) {
           
           console.log('[Database Reconnected] Save successful after reconnection');
           
-          // Queue for indexing after recovery save (immediate mode for recovery)
-          optimizedIndexingService.indexPage(pageId, {
-            immediate: true, // Process immediately after recovery
-            skipCache: false,
-          }).catch(error => {
-            console.error('[Optimized-Index] Failed after reconnection:', error);
+          // Queue for indexing after recovery save (ultra-light immediate mode)
+          ultraLightIndexingService.indexPage(pageId, true).catch(error => {
+            console.error('[Ultra-Light-Index] Failed after reconnection:', error);
           });
           
           return json({ success: true, reconnected: true });
