@@ -12,12 +12,16 @@ function createPrismaClient() {
   // For Vercel/Supabase, we need to handle the connection string properly
   let databaseUrl = process.env.DATABASE_URL || '';
   
-  // If using Supabase pooler, ensure proper format
+  // If using Supabase pooler, ensure proper format and statement caching disabled
   if (databaseUrl.includes('pooler.supabase.com')) {
-    // Remove any existing query params that might conflict
-    const [baseUrl] = databaseUrl.split('?');
-    // For pooled connections, we don't add pgbouncer=true as it's handled by the pooler
-    databaseUrl = baseUrl;
+    // Parse the URL to modify query params
+    const url = new URL(databaseUrl);
+    // Ensure pgbouncer mode and disable statement caching to prevent prepared statement errors
+    url.searchParams.set('pgbouncer', 'true');
+    url.searchParams.set('statement_cache_size', '0');
+    url.searchParams.set('prepare', 'false');
+    url.searchParams.set('connection_limit', '1');
+    databaseUrl = url.toString();
   }
 
   const client = new PrismaClient({
@@ -28,6 +32,23 @@ function createPrismaClient() {
       },
     },
   });
+
+  // Monkey patch the client to handle prepared statement errors
+  const originalTransaction = client.$transaction.bind(client);
+  client.$transaction = async (...args: any[]) => {
+    try {
+      return await originalTransaction(...args);
+    } catch (error: any) {
+      // If we get a prepared statement error, retry once
+      if (error?.message?.includes('prepared statement') || error?.code === '42P05') {
+        console.warn('Prepared statement error detected, retrying transaction...');
+        await client.$disconnect();
+        await client.$connect();
+        return await originalTransaction(...args);
+      }
+      throw error;
+    }
+  };
 
   return client;
 }
@@ -63,6 +84,46 @@ if (process.env.NODE_ENV === "production") {
   process.on("beforeExit", async () => {
     await prisma.$disconnect();
   });
+}
+
+// Helper function to execute queries with retry logic for prepared statement errors
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries = 1
+): Promise<T> {
+  let lastError: any;
+  
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Check if this is a prepared statement error
+      if (
+        (error?.message?.includes('prepared statement') || 
+         error?.code === '42P05' ||
+         error?.meta?.code === '42P05') &&
+        i < maxRetries
+      ) {
+        console.warn(`Prepared statement error, retrying (attempt ${i + 1}/${maxRetries})...`);
+        // Force reconnection to clear prepared statements
+        try {
+          await prisma.$disconnect();
+          await new Promise(resolve => setTimeout(resolve, 100)); // Small delay
+          await prisma.$connect();
+        } catch (reconnectError) {
+          console.error('Failed to reconnect:', reconnectError);
+        }
+        continue;
+      }
+      
+      // Not a prepared statement error or max retries reached
+      throw error;
+    }
+  }
+  
+  throw lastError;
 }
 
 export { prisma };
