@@ -15,32 +15,44 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
+  console.log('[SIGNIN_ROUTE] Action started');
   const formData = await request.formData();
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
+  console.log('[SIGNIN_ROUTE] Form data received');
+  console.log('[SIGNIN_ROUTE] Email:', email);
+  console.log('[SIGNIN_ROUTE] Password length:', password?.length);
+
   if (!email || !password) {
+    console.log('[SIGNIN_ROUTE] Missing email or password');
     return json(
       { error: "Email and password are required" },
       { status: 400 }
     );
   }
 
+  console.log('[SIGNIN_ROUTE] Calling signIn function');
   const result = await signIn(email, password);
+  console.log('[SIGNIN_ROUTE] SignIn result:', 'error' in result ? 'ERROR' : 'SUCCESS');
 
   if ('error' in result) {
+    console.log('[SIGNIN_ROUTE] SignIn error:', result.error);
     return json({ error: result.error }, { status: 400 });
   }
 
+  console.log('[SIGNIN_ROUTE] SignIn successful, creating session');
   // Create session cookie
   const session = await sessionStorage.getSession();
   session.set("sessionToken", result.sessionToken);
   session.set("userId", result.user.id);
   session.set("email", result.user.email);
+  console.log('[SIGNIN_ROUTE] Session data set');
 
   // Get redirect URL from query params or default to editor
   const url = new URL(request.url);
   const redirectTo = url.searchParams.get("redirectTo") || "/app";
+  console.log('[SIGNIN_ROUTE] Redirecting to:', redirectTo);
 
   return redirect(redirectTo, {
     headers: {
