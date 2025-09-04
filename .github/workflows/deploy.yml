@@ -10,11 +10,12 @@ jobs:
     
     steps:
     - name: Deploy to server
-      uses: appleboy/ssh-action@v0.1.5
+      uses: appleboy/ssh-action@v1.0.0
       with:
         host: 178.156.186.87
         username: root
         key: ${{ secrets.SERVER_SSH_KEY }}
+        port: 22
         script: |
           cd /opt/rag-app
           
