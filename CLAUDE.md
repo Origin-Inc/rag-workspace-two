@@ -190,6 +190,23 @@ await prisma.$transaction(async (tx) => {
 - Components must handle loading and error states
 - Services must include proper error handling and logging
 
+### SECURITY - CRITICAL RULES
+**NEVER commit sensitive credentials to git:**
+- NEVER put real API keys, passwords, or secrets in any file that gets committed
+- ALWAYS use placeholder values in .env.example files (e.g., `sk-...your-key-here`, `REPLACE_WITH_ACTUAL_KEY`)
+- NEVER commit .env files with real credentials (they should be in .gitignore)
+- ALWAYS verify no secrets are exposed before committing by checking:
+  - API keys (OpenAI, Supabase, etc.) 
+  - Database passwords
+  - JWT secrets
+  - Service role keys
+  - Any authentication tokens
+- If you need to show example values, use clearly fake placeholders
+- Real credentials should only exist in:
+  - Local .env files (gitignored)
+  - Vercel/deployment platform environment variables
+  - NEVER in committed code or configuration files
+
 ### DATABASE SCHEMA CHANGES - CRITICAL
 **NEVER modify database schema without proper migrations:**
 
