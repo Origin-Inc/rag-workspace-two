@@ -363,12 +363,12 @@ export class EmbeddingGenerationService {
         const results = pageId 
           ? await prisma.$queryRawUnsafe<any[]>(`
               SELECT 
-                source_type,
-                entity_id,
-                page_id,
-                chunk_text,
+                id,
+                content,
+                metadata,
                 similarity,
-                metadata
+                source_type,
+                source_id
               FROM search_embeddings(
                 $1::vector,
                 $2::uuid,
@@ -379,12 +379,12 @@ export class EmbeddingGenerationService {
             `, vectorString, workspaceId, pageId, limit, similarityThreshold)
           : await prisma.$queryRawUnsafe<any[]>(`
               SELECT 
-                source_type,
-                entity_id,
-                page_id,
-                chunk_text,
+                id,
+                content,
+                metadata,
                 similarity,
-                metadata
+                source_type,
+                source_id
               FROM search_embeddings(
                 $1::vector,
                 $2::uuid,
@@ -398,25 +398,26 @@ export class EmbeddingGenerationService {
           resultsCount: results.length,
           results: results.map(r => ({
             source_type: r.source_type,
-            entity_id: r.entity_id,
+            id: r.id,
             similarity: r.similarity,
-            textPreview: r.chunk_text?.substring(0, 100)
+            textPreview: r.content?.substring(0, 100)
           }))
         });
 
         // Transform results to match expected format
         return results.map((r: any) => ({
-          id: r.entity_id,
-          content: r.chunk_text,
+          id: r.id,
+          content: r.content,
           embedding: [], // Don't return full embedding to save bandwidth
           metadata: r.metadata || {},
-          passage_id: r.entity_id,
+          passage_id: r.id,
           chunk_index: r.metadata?.chunkIndex || 0,
           similarity: r.similarity,
           rank: r.similarity,
-          pageId: r.page_id,
+          pageId: r.source_id, // source_id contains the page_id in the production function
           workspace_id: workspaceId,
-          source_type: r.source_type
+          source_type: r.source_type,
+          source_block_id: r.source_type === 'block' ? r.source_id : undefined
         })) as DocumentWithEmbedding[];
       } else {
         // Use text-only search on unified view
@@ -425,12 +426,12 @@ export class EmbeddingGenerationService {
         const results = pageId
           ? await prisma.$queryRawUnsafe<any[]>(`
               SELECT 
-                source_type,
-                entity_id,
-                page_id,
-                chunk_text,
+                id,
+                chunk_text as content,
                 metadata,
-                0.5 as similarity
+                0.5 as similarity,
+                source_type,
+                page_id as source_id
               FROM unified_embeddings
               WHERE 
                 workspace_id = $1::uuid
@@ -440,12 +441,12 @@ export class EmbeddingGenerationService {
             `, workspaceId, pageId, searchPattern, limit)
           : await prisma.$queryRawUnsafe<any[]>(`
               SELECT 
-                source_type,
-                entity_id,
-                page_id,
-                chunk_text,
+                id,
+                chunk_text as content,
                 metadata,
-                0.5 as similarity
+                0.5 as similarity,
+                source_type,
+                page_id as source_id
               FROM unified_embeddings
               WHERE 
                 workspace_id = $1::uuid
@@ -454,17 +455,18 @@ export class EmbeddingGenerationService {
             `, workspaceId, searchPattern, limit);
         
         return results.map((r: any) => ({
-          id: r.entity_id,
-          content: r.chunk_text,
+          id: r.id,
+          content: r.content,
           embedding: [],
           metadata: r.metadata || {},
-          passage_id: r.entity_id,
+          passage_id: r.id,
           chunk_index: r.metadata?.chunkIndex || 0,
           similarity: r.similarity,
           rank: r.similarity,
-          pageId: r.page_id,
+          pageId: r.source_id, // source_id contains the page_id in the production function
           workspace_id: workspaceId,
-          source_type: r.source_type
+          source_type: r.source_type,
+          source_block_id: r.source_type === 'block' ? r.source_id : undefined
         })) as DocumentWithEmbedding[];
       }
     } catch (error) {
