@@ -9,17 +9,26 @@ declare global {
 
 // Production-ready Prisma configuration with proper connection pooling
 function createPrismaClient() {
+  // For Vercel/Supabase, we need to handle the connection string properly
+  let databaseUrl = process.env.DATABASE_URL || '';
+  
+  // If using Supabase pooler, ensure proper format
+  if (databaseUrl.includes('pooler.supabase.com')) {
+    // Remove any existing query params that might conflict
+    const [baseUrl] = databaseUrl.split('?');
+    // For pooled connections, we don't add pgbouncer=true as it's handled by the pooler
+    databaseUrl = baseUrl;
+  }
+
   const client = new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
     datasources: {
       db: {
-        url: process.env.DATABASE_URL,
+        url: databaseUrl,
       },
     },
   });
 
-  // Set connection pool configuration via connection string
-  // These are added to DATABASE_URL: ?connection_limit=20&pool_timeout=20
   return client;
 }
 
