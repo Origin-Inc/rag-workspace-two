@@ -10,6 +10,7 @@ import { debounce } from "~/utils/performance";
 import type { Prisma } from "@prisma/client";
 import { ragIndexingService } from "~/services/rag/rag-indexing.service";
 import { optimizedIndexingService } from "~/services/rag/optimized-indexing.service";
+import { memoryOptimizedIndexingService } from "~/services/rag/memory-optimized-indexing.service";
 import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
 import { pageHierarchyService } from "~/services/page-hierarchy.server";
 
@@ -375,18 +376,34 @@ export async function action({ params, request }: ActionFunctionArgs) {
         });
       }
       
-      // Use optimized indexing for immediate availability
-      // This will debounce rapid saves and process efficiently
-      optimizedIndexingService.indexPage(pageId, {
-        immediate: false, // Use debouncing for normal saves
-        skipCache: false, // Clear cache to ensure fresh results
-      }).catch(error => {
-        console.error('[Optimized-Index] Failed to index page:', error);
-        // Fallback to original indexing service
-        ragIndexingService.queueForIndexing(pageId).catch(fallbackError => {
-          console.error('[Auto-Index] Fallback also failed:', fallbackError);
+      // Use appropriate indexing based on Redis availability
+      // If Redis has proper config (512MB+, noeviction), use optimized
+      // Otherwise fallback to memory-optimized version
+      const useOptimized = process.env.REDIS_MEMORY_MB && parseInt(process.env.REDIS_MEMORY_MB) >= 512;
+      
+      if (useOptimized) {
+        optimizedIndexingService.indexPage(pageId, {
+          immediate: false, // Use debouncing for normal saves
+          skipCache: false, // Clear cache to ensure fresh results
+        }).catch(error => {
+          console.error('[Optimized-Index] Failed, falling back:', error);
+          // Fallback to memory-optimized
+          memoryOptimizedIndexingService.indexPage(pageId, {
+            immediate: false,
+            skipCache: false,
+          }).catch(fallbackError => {
+            console.error('[Memory-Optimized] Also failed:', fallbackError);
+          });
         });
-      });
+      } else {
+        // Use memory-optimized for constrained environments
+        memoryOptimizedIndexingService.indexPage(pageId, {
+          immediate: false,
+          skipCache: false,
+        }).catch(error => {
+          console.error('[Memory-Optimized-Index] Failed:', error);
+        });
+      }
       
     } catch (error: any) {
       // Log error for monitoring
