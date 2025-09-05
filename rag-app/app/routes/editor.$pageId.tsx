@@ -14,6 +14,7 @@ import { memoryOptimizedIndexingService } from "~/services/rag/memory-optimized-
 import { ultraLightIndexingService } from "~/services/rag/ultra-light-indexing.service";
 import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
 import { pageHierarchyService } from "~/services/page-hierarchy.server";
+import { AIBlockService } from "~/services/ai-block-service.server";
 
 export async function loader({ params, request }: LoaderFunctionArgs) {
   const { pageId } = params;
@@ -232,6 +233,10 @@ export async function action({ params, request }: ActionFunctionArgs) {
         }
       });
 
+      // Clear AI block cache after AI command updates
+      const aiBlockService = AIBlockService.getInstance();
+      aiBlockService.clearCacheForPage(page.workspaceId, pageId);
+
       // Queue for immediate indexing after AI command (ultra-light mode)
       ultraLightIndexingService.indexPage(pageId, true).catch(error => {
         console.error('[AI Command] Failed to index:', error);
@@ -374,6 +379,11 @@ export async function action({ params, request }: ActionFunctionArgs) {
         });
       }
       
+      // Clear AI block cache for this page to ensure fresh responses
+      const aiBlockService = AIBlockService.getInstance();
+      aiBlockService.clearCacheForPage(page.workspaceId, pageId);
+      console.log('[Cache Clear] AI block cache cleared for page:', pageId);
+      
       // Use ultra-light indexing for severely constrained environments
       // This works with 10MB request limit and 100MB Redis with eviction
       ultraLightIndexingService.indexPage(pageId, false).catch(error => {
@@ -416,6 +426,10 @@ export async function action({ params, request }: ActionFunctionArgs) {
           });
           
           console.log('[Database Reconnected] Save successful after reconnection');
+          
+          // Clear AI block cache after reconnection save
+          const aiBlockService = AIBlockService.getInstance();
+          aiBlockService.clearCacheForPage(page.workspaceId, pageId);
           
           // Queue for indexing after recovery save (ultra-light immediate mode)
           ultraLightIndexingService.indexPage(pageId, true).catch(error => {
