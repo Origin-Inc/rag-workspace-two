@@ -108,9 +108,19 @@ export class UltraLightIndexingService {
       // Clear only AI cache (not Redis)
       await this.clearAICache(pageId, page.workspaceId!);
       
+      // Count final embeddings
+      const finalCount = await withRetry(() =>
+        prisma.$executeRaw`
+          SELECT COUNT(*) FROM page_embeddings 
+          WHERE page_id = ${pageId}::uuid
+        `
+      );
+      
       this.logger.info('✅ Ultra-light indexing complete', { 
         pageId,
-        chunks: chunks.length 
+        chunks: chunks.length,
+        finalEmbeddingsCount: finalCount,
+        contentPreview: content.substring(0, 200)
       });
       
     } catch (error) {
@@ -217,12 +227,19 @@ export class UltraLightIndexingService {
     chunks: Array<{ text: string; index: number }>
   ): Promise<void> {
     // Delete old embeddings first
-    await withRetry(() =>
+    const deleteResult = await withRetry(() =>
       prisma.$executeRaw`
         DELETE FROM page_embeddings 
         WHERE page_id = ${page.id}::uuid
       `
     );
+    
+    this.logger.info('🗑️ Deleted old embeddings', { 
+      pageId: page.id, 
+      deletedCount: deleteResult,
+      newChunksCount: chunks.length,
+      chunkPreviews: chunks.slice(0, 2).map(c => c.text.substring(0, 100))
+    });
     
     // Process 2 at a time
     for (let i = 0; i < chunks.length; i += this.BATCH_SIZE) {
