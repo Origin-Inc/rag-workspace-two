@@ -38,7 +38,7 @@ export interface AIBlockResponse {
 export class AIBlockService {
   private static instance: AIBlockService;
   private responseCache: Map<string, { response: AIBlockResponse; timestamp: number }> = new Map();
-  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private readonly CACHE_TTL_MS = 30 * 1000; // 30 seconds - reduced from 5 minutes for faster updates
   private readonly DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
   private readonly MAX_RETRIES = 3;
 
@@ -63,18 +63,30 @@ export class AIBlockService {
       timestamp: new Date().toISOString()
     });
 
-    // Check cache first
-    const cachedResponse = this.getCachedResponse(cacheKey);
-    if (cachedResponse) {
-      logger.info('Cache hit for AI block query', { cacheKey });
-      return {
-        ...cachedResponse,
-        debugInfo: {
-          ...cachedResponse.debugInfo!,
-          cacheHit: true,
-          processingTimeMs: Date.now() - startTime
-        }
-      };
+    // Check cache first - but skip cache for certain queries that need fresh data
+    const shouldSkipCache = request.query.toLowerCase().includes('summarize') || 
+                           request.query.toLowerCase().includes('latest') ||
+                           request.query.toLowerCase().includes('current') ||
+                           request.query.toLowerCase().includes('update');
+    
+    if (!shouldSkipCache) {
+      const cachedResponse = this.getCachedResponse(cacheKey);
+      if (cachedResponse) {
+        logger.info('Cache hit for AI block query', { cacheKey });
+        return {
+          ...cachedResponse,
+          debugInfo: {
+            ...cachedResponse.debugInfo!,
+            cacheHit: true,
+            processingTimeMs: Date.now() - startTime
+          }
+        };
+      }
+    } else {
+      logger.info('Skipping cache for fresh data query', {
+        query: request.query,
+        cacheKey
+      });
     }
 
     const maxRetries = request.maxRetries ?? this.MAX_RETRIES;

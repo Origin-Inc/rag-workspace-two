@@ -85,10 +85,10 @@ export class UltraLightIndexingService {
       
       if (!page) return;
       
-      // Check if recently indexed (5 minutes)
-      const recentlyIndexed = await this.wasRecentlyIndexed(pageId, 5);
+      // Check if recently indexed (10 seconds to prevent rapid re-indexing)
+      const recentlyIndexed = await this.wasRecentlyIndexed(pageId, 0.17); // 10 seconds = 0.17 minutes
       if (recentlyIndexed) {
-        this.logger.info('⏩ Skip - recently indexed', { pageId });
+        this.logger.info('⏩ Skip - recently indexed (within 10 seconds)', { pageId });
         return;
       }
       
@@ -302,6 +302,8 @@ export class UltraLightIndexingService {
   
   /**
    * Check if recently indexed
+   * @param pageId - The page ID to check
+   * @param maxAgeMinutes - Maximum age in minutes (e.g., 0.17 for 10 seconds)
    */
   private async wasRecentlyIndexed(pageId: string, maxAgeMinutes: number): Promise<boolean> {
     try {
@@ -318,6 +320,13 @@ export class UltraLightIndexingService {
       if (!lastIndexed) return false;
       
       const ageMinutes = (Date.now() - new Date(lastIndexed).getTime()) / (1000 * 60);
+      this.logger.info('Checking if recently indexed', { 
+        pageId,
+        lastIndexed,
+        ageMinutes,
+        maxAgeMinutes,
+        willSkip: ageMinutes < maxAgeMinutes
+      });
       return ageMinutes < maxAgeMinutes;
       
     } catch (error) {
