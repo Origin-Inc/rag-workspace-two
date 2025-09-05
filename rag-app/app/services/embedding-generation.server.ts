@@ -363,12 +363,12 @@ export class EmbeddingGenerationService {
         const results = pageId 
           ? await prisma.$queryRawUnsafe<any[]>(`
               SELECT 
-                id,
-                content,
+                entity_id AS id,
+                chunk_text AS content,
                 metadata,
                 similarity,
                 source_type,
-                source_id
+                page_id AS source_id
               FROM search_embeddings(
                 $1::vector,
                 $2::uuid,
@@ -379,12 +379,12 @@ export class EmbeddingGenerationService {
             `, vectorString, workspaceId, pageId, limit, similarityThreshold)
           : await prisma.$queryRawUnsafe<any[]>(`
               SELECT 
-                id,
-                content,
+                entity_id AS id,
+                chunk_text AS content,
                 metadata,
                 similarity,
                 source_type,
-                source_id
+                page_id AS source_id
               FROM search_embeddings(
                 $1::vector,
                 $2::uuid,
@@ -396,28 +396,46 @@ export class EmbeddingGenerationService {
         
         this.logger.info('✅ Vector search completed', { 
           resultsCount: results.length,
+          searchedPageId: pageId,
+          actualWorkspaceId: workspaceId,
           results: results.map(r => ({
             source_type: r.source_type,
             id: r.id,
+            source_id: r.source_id,
             similarity: r.similarity,
-            textPreview: r.content?.substring(0, 100)
+            textPreview: r.content?.substring(0, 200),
+            metadata: r.metadata
           }))
         });
+        
+        // Debug: Check if we're getting stale data
+        if (results.length > 0) {
+          this.logger.warn('🔍 CRITICAL DEBUG: First result details', {
+            firstResult: {
+              id: results[0].id,
+              source_id: results[0].source_id,
+              content: results[0].content,
+              metadata: results[0].metadata,
+              similarity: results[0].similarity
+            }
+          });
+        }
 
         // Transform results to match expected format
+        // Note: search_embeddings returns entity_id, chunk_text, page_id columns
         return results.map((r: any) => ({
-          id: r.id,
-          content: r.content,
+          id: r.id || r.entity_id,
+          content: r.content || r.chunk_text,
           embedding: [], // Don't return full embedding to save bandwidth
           metadata: r.metadata || {},
-          passage_id: r.id,
-          chunk_index: r.metadata?.chunkIndex || 0,
+          passage_id: r.id || r.entity_id,
+          chunk_index: r.metadata?.chunkIndex || r.chunk_index || 0,
           similarity: r.similarity,
           rank: r.similarity,
-          pageId: r.source_id, // source_id contains the page_id in the production function
+          pageId: r.source_id || r.page_id,
           workspace_id: workspaceId,
           source_type: r.source_type,
-          source_block_id: r.source_type === 'block' ? r.source_id : undefined
+          source_block_id: r.source_type === 'block' ? (r.source_id || r.entity_id) : undefined
         })) as DocumentWithEmbedding[];
       } else {
         // Use text-only search on unified view

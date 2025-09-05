@@ -35,7 +35,7 @@ export interface AIBlockResponse {
   };
 }
 
-class AIBlockService {
+export class AIBlockService {
   private static instance: AIBlockService;
   private responseCache: Map<string, { response: AIBlockResponse; timestamp: number }> = new Map();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -188,7 +188,13 @@ class AIBlockService {
     logger.info('✅ Page-specific search completed', { 
       pageId,
       resultsCount: searchResults.length,
-      topResultScore: searchResults[0]?.similarity || 0
+      topResultScore: searchResults[0]?.similarity || 0,
+      topResults: searchResults.slice(0, 3).map(r => ({
+        pageId: r.pageId,
+        similarity: r.similarity,
+        contentPreview: r.content?.substring(0, 100),
+        chunkIndex: r.chunkIndex
+      }))
     });
 
     // If no results found with pageId, fall back to workspace-wide search
@@ -211,8 +217,10 @@ class AIBlockService {
         topResultScore: searchResults[0]?.similarity || 0,
         results: searchResults.slice(0, 3).map(r => ({
           id: r.id,
+          pageId: r.pageId,
           similarity: r.similarity,
-          contentPreview: r.content?.substring(0, 100)
+          contentPreview: r.content?.substring(0, 100),
+          chunkIndex: r.chunkIndex
         }))
       });
     }
@@ -359,11 +367,13 @@ class AIBlockService {
   private getCacheKey(request: AIBlockRequest): string {
     // Include blockId in cache key to allow different blocks to have different responses
     // This also helps when content changes and we want fresh responses
-    return `${request.workspaceId}:${request.query}:${request.pageId || 'global'}:${request.blockId || 'default'}`;
+    const key = `${request.workspaceId}:${request.query}:${request.pageId || 'global'}:${request.blockId || 'default'}`;
+    logger.info('🔑 Cache key generated', { key, request });
+    return key;
   }
   
   // Method to clear cache for a specific page when content changes
-  clearCacheForPage(workspaceId: string, pageId: string): void {
+  clearCacheForPage(workspaceId: string, pageId: string): number {
     const keysToDelete: string[] = [];
     for (const [key, _] of this.responseCache) {
       if (key.includes(workspaceId) && key.includes(pageId)) {
@@ -372,8 +382,12 @@ class AIBlockService {
     }
     keysToDelete.forEach(key => this.responseCache.delete(key));
     if (keysToDelete.length > 0) {
-      logger.info(`Cleared ${keysToDelete.length} cache entries for page ${pageId}`);
+      logger.info(`Cleared ${keysToDelete.length} cache entries for page ${pageId}`, {
+        clearedKeys: keysToDelete,
+        remainingCacheSize: this.responseCache.size
+      });
     }
+    return keysToDelete.length;
   }
 
   private getCachedResponse(key: string): AIBlockResponse | null {
