@@ -1,8 +1,8 @@
 import { prisma } from '~/utils/db.server';
 import { openai } from '../openai.server';
 import { DebugLogger } from '~/utils/debug-logger';
-import { ContentExtractor } from './content-extractor';
-import { ContentChunker } from './content-chunker';
+import { ContentExtractor } from './processors/content-extractor';
+import { DocumentChunkingService } from '../document-chunking.server';
 import { withRetry } from '~/utils/db.server';
 import type { Page } from '@prisma/client';
 
@@ -15,7 +15,7 @@ interface IndexingOptions {
 export class OptimizedIndexingService {
   private logger = new DebugLogger('OptimizedIndexing');
   private extractor = new ContentExtractor();
-  private chunker = new ContentChunker();
+  private chunker = new DocumentChunkingService();
   
   // OpenAI configuration
   private readonly EMBEDDING_MODEL = 'text-embedding-3-small';
