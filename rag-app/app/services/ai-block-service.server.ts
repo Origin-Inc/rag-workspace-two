@@ -207,11 +207,21 @@ export class AIBlockService {
       }))
     });
 
-    // If no results found with pageId, fall back to workspace-wide search
-    if (searchResults.length === 0) {
-      logger.info('📚 Falling back to workspace-wide search', { 
+    // If no results found with pageId, DO NOT fall back to workspace-wide search
+    // This was causing the bug where AI would respond with content from other pages
+    if (searchResults.length === 0 && pageId) {
+      logger.info('📄 No results found in current page', { 
         workspaceId,
-        reason: pageId ? 'No results in specific page' : 'No pageId provided'
+        pageId,
+        query
+      });
+      
+      // Keep empty results - better to say "no content found" than to return wrong page's content
+      // The user needs to add content to this specific page first
+    } else if (searchResults.length === 0 && !pageId) {
+      // Only search workspace-wide if no specific page was requested
+      logger.info('📚 Searching entire workspace (no specific page requested)', { 
+        workspaceId
       });
       
       searchResults = await embeddingGenerationService.searchSimilarDocuments(
@@ -224,14 +234,7 @@ export class AIBlockService {
       
       logger.info('✅ Workspace search completed', { 
         resultsCount: searchResults.length,
-        topResultScore: searchResults[0]?.similarity || 0,
-        results: searchResults.slice(0, 3).map(r => ({
-          id: r.id,
-          pageId: r.pageId,
-          similarity: r.similarity,
-          contentPreview: r.content?.substring(0, 100),
-          chunkIndex: r.chunkIndex
-        }))
+        topResultScore: searchResults[0]?.similarity || 0
       });
     }
 
@@ -364,14 +367,14 @@ export class AIBlockService {
     const lowerQuery = query.toLowerCase();
     
     if (lowerQuery.includes('summarize')) {
-      return "I couldn't find any content to summarize. Try adding some content to your pages first, and I'll be able to help you summarize it.";
+      return "I couldn't find any content to summarize on this page. Please add some content to this page first, and I'll be able to help you summarize it.";
     }
     
     if (lowerQuery.includes('explain') || lowerQuery.includes('what is')) {
-      return "I don't have any information about that topic in your workspace yet. Try adding relevant content to your pages, and I'll be able to help explain it.";
+      return "I don't have any information about that topic on this page yet. Please add relevant content to this page, and I'll be able to help explain it.";
     }
     
-    return "I couldn't find any relevant information in your workspace to answer this question. Try adding more content to your pages, or refine your question to be more specific.";
+    return `I couldn't find any relevant content on this page to answer: "${query}". Please add content to this page first. Note: I only search within the current page to ensure accurate, contextual responses.`;
   }
 
   private getCacheKey(request: AIBlockRequest): string {
