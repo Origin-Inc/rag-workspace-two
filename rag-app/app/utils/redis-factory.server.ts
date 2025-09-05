@@ -4,9 +4,10 @@
  */
 import Redis from 'ioredis';
 import { DebugLogger } from './debug-logger';
+import { NoneRedisProvider } from './redis-none-provider';
 
 export interface RedisProvider {
-  type: 'local' | 'upstash' | 'redis-cloud';
+  type: 'local' | 'upstash' | 'redis-cloud' | 'none';
   client: Redis | any;
   isHealthy: () => Promise<boolean>;
   get: (key: string) => Promise<string | null>;
@@ -226,7 +227,11 @@ export class RedisFactory {
     
     try {
       // Initialize primary provider
-      if (provider === 'upstash' && process.env.UPSTASH_REDIS_REST_URL) {
+      if (provider === 'none') {
+        this.provider = new NoneRedisProvider() as any;
+        this.logger.info('Redis disabled - using no-op provider');
+        return; // No need for health checks or monitoring
+      } else if (provider === 'upstash' && process.env.UPSTASH_REDIS_REST_URL) {
         this.provider = new UpstashRedisProvider(
           process.env.UPSTASH_REDIS_REST_URL,
           process.env.UPSTASH_REDIS_REST_TOKEN!
@@ -234,7 +239,10 @@ export class RedisFactory {
       } else if (process.env.REDIS_URL) {
         this.provider = new LocalRedisProvider(process.env.REDIS_URL);
       } else {
-        throw new Error('No Redis configuration found');
+        // Fall back to none provider if no Redis configured
+        this.provider = new NoneRedisProvider() as any;
+        this.logger.warn('No Redis configuration found - using no-op provider');
+        return;
       }
 
       // Check if primary is healthy
@@ -295,6 +303,11 @@ export class RedisFactory {
    */
   getClient(options?: { workerMode?: boolean }): Redis | any {
     const provider = this.getProvider();
+    
+    if (provider.type === 'none') {
+      // Return the none provider itself as it implements all needed methods
+      return provider;
+    }
     
     if (provider.type === 'local') {
       if (options?.workerMode) {
