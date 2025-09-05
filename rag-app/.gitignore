@@ -65,4 +65,10 @@ node_modules/
 
 # Task files
 # tasks.json
-# tasks/ 
+# tasks/
+
+# Deployment notes with credentials
+VERCEL_ENV_UPDATE.md
+*_CREDENTIALS.md
+*_SECRETS.md
+*_ENV_*.md 
