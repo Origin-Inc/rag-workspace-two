@@ -105,13 +105,36 @@ export class UltraLightIndexingService {
       // Clear only AI cache (not Redis)
       await this.clearAICache(pageId, page.workspaceId!);
       
-      // Count final embeddings
+      // Count and verify final embeddings
       const finalCount = await withRetry(() =>
-        prisma.$executeRaw`
-          SELECT COUNT(*) FROM page_embeddings 
+        prisma.$queryRaw<any[]>`
+          SELECT COUNT(*) as count FROM page_embeddings 
           WHERE page_id = ${pageId}::uuid
         `
       );
+      
+      // Clean up any duplicates or old entries (safety measure)
+      if (finalCount[0]?.count > chunks.length) {
+        this.logger.warn('⚠️ Too many embeddings found, cleaning up', {
+          pageId,
+          expected: chunks.length,
+          actual: finalCount[0].count
+        });
+        
+        // Keep only the most recent chunks
+        await withRetry(() =>
+          prisma.$executeRaw`
+            DELETE FROM page_embeddings
+            WHERE page_id = ${pageId}::uuid
+            AND id NOT IN (
+              SELECT id FROM page_embeddings
+              WHERE page_id = ${pageId}::uuid
+              ORDER BY created_at DESC
+              LIMIT ${chunks.length}
+            )
+          `
+        );
+      }
       
       this.logger.info('✅ Ultra-light indexing complete', { 
         pageId,
@@ -223,16 +246,41 @@ export class UltraLightIndexingService {
     page: any,
     chunks: Array<{ text: string; index: number }>
   ): Promise<void> {
-    // Delete old embeddings first
-    const deleteResult = await withRetry(() =>
-      prisma.$executeRaw`
-        DELETE FROM page_embeddings 
+    // Delete ALL old embeddings for this page - aggressive cleanup
+    // First count existing embeddings
+    const countBefore = await withRetry(() =>
+      prisma.$queryRaw<any[]>`
+        SELECT COUNT(*) as count FROM page_embeddings 
         WHERE page_id = ${page.id}::uuid
       `
     );
     
+    // Delete with explicit transaction
+    const deleteResult = await withRetry(() =>
+      prisma.$transaction(async (tx) => {
+        // Delete ALL embeddings for this page
+        const deleted = await tx.$executeRaw`
+          DELETE FROM page_embeddings 
+          WHERE page_id = ${page.id}::uuid
+        `;
+        
+        // Verify deletion
+        const remaining = await tx.$queryRaw<any[]>`
+          SELECT COUNT(*) as count FROM page_embeddings 
+          WHERE page_id = ${page.id}::uuid
+        `;
+        
+        if (remaining[0]?.count > 0) {
+          throw new Error(`Failed to delete embeddings: ${remaining[0].count} still remain`);
+        }
+        
+        return deleted;
+      })
+    );
+    
     this.logger.info('🗑️ Deleted old embeddings', { 
       pageId: page.id, 
+      countBefore: countBefore[0]?.count || 0,
       deletedCount: deleteResult,
       newChunksCount: chunks.length,
       chunkPreviews: chunks.slice(0, 2).map(c => c.text.substring(0, 100))
