@@ -381,8 +381,19 @@ export async function action({ params, request }: ActionFunctionArgs) {
       
       // Clear AI block cache for this page to ensure fresh responses
       const aiBlockService = AIBlockService.getInstance();
-      aiBlockService.clearCacheForPage(page.workspaceId, pageId);
-      console.log('[Cache Clear] AI block cache cleared for page:', pageId);
+      const cacheKeysCleared = aiBlockService.clearCacheForPage(page.workspaceId, pageId);
+      console.log('[Cache Clear] AI block cache cleared for page:', pageId, 'Keys cleared:', cacheKeysCleared);
+      
+      // Extract text content for logging
+      let textContent = '';
+      if (blocks && Array.isArray(blocks)) {
+        textContent = blocks.map((b: any) => {
+          if (typeof b.content === 'string') return b.content;
+          if (b.content?.text) return b.content.text;
+          return '';
+        }).filter(Boolean).join(' ').substring(0, 200);
+      }
+      console.log('[Save Debug] Content preview:', textContent);
       
       // Use ultra-light indexing for severely constrained environments
       // This works with 10MB request limit and 100MB Redis with eviction
