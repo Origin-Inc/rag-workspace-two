@@ -38,24 +38,24 @@ export class UltraLightIndexingService {
     }
     
     if (!immediate) {
-      // Debounce for 5 seconds
-      this.debounceIndexing(pageId);
+      // 1-second debounce to batch rapid saves but still feel instant
+      this.debounceIndexing(pageId, 1000);
     } else {
       await this.processPageUltraLight(pageId);
     }
   }
   
   /**
-   * Debounce without Redis
+   * Debounce without Redis - 1 second for near real-time
    */
-  private debounceIndexing(pageId: string): void {
+  private debounceIndexing(pageId: string, delayMs: number = 1000): void {
     const existing = this.indexingTimeouts.get(pageId);
     if (existing) clearTimeout(existing);
     
     const timeout = setTimeout(async () => {
       this.indexingTimeouts.delete(pageId);
       await this.processPageUltraLight(pageId);
-    }, 5000); // 5 second delay
+    }, delayMs); // Default 1 second for real-time feel
     
     this.indexingTimeouts.set(pageId, timeout);
   }
@@ -85,12 +85,9 @@ export class UltraLightIndexingService {
       
       if (!page) return;
       
-      // Check if recently indexed (10 seconds to prevent rapid re-indexing)
-      const recentlyIndexed = await this.wasRecentlyIndexed(pageId, 0.17); // 10 seconds = 0.17 minutes
-      if (recentlyIndexed) {
-        this.logger.info('⏩ Skip - recently indexed (within 10 seconds)', { pageId });
-        return;
-      }
+      // NO COOLDOWN - Always re-index for real-time updates
+      // Users expect immediate results when they save content
+      this.logger.info('🔄 Processing page for real-time indexing', { pageId });
       
       // Extract only essential content
       const content = this.extractEssentialContent(page);
