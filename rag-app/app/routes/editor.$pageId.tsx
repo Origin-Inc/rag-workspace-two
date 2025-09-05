@@ -395,21 +395,41 @@ export async function action({ params, request }: ActionFunctionArgs) {
       }
       console.log('[Save Debug] Content preview:', textContent);
       
-      // Clean up any stale embeddings first
-      import('~/services/rag/cleanup-stale-embeddings.server').then(({ embeddingCleanupService }) => {
-        embeddingCleanupService.cleanupDuplicates(pageId).catch(err => {
-          console.error('[Cleanup] Failed to clean duplicates:', err);
+      // Clean up any stale embeddings but defer it to avoid connection competition
+      // Run cleanup after a delay to let indexing complete first
+      setTimeout(() => {
+        import('~/services/rag/cleanup-stale-embeddings.server').then(({ embeddingCleanupService }) => {
+          embeddingCleanupService.cleanupDuplicates(pageId).catch(err => {
+            console.warn('[Cleanup] Deferred cleanup failed (non-critical):', err.message);
+          });
         });
-      });
+      }, 5000); // Run cleanup 5 seconds after save
       
       // Use ultra-light indexing with IMMEDIATE mode to ensure content is indexed right away
       // This prevents the "one save behind" issue where content only appears after the next save
-      ultraLightIndexingService.indexPage(pageId, true).catch(error => {
-        console.error('[Ultra-Light-Index] Failed:', error);
-        // Try fallback to even simpler approach if needed
+      const indexWithRetry = async (retries = 3) => {
+        for (let i = 0; i < retries; i++) {
+          try {
+            await ultraLightIndexingService.indexPage(pageId, true);
+            console.log('[Indexing] Success on attempt', i + 1);
+            return;
+          } catch (error) {
+            console.error(`[Indexing] Attempt ${i + 1} failed:`, error);
+            if (i < retries - 1) {
+              // Wait before retrying with exponential backoff
+              await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+            }
+          }
+        }
+        // After all retries failed, try fallback
+        console.error('[Indexing] All retries failed, trying fallback');
         ragIndexingService.queueForIndexing(pageId).catch(fallbackError => {
           console.error('[Fallback-Index] Also failed:', fallbackError);
         });
+      };
+      
+      indexWithRetry().catch(error => {
+        console.error('[Indexing] Retry mechanism failed:', error);
       });
       
     } catch (error: any) {

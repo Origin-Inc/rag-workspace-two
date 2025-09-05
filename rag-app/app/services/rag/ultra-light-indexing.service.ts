@@ -15,12 +15,12 @@ export class UltraLightIndexingService {
   private extractor = new ContentExtractor();
   private chunker = new DocumentChunkingService();
   
-  // Severely constrained configuration
+  // Optimized configuration for production
   private readonly EMBEDDING_MODEL = 'text-embedding-3-small';
   private readonly EMBEDDING_DIMENSION = 1536;
-  private readonly MAX_CHUNKS_PER_PAGE = 10; // Hard limit
-  private readonly MAX_CHUNK_SIZE = 200; // Smaller chunks
-  private readonly BATCH_SIZE = 2; // Tiny batches
+  private readonly MAX_CHUNKS_PER_PAGE = 50; // Increased to handle full pages
+  private readonly MAX_CHUNK_SIZE = 400; // Larger chunks for better context
+  private readonly BATCH_SIZE = 5; // Slightly larger batches for efficiency
   private readonly MAX_REQUEST_SIZE = 8 * 1024 * 1024; // 8MB (leaving 2MB buffer)
   
   // In-memory processing (no Redis for indexing)
@@ -144,7 +144,13 @@ export class UltraLightIndexingService {
       });
       
     } catch (error) {
-      this.logger.error('Failed', { pageId, error });
+      this.logger.error('Indexing failed', { 
+        pageId, 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        errorType: error?.constructor?.name
+      });
+      throw error; // Re-throw to trigger retry in calling code
     } finally {
       this.processingPages.delete(pageId);
     }
@@ -161,11 +167,11 @@ export class UltraLightIndexingService {
       parts.push(page.title);
     }
     
-    // Extract text from blocks (limit to first 5000 chars)
+    // Extract text from ALL blocks (increased limit for full page content)
     if (page.blocks && Array.isArray(page.blocks)) {
       let totalLength = 0;
       for (const block of page.blocks) {
-        if (totalLength > 5000) break;
+        if (totalLength > 50000) break; // Increased to 50KB for full pages
         
         const text = this.extractBlockText(block);
         if (text) {
@@ -180,10 +186,10 @@ export class UltraLightIndexingService {
       const content = typeof page.content === 'string' 
         ? page.content 
         : JSON.stringify(page.content);
-      parts.push(content.substring(0, 5000));
+      parts.push(content.substring(0, 50000)); // Increased limit
     }
     
-    return parts.join('\n').substring(0, 8000); // Max 8KB of text
+    return parts.join('\n').substring(0, 50000); // Max 50KB of text for full content
   }
   
   /**
@@ -193,11 +199,11 @@ export class UltraLightIndexingService {
     if (!block) return '';
     
     if (typeof block.content === 'string') {
-      return block.content.substring(0, 500);
+      return block.content; // Return full content, no truncation
     }
     
     if (block.content?.text) {
-      return String(block.content.text).substring(0, 500);
+      return String(block.content.text); // Return full content, no truncation
     }
     
     return '';
