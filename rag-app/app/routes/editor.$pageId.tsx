@@ -395,6 +395,13 @@ export async function action({ params, request }: ActionFunctionArgs) {
       }
       console.log('[Save Debug] Content preview:', textContent);
       
+      // Clean up any stale embeddings first
+      import('~/services/rag/cleanup-stale-embeddings.server').then(({ embeddingCleanupService }) => {
+        embeddingCleanupService.cleanupDuplicates(pageId).catch(err => {
+          console.error('[Cleanup] Failed to clean duplicates:', err);
+        });
+      });
+      
       // Use ultra-light indexing for severely constrained environments
       // This works with 10MB request limit and 100MB Redis with eviction
       ultraLightIndexingService.indexPage(pageId, false).catch(error => {
