@@ -25,6 +25,9 @@ function createPrismaClient() {
     if (!url.searchParams.has('connection_limit')) {
       url.searchParams.set('connection_limit', '20');
     }
+    // Increase pool timeout to prevent P2024 errors during heavy indexing
+    url.searchParams.set('pool_timeout', '30'); // 30 seconds instead of default 10
+    url.searchParams.set('connect_timeout', '30'); // 30 seconds connection timeout
     databaseUrl = url.toString();
   }
 
