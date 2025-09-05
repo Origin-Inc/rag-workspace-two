@@ -2,7 +2,7 @@ import { prisma } from '~/utils/db.server';
 import { openai } from '../openai.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { ContentExtractor } from './processors/content-extractor';
-import { ContentChunker } from './processors/content-chunker';
+import { DocumentChunkingService } from '../document-chunking.server';
 import { withRetry } from '~/utils/db.server';
 import type { Page } from '@prisma/client';
 
@@ -13,7 +13,7 @@ import type { Page } from '@prisma/client';
 export class UltraLightIndexingService {
   private logger = new DebugLogger('UltraLightIndexing');
   private extractor = new ContentExtractor();
-  private chunker = new ContentChunker();
+  private chunker = new DocumentChunkingService();
   
   // Severely constrained configuration
   private readonly EMBEDDING_MODEL = 'text-embedding-3-small';
