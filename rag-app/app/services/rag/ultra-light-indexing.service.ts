@@ -1,8 +1,8 @@
 import { prisma } from '~/utils/db.server';
 import { openai } from '../openai.server';
 import { DebugLogger } from '~/utils/debug-logger';
-import { ContentExtractor } from './content-extractor';
-import { ContentChunker } from './content-chunker';
+import { ContentExtractor } from './processors/content-extractor';
+import { ContentChunker } from './processors/content-chunker';
 import { withRetry } from '~/utils/db.server';
 import type { Page } from '@prisma/client';
 
