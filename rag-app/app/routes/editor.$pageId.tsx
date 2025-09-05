@@ -402,9 +402,9 @@ export async function action({ params, request }: ActionFunctionArgs) {
         });
       });
       
-      // Use ultra-light indexing for severely constrained environments
-      // This works with 10MB request limit and 100MB Redis with eviction
-      ultraLightIndexingService.indexPage(pageId, false).catch(error => {
+      // Use ultra-light indexing with IMMEDIATE mode to ensure content is indexed right away
+      // This prevents the "one save behind" issue where content only appears after the next save
+      ultraLightIndexingService.indexPage(pageId, true).catch(error => {
         console.error('[Ultra-Light-Index] Failed:', error);
         // Try fallback to even simpler approach if needed
         ragIndexingService.queueForIndexing(pageId).catch(fallbackError => {

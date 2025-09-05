@@ -20,7 +20,11 @@ function createPrismaClient() {
     url.searchParams.set('pgbouncer', 'true');
     url.searchParams.set('statement_cache_size', '0');
     url.searchParams.set('prepare', 'false');
-    url.searchParams.set('connection_limit', '1');
+    // Use connection limit from URL or default to 20 for production
+    // The connection_limit should already be set in DATABASE_URL env var
+    if (!url.searchParams.has('connection_limit')) {
+      url.searchParams.set('connection_limit', '20');
+    }
     databaseUrl = url.toString();
   }
 
