@@ -35,7 +35,7 @@ export interface AIBlockResponse {
   };
 }
 
-class AIBlockService {
+export class AIBlockService {
   private static instance: AIBlockService;
   private responseCache: Map<string, { response: AIBlockResponse; timestamp: number }> = new Map();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
