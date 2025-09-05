@@ -360,16 +360,10 @@ export class EmbeddingGenerationService {
         // Use the search_embeddings function from our migration
         // Build the query based on whether pageId is provided
         // Use Prisma.sql for proper type handling
+        // Use search_embeddings function which returns: id, content, metadata, similarity, source_type, source_id
         const results = pageId 
           ? await prisma.$queryRawUnsafe<any[]>(`
-              SELECT 
-                source_type,
-                entity_id,
-                page_id,
-                chunk_text,
-                similarity,
-                metadata
-              FROM search_embeddings(
+              SELECT * FROM search_embeddings(
                 $1::vector,
                 $2::uuid,
                 $3::uuid,
@@ -378,14 +372,7 @@ export class EmbeddingGenerationService {
               )
             `, vectorString, workspaceId, pageId, limit, similarityThreshold)
           : await prisma.$queryRawUnsafe<any[]>(`
-              SELECT 
-                source_type,
-                entity_id,
-                page_id,
-                chunk_text,
-                similarity,
-                metadata
-              FROM search_embeddings(
+              SELECT * FROM search_embeddings(
                 $1::vector,
                 $2::uuid,
                 NULL::uuid,
@@ -399,11 +386,11 @@ export class EmbeddingGenerationService {
           searchedPageId: pageId,
           actualWorkspaceId: workspaceId,
           results: results.map(r => ({
+            id: r.id,
             source_type: r.source_type,
-            entity_id: r.entity_id,
-            page_id: r.page_id,
+            source_id: r.source_id,
             similarity: r.similarity,
-            textPreview: r.chunk_text?.substring(0, 200),
+            textPreview: r.content?.substring(0, 200),
             metadata: r.metadata
           }))
         });
@@ -412,9 +399,9 @@ export class EmbeddingGenerationService {
         if (results.length > 0) {
           this.logger.warn('🔍 CRITICAL DEBUG: First result details', {
             firstResult: {
-              entity_id: results[0].entity_id,
-              page_id: results[0].page_id,
-              chunk_text: results[0].chunk_text,
+              id: results[0].id,
+              source_id: results[0].source_id,
+              content: results[0].content,
               metadata: results[0].metadata,
               similarity: results[0].similarity,
               source_type: results[0].source_type
@@ -423,20 +410,20 @@ export class EmbeddingGenerationService {
         }
 
         // Transform results to match expected format
-        // search_embeddings returns: source_type, entity_id, page_id, chunk_text, similarity, metadata
+        // search_embeddings returns: id, content, metadata, similarity, source_type, source_id
         return results.map((r: any) => ({
-          id: r.entity_id,
-          content: r.chunk_text,
+          id: r.id,
+          content: r.content,
           embedding: [], // Don't return full embedding to save bandwidth
           metadata: r.metadata || {},
-          passage_id: r.entity_id,
+          passage_id: r.id,
           chunk_index: r.metadata?.chunkIndex || r.metadata?.chunk_index || 0,
           similarity: r.similarity,
           rank: r.similarity,
-          pageId: r.page_id,
+          pageId: r.source_id, // source_id contains the page_id
           workspace_id: workspaceId,
           source_type: r.source_type,
-          source_block_id: r.source_type === 'block' ? r.entity_id : undefined,
+          source_block_id: r.source_type === 'block' ? r.source_id : undefined,
           chunkIndex: r.metadata?.chunk_index || 0  // Add this for compatibility
         })) as DocumentWithEmbedding[];
       } else {
