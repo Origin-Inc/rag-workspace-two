@@ -15,6 +15,16 @@ export class UltraLightIndexingService {
   private extractor = new ContentExtractor();
   private chunker = new DocumentChunkingService();
   
+  /**
+   * Helper to safely convert BigInt to number for JSON serialization
+   */
+  private safeBigIntToNumber(value: any): number {
+    if (typeof value === 'bigint') {
+      return Number(value);
+    }
+    return value;
+  }
+  
   // Optimized configuration for production
   private readonly EMBEDDING_MODEL = 'text-embedding-3-small';
   private readonly EMBEDDING_DIMENSION = 1536;
@@ -114,11 +124,12 @@ export class UltraLightIndexingService {
       );
       
       // Clean up any duplicates or old entries (safety measure)
-      if (finalCount[0]?.count > chunks.length) {
+      const finalCountNumber = this.safeBigIntToNumber(finalCount[0]?.count) || 0;
+      if (finalCountNumber > chunks.length) {
         this.logger.warn('⚠️ Too many embeddings found, cleaning up', {
           pageId,
           expected: chunks.length,
-          actual: finalCount[0].count
+          actual: finalCountNumber
         });
         
         // Keep only the most recent chunks
@@ -139,7 +150,7 @@ export class UltraLightIndexingService {
       this.logger.info('✅ Ultra-light indexing complete', { 
         pageId,
         chunks: chunks.length,
-        finalEmbeddingsCount: finalCount,
+        finalEmbeddingsCount: this.safeBigIntToNumber(finalCount[0]?.count) || 0,
         contentPreview: content.substring(0, 200)
       });
       
@@ -276,8 +287,9 @@ export class UltraLightIndexingService {
           WHERE page_id = ${page.id}::uuid
         `;
         
-        if (remaining[0]?.count > 0) {
-          throw new Error(`Failed to delete embeddings: ${remaining[0].count} still remain`);
+        const remainingCount = this.safeBigIntToNumber(remaining[0]?.count) || 0;
+        if (remainingCount > 0) {
+          throw new Error(`Failed to delete embeddings: ${remainingCount} still remain`);
         }
         
         return deleted;
@@ -286,8 +298,8 @@ export class UltraLightIndexingService {
     
     this.logger.info('🗑️ Deleted old embeddings', { 
       pageId: page.id, 
-      countBefore: countBefore[0]?.count || 0,
-      deletedCount: deleteResult,
+      countBefore: this.safeBigIntToNumber(countBefore[0]?.count) || 0,
+      deletedCount: this.safeBigIntToNumber(deleteResult),
       newChunksCount: chunks.length,
       chunkPreviews: chunks.slice(0, 2).map(c => c.text.substring(0, 100))
     });
@@ -365,7 +377,8 @@ export class UltraLightIndexingService {
         LIMIT 1
       `;
       
-      if (!result[0]?.count || result[0].count === '0') return false;
+      const count = this.safeBigIntToNumber(result[0]?.count) || 0;
+      if (count === 0) return false;
       
       const lastIndexed = result[0].last_indexed;
       if (!lastIndexed) return false;
