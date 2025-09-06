@@ -24,18 +24,121 @@ class LocalRedisProvider implements RedisProvider {
   type: 'local' = 'local';
   client: Redis;
   private logger = new DebugLogger('LocalRedis');
+  private reconnectAttempts = 0;
+  private readonly MAX_RECONNECT_ATTEMPTS = 10;
 
   constructor(url: string) {
-    this.client = new Redis(url);
-    this.logger.info('Initialized local Redis provider');
+    // Parse URL to extract connection details
+    const redisUrl = new URL(url);
+    
+    // Enhanced configuration for Railway $5 plan constraints
+    const config = {
+      host: redisUrl.hostname,
+      port: parseInt(redisUrl.port || '6379'),
+      password: redisUrl.password || undefined,
+      username: redisUrl.username || 'default',
+      
+      // Connection settings optimized for Railway $5 tier (0.1 vCPU, 300MB RAM)
+      connectTimeout: 30000, // 30 seconds (increased from default 10s)
+      commandTimeout: 15000, // 15 seconds per command
+      
+      // Retry configuration with exponential backoff
+      retryStrategy: (times: number) => {
+        this.reconnectAttempts = times;
+        
+        if (times > this.MAX_RECONNECT_ATTEMPTS) {
+          this.logger.error('Max reconnection attempts reached', { attempts: times });
+          return null; // Stop retrying
+        }
+        
+        // Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1.6s, 3.2s, 6.4s, 12.8s, 25.6s, 51.2s
+        const delay = Math.min(100 * Math.pow(2, times - 1), 60000); // Cap at 60 seconds
+        
+        this.logger.warn('Redis connection lost, retrying...', { 
+          attempt: times, 
+          delay: `${delay}ms`,
+          maxAttempts: this.MAX_RECONNECT_ATTEMPTS 
+        });
+        
+        return delay;
+      },
+      
+      // Connection pool settings for constrained environment
+      maxRetriesPerRequest: 3,
+      enableReadyCheck: true,
+      enableOfflineQueue: true,
+      
+      // Keep-alive to prevent connection drops
+      keepAlive: 10000, // Send keep-alive every 10 seconds
+      
+      // Reconnection settings
+      reconnectOnError: (err: Error) => {
+        const targetErrors = ['READONLY', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED'];
+        return targetErrors.some(e => err.message.includes(e));
+      },
+      
+      // Performance settings for low resources
+      lazyConnect: false, // Connect immediately to detect issues early
+      enableAutoPipelining: true, // Batch commands for efficiency
+      autoPipeliningIgnoredCommands: ['info', 'ping'], // Don't batch health checks
+    };
+    
+    this.client = new Redis(config as any);
+    
+    // Set up event handlers for better monitoring
+    this.client.on('connect', () => {
+      this.logger.info('Redis connected successfully', { 
+        host: redisUrl.hostname,
+        reconnectAttempts: this.reconnectAttempts 
+      });
+      this.reconnectAttempts = 0; // Reset counter on successful connection
+    });
+    
+    this.client.on('ready', () => {
+      this.logger.info('Redis ready to accept commands');
+    });
+    
+    this.client.on('error', (error) => {
+      this.logger.error('Redis connection error', { 
+        error: error.message,
+        code: (error as any).code,
+        syscall: (error as any).syscall
+      });
+    });
+    
+    this.client.on('close', () => {
+      this.logger.warn('Redis connection closed');
+    });
+    
+    this.client.on('reconnecting', (delay: number) => {
+      this.logger.info('Redis reconnecting', { delay: `${delay}ms` });
+    });
+    
+    this.client.on('end', () => {
+      this.logger.warn('Redis connection ended');
+    });
+    
+    this.logger.info('Initialized local Redis provider with Railway optimizations');
   }
 
   async isHealthy(): Promise<boolean> {
     try {
-      const response = await this.client.ping();
+      // Add timeout to health check for Railway's constrained environment
+      const timeout = new Promise<string>((_, reject) => 
+        setTimeout(() => reject(new Error('Health check timeout')), 5000)
+      );
+      
+      const response = await Promise.race([
+        this.client.ping(),
+        timeout
+      ]);
+      
       return response === 'PONG';
     } catch (error) {
-      this.logger.error('Health check failed', error);
+      this.logger.error('Health check failed', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reconnectAttempts: this.reconnectAttempts 
+      });
       return false;
     }
   }
@@ -311,15 +414,45 @@ export class RedisFactory {
     
     if (provider.type === 'local') {
       if (options?.workerMode) {
-        // Create a new connection for workers with proper config
+        // Parse Redis URL for worker connection
+        const redisUrl = new URL(process.env.REDIS_URL!);
+        
+        // Create a new connection for workers with Railway-optimized config
         const workerConfig = {
-          maxRetriesPerRequest: null,
+          host: redisUrl.hostname,
+          port: parseInt(redisUrl.port || '6379'),
+          password: redisUrl.password || undefined,
+          username: redisUrl.username || 'default',
+          
+          // Worker-specific settings for Railway $5 tier
+          maxRetriesPerRequest: null, // Workers need persistent retries
           enableReadyCheck: true,
+          connectTimeout: 30000, // 30 seconds
+          commandTimeout: 15000, // 15 seconds
+          keepAlive: 10000, // Keep connection alive
+          
+          // Retry strategy for workers
+          retryStrategy: (times: number) => {
+            if (times > 20) { // Workers can retry more
+              this.logger.error('Worker Redis max retries reached', { attempts: times });
+              return null;
+            }
+            const delay = Math.min(500 * Math.pow(1.5, times - 1), 30000);
+            this.logger.warn('Worker Redis reconnecting', { attempt: times, delay });
+            return delay;
+          },
+          
           reconnectOnError: (err: Error) => {
-            return err.message.includes('READONLY');
-          }
+            const targetErrors = ['READONLY', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED'];
+            return targetErrors.some(e => err.message.includes(e));
+          },
+          
+          // Performance optimizations
+          enableAutoPipelining: true,
+          autoPipeliningIgnoredCommands: ['blpop', 'brpop'], // Don't pipeline blocking commands
         };
-        return new Redis(process.env.REDIS_URL!, workerConfig);
+        
+        return new Redis(workerConfig as any);
       }
       return provider.client;
     }

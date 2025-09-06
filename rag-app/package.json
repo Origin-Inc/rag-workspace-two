@@ -17,7 +17,9 @@
     "worker": "tsx start-indexing-worker-robust.ts",
     "worker:dev": "tsx watch start-indexing-worker-robust.ts",
     "migrate:hierarchy": "tsx scripts/migrate-projects-to-pages.ts",
-    "rollback:hierarchy": "tsx scripts/rollback-to-projects.ts"
+    "rollback:hierarchy": "tsx scripts/rollback-to-projects.ts",
+    "redis:configure": "node scripts/configure-redis.js",
+    "prestart": "npm run redis:configure"
   },
   "keywords": [],
   "author": "",
