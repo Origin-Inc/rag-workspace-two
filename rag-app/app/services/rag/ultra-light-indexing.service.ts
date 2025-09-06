@@ -4,6 +4,7 @@ import { DebugLogger } from '~/utils/debug-logger';
 import { ContentExtractor } from './processors/content-extractor';
 import { DocumentChunkingService } from '../document-chunking.server';
 import { withRetry } from '~/utils/db.server';
+import { connectionPoolManager } from '../connection-pool-manager.server';
 import type { Page } from '@prisma/client';
 
 /**
@@ -51,7 +52,11 @@ export class UltraLightIndexingService {
       // 1-second debounce to batch rapid saves but still feel instant
       this.debounceIndexing(pageId, 1000);
     } else {
-      await this.processPageUltraLight(pageId);
+      // Use connection pool manager to prevent exhaustion
+      await connectionPoolManager.executeWithPoolManagement(
+        `index-${pageId}`,
+        () => this.processPageUltraLight(pageId)
+      );
     }
   }
   
@@ -64,7 +69,11 @@ export class UltraLightIndexingService {
     
     const timeout = setTimeout(async () => {
       this.indexingTimeouts.delete(pageId);
-      await this.processPageUltraLight(pageId);
+      // Use connection pool manager for debounced operations too
+      await connectionPoolManager.executeWithPoolManagement(
+        `index-debounced-${pageId}`,
+        () => this.processPageUltraLight(pageId)
+      );
     }, delayMs); // Default 1 second for real-time feel
     
     this.indexingTimeouts.set(pageId, timeout);
