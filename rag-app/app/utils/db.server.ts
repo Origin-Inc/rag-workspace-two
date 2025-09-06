@@ -20,10 +20,10 @@ function createPrismaClient() {
     url.searchParams.set('pgbouncer', 'true');
     url.searchParams.set('statement_cache_size', '0');
     url.searchParams.set('prepare', 'false');
-    // Use connection limit from URL or default to 20 for production
+    // Use connection limit from URL or default to 50 for production
     // The connection_limit should already be set in DATABASE_URL env var
     if (!url.searchParams.has('connection_limit')) {
-      url.searchParams.set('connection_limit', '20');
+      url.searchParams.set('connection_limit', '50');
     }
     // Increase pool timeout to prevent P2024 errors during heavy indexing
     url.searchParams.set('pool_timeout', '30'); // 30 seconds instead of default 10

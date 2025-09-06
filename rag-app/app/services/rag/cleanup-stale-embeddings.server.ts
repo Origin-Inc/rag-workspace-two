@@ -1,5 +1,6 @@
 import { prisma } from '~/utils/db.server';
 import { DebugLogger } from '~/utils/debug-logger';
+import { connectionPoolManager } from '../connection-pool-manager.server';
 
 /**
  * Service to clean up stale and duplicate embeddings
@@ -13,61 +14,52 @@ export class EmbeddingCleanupService {
   async cleanupDuplicates(pageId?: string): Promise<number> {
     this.logger.info('Starting duplicate cleanup', { pageId });
     
-    try {
-      if (pageId) {
-        // Clean specific page
-        return await this.cleanupPageDuplicates(pageId);
-      } else {
-        // Clean all pages
-        return await this.cleanupAllDuplicates();
+    // Use connection pool manager to prevent exhaustion
+    return connectionPoolManager.executeWithPoolManagement(
+      `cleanup-${pageId || 'all'}`,
+      async () => {
+        try {
+          if (pageId) {
+            // Clean specific page
+            return await this.cleanupPageDuplicates(pageId);
+          } else {
+            // Clean all pages
+            return await this.cleanupAllDuplicates();
+          }
+        } catch (error) {
+          this.logger.error('Cleanup failed', { error });
+          throw error;
+        }
       }
-    } catch (error) {
-      this.logger.error('Cleanup failed', { error });
-      throw error;
-    }
+    );
   }
 
   private async cleanupPageDuplicates(pageId: string): Promise<number> {
-    // Find duplicates - embeddings with same page_id and chunk_index
-    const duplicates = await prisma.$queryRaw<any[]>`
-      WITH duplicates AS (
-        SELECT 
-          page_id,
-          chunk_index,
-          COUNT(*) as count,
-          MAX(created_at) as latest
-        FROM page_embeddings
-        WHERE page_id = ${pageId}::uuid
-        GROUP BY page_id, chunk_index
-        HAVING COUNT(*) > 1
-      )
-      SELECT 
-        pe.id
-      FROM page_embeddings pe
-      INNER JOIN duplicates d 
-        ON pe.page_id = d.page_id 
-        AND pe.chunk_index = d.chunk_index
-        AND pe.created_at < d.latest
-      WHERE pe.page_id = ${pageId}::uuid
-    `;
-
-    if (duplicates.length > 0) {
-      const idsToDelete = duplicates.map(d => d.id);
-      
+    // More efficient: Delete duplicates in a single query without fetching them first
+    try {
       const deleted = await prisma.$executeRaw`
         DELETE FROM page_embeddings
-        WHERE id = ANY(${idsToDelete}::uuid[])
+        WHERE page_id = ${pageId}::uuid
+        AND id NOT IN (
+          SELECT DISTINCT ON (page_id, chunk_index) id
+          FROM page_embeddings
+          WHERE page_id = ${pageId}::uuid
+          ORDER BY page_id, chunk_index, created_at DESC
+        )
       `;
       
-      this.logger.info('Deleted duplicate embeddings', { 
-        pageId, 
-        deletedCount: deleted 
-      });
+      if (deleted > 0) {
+        this.logger.info('Deleted duplicate embeddings', { 
+          pageId, 
+          deletedCount: deleted 
+        });
+      }
       
-      return deleted;
+      return Number(deleted); // Convert BigInt to number
+    } catch (error) {
+      this.logger.error('Failed to cleanup duplicates', { pageId, error });
+      return 0;
     }
-    
-    return 0;
   }
 
   private async cleanupAllDuplicates(): Promise<number> {
