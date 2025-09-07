@@ -785,25 +785,7 @@ export const TiptapBlockEditor = memo(function TiptapBlockEditor({
 
   return (
     <div className={cn("h-full bg-white flex flex-col", className)}>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center gap-4">
-          <span className="text-xs text-gray-500">
-            {blocks.length} block{blocks.length !== 1 ? 's' : ''}
-          </span>
-          <span className="text-xs text-gray-500">
-            {enableVirtualScrolling ? 'Virtual scrolling enabled' : 'Standard rendering'}
-          </span>
-        </div>
-        <button
-          onClick={() => onSave?.(blocks)}
-          className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Save (⌘S)
-        </button>
-      </div>
-      
-      {/* Editor content */}
+      {/* Editor content - removed toolbar */}
       <div className="flex-1 overflow-hidden">
         {enableVirtualScrolling && blocks.length > 50 ? (
           // Use virtual scrolling for large documents
