@@ -313,15 +313,6 @@ export const LexicalBlockEditor = memo(function LexicalBlockEditor({
 
   return (
     <div className={cn("h-full bg-white flex flex-col", className)}>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">
-            {blocks.length} block{blocks.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-      </div>
-      
       {/* Editor content */}
       <div className="flex-1 overflow-y-auto">
         {blocks.map((block, index) => (
