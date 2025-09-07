@@ -4128,7 +4128,7 @@
         "id": 32,
         "title": "Create Knowledge Graph Infrastructure for RAG System",
         "description": "Build a simplified GraphRAG system using PostgreSQL native features to dramatically reduce token usage and enable intelligent querying with 50,000+ rows through hybrid graph traversal and vector search, now integrated with Notion-style page hierarchy.",
-        "status": "pending",
+        "status": "deferred",
         "dependencies": [
           6,
           16,
@@ -4468,11 +4468,274 @@
             "parentTaskId": 34
           }
         ]
+      },
+      {
+        "id": 35,
+        "title": "Migrate to Asynchronous Embedding Generation with BullMQ",
+        "description": "Decouple embedding generation from user requests by converting all synchronous OpenAI calls to queue-based processing using the existing BullMQ infrastructure, improving performance and database connection management while maintaining backward compatibility.",
+        "details": "1. Create dedicated embedding queue and processor in BullMQ:\n```typescript\n// app/queues/embedding.queue.server.ts\nimport { Queue, Worker } from 'bullmq';\nimport { redis } from '~/utils/redis.server';\n\nexport const embeddingQueue = new Queue('embeddings', {\n  connection: redis,\n  defaultJobOptions: {\n    removeOnComplete: { count: 100 },\n    removeOnFail: { count: 500 },\n    attempts: 3,\n    backoff: { type: 'exponential', delay: 2000 }\n  }\n});\n\ninterface EmbeddingJobData {\n  type: 'document' | 'block' | 'page';\n  entityId: string;\n  content: string;\n  metadata?: Record<string, any>;\n  workspaceId: string;\n  priority?: number;\n}\n```\n\n2. Modify ultra-light-indexing.service.ts to queue jobs instead of direct processing:\n```typescript\n// Before (synchronous)\nawait generateEmbedding(content);\n\n// After (asynchronous)\nawait embeddingQueue.add('generate-embedding', {\n  type: 'block',\n  entityId: blockId,\n  content: processedContent,\n  workspaceId,\n  metadata: { pageId, blockType }\n}, {\n  priority: isUserTriggered ? 10 : 1,\n  delay: isUserTriggered ? 0 : 5000 // Delay non-critical updates\n});\n```\n\n3. Create embedding worker with connection pooling:\n```typescript\n// app/workers/embedding.worker.ts\nconst embeddingWorker = new Worker('embeddings', async (job) => {\n  const { type, entityId, content, metadata, workspaceId } = job.data;\n  \n  // Use connection from pool\n  const embedding = await openai.embeddings.create({\n    model: 'text-embedding-3-small',\n    input: content,\n    dimensions: 1536\n  });\n  \n  // Store with optimized transaction\n  await prisma.$transaction(async (tx) => {\n    await tx.document.upsert({\n      where: { id: entityId },\n      create: {\n        id: entityId,\n        workspaceId,\n        content,\n        embedding: embedding.data[0].embedding,\n        metadata,\n        indexedAt: new Date()\n      },\n      update: {\n        content,\n        embedding: embedding.data[0].embedding,\n        metadata,\n        indexedAt: new Date()\n      }\n    });\n  }, {\n    maxWait: 5000,\n    timeout: 10000\n  });\n  \n  // Release connection immediately\n  return { entityId, status: 'indexed' };\n}, {\n  connection: redis,\n  concurrency: 5, // Process 5 embeddings in parallel\n  limiter: {\n    max: 100,\n    duration: 60000 // Max 100 embeddings per minute (OpenAI limit)\n  }\n});\n```\n\n4. Update editor.$pageId.tsx to use queue instead of synchronous calls:\n```typescript\n// Remove direct embedding generation\n// const embedding = await generateEmbedding(blockContent);\n\n// Add queue-based processing with status tracking\nconst jobId = await embeddingQueue.add('generate-embedding', {\n  type: 'block',\n  entityId: block.id,\n  content: block.content,\n  workspaceId: workspace.id,\n  metadata: { pageId, userId: user.id }\n});\n\n// Optional: Track job status for UI feedback\nconst job = await embeddingQueue.getJob(jobId);\njob.on('completed', (result) => {\n  // Update UI to show indexing complete\n});\n```\n\n5. Implement backward compatibility layer:\n```typescript\n// app/services/embedding-compat.server.ts\nexport async function generateEmbeddingCompat(\n  content: string,\n  options?: { immediate?: boolean }\n) {\n  if (options?.immediate) {\n    // Fallback to synchronous for critical paths\n    return await generateEmbeddingDirect(content);\n  }\n  \n  // Default to queue-based\n  const job = await embeddingQueue.add('generate-embedding', {\n    type: 'direct',\n    content,\n    entityId: crypto.randomUUID()\n  });\n  \n  return job.id; // Return job ID for tracking\n}\n```\n\n6. Add job status monitoring and retry logic:\n```typescript\n// app/services/embedding-monitor.server.ts\nexport class EmbeddingMonitor {\n  async getQueueHealth() {\n    const waiting = await embeddingQueue.getWaitingCount();\n    const active = await embeddingQueue.getActiveCount();\n    const failed = await embeddingQueue.getFailedCount();\n    \n    return { waiting, active, failed, healthy: failed < 100 };\n  }\n  \n  async retryFailedJobs() {\n    const failed = await embeddingQueue.getFailed();\n    for (const job of failed) {\n      await job.retry();\n    }\n  }\n}\n```\n\n7. Integrate with existing page-indexing infrastructure:\n```typescript\n// Modify existing page-indexing queue to delegate embedding generation\nawait pageIndexingQueue.add('index-page', {\n  pageId,\n  includeEmbeddings: false // Don't generate inline\n});\n\n// Page indexing worker delegates to embedding queue\nif (shouldGenerateEmbeddings) {\n  await embeddingQueue.addBulk(\n    chunks.map(chunk => ({\n      name: 'generate-embedding',\n      data: {\n        type: 'page-chunk',\n        entityId: chunk.id,\n        content: chunk.content,\n        workspaceId,\n        metadata: { pageId, chunkIndex: chunk.index }\n      }\n    }))\n  );\n}\n```\n\n8. Add database connection pool optimization:\n```typescript\n// app/utils/prisma-pool.server.ts\nimport { PrismaClient } from '@prisma/client';\n\nconst globalForPrisma = global as { prismaPool?: PrismaClient };\n\nexport const prismaPool = globalForPrisma.prismaPool || new PrismaClient({\n  datasources: {\n    db: {\n      url: process.env.DATABASE_URL\n    }\n  },\n  log: ['error', 'warn'],\n  // Optimize for queue workers\n  connectionLimit: 10,\n  pool: {\n    min: 2,\n    max: 10,\n    idleTimeoutMillis: 30000,\n    createTimeoutMillis: 30000,\n    acquireTimeoutMillis: 30000\n  }\n});\n```",
+        "testStrategy": "1. Verify queue creation by checking Redis for 'bull:embeddings:*' keys and confirming queue appears in BullMQ dashboard if available.\n\n2. Test async conversion by creating a new block in editor.$pageId.tsx and verifying: a) The request returns immediately (< 100ms), b) No OpenAI API calls are made synchronously, c) A job appears in the embedding queue within 1 second.\n\n3. Load test with 1000 concurrent block creations and verify: a) All requests complete in < 200ms, b) Database connections never exceed pool limit (monitor with `SELECT count(*) FROM pg_stat_activity`), c) Queue processes all jobs within 5 minutes.\n\n4. Test backward compatibility by calling legacy generateEmbedding functions and confirming they still work through the compatibility layer.\n\n5. Verify worker processing by monitoring: a) Jobs complete successfully (check job.finishedOn timestamps), b) Embeddings are stored in database with correct dimensions (1536), c) Retry logic works for failed jobs (simulate OpenAI API errors).\n\n6. Test priority handling by creating user-triggered and background jobs simultaneously, verify user-triggered jobs process first.\n\n7. Monitor memory usage during bulk operations (create 10,000 blocks rapidly) and verify: a) Memory stays under 512MB, b) No memory leaks in worker process, c) Redis memory usage is reasonable.\n\n8. Test error scenarios: a) OpenAI API timeout - verify job retries with exponential backoff, b) Database connection failure - verify jobs remain in queue and retry, c) Redis disconnection - verify graceful degradation.\n\n9. Verify integration with page-indexing by triggering full page reindex and confirming embedding jobs are created for each chunk.\n\n10. Performance benchmarks: a) Measure p95 response time for block creation (target < 100ms), b) Measure embedding generation throughput (target > 50/minute), c) Measure database connection pool efficiency (target < 10 active connections under load).",
+        "status": "pending",
+        "dependencies": [
+          19,
+          6,
+          20
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create dedicated BullMQ embedding queue infrastructure",
+            "description": "Set up the embedding queue with Redis connection and proper job configuration including retry logic, backoff strategy, and dead letter queue handling",
+            "dependencies": [],
+            "details": "Create app/queues/embedding.queue.server.ts with Queue initialization using redis from redis.server, configure defaultJobOptions with removeOnComplete (count: 100), removeOnFail (count: 500), attempts: 3, exponential backoff (delay: 2000ms), define EmbeddingJobData interface with type, entityId, content, metadata, workspaceId, and priority fields",
+            "status": "pending",
+            "testStrategy": "Verify queue creation by checking Redis for 'bull:embeddings:*' keys, confirm queue appears in BullMQ dashboard if available, test job options are properly configured by adding test job and verifying retry behavior"
+          },
+          {
+            "id": 2,
+            "title": "Modify ultra-light-indexing.service to use queue-based processing",
+            "description": "Convert all synchronous generateEmbedding calls in ultra-light-indexing.service.ts to enqueue jobs instead of direct OpenAI API calls",
+            "dependencies": [
+              "35.1"
+            ],
+            "details": "Replace direct openai.embeddings.create calls with embeddingQueue.add('generate-embedding', jobData), implement priority system where user-triggered operations get priority: 10 and background operations get priority: 1, add 5000ms delay for non-critical updates to batch processing",
+            "status": "pending",
+            "testStrategy": "Create a new block in editor and verify request returns immediately (< 100ms), check Redis queue for pending embedding jobs, confirm no direct OpenAI API calls are made during save operation"
+          },
+          {
+            "id": 3,
+            "title": "Build embedding worker with connection pooling",
+            "description": "Create the BullMQ worker that processes embedding jobs with proper connection management and transaction handling",
+            "dependencies": [
+              "35.1"
+            ],
+            "details": "Create app/workers/embedding.worker.ts with Worker instance processing 'embeddings' queue, configure concurrency: 5 for parallel processing, implement rate limiter (max: 100, duration: 60000) for OpenAI API limits, use connectionPoolManager.executeWithPoolManagement for database operations, wrap database updates in transactions with maxWait: 5000 and timeout: 10000",
+            "status": "pending",
+            "testStrategy": "Monitor worker processing with logging, verify concurrent job processing doesn't exceed 5, test rate limiting by submitting 100+ jobs and confirming throttling, check database connection pool doesn't get exhausted"
+          },
+          {
+            "id": 4,
+            "title": "Update editor route to use asynchronous embedding generation",
+            "description": "Modify editor.$pageId.tsx action handler to enqueue embedding jobs instead of synchronous processing",
+            "dependencies": [
+              "35.1",
+              "35.2"
+            ],
+            "details": "Remove direct calls to embeddingGenerationService.generateEmbedding in the action function, add embeddingQueue.add calls with appropriate job data including pageId, blockIds, and workspaceId, implement optional job status tracking for UI feedback using job.on('completed') event handlers",
+            "status": "pending",
+            "testStrategy": "Save page content and verify immediate response, check job is added to queue with correct metadata, optionally track job completion status in UI, verify page remains responsive during embedding generation"
+          },
+          {
+            "id": 5,
+            "title": "Implement backward compatibility layer",
+            "description": "Create compatibility service to maintain backward compatibility for critical paths that require immediate embedding generation",
+            "dependencies": [
+              "35.1",
+              "35.3"
+            ],
+            "details": "Create app/services/embedding-compat.server.ts with generateEmbeddingCompat function, implement immediate flag to fallback to synchronous generation for critical paths, default to queue-based processing returning job ID for tracking, maintain existing API surface for minimal code changes",
+            "status": "pending",
+            "testStrategy": "Test both immediate and queued modes, verify critical paths can still get synchronous embeddings, confirm job IDs are returned for queued operations, test fallback behavior when queue is unavailable"
+          },
+          {
+            "id": 6,
+            "title": "Add job status monitoring and health checks",
+            "description": "Create monitoring service to track queue health, job statistics, and implement retry logic for failed jobs",
+            "dependencies": [
+              "35.1",
+              "35.3"
+            ],
+            "details": "Create app/services/embedding-monitor.server.ts with EmbeddingMonitor class, implement getQueueHealth() returning waiting, active, failed counts, add retryFailedJobs() to retry failed jobs from dead letter queue, create health threshold alerts when failed count exceeds 100",
+            "status": "pending",
+            "testStrategy": "Monitor queue metrics via API endpoint, test retry logic by forcing job failures, verify health alerts trigger at appropriate thresholds, check metrics are accurately reported"
+          },
+          {
+            "id": 7,
+            "title": "Integrate with existing page-indexing infrastructure",
+            "description": "Modify the existing page-indexing queue to delegate embedding generation to the new embedding queue",
+            "dependencies": [
+              "35.1",
+              "35.2",
+              "35.3"
+            ],
+            "details": "Update page-indexing worker to set includeEmbeddings: false flag, implement delegation logic using embeddingQueue.addBulk for chunk processing, maintain page-chunk relationships in metadata for proper association, ensure backward compatibility with existing indexing flow",
+            "status": "pending",
+            "testStrategy": "Index a page and verify chunks are delegated to embedding queue, confirm page-indexing completes without generating embeddings inline, verify chunk metadata maintains proper relationships"
+          },
+          {
+            "id": 8,
+            "title": "Optimize database connection pool configuration",
+            "description": "Configure Prisma client with optimized connection pool settings for queue workers",
+            "dependencies": [
+              "35.3"
+            ],
+            "details": "Create app/utils/prisma-pool.server.ts with dedicated PrismaClient for workers, configure pool with min: 2, max: 10 connections, set timeouts (idle: 30000ms, create: 30000ms, acquire: 30000ms), implement connection reuse pattern for worker processes",
+            "status": "pending",
+            "testStrategy": "Monitor database connection count during heavy load, verify connections are properly released after use, test pool exhaustion recovery, check for connection leaks over time"
+          },
+          {
+            "id": 9,
+            "title": "Implement worker lifecycle management",
+            "description": "Create worker startup script and graceful shutdown handling for production deployment",
+            "dependencies": [
+              "35.3",
+              "35.6"
+            ],
+            "details": "Create npm run worker script to start embedding worker process, implement graceful shutdown on SIGTERM/SIGINT signals, add worker health checks and auto-restart capability, integrate with process manager (PM2 or similar) for production",
+            "status": "pending",
+            "testStrategy": "Test worker starts correctly with npm run worker, verify graceful shutdown completes in-flight jobs, test auto-restart on worker crash, confirm no job loss during restart"
+          },
+          {
+            "id": 10,
+            "title": "Add comprehensive testing and migration validation",
+            "description": "Create test suite to validate the migration maintains functionality while improving performance",
+            "dependencies": [
+              "35.1",
+              "35.2",
+              "35.3",
+              "35.4",
+              "35.5",
+              "35.6",
+              "35.7",
+              "35.8",
+              "35.9"
+            ],
+            "details": "Write integration tests for queue-based embedding flow, add performance benchmarks comparing sync vs async processing, test database connection pool behavior under load, validate backward compatibility layer works correctly, ensure no regression in search quality",
+            "status": "pending",
+            "testStrategy": "Run full integration test suite, compare response times before/after migration, verify search results remain consistent, load test with 100+ concurrent users, monitor for memory leaks or connection exhaustion"
+          }
+        ]
+      },
+      {
+        "id": 36,
+        "title": "Migrate Vector Storage to Halfvec for 57% Storage Reduction",
+        "description": "Migrate all embedding columns from vector(1536) to halfvec(1536) type in PostgreSQL to achieve 57% storage reduction and 66% smaller indexes while maintaining search accuracy, including page_embeddings, block_embeddings, and database_row_embeddings tables.",
+        "details": "1. **Create reversible migration for halfvec conversion**:\n```sql\n-- Migration: 20XX_XX_XX_migrate_to_halfvec.sql\n-- Enable halfvec extension if not already enabled\nCREATE EXTENSION IF NOT EXISTS vector;\n\n-- Step 1: Add new halfvec columns alongside existing vector columns\nALTER TABLE page_embeddings ADD COLUMN embedding_halfvec halfvec(1536);\nALTER TABLE block_embeddings ADD COLUMN embedding_halfvec halfvec(1536);\nALTER TABLE database_row_embeddings ADD COLUMN embedding_halfvec halfvec(1536);\nALTER TABLE documents ADD COLUMN embedding_halfvec halfvec(1536);\n\n-- Step 2: Convert existing embeddings to halfvec\nUPDATE page_embeddings SET embedding_halfvec = embedding::halfvec(1536) WHERE embedding IS NOT NULL;\nUPDATE block_embeddings SET embedding_halfvec = embedding::halfvec(1536) WHERE embedding IS NOT NULL;\nUPDATE database_row_embeddings SET embedding_halfvec = embedding::halfvec(1536) WHERE embedding IS NOT NULL;\nUPDATE documents SET embedding_halfvec = embedding::halfvec(1536) WHERE embedding IS NOT NULL;\n\n-- Step 3: Drop old vector indexes\nDROP INDEX IF EXISTS page_embeddings_embedding_idx;\nDROP INDEX IF EXISTS block_embeddings_embedding_idx;\nDROP INDEX IF EXISTS database_row_embeddings_embedding_idx;\nDROP INDEX IF EXISTS documents_embedding_hnsw_idx;\nDROP INDEX IF EXISTS documents_workspace_embedding_idx;\n\n-- Step 4: Create new HNSW indexes with halfvec_cosine_ops\nCREATE INDEX page_embeddings_halfvec_hnsw_idx ON page_embeddings \nUSING hnsw (embedding_halfvec halfvec_cosine_ops)\nWITH (m = 16, ef_construction = 64);\n\nCREATE INDEX block_embeddings_halfvec_hnsw_idx ON block_embeddings \nUSING hnsw (embedding_halfvec halfvec_cosine_ops)\nWITH (m = 16, ef_construction = 64);\n\nCREATE INDEX database_row_embeddings_halfvec_hnsw_idx ON database_row_embeddings \nUSING hnsw (embedding_halfvec halfvec_cosine_ops)\nWITH (m = 16, ef_construction = 64);\n\nCREATE INDEX documents_halfvec_hnsw_idx ON documents \nUSING hnsw (embedding_halfvec halfvec_cosine_ops)\nWITH (m = 16, ef_construction = 64);\n\n-- Step 5: Rename columns (atomic operation)\nALTER TABLE page_embeddings RENAME COLUMN embedding TO embedding_vector_backup;\nALTER TABLE page_embeddings RENAME COLUMN embedding_halfvec TO embedding;\n\nALTER TABLE block_embeddings RENAME COLUMN embedding TO embedding_vector_backup;\nALTER TABLE block_embeddings RENAME COLUMN embedding_halfvec TO embedding;\n\nALTER TABLE database_row_embeddings RENAME COLUMN embedding TO embedding_vector_backup;\nALTER TABLE database_row_embeddings RENAME COLUMN embedding_halfvec TO embedding;\n\nALTER TABLE documents RENAME COLUMN embedding TO embedding_vector_backup;\nALTER TABLE documents RENAME COLUMN embedding_halfvec TO embedding;\n```\n\n2. **Update all SQL queries and functions**:\n```typescript\n// app/services/rag/vector-search.server.ts\n// Before:\nconst searchQuery = `\n  SELECT id, content, 1 - (embedding <=> $1::vector) as similarity\n  FROM documents\n  WHERE embedding <=> $1::vector < 0.3\n  ORDER BY embedding <=> $1::vector\n  LIMIT 10\n`;\n\n// After:\nconst searchQuery = `\n  SELECT id, content, 1 - (embedding <=> $1::halfvec) as similarity\n  FROM documents\n  WHERE embedding <=> $1::halfvec < 0.3\n  ORDER BY embedding <=> $1::halfvec\n  LIMIT 10\n`;\n```\n\n3. **Update Prisma schema**:\n```prisma\n// schema.prisma\nmodel PageEmbedding {\n  id        String   @id @default(uuid())\n  pageId    String\n  embedding Unsupported(\"halfvec(1536)\")\n  // Keep backup column during transition\n  embeddingVectorBackup Unsupported(\"vector(1536)\")?  \n}\n```\n\n4. **Update embedding generation service**:\n```typescript\n// app/services/embeddings.server.ts\nexport async function storeEmbedding(content: string, entityId: string) {\n  const embedding = await generateEmbedding(content);\n  \n  // Cast to halfvec when storing\n  await prisma.$executeRaw`\n    INSERT INTO page_embeddings (id, page_id, embedding)\n    VALUES (${uuid()}, ${entityId}, ${embedding}::halfvec(1536))\n  `;\n}\n```\n\n5. **Create rollback migration**:\n```sql\n-- Rollback: revert_halfvec_to_vector.sql\n-- Step 1: Rename columns back\nALTER TABLE page_embeddings RENAME COLUMN embedding TO embedding_halfvec;\nALTER TABLE page_embeddings RENAME COLUMN embedding_vector_backup TO embedding;\n\n-- Step 2: Drop halfvec indexes\nDROP INDEX IF EXISTS page_embeddings_halfvec_hnsw_idx;\n\n-- Step 3: Recreate vector indexes\nCREATE INDEX page_embeddings_embedding_idx ON page_embeddings \nUSING hnsw (embedding vector_cosine_ops)\nWITH (m = 16, ef_construction = 64);\n\n-- Step 4: Drop halfvec columns\nALTER TABLE page_embeddings DROP COLUMN embedding_halfvec;\n```\n\n6. **Performance monitoring setup**:\n```typescript\n// app/services/monitoring/vector-metrics.server.ts\nexport async function compareSearchAccuracy() {\n  const testQueries = await getTestQueries();\n  const results = [];\n  \n  for (const query of testQueries) {\n    const vectorResults = await searchWithVector(query);\n    const halfvecResults = await searchWithHalfvec(query);\n    \n    const accuracy = calculateRecallAt10(vectorResults, halfvecResults);\n    results.push({ query, accuracy });\n  }\n  \n  return {\n    averageAccuracy: average(results.map(r => r.accuracy)),\n    storageReduction: await calculateStorageReduction(),\n    indexSizeReduction: await calculateIndexReduction()\n  };\n}\n```",
+        "testStrategy": "1. **Pre-migration validation**: Capture baseline metrics including current storage size using `SELECT pg_size_pretty(pg_total_relation_size('page_embeddings'))`, search response times for 100 test queries, and top-10 recall accuracy for standard test set.\n\n2. **Migration execution testing**: Run migration in test environment first, verify all data converts successfully with `SELECT COUNT(*) FROM page_embeddings WHERE embedding IS NULL AND embedding_vector_backup IS NOT NULL` returning 0, ensure no data loss by comparing row counts before and after.\n\n3. **Storage reduction verification**: Measure actual storage reduction using `SELECT pg_size_pretty(pg_total_relation_size('page_embeddings'))` and compare to baseline, verify 50-60% reduction achieved, check index sizes with `SELECT pg_size_pretty(pg_relation_size('page_embeddings_halfvec_hnsw_idx'))` showing 60-70% reduction.\n\n4. **Search accuracy testing**: Run same 100 test queries used in baseline, calculate recall@10 comparing halfvec results to original vector results, ensure accuracy degradation is < 2%, verify similarity scores remain within 0.01 tolerance.\n\n5. **Performance benchmarking**: Load test with 1000 concurrent searches, verify p95 latency remains < 100ms, ensure memory usage reduced by at least 40%, test with 50,000+ row datasets.\n\n6. **Application integration testing**: Verify all RAG search endpoints return results correctly, test AI block inline chat still retrieves relevant context, ensure citation system works with halfvec queries, validate knowledge graph traversal functions properly.\n\n7. **Rollback testing**: Execute rollback migration in test environment, verify data restores correctly to vector type, ensure all indexes recreate successfully, confirm search functionality returns to original state.\n\n8. **Edge case validation**: Test with null embeddings, verify handling, test partial migrations if process interrupted, ensure new embeddings store as halfvec automatically, verify background re-indexing jobs work with new type.",
+        "status": "pending",
+        "dependencies": [
+          6,
+          16,
+          19,
+          31,
+          32,
+          35
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Prisma Migration for Halfvec Columns Addition",
+            "description": "Create a new Prisma migration file that adds halfvec columns alongside existing vector columns for page_embeddings, block_embeddings, database_row_embeddings, and documents tables",
+            "dependencies": [],
+            "details": "Generate migration using `npx prisma migrate dev --name add_halfvec_columns --create-only` that adds embedding_halfvec halfvec(1536) columns to all embedding tables. Ensure the migration includes: CREATE EXTENSION IF NOT EXISTS vector; ALTER TABLE statements for page_embeddings, block_embeddings, database_row_embeddings, and documents tables. The migration should be reversible and follow the existing pattern in /rag-app/prisma/migrations/",
+            "status": "pending",
+            "testStrategy": "Verify migration file is created in prisma/migrations/ directory. Test migration applies successfully in local development with `npx prisma migrate dev`. Confirm new columns appear in database using `npx prisma studio`. Test rollback works with `npx prisma migrate reset`"
+          },
+          {
+            "id": 2,
+            "title": "Implement Data Migration Script for Vector to Halfvec Conversion",
+            "description": "Create a TypeScript script that safely converts existing vector embeddings to halfvec format with progress tracking and error handling",
+            "dependencies": [
+              "36.1"
+            ],
+            "details": "Develop script at app/scripts/migrate-to-halfvec.ts that: Reads embeddings in batches of 1000 to avoid memory issues. Uses Prisma raw queries to convert vector to halfvec using PostgreSQL casting. Implements checkpointing to resume on failure. Logs progress and validates conversion accuracy. Handles null embeddings gracefully. Updates embedding_halfvec columns while preserving original data",
+            "status": "pending",
+            "testStrategy": "Test with sample dataset of 100 embeddings first. Verify converted halfvec values maintain cosine similarity within 0.01 threshold. Measure conversion time and memory usage. Test checkpoint/resume functionality by simulating interruption. Validate no data loss by comparing row counts before/after"
+          },
+          {
+            "id": 3,
+            "title": "Update Vector Search Queries to Support Halfvec",
+            "description": "Modify all vector similarity search functions in the codebase to use halfvec operators and proper type casting",
+            "dependencies": [
+              "36.2"
+            ],
+            "details": "Update files including app/services/prisma-search.server.ts, app/services/rag/rag-indexing.service.ts to: Replace vector(1536) casts with halfvec(1536). Update similarity operators from vector_cosine_ops to halfvec_cosine_ops. Modify search queries to use embedding_halfvec column. Add feature flag to toggle between vector/halfvec during migration. Update type definitions for embedding arrays",
+            "status": "pending",
+            "testStrategy": "Create test suite comparing search results between vector and halfvec queries. Verify top-10 recall accuracy remains above 95%. Test with various query sizes (short, medium, long text). Benchmark query performance improvements. Validate proper error handling for malformed embeddings"
+          },
+          {
+            "id": 4,
+            "title": "Create HNSW Indexes for Halfvec Columns",
+            "description": "Build optimized HNSW indexes on halfvec columns with appropriate parameters for performance",
+            "dependencies": [
+              "36.2"
+            ],
+            "details": "Create migration app/prisma/migrations/add_halfvec_indexes that: Drops existing vector indexes to free resources. Creates HNSW indexes with halfvec_cosine_ops on all embedding_halfvec columns. Uses m=16, ef_construction=64 parameters based on dataset size. Adds concurrent index creation to minimize downtime. Implements index for workspace-scoped queries",
+            "status": "pending",
+            "testStrategy": "Measure index creation time and size reduction compared to vector indexes. Verify 66% smaller index size as expected. Test query performance with EXPLAIN ANALYZE. Ensure concurrent queries don't block during index creation. Validate index usage in query plans"
+          },
+          {
+            "id": 5,
+            "title": "Migrate Embedding Generation Service to Halfvec",
+            "description": "Update the embedding generation service to store new embeddings directly as halfvec type",
+            "dependencies": [
+              "36.3"
+            ],
+            "details": "Modify app/services/embedding-generation.server.ts to: Cast embedding arrays to halfvec when storing via Prisma $executeRaw. Update generateEmbedding and generateEmbeddingsBatch methods. Ensure proper error handling for halfvec conversion failures. Update batch processing in app/workers/indexing-processor.ts. Maintain backward compatibility during transition period",
+            "status": "pending",
+            "testStrategy": "Generate test embeddings and verify they're stored as halfvec type. Test batch generation with 100+ documents. Verify OpenAI API response handling remains intact. Test error scenarios like invalid dimensions. Confirm BullMQ queue processing continues working"
+          },
+          {
+            "id": 6,
+            "title": "Implement Performance Monitoring Dashboard",
+            "description": "Create monitoring service to track storage reduction, query performance, and accuracy metrics during and after migration",
+            "dependencies": [
+              "36.4"
+            ],
+            "details": "Create app/services/monitoring/vector-metrics.server.ts with: Storage size tracking using pg_size_pretty queries. Query latency monitoring with percentiles (p50, p95, p99). Recall accuracy calculation comparing vector vs halfvec results. Index size comparison metrics. Memory usage tracking. Export metrics to app/routes/app.performance-dashboard.tsx for visualization",
+            "status": "pending",
+            "testStrategy": "Verify metrics collection runs without impacting query performance. Test accuracy calculation with known test queries. Validate storage reduction shows expected 57% decrease. Ensure dashboard updates in real-time. Test metric persistence across server restarts"
+          },
+          {
+            "id": 7,
+            "title": "Execute Column Swap and Cleanup Migration",
+            "description": "Perform the final atomic column rename operation to make halfvec the primary embedding column and archive vector columns",
+            "dependencies": [
+              "36.1",
+              "36.2",
+              "36.3",
+              "36.4",
+              "36.5"
+            ],
+            "details": "Create final migration to: Rename embedding to embedding_vector_backup atomically. Rename embedding_halfvec to embedding. Update Prisma schema to reflect new column names. Keep backup columns for 30-day rollback window. Document rollback procedure in MIGRATION_GUIDE.md",
+            "status": "pending",
+            "testStrategy": "Test atomic rename with concurrent read/write operations. Verify no downtime during column swap. Confirm all queries continue working post-swap. Test rollback procedure in staging environment. Validate application functionality end-to-end"
+          },
+          {
+            "id": 8,
+            "title": "Create Comprehensive Migration Test Suite",
+            "description": "Develop automated test suite to validate the complete halfvec migration process including rollback scenarios",
+            "dependencies": [
+              "36.6",
+              "36.7"
+            ],
+            "details": "Create app/services/__tests__/halfvec-migration.test.ts with: Integration tests for all migration steps. Performance benchmarks comparing vector vs halfvec. Accuracy tests with real-world query samples. Rollback scenario testing. Load testing with concurrent operations. Memory usage profiling. Document results in test report",
+            "status": "pending",
+            "testStrategy": "Run full test suite in CI/CD pipeline. Verify all tests pass with >95% accuracy threshold. Test with production-like data volumes (10k+ embeddings). Validate rollback leaves system in original state. Ensure tests complete within 5 minute timeout"
+          }
+        ]
+      },
+      {
+        "id": 37,
+        "title": "Optimize Connection Pooling with PgBouncer Transaction Mode",
+        "description": "Switch database connections from Supabase session mode (port 5432) to transaction mode (port 6543) with proper PgBouncer configuration to handle 10x more connections with the same resources, including updating DATABASE_URL and Prisma configuration.",
+        "details": "1. **Update DATABASE_URL to use PgBouncer transaction mode**:\n```bash\n# Change from session mode (port 5432)\nDATABASE_URL=\"postgresql://postgres:password@localhost:5432/postgres?schema=public\"\n\n# To transaction mode (port 6543) with PgBouncer parameters\nDATABASE_URL=\"postgresql://postgres:password@localhost:6543/postgres?schema=public&pgbouncer=true&connection_limit=1\"\n```\n\n2. **Configure Prisma for transaction pooling compatibility**:\n```typescript\n// prisma/schema.prisma\ngenerator client {\n  provider = \"prisma-client-js\"\n  previewFeatures = [\"driverAdapters\"] // If using Prisma 5.10+\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url = env(\"DATABASE_URL\")\n}\n```\n\n3. **Update Prisma client instantiation for pooling**:\n```typescript\n// app/utils/db.server.ts\nimport { PrismaClient } from '@prisma/client';\n\nlet prisma: PrismaClient;\n\nif (process.env.NODE_ENV === 'production') {\n  prisma = new PrismaClient({\n    datasources: {\n      db: {\n        url: process.env.DATABASE_URL,\n      },\n    },\n    // Reduced connection limit for transaction mode\n    // Each instance should use minimal connections\n    log: ['error', 'warn'],\n  });\n  \n  // Ensure connections are released properly\n  prisma.$connect();\n} else {\n  // Development can use session mode\n  if (!global.prisma) {\n    global.prisma = new PrismaClient();\n  }\n  prisma = global.prisma;\n}\n\nexport { prisma };\n```\n\n4. **Configure connection limits for multiple instances**:\n```typescript\n// For Railway/Vercel with multiple instances\n// Each instance gets 1-2 connections max\nconst CONNECTION_LIMIT = process.env.INSTANCE_COUNT \n  ? Math.floor(100 / parseInt(process.env.INSTANCE_COUNT)) \n  : 5;\n\n// Update DATABASE_URL dynamically\nconst databaseUrl = new URL(process.env.DATABASE_URL!);\ndatabaseUrl.searchParams.set('connection_limit', CONNECTION_LIMIT.toString());\ndatabaseUrl.searchParams.set('pool_timeout', '0'); // Fail fast in transaction mode\n```\n\n5. **Handle transaction mode limitations**:\n```typescript\n// Wrap prepared statements in transactions\n// Transaction mode doesn't support prepared statements outside transactions\nasync function executeWithTransaction<T>(\n  fn: (tx: PrismaClient) => Promise<T>\n): Promise<T> {\n  return prisma.$transaction(async (tx) => {\n    return fn(tx as PrismaClient);\n  }, {\n    maxWait: 5000, // 5 seconds max wait\n    timeout: 10000, // 10 seconds max transaction\n  });\n}\n\n// Use for complex queries\nconst result = await executeWithTransaction(async (tx) => {\n  const user = await tx.user.findUnique({ where: { id } });\n  const workspace = await tx.workspace.findMany({ where: { userId: user.id } });\n  return { user, workspace };\n});\n```\n\n6. **Update Supabase client for connection pooling**:\n```typescript\n// app/utils/supabase.server.ts\nimport { createClient } from '@supabase/supabase-js';\n\nconst supabaseUrl = process.env.SUPABASE_URL!;\nconst supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;\n\n// Configure for transaction pooling\nexport const supabase = createClient(supabaseUrl, supabaseKey, {\n  db: {\n    schema: 'public',\n  },\n  auth: {\n    persistSession: false, // Server-side doesn't need sessions\n  },\n  // Reduce connection pool for Supabase client\n  global: {\n    headers: {\n      'x-connection-pooling': 'transaction',\n    },\n  },\n});\n```\n\n7. **Environment variable updates**:\n```env\n# .env.example\n# Transaction mode for production (port 6543)\nDATABASE_URL=postgresql://[user]:[password]@[host]:6543/[database]?schema=public&pgbouncer=true&connection_limit=1\n\n# Fallback for session mode if needed\nDATABASE_URL_SESSION=postgresql://[user]:[password]@[host]:5432/[database]?schema=public\n\n# Instance configuration for scaling\nINSTANCE_COUNT=10  # Number of app instances\nMAX_POOL_SIZE=100  # Total PgBouncer pool size\n```\n\n8. **Add health check for connection pool monitoring**:\n```typescript\n// app/routes/health.tsx\nexport async function loader() {\n  try {\n    // Test connection\n    const start = Date.now();\n    await prisma.$queryRaw`SELECT 1`;\n    const latency = Date.now() - start;\n    \n    // Get pool stats if available\n    const poolStats = await prisma.$queryRaw`\n      SELECT count(*) as active_connections \n      FROM pg_stat_activity \n      WHERE datname = current_database()\n    `;\n    \n    return json({\n      status: 'healthy',\n      latency,\n      poolStats,\n      mode: 'transaction',\n      port: 6543,\n    });\n  } catch (error) {\n    return json({ status: 'unhealthy', error: error.message }, { status: 503 });\n  }\n}\n```",
+        "testStrategy": "1. **Verify PgBouncer transaction mode is active**: Connect to database and run `SHOW port` - should return 6543. Check PgBouncer logs for 'transaction' pooling mode confirmation.\n\n2. **Test connection limit enforcement**: Launch 20 concurrent database queries using a load testing script and verify only the configured connection_limit number of connections are active in pg_stat_activity.\n\n3. **Validate Prisma compatibility**: Run all existing Prisma queries and ensure they work with transaction pooling. Pay special attention to queries using prepared statements - they should be wrapped in transactions.\n\n4. **Load test with multiple instances**: Simulate 10 app instances each making 50 concurrent requests. Monitor that total database connections stay under 100 and no connection exhaustion errors occur.\n\n5. **Test failover behavior**: Kill active connections and verify the app recovers gracefully with transaction mode's fail-fast behavior. Response times should remain under 200ms even during connection cycling.\n\n6. **Monitor connection reuse**: Track connection age in PgBouncer stats and verify connections are being reused efficiently with avg connection age < 30 seconds.\n\n7. **Verify prepared statement handling**: Test that complex queries with prepared statements work when wrapped in transactions but fail outside transactions (expected behavior in transaction mode).\n\n8. **Performance benchmarks**: Compare before/after metrics - should see 10x increase in concurrent connection capacity, 50% reduction in connection overhead, and maintain p95 latency under 100ms.",
+        "status": "pending",
+        "dependencies": [
+          10,
+          16,
+          35
+        ],
+        "priority": "high",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-09-03T16:56:17.331Z",
+      "updated": "2025-09-06T22:23:19.109Z",
       "description": "Tasks for master context"
     }
   }
