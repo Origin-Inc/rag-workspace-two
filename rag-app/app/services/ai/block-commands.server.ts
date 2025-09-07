@@ -659,7 +659,16 @@ export class BlockCommandService {
 Current document has ${context.blocks.length} blocks:
 ${blockSummary}
 
-${selectedBlockContent ? `Full content of SELECTED block:\n"${selectedBlockContent}"\n` : ''}
+${selectedBlockContent ? `CRITICAL CONTEXT - This is the FULL CONTENT of the SELECTED BLOCK that the user is referring to when they say "this", "it", or reference the selected block:
+================
+${selectedBlockContent}
+================
+
+WHEN THE USER SAYS "make this into a database/chart/table" or "turn this into X":
+1. You MUST parse and extract the actual data from the content above
+2. Use that parsed data to populate the databaseData or chartData fields
+3. DO NOT create generic placeholder data - use the ACTUAL content from above
+` : ''}
 
 Available block types: paragraph, heading1, heading2, heading3, bulletList, numberedList, todoList, quote, code, divider, database, ai, image, video, table, chart
 
@@ -714,9 +723,18 @@ Data extraction patterns:
 - Paragraphs with patterns: Extract structured data from text
 - JSON/Object notation: Parse directly into columns and rows
 
-Examples:
-1. "create a database with columns name, age, city" → Create empty structure:
-   - columns: [{ id: "name", name: "Name", type: "text" }, { id: "age", name: "Age", type: "number" }, { id: "city", name: "City", type: "text" }]
+CRITICAL EXAMPLES when user says "make this into a database":
+1. If selected block contains: "Apple\nBanana\nOrange"
+   → Create database with: columns: [{id: "item", name: "Item", type: "text"}], rows: [{item: "Apple"}, {item: "Banana"}, {item: "Orange"}]
+   
+2. If selected block contains: "dogs: 45, cats: 30, birds: 15"
+   → Create database with: columns: [{id: "animal", name: "Animal", type: "text"}, {id: "count", name: "Count", type: "number"}], 
+     rows: [{animal: "dogs", count: 45}, {animal: "cats", count: 30}, {animal: "birds", count: 15}]
+
+3. If selected block contains CSV: "name,age\nJohn,25\nJane,30"
+   → Parse and create proper columns and rows with the actual data
+
+NEVER create empty placeholder databases when the user references "this" - always use the selected block content!
    - rows: [] // Empty since no data provided
 
 2. "create table: John, 25, NYC | Jane, 30, LA" → Parse data:
@@ -775,12 +793,12 @@ References can be:
               },
               chartData: {
                 type: 'object',
-                description: 'For chart creation: the data to visualize',
+                description: 'For chart creation: MUST parse and extract data from the SELECTED BLOCK CONTENT when user says "this" or "it". Extract labels and values from the actual content.',
                 properties: {
                   labels: { 
                     type: 'array', 
                     items: { type: 'string' },
-                    description: 'Labels for the data points (e.g., ["dogs", "cats"])'
+                    description: 'Labels extracted from the selected block (e.g., if content has "dogs: 45", extract "dogs")'
                   },
                   datasets: { 
                     type: 'array',
@@ -794,7 +812,7 @@ References can be:
                         }
                       }
                     },
-                    description: 'Array of dataset objects with data values'
+                    description: 'Dataset with actual values parsed from the selected block content'
                   }
                 }
               },
@@ -809,7 +827,7 @@ References can be:
               },
               databaseData: {
                 type: 'object',
-                description: 'For database/table creation: the structured data',
+                description: 'For database/table creation: MUST parse and extract data from the SELECTED BLOCK CONTENT when user says "this" or "it". DO NOT create generic placeholder data.',
                 properties: {
                   columns: {
                     type: 'array',
@@ -821,12 +839,12 @@ References can be:
                         type: { type: 'string', enum: ['text', 'number', 'date', 'boolean', 'select'] }
                       }
                     },
-                    description: 'Column definitions for the table'
+                    description: 'Column definitions extracted from the selected block content'
                   },
                   rows: {
                     type: 'array',
                     items: { type: 'object' },
-                    description: 'Array of row objects with column values'
+                    description: 'Array of row objects with actual data parsed from the selected block content'
                   }
                 }
               },
