@@ -256,6 +256,18 @@ export async function action({ params, request }: ActionFunctionArgs) {
       }
     }
 
+    // Fetch the page to get workspaceId
+    const page = await prisma.page.findUnique({
+      where: { id: pageId },
+      include: {
+        workspace: true
+      }
+    });
+
+    if (!page) {
+      return json({ error: "Page not found" }, { status: 404 });
+    }
+
     try {
       console.log('[AI Command Action] Calling blockManipulationIntegration service');
       // Use the integration service for AI commands
@@ -266,7 +278,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
           selectedBlockId: selectedBlockId || undefined,
           pageId,
           userId: user.id,
-          workspaceId: undefined // Add if available
+          workspaceId: page.workspaceId
         },
         {
           autoSave: false, // We'll handle saving manually
@@ -1008,12 +1020,9 @@ export default function EditorPage() {
         </header>
 
         {/* Page header */}
-        <div className="bg-white dark:bg-[rgba(33,33,33,1)] shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-3">
+        <div className="bg-white dark:bg-[rgba(33,33,33,1)] shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-1">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-xs text-gray-500">
-                {breadcrumbPath?.map(p => p.title).join(' / ') || 'Pages'}
-              </div>
               <h1 className="text-xl font-semibold text-gray-900">
                 {page.title || "Untitled Page"}
               </h1>
