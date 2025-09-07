@@ -682,12 +682,24 @@ ${selectedBlockContent ? `CRITICAL CONTEXT - This is the FULL CONTENT of the SEL
 ${selectedBlockContent}
 ================
 
-WHEN THE USER SAYS "make this into a database/chart/table" or "turn this into X" or uses "this"/"it":
-1. You MUST parse and extract the actual data from the selected block content above
+CRITICAL INSTRUCTION for "this"/"it" references:
+When the user says "make this into a database/chart/table" or any command with "this"/"it":
+1. ALWAYS parse and extract the actual data from the SELECTED BLOCK CONTENT shown above
 2. Use that parsed data to populate the databaseData or chartData fields
-3. DO NOT create generic placeholder data - use the ACTUAL content from above
-4. The action should be "transform" (not "create") when changing an existing block
-5. If creating a new block FROM selected content, still extract the data from the selected block
+3. NEVER create generic placeholder data - use the ACTUAL content
+4. Set action to "transform" to change the selected block directly
+5. Set target.reference to "selected" or "this"
+
+Example: If selected block contains "Apple\\nBanana\\nOrange" and user says "make this a database":
+- action: "transform" (NOT "create")
+- target: { reference: "selected" }
+- parameters: { 
+    newType: "database",
+    databaseData: {
+      columns: [{id: "item", name: "Item", type: "text"}],
+      rows: [{item: "Apple"}, {item: "Banana"}, {item: "Orange"}]
+    }
+  }
 ` : ''}
 
 Available block types: paragraph, heading1, heading2, heading3, bulletList, numberedList, todoList, quote, code, divider, database, ai, image, video, table, chart

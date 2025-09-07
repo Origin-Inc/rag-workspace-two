@@ -371,7 +371,88 @@ export class BlockManipulator {
     const changes: BlockChange[] = [];
     const newBlocks = await Promise.all(blocks.map(async block => {
       if (targetIds.includes(block.id)) {
-        const transformed = await blockTransformer.transform(block, newType);
+        // First transform the block type
+        let transformed = await blockTransformer.transform(block, newType);
+        
+        // Then apply any specific data from the command (e.g., database data, chart data)
+        if (newType === 'database' && command.parameters.databaseData) {
+          console.log('[BlockManipulator] Applying database data from command to transformed block');
+          
+          // Format the database content similar to createBlock
+          const columns = (command.parameters.databaseData.columns || []).map((col: any, index: number) => ({
+            id: col.id || `col${index + 1}`,
+            name: col.name || `Column ${index + 1}`,
+            type: col.type || 'text',
+            position: col.position !== undefined ? col.position : index,
+            width: col.width || 200,
+            options: col.options || undefined
+          }));
+          
+          // Process rows with proper mapping
+          console.log('[BlockManipulator] Processing rows for transform:', command.parameters.databaseData.rows);
+          const rows = (command.parameters.databaseData.rows || []).map((row: any, index: number) => {
+            const formattedRow: any = {
+              id: row.id || `row${index + 1}`,
+              blockId: '',
+              cells: {},
+              position: index,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            
+            // Map row data to cells
+            columns.forEach(col => {
+              if (row[col.id] !== undefined) {
+                formattedRow.cells[col.id] = row[col.id];
+              } else {
+                // Try matching by column name
+                const colNameLower = col.name.toLowerCase();
+                const matchingKey = Object.keys(row).find(key => 
+                  key.toLowerCase() === colNameLower || 
+                  key.toLowerCase() === col.id.toLowerCase()
+                );
+                
+                if (matchingKey) {
+                  formattedRow.cells[col.id] = row[matchingKey];
+                } else {
+                  formattedRow.cells[col.id] = '';
+                }
+              }
+            });
+            
+            return formattedRow;
+          });
+          
+          transformed.content = {
+            columns,
+            rows: rows.length > 0 ? rows : [{
+              id: 'row1',
+              blockId: '',
+              cells: Object.fromEntries(columns.map(col => [col.id, ''])),
+              position: 0,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }],
+            title: command.parameters.title || 'Database Table'
+          };
+        } else if (newType === 'chart' && command.parameters.chartData) {
+          console.log('[BlockManipulator] Applying chart data from command to transformed block');
+          transformed.content = {
+            type: command.parameters.chartType || 'bar',
+            data: command.parameters.chartData,
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { position: 'top' },
+                title: { 
+                  display: !!command.parameters.title,
+                  text: command.parameters.title || ''
+                }
+              }
+            }
+          };
+        }
+        
         changes.push({
           type: 'transform',
           blockId: block.id,
