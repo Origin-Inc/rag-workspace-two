@@ -136,7 +136,12 @@ export class BlockManipulator {
       }));
       
       // Ensure rows have IDs and cells property matching column structure
+      console.log('[BlockManipulator] Processing rows:', command.parameters.databaseData.rows);
+      console.log('[BlockManipulator] Column IDs:', columns.map(c => c.id));
+      
       const rows = (command.parameters.databaseData.rows || []).map((row: any, index: number) => {
+        console.log(`[BlockManipulator] Processing row ${index}:`, row);
+        
         // Create properly formatted row with cells property
         const formattedRow: any = {
           id: row.id || `row${index + 1}`,
@@ -149,16 +154,37 @@ export class BlockManipulator {
         
         // Copy cell data into cells property
         columns.forEach(col => {
-          // Check if data exists in row object (either in cells or directly)
+          // First check if data exists with the exact column ID
           if (row.cells && row.cells[col.id] !== undefined) {
             formattedRow.cells[col.id] = row.cells[col.id];
           } else if (row[col.id] !== undefined) {
             formattedRow.cells[col.id] = row[col.id];
           } else {
-            formattedRow.cells[col.id] = '';
+            // Try to find data by matching column name (case-insensitive)
+            const colNameLower = col.name.toLowerCase();
+            const matchingKey = Object.keys(row).find(key => 
+              key.toLowerCase() === colNameLower || 
+              key.toLowerCase() === col.id.toLowerCase()
+            );
+            
+            if (matchingKey && row[matchingKey] !== undefined) {
+              formattedRow.cells[col.id] = row[matchingKey];
+              console.log(`[BlockManipulator] Matched ${matchingKey} to column ${col.id}`);
+            } else {
+              // If still no match, try to use the first available property for the first column, etc.
+              const rowKeys = Object.keys(row).filter(k => k !== 'id' && k !== 'cells');
+              const colIndex = columns.findIndex(c => c.id === col.id);
+              if (colIndex < rowKeys.length) {
+                formattedRow.cells[col.id] = row[rowKeys[colIndex]];
+                console.log(`[BlockManipulator] Used position-based mapping: ${rowKeys[colIndex]} -> ${col.id}`);
+              } else {
+                formattedRow.cells[col.id] = '';
+              }
+            }
           }
         });
         
+        console.log(`[BlockManipulator] Formatted row ${index}:`, formattedRow);
         return formattedRow;
       });
       
