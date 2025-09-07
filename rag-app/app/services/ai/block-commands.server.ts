@@ -95,6 +95,24 @@ export class BlockCommandService {
       throw new Error('OpenAI is not configured');
     }
 
+    // Debug logging for selected block content
+    if (context.selectedBlockId) {
+      const selectedBlock = context.blocks.find(b => b.id === context.selectedBlockId);
+      if (selectedBlock) {
+        console.log('[BlockCommandService] Selected block found:', {
+          id: selectedBlock.id,
+          type: selectedBlock.type,
+          content: typeof selectedBlock.content === 'string' 
+            ? selectedBlock.content.substring(0, 100) 
+            : JSON.stringify(selectedBlock.content).substring(0, 100)
+        });
+      } else {
+        console.log('[BlockCommandService] Selected block ID provided but block not found:', context.selectedBlockId);
+      }
+    } else {
+      console.log('[BlockCommandService] No selected block ID provided');
+    }
+
     const systemPrompt = this.buildSystemPrompt(context);
     const functions = this.getCommandFunctions();
 
@@ -664,10 +682,12 @@ ${selectedBlockContent ? `CRITICAL CONTEXT - This is the FULL CONTENT of the SEL
 ${selectedBlockContent}
 ================
 
-WHEN THE USER SAYS "make this into a database/chart/table" or "turn this into X":
-1. You MUST parse and extract the actual data from the content above
+WHEN THE USER SAYS "make this into a database/chart/table" or "turn this into X" or uses "this"/"it":
+1. You MUST parse and extract the actual data from the selected block content above
 2. Use that parsed data to populate the databaseData or chartData fields
 3. DO NOT create generic placeholder data - use the ACTUAL content from above
+4. The action should be "transform" (not "create") when changing an existing block
+5. If creating a new block FROM selected content, still extract the data from the selected block
 ` : ''}
 
 Available block types: paragraph, heading1, heading2, heading3, bulletList, numberedList, todoList, quote, code, divider, database, ai, image, video, table, chart
