@@ -5,13 +5,11 @@ import { ClientOnly } from "~/components/ClientOnly";
 import { prisma } from "~/utils/db.server";
 import { requireUser, getUser } from "~/services/auth/auth.server";
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Block } from "~/types/blocks";
+import type { Block } from "~/components/editor/EnhancedBlockEditor";
 import { debounce } from "~/utils/performance";
-import type { Prisma } from "@prisma/client";
-import { ragIndexingService } from "~/services/rag/rag-indexing.service";
-import { optimizedIndexingService } from "~/services/rag/optimized-indexing.service";
-import { memoryOptimizedIndexingService } from "~/services/rag/memory-optimized-indexing.service";
+import { Prisma } from "@prisma/client";
 import { ultraLightIndexingService } from "~/services/rag/ultra-light-indexing.service";
+import { asyncEmbeddingService } from "~/services/rag/async-embedding.service";
 import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
 import { pageHierarchyService } from "~/services/page-hierarchy.server";
 import { AIBlockService } from "~/services/ai-block-service.server";
@@ -20,6 +18,7 @@ import type { PageTreeNode } from "~/components/navigation/PageTreeNavigation";
 import { UserMenu } from "~/components/navigation/UserMenu";
 import { ThemeToggle } from "~/components/theme/ThemeToggle";
 import { CommandPalette } from "~/components/navigation/CommandPalette";
+import { EmbeddingStatusIndicator } from "~/components/EmbeddingStatusIndicator";
 import { 
   HomeIcon, 
   DocumentIcon, 
@@ -129,14 +128,12 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   if (currentWorkspace) {
     try {
       pageTree = await pageHierarchyService.getPageTree(currentWorkspace.id, 5);
-    } catch (e) {
-      console.error('Error fetching page tree:', e);
+    } catch {
+      console.error('Error fetching page tree');
     }
   }
 
   // Extract blocks or convert content to blocks
-  const metadata = typeof page.metadata === 'object' && page.metadata ? page.metadata : {};
-  
   // Handle content as JSON field (it's JSONB in database)
   let content = '';
   if (page.content) {
@@ -161,8 +158,8 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
     if (typeof page.blocks === 'string') {
       try {
         blocks = JSON.parse(page.blocks);
-      } catch (e) {
-        console.error('Failed to parse blocks JSON:', e);
+      } catch {
+        console.error('Failed to parse blocks JSON');
         blocks = null;
       }
     } else {
@@ -188,7 +185,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
             ...block,
             content: JSON.parse(block.content)
           };
-        } catch (e) {
+        } catch {
           // If parse fails, keep as string
           return block;
         }
@@ -251,7 +248,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
       try {
         blocks = JSON.parse(blocksJson);
         console.log('[AI Command Action] Parsed', blocks.length, 'blocks');
-      } catch (e) {
+      } catch {
         return json({ error: "Invalid blocks data" }, { status: 400 });
       }
     }
@@ -313,7 +310,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
       await prisma.page.update({
         where: { id: pageId },
         data: {
-          blocks: serializedBlocks as Prisma.JsonValue,
+          blocks: serializedBlocks,
           updatedAt: new Date()
         }
       });
@@ -350,7 +347,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
     if (blocksJson) {
       try {
         blocks = JSON.parse(blocksJson);
-      } catch (e) {
+      } catch {
         console.error("[Parse Error] Failed to parse blocks JSON");
         return json({ error: "Invalid blocks data" }, { status: 400 });
       }
@@ -395,7 +392,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
         // Validate and clean each block
         const cleanedBlocks = blocks.map((block, index) => {
           // Ensure all fields are serializable
-          const cleanBlock: any = {
+          const cleanBlock: Block = {
             id: block.id || `block-${index}`,
             type: block.type || 'paragraph',
             content: block.content || ''
@@ -442,8 +439,8 @@ export async function action({ params, request }: ActionFunctionArgs) {
       const contentData: Prisma.JsonValue = content || '';
       
       if (serializedBlocks && serializedBlocks.length > 0) {
-        // Cast to Prisma.JsonValue for proper type handling
-        const blocksData: Prisma.JsonValue = serializedBlocks;
+        // Use blocks directly
+        const blocksData = serializedBlocks;
         
         await prisma.page.update({
           where: { id: pageId },
@@ -472,7 +469,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
       // Extract text content for logging
       let textContent = '';
       if (blocks && Array.isArray(blocks)) {
-        textContent = blocks.map((b: any) => {
+        textContent = blocks.map((b: Block) => {
           if (typeof b.content === 'string') return b.content;
           if (b.content?.text) return b.content.text;
           return '';
@@ -506,10 +503,10 @@ export async function action({ params, request }: ActionFunctionArgs) {
             }
           }
         }
-        // After all retries failed, try fallback
-        console.error('[Indexing] All retries failed, trying fallback');
-        ragIndexingService.queueForIndexing(pageId).catch(fallbackError => {
-          console.error('[Fallback-Index] Also failed:', fallbackError);
+        // After all retries failed, try fallback with async service
+        console.error('[Indexing] All retries failed, trying async service fallback');
+        asyncEmbeddingService.queueEmbedding(pageId, page.workspaceId).catch(fallbackError => {
+          console.error('[Async-Fallback-Index] Also failed:', fallbackError);
         });
       };
       
@@ -517,17 +514,20 @@ export async function action({ params, request }: ActionFunctionArgs) {
         console.error('[Indexing] Retry mechanism failed:', error);
       });
       
-    } catch (error: any) {
+    } catch (error) {
       // Log error for monitoring
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorCode = (error as { code?: string })?.code;
+      
       console.error('[Save Error]', {
         pageId,
-        error: error.message,
-        code: error.code,
+        error: errorMessage,
+        code: errorCode,
         blocks: serializedBlocks ? 'with blocks' : 'without blocks'
       });
       
       // Handle database connection errors specifically
-      if (error.code === 'P1001' || error.message?.includes('database') || error.message?.includes('connection')) {
+      if (errorCode === 'P1001' || errorMessage?.includes('database') || errorMessage?.includes('connection')) {
         console.error('[Database Connection Lost] Attempting to reconnect...');
         
         try {
@@ -537,7 +537,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
           
           // Retry the save operation
           const contentData: Prisma.JsonValue = content || '';
-          const blocksData: Prisma.JsonValue = serializedBlocks || null;
+          const blocksData = serializedBlocks || Prisma.JsonNull;
           
           await prisma.page.update({
             where: { id: pageId },
@@ -571,36 +571,44 @@ export async function action({ params, request }: ActionFunctionArgs) {
       
       // Attempt recovery: Save without blocks
       if (serializedBlocks && (
-        error.message?.includes('trailing characters') ||
-        error.message?.includes('JSON') || 
-        error.code === 'P2023' ||
-        error.code === 'P2021'
+        errorMessage?.includes('trailing characters') ||
+        errorMessage?.includes('JSON') || 
+        errorCode === 'P2023' ||
+        errorCode === 'P2021'
       )) {
         try {
           await prisma.page.update({
             where: { id: pageId },
             data: {
               content,
-              blocks: null, // Clear blocks field if there's an issue
+              blocks: Prisma.JsonNull, // Clear blocks field if there's an issue
               updatedAt: new Date(),
             }
           });
           
-          // Queue for indexing after partial save
-          ragIndexingService.queueForIndexing(pageId).catch(error => {
-            console.error('[Auto-Index] Failed after partial save:', error);
+          // Queue for indexing after partial save using async service
+          // Get page workspace first
+          const pageData = await prisma.page.findUnique({
+            where: { id: pageId },
+            select: { workspaceId: true }
           });
+          if (pageData) {
+            asyncEmbeddingService.queueEmbedding(pageId, pageData.workspaceId).catch(error => {
+              console.error('[Auto-Index] Failed after partial save:', error);
+            });
+          }
           
           return json({ 
             success: true, 
             partial: true,
             message: 'Content saved (blocks excluded due to format issue)' 
           });
-        } catch (fallbackError: any) {
+        } catch (fallbackError) {
           // Final fallback failed
+          const fallbackErrorMessage = fallbackError instanceof Error ? fallbackError.message : 'Unknown error';
           return json({ 
             error: 'Unable to save changes', 
-            details: fallbackError.message 
+            details: fallbackErrorMessage 
           }, { status: 500 });
         }
       }
@@ -608,7 +616,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
       // Unknown error
       return json({ 
         error: 'Save failed', 
-        details: error.message 
+        details: errorMessage 
       }, { status: 500 });
     }
 
@@ -629,16 +637,26 @@ interface NavigationItem {
   current?: boolean;
 }
 
+// Type for fetcher responses
+type FetcherData = {
+  success?: boolean;
+  blocks?: Block[];
+  error?: string;
+  connectionLost?: boolean;
+  partial?: boolean;
+  message?: string;
+  reconnected?: boolean;
+}
+
 export default function EditorPage() {
-  const { user, page, workspace, workspaces, currentWorkspace, pageTree, parent, children, breadcrumbPath, content: initialContent, blocks: initialBlocks, canEdit } = useLoaderData<typeof loader>();
+  const { user, page, workspace, workspaces, currentWorkspace, pageTree, blocks: initialBlocks, canEdit } = useLoaderData<typeof loader>();
   const location = useLocation();
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<FetcherData>();
   const [blocks, setBlocks] = useState(initialBlocks);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  const [processingAI, setProcessingAI] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -669,7 +687,7 @@ export default function EditorPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSave = async (newBlocks: Block[], isRetry = false) => {
+  const handleSave = useCallback(async (newBlocks: Block[], isRetry = false) => {
     if (!isRetry) {
       setRetryCount(0);
     }
@@ -715,15 +733,18 @@ export default function EditorPage() {
     formData.set("content", textContent || '');
     formData.set("blocks", JSON.stringify(cleanBlocks));
     fetcher.submit(formData, { method: "POST" });
-  };
+  }, [fetcher]);
 
   // Debounced save to prevent excessive saves and performance issues
-  const debouncedSave = useCallback(
+  const debouncedSaveRef = useRef(
     debounce((blocks: Block[]) => {
       handleSave(blocks);
-    }, 2000),
-    []
+    }, 2000)
   );
+  
+  const debouncedSave = useCallback((blocks: Block[]) => {
+    debouncedSaveRef.current(blocks);
+  }, []);
   
   const handleChange = (newBlocks: Block[]) => {
     setBlocks(newBlocks);
@@ -736,7 +757,7 @@ export default function EditorPage() {
   // Handle AI command execution
   const handleAICommand = useCallback(async (command: string, selectedBlockId?: string) => {
     console.log('[editor.$pageId] handleAICommand called:', { command, selectedBlockId, blocksCount: blocks.length });
-    setProcessingAI(true);
+    // Processing AI command
     setSaveError(null);
     
     const formData = new FormData();
@@ -756,7 +777,7 @@ export default function EditorPage() {
     if (fetcher.state === 'idle' && fetcher.data) {
       console.log('[editor.$pageId] Fetcher response:', fetcher.data);
       setIsSaving(false);
-      setProcessingAI(false);
+      // Finished processing
       
       if (fetcher.data.success) {
         // Handle AI command success
@@ -798,7 +819,7 @@ export default function EditorPage() {
         }
       }
     }
-  }, [fetcher.state, fetcher.data, blocks, retryCount]);
+  }, [fetcher.state, fetcher.data, blocks, retryCount, handleSave, maxRetries]);
   
   // Cleanup retry timeout on unmount
   useEffect(() => {
@@ -1022,10 +1043,23 @@ export default function EditorPage() {
         {/* Page header */}
         <div className="bg-white dark:bg-[rgba(33,33,33,1)] shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-1">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex items-center gap-4">
               <h1 className="text-xl font-semibold text-gray-900">
                 {page.title || "Untitled Page"}
               </h1>
+              <EmbeddingStatusIndicator 
+                pageId={page.id}
+                showDetails={true}
+                onRetry={() => {
+                  const formData = new FormData();
+                  formData.append('pageId', page.id);
+                  formData.append('workspaceId', page.workspaceId);
+                  fetch('/api/embeddings/reindex', {
+                    method: 'POST',
+                    body: formData
+                  });
+                }}
+              />
             </div>
             <div className="flex items-center gap-4">
               {isSaving && (
@@ -1041,12 +1075,7 @@ export default function EditorPage() {
                   {saveError}
                 </span>
               )}
-              {page.is_template && (
-                <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
-                  Template
-                </span>
-              )}
-              {page.is_public && (
+              {page.isPublic && (
                 <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
                   Public
                 </span>

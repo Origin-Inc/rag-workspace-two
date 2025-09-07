@@ -168,6 +168,11 @@ model Page {
   position    Int         @default(0)
   isPublic    Boolean     @default(false) @map("is_public")
   isArchived  Boolean     @default(false) @map("is_archived")
+  // Embedding status fields
+  embeddingStatus String? @default("pending") @map("embedding_status") @db.VarChar(20) // pending, processing, completed, failed
+  embeddingProgress Int?  @default(0) @map("embedding_progress") // 0-100 percentage
+  embeddingError String?  @map("embedding_error") @db.Text
+  lastEmbeddedAt DateTime? @map("last_embedded_at") @db.Timestamptz(6)
   createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
   
@@ -186,6 +191,7 @@ model Page {
   @@index([position])
   @@index([workspaceId])
   @@index([workspaceId, parentId]) // New index for hierarchy queries
+  @@index([embeddingStatus])
   @@map("pages")
 }
 
