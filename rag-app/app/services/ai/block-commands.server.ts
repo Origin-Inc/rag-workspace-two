@@ -725,16 +725,24 @@ Data extraction patterns:
 
 CRITICAL EXAMPLES when user says "make this into a database":
 1. If selected block contains: "Apple\nBanana\nOrange"
-   → Create database with: columns: [{id: "item", name: "Item", type: "text"}], rows: [{item: "Apple"}, {item: "Banana"}, {item: "Orange"}]
+   → Create database with: 
+   columns: [{id: "item", name: "Item", type: "text"}], 
+   rows: [{item: "Apple"}, {item: "Banana"}, {item: "Orange"}]
+   IMPORTANT: Row properties MUST match column IDs!
    
 2. If selected block contains: "dogs: 45, cats: 30, birds: 15"
-   → Create database with: columns: [{id: "animal", name: "Animal", type: "text"}, {id: "count", name: "Count", type: "number"}], 
-     rows: [{animal: "dogs", count: 45}, {animal: "cats", count: 30}, {animal: "birds", count: 15}]
+   → Create database with: 
+   columns: [{id: "animal", name: "Animal", type: "text"}, {id: "count", name: "Count", type: "number"}], 
+   rows: [{animal: "dogs", count: 45}, {animal: "cats", count: 30}, {animal: "birds", count: 15}]
+   NOTE: Use "animal" and "count" as keys in rows because those are the column IDs!
 
 3. If selected block contains CSV: "name,age\nJohn,25\nJane,30"
-   → Parse and create proper columns and rows with the actual data
+   → Parse and create: 
+   columns: [{id: "name", name: "Name", type: "text"}, {id: "age", name: "Age", type: "number"}],
+   rows: [{name: "John", age: 25}, {name: "Jane", age: 30}]
 
-NEVER create empty placeholder databases when the user references "this" - always use the selected block content!
+CRITICAL: The row object properties MUST match the column id values, not the column names!
+NEVER create empty rows - always populate with actual data from the selected block content!
    - rows: [] // Empty since no data provided
 
 2. "create table: John, 25, NYC | Jane, 30, LA" → Parse data:
