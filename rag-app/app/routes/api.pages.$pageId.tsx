@@ -22,8 +22,12 @@ export async function action({ request, params }: ActionFunctionArgs) {
       
       // Delete all pages in a transaction
       await prisma.$transaction(async (tx) => {
-        // Delete blocks first
-        await tx.block.deleteMany({
+        // Delete related embeddings first
+        await tx.pageEmbedding.deleteMany({
+          where: { pageId: { in: pageIdsToDelete } }
+        });
+        
+        await tx.blockEmbedding.deleteMany({
           where: { pageId: { in: pageIdsToDelete } }
         });
         
