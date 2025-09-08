@@ -328,13 +328,13 @@ export class RedisFactory {
    */
   async initialize(): Promise<void> {
     // Auto-detect provider based on available environment variables
-    let provider = process.env.REDIS_PROVIDER;
+    let provider = process.env['REDIS_PROVIDER'];
     
     // If no provider specified, auto-detect based on available URLs
     if (!provider) {
-      if (process.env.REDIS_URL) {
+      if (process.env['REDIS_URL']) {
         provider = 'railway'; // Use Railway Redis if URL is available
-      } else if (process.env.UPSTASH_REDIS_REST_URL) {
+      } else if (process.env['UPSTASH_REDIS_REST_URL']) {
         provider = 'upstash';
       } else {
         provider = 'none'; // No Redis configured
@@ -434,9 +434,9 @@ export class RedisFactory {
     }
     
     if (provider.type === 'local') {
-      if (options?.workerMode && process.env.REDIS_URL) {
+      if (options?.workerMode && process.env['REDIS_URL']) {
         // Parse Redis URL for worker connection
-        const redisUrl = new URL(process.env.REDIS_URL);
+        const redisUrl = new URL(process.env['REDIS_URL']);
         
         // Create a new connection for workers with Railway-optimized config
         const workerConfig = {
