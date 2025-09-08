@@ -27,25 +27,41 @@ export function getPoolingConfig(): PoolingConfig {
   const instanceCount = parseInt(process.env.INSTANCE_COUNT || '10', 10); // Default to 10 instances
   const maxPoolSize = parseInt(process.env.MAX_POOL_SIZE || '100', 10);
   
-  // For serverless, always use pooler but keep port 5432 (Supabase standard)
+  // Check if DATABASE_URL is using transaction pooler (port 6543)
+  const databaseUrl = process.env.DATABASE_URL || '';
+  const isTransactionPooler = databaseUrl.includes(':6543');
+  const isSessionPooler = databaseUrl.includes('pooler.supabase.com:5432');
+  
+  // For serverless, prefer transaction pooler
   const usePooler = isProduction && (isVercel || isRailway || process.env.USE_TRANSACTION_MODE === 'true');
   
-  if (usePooler) {
-    // Pooler configuration for serverless (Supabase uses port 5432 for pooler)
+  if (isTransactionPooler) {
+    // Transaction pooler configuration (port 6543)
+    // Does NOT support PREPARE statements outside transactions
+    return {
+      connectionLimit: 1, // Minimal connections for transaction pooler
+      poolTimeout: 10, // 10 seconds timeout
+      connectTimeout: 10, // 10 seconds max to connect
+      statementCacheSize: 0, // No statement caching in transaction mode
+      pgbouncer: true,
+      port: 6543, // Transaction pooler port
+    };
+  } else if (usePooler || isSessionPooler) {
+    // Session pooler configuration (port 5432 on pooler.supabase.com)
     const connectionLimit = Math.max(1, Math.floor(maxPoolSize / instanceCount));
     
     return {
-      connectionLimit: Math.min(connectionLimit, 2), // Max 2 connections per instance for Vercel
-      poolTimeout: 10, // 10 seconds timeout (0 can cause issues)
+      connectionLimit: Math.min(connectionLimit, 3), // Max 3 connections per instance
+      poolTimeout: 10, // 10 seconds timeout
       connectTimeout: 10, // 10 seconds max to connect
-      statementCacheSize: 0, // No statement caching in pooler mode
+      statementCacheSize: 0, // Minimal caching in pooler mode
       pgbouncer: true,
-      port: 5432, // Supabase pooler uses standard port
+      port: 5432, // Session pooler uses standard port
     };
   } else {
-    // Direct connection for development
+    // Direct connection for development or traditional hosting
     return {
-      connectionLimit: 10, // More connections allowed locally
+      connectionLimit: 10, // More connections allowed
       poolTimeout: 30, // 30 seconds timeout
       connectTimeout: 30, // 30 seconds to connect
       statementCacheSize: 100, // Enable statement caching
@@ -60,55 +76,46 @@ export function buildDatabaseUrl(baseUrl?: string): string {
   const config = getPoolingConfig();
   const url = new URL(baseUrl || process.env.DATABASE_URL || '');
   
-  // For Supabase, check if the database actually supports port 6543
-  // Some Supabase projects may not have transaction mode enabled
-  const isSupabase = url.hostname.includes('supabase.com') || url.hostname.includes('pooler.supabase.com');
+  // Preserve the original port from DATABASE_URL
+  // Supabase uses specific ports for different pooler modes:
+  // - 6543 for transaction pooler
+  // - 5432 for session pooler or direct connection
+  const originalPort = url.port;
   
-  if (isSupabase) {
-    // Supabase pooler always uses port 5432 for both modes
-    // The mode is determined by the pooler configuration, not the port
-    // Keep the existing port from the DATABASE_URL
-    if (url.hostname.includes('pooler.')) {
-      // Already using pooler, keep current settings
-      url.searchParams.set('pgbouncer', 'true');
-    } else if (config.pgbouncer) {
-      // Switch to pooler subdomain if configured
-      url.hostname = url.hostname.replace('db.', 'pooler.');
-      url.searchParams.set('pgbouncer', 'true');
-    }
-    
-    // Don't change the port for Supabase - always use what's in DATABASE_URL
-  } else {
-    // Non-Supabase databases: update port based on configuration
-    if (config.port === 6543 && !url.port.includes('6543')) {
-      url.port = '6543';
-    } else if (config.port === 5432 && url.port === '6543') {
-      url.port = '5432';
-    }
-  }
-  
-  // Set PgBouncer parameters
-  if (config.pgbouncer || url.searchParams.has('pgbouncer')) {
+  // Set PgBouncer parameters based on port
+  if (originalPort === '6543') {
+    // Transaction pooler - strict settings
+    url.searchParams.set('pgbouncer', 'true');
+    url.searchParams.set('statement_cache_size', '0');
+    url.searchParams.set('prepare', 'false');
+    url.searchParams.set('connection_limit', '1'); // Minimal for transaction mode
+  } else if (url.hostname.includes('pooler.')) {
+    // Session pooler
+    url.searchParams.set('pgbouncer', 'true');
+    url.searchParams.set('statement_cache_size', '0');
+    url.searchParams.set('connection_limit', config.connectionLimit.toString());
+  } else if (config.pgbouncer) {
+    // Apply pgbouncer settings if configured
     url.searchParams.set('pgbouncer', 'true');
     url.searchParams.set('statement_cache_size', config.statementCacheSize.toString());
-    
-    // Disable prepared statements for pgbouncer mode
-    if (config.pgbouncer) {
-      url.searchParams.set('prepare', 'false');
-    }
+    url.searchParams.set('connection_limit', config.connectionLimit.toString());
   }
   
-  // Set connection limits
-  url.searchParams.set('connection_limit', config.connectionLimit.toString());
+  // Set timeouts
   url.searchParams.set('pool_timeout', config.poolTimeout.toString());
   url.searchParams.set('connect_timeout', config.connectTimeout.toString());
   
+  // Determine mode for logging
+  const mode = originalPort === '6543' ? 'transaction-pooler' : 
+               url.hostname.includes('pooler.') ? 'session-pooler' : 
+               'direct';
+  
   logger.info('Database URL configured', {
-    mode: config.pgbouncer ? 'pooled' : 'direct',
+    mode,
     hostname: url.hostname,
-    port: url.port,
-    connectionLimit: config.connectionLimit,
-    pgbouncer: config.pgbouncer || url.searchParams.has('pgbouncer'),
+    port: originalPort,
+    connectionLimit: url.searchParams.get('connection_limit'),
+    pgbouncer: url.searchParams.has('pgbouncer'),
   });
   
   return url.toString();
