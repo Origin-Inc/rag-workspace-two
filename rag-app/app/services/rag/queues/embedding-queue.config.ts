@@ -1,6 +1,7 @@
 import { QueueOptions, JobsOptions, WorkerOptions } from 'bullmq';
-import { redis, redisWorker } from '~/utils/redis.server';
+import { getRedis, getRedisWorker } from '~/utils/redis.server';
 import { DebugLogger } from '~/utils/debug-logger';
+import type Redis from 'ioredis';
 
 const logger = new DebugLogger('EmbeddingQueueConfig');
 
@@ -11,11 +12,23 @@ const logger = new DebugLogger('EmbeddingQueueConfig');
 export const EMBEDDING_QUEUE_NAME = 'ultra-light-embeddings';
 
 /**
- * Queue configuration for ultra-light embedding generation
+ * Get queue configuration for ultra-light embedding generation
+ * Returns config with properly initialized Redis connection
  */
-export const embeddingQueueConfig: QueueOptions = {
-  connection: redis || undefined,
-  defaultJobOptions: {
+export async function getEmbeddingQueueConfig(): Promise<QueueOptions> {
+  let connection: Redis | undefined;
+  
+  try {
+    connection = await getRedis();
+    logger.trace('Redis connection obtained for queue config');
+  } catch (error) {
+    logger.warn('Redis not available for queue config:', error);
+    connection = undefined;
+  }
+  
+  return {
+    connection,
+    defaultJobOptions: {
     removeOnComplete: {
       age: 3600, // Keep completed jobs for 1 hour
       count: 100, // Keep last 100 completed jobs
@@ -28,6 +41,30 @@ export const embeddingQueueConfig: QueueOptions = {
     backoff: {
       type: 'exponential',
       delay: 2000, // Start with 2 second delay
+    },
+  },
+  };
+}
+
+/**
+ * Legacy config for backward compatibility (may have undefined connection)
+ * @deprecated Use getEmbeddingQueueConfig() instead
+ */
+export const embeddingQueueConfig: QueueOptions = {
+  connection: undefined, // Will be undefined at module load
+  defaultJobOptions: {
+    removeOnComplete: {
+      age: 3600,
+      count: 100,
+    },
+    removeOnFail: {
+      age: 86400,
+      count: 50,
+    },
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 2000,
     },
   },
 };
@@ -59,11 +96,23 @@ export const embeddingJobOptions = {
 };
 
 /**
- * Worker configuration for processing embedding jobs
+ * Get worker configuration for processing embedding jobs
+ * Returns config with properly initialized Redis worker connection
  */
-export const embeddingWorkerConfig: WorkerOptions = {
-  connection: redisWorker || undefined,
-  concurrency: 2, // Process 2 jobs simultaneously to avoid overwhelming OpenAI
+export async function getEmbeddingWorkerConfig(): Promise<WorkerOptions> {
+  let connection: Redis | undefined;
+  
+  try {
+    connection = await getRedisWorker();
+    logger.trace('Redis worker connection obtained for worker config');
+  } catch (error) {
+    logger.warn('Redis worker not available for worker config:', error);
+    connection = undefined;
+  }
+  
+  return {
+    connection,
+    concurrency: 2, // Process 2 jobs simultaneously to avoid overwhelming OpenAI
   
   // Rate limiting to respect OpenAI rate limits
   limiter: {
@@ -75,6 +124,24 @@ export const embeddingWorkerConfig: WorkerOptions = {
   settings: {
     stalledInterval: 30000, // Check for stalled jobs every 30 seconds
     maxStalledCount: 2, // Mark as failed after 2 stalls
+  },
+  };
+}
+
+/**
+ * Legacy config for backward compatibility (may have undefined connection)
+ * @deprecated Use getEmbeddingWorkerConfig() instead
+ */
+export const embeddingWorkerConfig: WorkerOptions = {
+  connection: undefined, // Will be undefined at module load
+  concurrency: 2,
+  limiter: {
+    max: 10,
+    duration: 60000,
+  },
+  settings: {
+    stalledInterval: 30000,
+    maxStalledCount: 2,
   },
   
   // Lock settings
@@ -113,13 +180,17 @@ export interface UltraLightEmbeddingJobResult {
 
 /**
  * Helper to check if queue is available
+ * @returns Promise that resolves to true if Redis is available
  */
-export function isQueueAvailable(): boolean {
-  const available = !!(redis || redisWorker);
-  if (!available) {
-    logger.warn('Redis not available for queue operations');
+export async function isQueueAvailable(): Promise<boolean> {
+  try {
+    // Try to get Redis connection
+    await getRedis();
+    return true;
+  } catch (error) {
+    logger.warn('Redis not available for queue operations:', error);
+    return false;
   }
-  return available;
 }
 
 /**
