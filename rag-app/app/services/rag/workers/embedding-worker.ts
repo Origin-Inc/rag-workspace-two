@@ -1,5 +1,5 @@
 import { Worker, Job } from 'bullmq';
-import { redisWorker } from '~/utils/redis.server';
+import { getRedisWorker } from '~/utils/redis.server';
 import { asyncEmbeddingService } from '../async-embedding.service';
 import { DebugLogger } from '~/utils/debug-logger';
 
@@ -24,8 +24,14 @@ export class EmbeddingWorker {
    * Start the embedding worker
    */
   async start(): Promise<void> {
-    if (!redisWorker) {
-      logger.warn('Redis not available, worker will not start');
+    // Get Redis worker client asynchronously
+    let redisWorkerClient;
+    try {
+      redisWorkerClient = await getRedisWorker();
+      logger.info('Redis worker client obtained successfully');
+    } catch (error) {
+      logger.error('Failed to get Redis worker client:', error);
+      logger.warn('Worker will not start without Redis');
       return;
     }
     
@@ -78,7 +84,7 @@ export class EmbeddingWorker {
         }
       },
       {
-        connection: redisWorker,
+        connection: redisWorkerClient,
         concurrency: 2, // Process 2 embedding jobs simultaneously
         
         // Rate limiting to avoid overwhelming OpenAI
