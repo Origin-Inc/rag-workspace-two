@@ -7,7 +7,7 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
-  extensions = [uuidOssp(map: "uuid-ossp")]
+  extensions = [uuidOssp(map: "uuid-ossp"), vector]
 }
 
 model User {
@@ -302,7 +302,8 @@ model Embedding {
   documentId String                   @map("document_id") @db.Uuid
   chunkText  String                   @map("chunk_text") @db.Text
   chunkIndex Int                      @map("chunk_index")
-  // embedding  Unsupported("vector(1536)")? // Temporarily disabled - requires pgvector extension
+  embedding  Unsupported("vector(1536)")? // Full vector embedding
+  embeddingHalfvec Unsupported("halfvec(1536)")? @map("embedding_halfvec") // Halfvec for storage optimization
   metadata   Json?                    @db.JsonB
   createdAt  DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   document   Document                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
@@ -317,7 +318,8 @@ model PageEmbedding {
   workspaceId String                  @map("workspace_id") @db.Uuid
   chunkText  String                   @map("chunk_text") @db.Text
   chunkIndex Int                      @map("chunk_index")
-  // embedding  Unsupported("vector(1536)")? // Requires pgvector extension
+  embedding  Unsupported("vector(1536)")? // Full vector embedding
+  embeddingHalfvec Unsupported("halfvec(1536)")? @map("embedding_halfvec") // Halfvec for storage optimization
   metadata   Json?                    @db.JsonB
   createdAt  DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
@@ -338,7 +340,8 @@ model BlockEmbedding {
   workspaceId String                  @map("workspace_id") @db.Uuid
   chunkText  String                   @map("chunk_text") @db.Text
   chunkIndex Int                      @map("chunk_index")
-  // embedding  Unsupported("vector(1536)")? // Requires pgvector extension
+  embedding  Unsupported("vector(1536)")? // Full vector embedding
+  embeddingHalfvec Unsupported("halfvec(1536)")? @map("embedding_halfvec") // Halfvec for storage optimization
   metadata   Json?                    @db.JsonB
   createdAt  DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
@@ -358,7 +361,8 @@ model DatabaseRowEmbedding {
   pageId     String?                  @map("page_id") @db.Uuid
   workspaceId String                  @map("workspace_id") @db.Uuid
   chunkText  String                   @map("chunk_text") @db.Text
-  // embedding  Unsupported("vector(1536)")? // Requires pgvector extension
+  embedding  Unsupported("vector(1536)")? // Full vector embedding
+  embeddingHalfvec Unsupported("halfvec(1536)")? @map("embedding_halfvec") // Halfvec for storage optimization
   metadata   Json?                    @db.JsonB
   createdAt  DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)

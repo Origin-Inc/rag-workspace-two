@@ -2,7 +2,7 @@ import { Queue, Job } from 'bullmq';
 import { DebugLogger } from '~/utils/debug-logger';
 import { 
   EMBEDDING_QUEUE_NAME, 
-  embeddingQueueConfig, 
+  getEmbeddingQueueConfig,
   embeddingJobOptions,
   getEmbeddingJobId,
   isQueueAvailable,
@@ -49,15 +49,24 @@ export class UltraLightEmbeddingQueue {
   
   private async doInitialize(): Promise<void> {
     try {
-      if (!isQueueAvailable()) {
+      // Check if queue is available (async now)
+      const available = await isQueueAvailable();
+      if (!available) {
         this.logger.warn('Queue not available - Redis not configured');
+        return;
+      }
+      
+      // Get queue config with properly initialized Redis connection
+      const queueConfig = await getEmbeddingQueueConfig();
+      if (!queueConfig.connection) {
+        this.logger.error('Failed to get Redis connection for queue');
         return;
       }
       
       const { Queue } = await import('bullmq');
       this.queue = new Queue<UltraLightEmbeddingJobData, UltraLightEmbeddingJobResult>(
         EMBEDDING_QUEUE_NAME,
-        embeddingQueueConfig
+        queueConfig
       );
       
       // Set up event handlers
