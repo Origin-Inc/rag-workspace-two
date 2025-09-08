@@ -326,7 +326,19 @@ export class RedisFactory {
    * Initialize Redis with primary and optional fallback providers
    */
   async initialize(): Promise<void> {
-    const provider = process.env.REDIS_PROVIDER || 'local';
+    // Auto-detect provider based on available environment variables
+    let provider = process.env.REDIS_PROVIDER;
+    
+    // If no provider specified, auto-detect based on available URLs
+    if (!provider) {
+      if (process.env.REDIS_URL) {
+        provider = 'railway'; // Use Railway Redis if URL is available
+      } else if (process.env.UPSTASH_REDIS_REST_URL) {
+        provider = 'upstash';
+      } else {
+        provider = 'none'; // No Redis configured
+      }
+    }
     
     try {
       // Initialize primary provider
@@ -339,7 +351,7 @@ export class RedisFactory {
           process.env.UPSTASH_REDIS_REST_URL,
           process.env.UPSTASH_REDIS_REST_TOKEN!
         );
-      } else if (process.env.REDIS_URL) {
+      } else if ((provider === 'railway' || provider === 'local' || provider === 'redis-cloud') && process.env.REDIS_URL) {
         this.provider = new LocalRedisProvider(process.env.REDIS_URL);
       } else {
         // Fall back to none provider if no Redis configured
@@ -354,7 +366,9 @@ export class RedisFactory {
         throw new Error('Primary Redis provider is not healthy');
       }
 
-      this.logger.info(`Primary Redis provider initialized: ${provider}`);
+      this.logger.info(`Primary Redis provider initialized: ${provider}`, {
+        url: provider === 'railway' || provider === 'local' ? process.env.REDIS_URL?.split('@')[1] : 'N/A'
+      });
 
       // Initialize fallback if configured
       if (provider === 'local' && process.env.UPSTASH_REDIS_REST_URL) {
@@ -413,9 +427,9 @@ export class RedisFactory {
     }
     
     if (provider.type === 'local') {
-      if (options?.workerMode) {
+      if (options?.workerMode && process.env.REDIS_URL) {
         // Parse Redis URL for worker connection
-        const redisUrl = new URL(process.env.REDIS_URL!);
+        const redisUrl = new URL(process.env.REDIS_URL);
         
         // Create a new connection for workers with Railway-optimized config
         const workerConfig = {
