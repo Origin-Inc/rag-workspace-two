@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { Block } from "~/components/editor/EnhancedBlockEditor";
 import { debounce } from "~/utils/performance";
 import { Prisma } from "@prisma/client";
-import { ultraLightIndexingService } from "~/services/rag/ultra-light-indexing.service";
+import { indexingCoordinator } from "~/services/rag/indexing-coordinator.service";
 import { asyncEmbeddingService } from "~/services/rag/async-embedding.service";
 import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
 import { pageHierarchyService } from "~/services/page-hierarchy.server";
@@ -492,9 +492,25 @@ export async function action({ params, request }: ActionFunctionArgs) {
       const indexWithRetry = async (retries = 3) => {
         for (let i = 0; i < retries; i++) {
           try {
-            await ultraLightIndexingService.indexPage(pageId, true);
-            console.log('[Indexing] Success on attempt', i + 1);
-            return;
+            const result = await indexingCoordinator.indexPage(pageId, {
+              immediate: true,
+              source: 'user-save'
+            });
+            
+            console.log('[Indexing]', result.success ? 'Success' : 'Failed', 'on attempt', i + 1, result.message);
+            
+            if (result.metrics) {
+              console.log('[Indexing] Metrics:', result.metrics);
+            }
+            
+            if (result.success) return;
+            
+            // If it was queued, that's also a success
+            if (result.message.includes('queued') || result.message.includes('Queued')) {
+              console.log('[Indexing] Successfully queued for async processing');
+              return;
+            }
+            
           } catch (error) {
             console.error(`[Indexing] Attempt ${i + 1} failed:`, error);
             if (i < retries - 1) {
@@ -503,11 +519,8 @@ export async function action({ params, request }: ActionFunctionArgs) {
             }
           }
         }
-        // After all retries failed, try fallback with async service
-        console.error('[Indexing] All retries failed, trying async service fallback');
-        asyncEmbeddingService.queueEmbedding(pageId, page.workspaceId).catch(fallbackError => {
-          console.error('[Async-Fallback-Index] Also failed:', fallbackError);
-        });
+        // Coordinator already handles fallbacks internally
+        console.error('[Indexing] All retries failed');
       };
       
       indexWithRetry().catch(error => {
