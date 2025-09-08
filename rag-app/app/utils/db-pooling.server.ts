@@ -74,7 +74,20 @@ export function getPoolingConfig(): PoolingConfig {
 // Build optimized DATABASE_URL based on pooling configuration
 export function buildDatabaseUrl(baseUrl?: string): string {
   const config = getPoolingConfig();
-  const url = new URL(baseUrl || process.env['DATABASE_URL'] || '');
+  const urlString = baseUrl || process.env['DATABASE_URL'] || '';
+  
+  // Validate URL format
+  if (!urlString) {
+    throw new Error('DATABASE_URL is not configured');
+  }
+  
+  let url: URL;
+  try {
+    url = new URL(urlString);
+  } catch (error) {
+    logger.error('Invalid DATABASE_URL format', { error, url: urlString.replace(/:[^:@]+@/, ':****@') });
+    throw new Error('Invalid DATABASE_URL format');
+  }
   
   // Preserve the original port from DATABASE_URL
   // Supabase uses specific ports for different pooler modes:
@@ -82,18 +95,29 @@ export function buildDatabaseUrl(baseUrl?: string): string {
   // - 5432 for session pooler or direct connection
   const originalPort = url.port;
   
+  // Clear existing query parameters to avoid conflicts
+  const existingParams = new URLSearchParams(url.search);
+  url.search = '';
+  
   // Set PgBouncer parameters based on port
   if (originalPort === '6543') {
-    // Transaction pooler - balanced settings for Vercel
+    // Transaction pooler - optimized for serverless
     url.searchParams.set('pgbouncer', 'true');
     url.searchParams.set('statement_cache_size', '0');
-    url.searchParams.set('prepare', 'false');
-    url.searchParams.set('connection_limit', config.connectionLimit.toString()); // Use config value
+    url.searchParams.set('prepared_statements', 'false');
+    url.searchParams.set('connection_limit', config.connectionLimit.toString());
+    // Add schema parameter if not present
+    if (!existingParams.has('schema')) {
+      url.searchParams.set('schema', 'public');
+    }
   } else if (url.hostname.includes('pooler.')) {
     // Session pooler
     url.searchParams.set('pgbouncer', 'true');
     url.searchParams.set('statement_cache_size', '0');
     url.searchParams.set('connection_limit', config.connectionLimit.toString());
+    if (!existingParams.has('schema')) {
+      url.searchParams.set('schema', 'public');
+    }
   } else if (config.pgbouncer) {
     // Apply pgbouncer settings if configured
     url.searchParams.set('pgbouncer', 'true');
@@ -104,6 +128,13 @@ export function buildDatabaseUrl(baseUrl?: string): string {
   // Set timeouts
   url.searchParams.set('pool_timeout', config.poolTimeout.toString());
   url.searchParams.set('connect_timeout', config.connectTimeout.toString());
+  
+  // Preserve any custom parameters from original URL
+  existingParams.forEach((value, key) => {
+    if (!url.searchParams.has(key) && key !== 'pgbouncer' && key !== 'connection_limit') {
+      url.searchParams.set(key, value);
+    }
+  });
   
   // Determine mode for logging
   const mode = originalPort === '6543' ? 'transaction-pooler' : 
@@ -123,7 +154,23 @@ export function buildDatabaseUrl(baseUrl?: string): string {
 
 // Create Prisma client with optimized pooling
 export function createPooledPrismaClient(): PrismaClient {
-  const databaseUrl = buildDatabaseUrl();
+  // Check if running migrations - use DIRECT_URL if available
+  const isRunningMigration = process.argv.some(arg => 
+    arg.includes('migrate') || arg.includes('db:push') || arg.includes('studio')
+  );
+  
+  let databaseUrl: string;
+  if (isRunningMigration && process.env['DIRECT_URL']) {
+    // Use direct connection for migrations
+    databaseUrl = process.env['DIRECT_URL'];
+    logger.info('Using DIRECT_URL for migration/studio', {
+      url: databaseUrl.replace(/:[^:@]+@/, ':****@')
+    });
+  } else {
+    // Use pooled connection for runtime
+    databaseUrl = buildDatabaseUrl();
+  }
+  
   const config = getPoolingConfig();
   
   const client = new PrismaClient({
@@ -137,10 +184,11 @@ export function createPooledPrismaClient(): PrismaClient {
     },
   });
   
-  // Add connection pool monitoring
-  if (process.env.NODE_ENV === "production") {
-    monitorConnectionPool(client);
-  }
+  // Add connection pool monitoring (disabled due to deprecated $use)
+  // TODO: Implement alternative monitoring approach
+  // if (process.env.NODE_ENV === "production") {
+  //   monitorConnectionPool(client);
+  // }
   
   // Wrap client methods to handle transaction mode limitations
   if (config.port === 6543) {
@@ -150,50 +198,51 @@ export function createPooledPrismaClient(): PrismaClient {
   return client;
 }
 
-// Monitor connection pool health
-function monitorConnectionPool(client: PrismaClient) {
-  let activeConnections = 0;
-  let totalQueries = 0;
-  let failedQueries = 0;
-  
-  // Track query metrics
-  client.$use(async (params, next) => {
-    activeConnections++;
-    totalQueries++;
-    
-    const start = Date.now();
-    try {
-      const result = await next(params);
-      const duration = Date.now() - start;
-      
-      // Log slow queries
-      if (duration > 1000) {
-        logger.warn('Slow query detected', {
-          model: params.model,
-          action: params.action,
-          duration,
-        });
-      }
-      
-      return result;
-    } catch (error) {
-      failedQueries++;
-      throw error;
-    } finally {
-      activeConnections--;
-    }
-  });
-  
-  // Periodic health check
-  setInterval(() => {
-    logger.info('Connection pool stats', {
-      activeConnections,
-      totalQueries,
-      failedQueries,
-      failureRate: totalQueries > 0 ? (failedQueries / totalQueries) * 100 : 0,
-    });
-  }, 60000); // Every minute
-}
+// Monitor connection pool health (disabled - $use is deprecated)
+// TODO: Implement alternative monitoring using metrics library
+// function monitorConnectionPool(client: PrismaClient) {
+//   let activeConnections = 0;
+//   let totalQueries = 0;
+//   let failedQueries = 0;
+//   
+//   // Track query metrics
+//   client.$use(async (params, next) => {
+//     activeConnections++;
+//     totalQueries++;
+//     
+//     const start = Date.now();
+//     try {
+//       const result = await next(params);
+//       const duration = Date.now() - start;
+//       
+//       // Log slow queries
+//       if (duration > 1000) {
+//         logger.warn('Slow query detected', {
+//           model: params.model,
+//           action: params.action,
+//           duration,
+//         });
+//       }
+//       
+//       return result;
+//     } catch (error) {
+//       failedQueries++;
+//       throw error;
+//     } finally {
+//       activeConnections--;
+//     }
+//   });
+//   
+//   // Periodic health check
+//   setInterval(() => {
+//     logger.info('Connection pool stats', {
+//       activeConnections,
+//       totalQueries,
+//       failedQueries,
+//       failureRate: totalQueries > 0 ? (failedQueries / totalQueries) * 100 : 0,
+//     });
+//   }, 60000); // Every minute
+// }
 
 // Wrap Prisma client for transaction mode compatibility
 function wrapForTransactionMode(client: PrismaClient) {
