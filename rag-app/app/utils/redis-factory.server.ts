@@ -12,11 +12,13 @@ export interface RedisProvider {
   client: Redis | any;
   isHealthy: () => Promise<boolean>;
   get: (key: string) => Promise<string | null>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   set: (key: string, value: string, options?: any) => Promise<any>;
   del: (key: string) => Promise<number>;
   exists: (key: string) => Promise<number>;
   expire: (key: string, seconds: number) => Promise<number>;
   ttl: (key: string) => Promise<number>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   flushdb: () => Promise<any>;
   info: () => Promise<string>;
 }
@@ -84,6 +86,7 @@ class LocalRedisProvider implements RedisProvider {
       autoPipeliningIgnoredCommands: ['info', 'ping'], // Don't batch health checks
     };
     
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.client = new Redis(config as any);
     
     // Set up event handlers for better monitoring
@@ -102,7 +105,9 @@ class LocalRedisProvider implements RedisProvider {
     this.client.on('error', (error) => {
       this.logger.error('Redis connection error', { 
         error: error.message,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         code: (error as any).code,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         syscall: (error as any).syscall
       });
     });
@@ -148,6 +153,7 @@ class LocalRedisProvider implements RedisProvider {
     return this.client.get(key);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async set(key: string, value: string, options?: any): Promise<any> {
     if (options?.ex) {
       return this.client.set(key, value, 'EX', options.ex);
@@ -171,6 +177,7 @@ class LocalRedisProvider implements RedisProvider {
     return this.client.ttl(key);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async flushdb(): Promise<any> {
     return this.client.flushdb();
   }
@@ -182,6 +189,7 @@ class LocalRedisProvider implements RedisProvider {
 
 class UpstashRedisProvider implements RedisProvider {
   type = 'upstash' as const;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any;
   private logger = new DebugLogger('UpstashRedis');
   private restUrl: string;
@@ -193,6 +201,7 @@ class UpstashRedisProvider implements RedisProvider {
     this.logger.info('Initialized Upstash Redis provider');
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async makeRequest(command: string[], method = 'POST'): Promise<any> {
     const url = `${this.restUrl}/${method === 'GET' ? command.join('/') : ''}`;
     
@@ -233,6 +242,7 @@ class UpstashRedisProvider implements RedisProvider {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async set(key: string, value: string, options?: any): Promise<any> {
     try {
       const command = ['SET', key, value];
@@ -286,6 +296,7 @@ class UpstashRedisProvider implements RedisProvider {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async flushdb(): Promise<any> {
     try {
       return await this.makeRequest(['FLUSHDB']);
@@ -328,13 +339,13 @@ export class RedisFactory {
    */
   async initialize(): Promise<void> {
     // Auto-detect provider based on available environment variables
-    let provider = process.env.REDIS_PROVIDER;
+    let provider = process.env['REDIS_PROVIDER'];
     
     // If no provider specified, auto-detect based on available URLs
     if (!provider) {
-      if (process.env.REDIS_URL) {
+      if (process.env['REDIS_URL']) {
         provider = 'railway'; // Use Railway Redis if URL is available
-      } else if (process.env.UPSTASH_REDIS_REST_URL) {
+      } else if (process.env['UPSTASH_REDIS_REST_URL']) {
         provider = 'upstash';
       } else {
         provider = 'none'; // No Redis configured
@@ -362,6 +373,7 @@ export class RedisFactory {
         this.provider = localProvider;
       } else {
         // Fall back to none provider if no Redis configured
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         this.provider = new NoneRedisProvider() as any;
         this.logger.warn('No Redis configuration found - using no-op provider');
         return;
@@ -425,6 +437,7 @@ export class RedisFactory {
   /**
    * Get a Redis client for specific use cases (e.g., BullMQ)
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getClient(options?: { workerMode?: boolean }): Redis | any {
     const provider = this.getProvider();
     
@@ -434,9 +447,9 @@ export class RedisFactory {
     }
     
     if (provider.type === 'local') {
-      if (options?.workerMode && process.env.REDIS_URL) {
+      if (options?.workerMode && process.env['REDIS_URL']) {
         // Parse Redis URL for worker connection
-        const redisUrl = new URL(process.env.REDIS_URL);
+        const redisUrl = new URL(process.env['REDIS_URL']);
         
         // Create a new connection for workers with Railway-optimized config
         const workerConfig = {
@@ -473,6 +486,7 @@ export class RedisFactory {
           autoPipeliningIgnoredCommands: ['blpop', 'brpop'], // Don't pipeline blocking commands
         };
         
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return new Redis(workerConfig as any);
       }
       return provider.client;
