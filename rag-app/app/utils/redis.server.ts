@@ -34,12 +34,19 @@ async function initializeRedis() {
   } catch (error) {
     logger.error('Failed to initialize Redis factory:', error);
     
-    // Improved fallback - only use REDIS_URL, never localhost
+    // Only use explicitly configured REDIS_URL, never fall back to localhost
     const fallbackUrl = process.env["REDIS_URL"];
     
     if (!fallbackUrl) {
       logger.error('REDIS_URL environment variable is not set');
-      throw new Error('Redis initialization failed: REDIS_URL not configured');
+      // In production, throw error immediately if Redis is not configured
+      if (process.env["NODE_ENV"] === "production") {
+        throw new Error('Redis initialization failed: REDIS_URL not configured in production');
+      }
+      // In development, we can continue without Redis  
+      logger.warn('Continuing without Redis in development mode');
+      global.__redisInitialized__ = true;
+      return;
     }
     
     logger.warn('Attempting direct Redis connection as fallback', {
@@ -147,8 +154,11 @@ async function ensureRedisInitialized(): Promise<void> {
 
 // Initialize on module load
 if (process.env["NODE_ENV"] === "production") {
-  // In production, initialize immediately but don't block
-  ensureRedisInitialized().catch((error) => {
+  // In production, initialize immediately and wait for it
+  // This ensures Redis is ready before any code tries to use it
+  logger.info('Production mode: Initializing Redis synchronously');
+  initializationPromise = ensureRedisInitialized();
+  initializationPromise.catch((error) => {
     logger.error('Failed to initialize Redis in production:', error);
   });
 } else {
