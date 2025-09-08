@@ -21,8 +21,17 @@ export async function getEmbeddingQueueConfig(): Promise<QueueOptions> {
   try {
     connection = await getRedis();
     logger.trace('Redis connection obtained for queue config');
+    
+    // Verify the connection is actually working
+    await connection.ping();
+    logger.trace('Redis connection verified with ping');
   } catch (error) {
     logger.warn('Redis not available for queue config:', error);
+    // In production, we should not try to create a queue without Redis
+    if (process.env["NODE_ENV"] === "production") {
+      logger.error('Cannot create queue in production without Redis');
+      throw new Error('Redis is required for queue operations in production');
+    }
     connection = undefined;
   }
   

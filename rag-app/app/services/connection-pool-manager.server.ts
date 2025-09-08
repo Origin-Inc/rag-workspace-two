@@ -51,7 +51,7 @@ export class ConnectionPoolManager {
     const config = getPoolingConfig();
     const { 
       maxRetries = config.port === 6543 ? 3 : 1,
-      timeout = 10000,
+      timeout = 30000, // Increased to 30 seconds for indexing operations
       isolationLevel = 'ReadCommitted'
     } = options;
     
@@ -71,8 +71,8 @@ export class ConnectionPoolManager {
               return operation(tx as PrismaClient);
             },
             {
-              maxWait: 10000, // Increased to 10s for queue wait
-              timeout: timeout || 15000, // Default 15s for transaction
+              maxWait: 20000, // Increased to 20s for queue wait
+              timeout: timeout, // Use the timeout from options (30s default)
               isolationLevel,
             }
           );
