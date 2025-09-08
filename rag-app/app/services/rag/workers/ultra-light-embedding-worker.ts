@@ -6,7 +6,7 @@ import { connectionPoolManager } from '../../connection-pool-manager.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import {
   EMBEDDING_QUEUE_NAME,
-  embeddingWorkerConfig,
+  getEmbeddingWorkerConfig,
   isQueueAvailable,
   type UltraLightEmbeddingJobData,
   type UltraLightEmbeddingJobResult
@@ -41,7 +41,9 @@ export class UltraLightEmbeddingWorker {
    * Start the worker
    */
   async start(): Promise<void> {
-    if (!isQueueAvailable()) {
+    // Check if queue is available (async now)
+    const available = await isQueueAvailable();
+    if (!available) {
       this.logger.warn('Redis not available, worker will not start');
       return;
     }
@@ -53,6 +55,13 @@ export class UltraLightEmbeddingWorker {
     
     this.logger.info('🚀 Starting ultra-light embedding worker');
     
+    // Get worker config with properly initialized Redis connection
+    const workerConfig = await getEmbeddingWorkerConfig();
+    if (!workerConfig.connection) {
+      this.logger.error('Failed to get Redis connection for worker');
+      return;
+    }
+    
     const { Worker } = await import('bullmq');
     
     this.worker = new Worker<UltraLightEmbeddingJobData, UltraLightEmbeddingJobResult>(
@@ -60,7 +69,7 @@ export class UltraLightEmbeddingWorker {
       async (job: Job<UltraLightEmbeddingJobData>) => {
         return await this.processJob(job);
       },
-      embeddingWorkerConfig
+      workerConfig
     );
     
     this.setupEventHandlers();

@@ -7,7 +7,8 @@ import { DebugLogger } from './debug-logger';
 import { NoneRedisProvider } from './redis-none-provider';
 
 export interface RedisProvider {
-  type: 'local' | 'upstash' | 'redis-cloud' | 'none';
+  type: 'local' | 'railway' | 'upstash' | 'redis-cloud' | 'none';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: Redis | any;
   isHealthy: () => Promise<boolean>;
   get: (key: string) => Promise<string | null>;
@@ -21,7 +22,7 @@ export interface RedisProvider {
 }
 
 class LocalRedisProvider implements RedisProvider {
-  type: 'local' = 'local';
+  type: 'local' | 'railway' = 'local';  // Can be either local or railway
   client: Redis;
   private logger = new DebugLogger('LocalRedis');
   private reconnectAttempts = 0;
@@ -343,16 +344,22 @@ export class RedisFactory {
     try {
       // Initialize primary provider
       if (provider === 'none') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         this.provider = new NoneRedisProvider() as any;
         this.logger.info('Redis disabled - using no-op provider');
         return; // No need for health checks or monitoring
-      } else if (provider === 'upstash' && process.env.UPSTASH_REDIS_REST_URL) {
+      } else if (provider === 'upstash' && process.env['UPSTASH_REDIS_REST_URL']) {
         this.provider = new UpstashRedisProvider(
-          process.env.UPSTASH_REDIS_REST_URL,
-          process.env.UPSTASH_REDIS_REST_TOKEN!
+          process.env['UPSTASH_REDIS_REST_URL'],
+          process.env['UPSTASH_REDIS_REST_TOKEN']!
         );
-      } else if ((provider === 'railway' || provider === 'local' || provider === 'redis-cloud') && process.env.REDIS_URL) {
-        this.provider = new LocalRedisProvider(process.env.REDIS_URL);
+      } else if ((provider === 'railway' || provider === 'local' || provider === 'redis-cloud') && process.env['REDIS_URL']) {
+        const localProvider = new LocalRedisProvider(process.env['REDIS_URL']);
+        // Set type to 'railway' when using Railway Redis
+        if (provider === 'railway') {
+          localProvider.type = 'railway';
+        }
+        this.provider = localProvider;
       } else {
         // Fall back to none provider if no Redis configured
         this.provider = new NoneRedisProvider() as any;
@@ -367,18 +374,18 @@ export class RedisFactory {
       }
 
       this.logger.info(`Primary Redis provider initialized: ${provider}`, {
-        url: provider === 'railway' || provider === 'local' ? process.env.REDIS_URL?.split('@')[1] : 'N/A'
+        url: provider === 'railway' || provider === 'local' ? process.env['REDIS_URL']?.split('@')[1] : 'N/A'
       });
 
       // Initialize fallback if configured
-      if (provider === 'local' && process.env.UPSTASH_REDIS_REST_URL) {
+      if (provider === 'local' && process.env['UPSTASH_REDIS_REST_URL']) {
         this.fallbackProvider = new UpstashRedisProvider(
-          process.env.UPSTASH_REDIS_REST_URL,
-          process.env.UPSTASH_REDIS_REST_TOKEN!
+          process.env['UPSTASH_REDIS_REST_URL'],
+          process.env['UPSTASH_REDIS_REST_TOKEN']!
         );
         this.logger.info('Fallback Redis provider initialized: upstash');
-      } else if (provider === 'upstash' && process.env.REDIS_URL) {
-        this.fallbackProvider = new LocalRedisProvider(process.env.REDIS_URL);
+      } else if (provider === 'upstash' && process.env['REDIS_URL']) {
+        this.fallbackProvider = new LocalRedisProvider(process.env['REDIS_URL']);
         this.logger.info('Fallback Redis provider initialized: local');
       }
 
