@@ -39,8 +39,8 @@ export function getPoolingConfig(): PoolingConfig {
     // Transaction pooler configuration (port 6543)
     // Does NOT support PREPARE statements outside transactions
     return {
-      connectionLimit: 1, // Minimal connections for transaction pooler
-      poolTimeout: 10, // 10 seconds timeout
+      connectionLimit: 5, // Allow 5 connections for concurrent operations within requests
+      poolTimeout: 20, // 20 seconds timeout for complex operations
       connectTimeout: 10, // 10 seconds max to connect
       statementCacheSize: 0, // No statement caching in transaction mode
       pgbouncer: true,
@@ -84,11 +84,11 @@ export function buildDatabaseUrl(baseUrl?: string): string {
   
   // Set PgBouncer parameters based on port
   if (originalPort === '6543') {
-    // Transaction pooler - strict settings
+    // Transaction pooler - balanced settings for Vercel
     url.searchParams.set('pgbouncer', 'true');
     url.searchParams.set('statement_cache_size', '0');
     url.searchParams.set('prepare', 'false');
-    url.searchParams.set('connection_limit', '1'); // Minimal for transaction mode
+    url.searchParams.set('connection_limit', config.connectionLimit.toString()); // Use config value
   } else if (url.hostname.includes('pooler.')) {
     // Session pooler
     url.searchParams.set('pgbouncer', 'true');
