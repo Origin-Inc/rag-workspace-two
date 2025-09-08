@@ -270,7 +270,7 @@ export class AsyncEmbeddingService {
             ${page.workspaceId}::uuid,
             ${embedding.text},
             ${embedding.chunkIndex},
-            ${embedding.embedding}::vector,
+            ${embedding.embedding}::extensions.vector,
             ${JSON.stringify(embedding.metadata)}::jsonb,
             NOW(),
             NOW()
