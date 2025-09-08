@@ -38,12 +38,12 @@ export async function searchWithPrisma(
           e.document_id as id,
           e.chunk_text as content,
           e.metadata,
-          1 - (e.embedding <=> ${vectorString}::vector) as similarity
+          1 - (e.embedding <=> ${vectorString}::extensions.vector) as similarity
         FROM embeddings e
         WHERE 
           (e.metadata->>'workspaceId')::text = ${workspaceId}
-          AND 1 - (e.embedding <=> ${vectorString}::vector) > 0.3
-        ORDER BY e.embedding <=> ${vectorString}::vector
+          AND 1 - (e.embedding <=> ${vectorString}::extensions.vector) > 0.3
+        ORDER BY e.embedding <=> ${vectorString}::extensions.vector
         LIMIT ${limit}
       `;
       
