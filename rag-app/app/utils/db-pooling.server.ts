@@ -24,28 +24,44 @@ export function getPoolingConfig(): PoolingConfig {
   const isProduction = process.env.NODE_ENV === 'production';
   const isVercel = process.env.VERCEL === '1';
   const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined;
-  const instanceCount = parseInt(process.env.INSTANCE_COUNT || '1', 10);
+  const instanceCount = parseInt(process.env.INSTANCE_COUNT || '10', 10); // Default to 10 instances
   const maxPoolSize = parseInt(process.env.MAX_POOL_SIZE || '100', 10);
   
-  // Use transaction mode for serverless environments
-  const useTransactionMode = isProduction && (isVercel || isRailway || process.env.USE_TRANSACTION_MODE === 'true');
+  // Check if DATABASE_URL is using transaction pooler (port 6543)
+  const databaseUrl = process.env.DATABASE_URL || '';
+  const isTransactionPooler = databaseUrl.includes(':6543');
+  const isSessionPooler = databaseUrl.includes('pooler.supabase.com:5432');
   
-  if (useTransactionMode) {
-    // Transaction mode configuration for serverless
+  // For serverless, prefer transaction pooler
+  const usePooler = isProduction && (isVercel || isRailway || process.env.USE_TRANSACTION_MODE === 'true');
+  
+  if (isTransactionPooler) {
+    // Transaction pooler configuration (port 6543)
+    // Does NOT support PREPARE statements outside transactions
+    return {
+      connectionLimit: 1, // Minimal connections for transaction pooler
+      poolTimeout: 10, // 10 seconds timeout
+      connectTimeout: 10, // 10 seconds max to connect
+      statementCacheSize: 0, // No statement caching in transaction mode
+      pgbouncer: true,
+      port: 6543, // Transaction pooler port
+    };
+  } else if (usePooler || isSessionPooler) {
+    // Session pooler configuration (port 5432 on pooler.supabase.com)
     const connectionLimit = Math.max(1, Math.floor(maxPoolSize / instanceCount));
     
     return {
       connectionLimit: Math.min(connectionLimit, 3), // Max 3 connections per instance
-      poolTimeout: 0, // Fail fast in transaction mode
-      connectTimeout: 5, // 5 seconds max to connect
-      statementCacheSize: 0, // No statement caching in transaction mode
+      poolTimeout: 10, // 10 seconds timeout
+      connectTimeout: 10, // 10 seconds max to connect
+      statementCacheSize: 0, // Minimal caching in pooler mode
       pgbouncer: true,
-      port: 6543, // PgBouncer transaction mode port
+      port: 5432, // Session pooler uses standard port
     };
   } else {
-    // Session mode configuration for development/traditional hosting
+    // Direct connection for development or traditional hosting
     return {
-      connectionLimit: 10, // More connections allowed in session mode
+      connectionLimit: 10, // More connections allowed
       poolTimeout: 30, // 30 seconds timeout
       connectTimeout: 30, // 30 seconds to connect
       statementCacheSize: 100, // Enable statement caching
@@ -60,44 +76,46 @@ export function buildDatabaseUrl(baseUrl?: string): string {
   const config = getPoolingConfig();
   const url = new URL(baseUrl || process.env.DATABASE_URL || '');
   
-  // Update port for transaction/session mode
-  if (config.port === 6543 && !url.port.includes('6543')) {
-    // Switch to transaction mode port
-    url.port = '6543';
-  } else if (config.port === 5432 && url.port === '6543') {
-    // Switch back to session mode port
-    url.port = '5432';
-  }
+  // Preserve the original port from DATABASE_URL
+  // Supabase uses specific ports for different pooler modes:
+  // - 6543 for transaction pooler
+  // - 5432 for session pooler or direct connection
+  const originalPort = url.port;
   
-  // Set PgBouncer parameters
-  if (config.pgbouncer) {
+  // Set PgBouncer parameters based on port
+  if (originalPort === '6543') {
+    // Transaction pooler - strict settings
+    url.searchParams.set('pgbouncer', 'true');
+    url.searchParams.set('statement_cache_size', '0');
+    url.searchParams.set('prepare', 'false');
+    url.searchParams.set('connection_limit', '1'); // Minimal for transaction mode
+  } else if (url.hostname.includes('pooler.')) {
+    // Session pooler
+    url.searchParams.set('pgbouncer', 'true');
+    url.searchParams.set('statement_cache_size', '0');
+    url.searchParams.set('connection_limit', config.connectionLimit.toString());
+  } else if (config.pgbouncer) {
+    // Apply pgbouncer settings if configured
     url.searchParams.set('pgbouncer', 'true');
     url.searchParams.set('statement_cache_size', config.statementCacheSize.toString());
-    
-    // Disable prepared statements for transaction mode
-    if (config.port === 6543) {
-      url.searchParams.set('prepare', 'false');
-    }
+    url.searchParams.set('connection_limit', config.connectionLimit.toString());
   }
   
-  // Set connection limits
-  url.searchParams.set('connection_limit', config.connectionLimit.toString());
+  // Set timeouts
   url.searchParams.set('pool_timeout', config.poolTimeout.toString());
   url.searchParams.set('connect_timeout', config.connectTimeout.toString());
   
-  // Additional Supabase-specific parameters
-  if (url.hostname.includes('supabase.com') || url.hostname.includes('pooler.supabase.com')) {
-    // Ensure we're using the pooler subdomain for Supabase
-    if (!url.hostname.includes('pooler.')) {
-      url.hostname = url.hostname.replace('db.', 'pooler.');
-    }
-  }
+  // Determine mode for logging
+  const mode = originalPort === '6543' ? 'transaction-pooler' : 
+               url.hostname.includes('pooler.') ? 'session-pooler' : 
+               'direct';
   
   logger.info('Database URL configured', {
-    mode: config.port === 6543 ? 'transaction' : 'session',
-    port: config.port,
-    connectionLimit: config.connectionLimit,
-    pgbouncer: config.pgbouncer,
+    mode,
+    hostname: url.hostname,
+    port: originalPort,
+    connectionLimit: url.searchParams.get('connection_limit'),
+    pgbouncer: url.searchParams.has('pgbouncer'),
   });
   
   return url.toString();
@@ -343,50 +361,34 @@ export async function validatePoolingMode(client: PrismaClient): Promise<{
     
     const config = getPoolingConfig();
     
-    // Check if we're using the expected port
-    const portCheck = await client.$queryRaw<any[]>`
-      SELECT current_setting('port') as port
-    `.catch(() => [{ port: 'unknown' }]);
+    // For Supabase pooler, we can't reliably check the port
+    // Instead, check if we're using pgbouncer parameters
+    const databaseUrl = process.env.DATABASE_URL || '';
+    const isUsingPooler = databaseUrl.includes('pooler.') || databaseUrl.includes('pgbouncer=true');
     
-    const actualPort = portCheck[0]?.port || 'unknown';
-    const expectedPort = config.port.toString();
-    
-    if (actualPort !== expectedPort && actualPort !== 'unknown') {
-      logger.warn('Port mismatch detected', {
-        expected: expectedPort,
-        actual: actualPort,
-      });
-    }
-    
-    // Test transaction mode compatibility
-    if (config.port === 6543) {
-      // Try a prepared statement outside transaction (should fail in transaction mode)
-      try {
-        await client.$queryRaw`PREPARE test_stmt AS SELECT 1`;
-        await client.$queryRaw`DEALLOCATE test_stmt`;
-        
-        return {
-          isValid: false,
-          mode: 'session',
-          port: parseInt(actualPort) || config.port,
-          message: 'Database is in session mode but should be in transaction mode',
-        };
-      } catch (error) {
-        // Expected to fail in transaction mode
-        return {
-          isValid: true,
-          mode: 'transaction',
-          port: config.port,
-          message: 'Database is correctly configured for transaction mode',
-        };
+    // Test if prepared statements work outside transactions
+    // This helps determine if we're in pooler mode
+    let isPgBouncer = false;
+    try {
+      // This should fail in PgBouncer transaction/statement mode
+      await client.$queryRaw`PREPARE test_stmt AS SELECT 1`;
+      await client.$queryRaw`DEALLOCATE test_stmt`;
+      // If we get here, we're in session mode or direct connection
+      isPgBouncer = false;
+    } catch (error: any) {
+      // If it fails with prepared statement error, we're using PgBouncer
+      if (error?.message?.includes('prepared statement') || error?.code === '26000') {
+        isPgBouncer = true;
       }
     }
     
+    const mode = isPgBouncer ? 'pooled' : 'direct';
+    
     return {
       isValid: true,
-      mode: config.port === 6543 ? 'transaction' : 'session',
+      mode,
       port: config.port,
-      message: 'Database connection is valid',
+      message: `Database connection valid (${mode} mode${isUsingPooler ? ' via pooler' : ''})`,
     };
   } catch (error) {
     logger.error('Failed to validate pooling mode', error);
