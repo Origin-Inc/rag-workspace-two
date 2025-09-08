@@ -1,4 +1,4 @@
-import { redis } from '~/utils/redis.server';
+import { getRedis } from '~/utils/redis.server';
 import { DebugLogger } from '~/utils/debug-logger';
 
 const logger = new DebugLogger('RedisHealthCheck');
@@ -20,6 +20,9 @@ export class RedisHealthChecker {
     const warnings: string[] = [];
     
     try {
+      // Get Redis client
+      const redis = await getRedis();
+      
       // Check connection
       const ping = await redis.ping();
       if (ping !== 'PONG') {
