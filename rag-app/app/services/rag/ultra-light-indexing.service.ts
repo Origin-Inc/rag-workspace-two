@@ -474,7 +474,7 @@ export class UltraLightIndexingService {
                   ${page.workspaceId}::uuid,
                   ${chunk.text},
                   ${chunk.index},
-                  ${vectorString}::vector,
+                  ${vectorString}::extensions.vector,
                   ${JSON.stringify({
                     pageTitle: page.title,
                     chunkSize: chunk.text.length,
