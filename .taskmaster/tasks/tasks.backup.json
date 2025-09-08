@@ -2895,7 +2895,7 @@
         "id": 20,
         "title": "Rebuild Page Editor with Notion/Coda-style Block Architecture",
         "description": "CRITICAL: Complete rebuild of the page editor to implement a production-ready block-based architecture similar to Notion and Coda, replacing the broken drag-and-drop canvas with inline block editing, slash commands, keyboard navigation, and virtual scrolling for optimal performance. This is blocking content creation and must be completed before Task 16 (RAG Infrastructure) since users cannot create content for the RAG system without a functional editor.",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
           6,
           14

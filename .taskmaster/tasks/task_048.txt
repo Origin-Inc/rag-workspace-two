@@ -1,0 +1,11 @@
+# Task ID: 48
+# Title: Add Multi-Instance Chat Support
+# Status: pending
+# Dependencies: 42
+# Priority: medium
+# Description: Enable multiple independent AI chat blocks on the same page with separate contexts
+# Details:
+Implement chat instance management with unique IDs. Maintain separate conversation state per instance. Add chat instance naming and labeling. Support chat duplication with history. Enable chat archiving and templates. Implement instance-specific settings and models.
+
+# Test Strategy:
+Test multiple chat instances on same page. Verify context isolation between instances. Test chat duplication. Check performance with many instances.
