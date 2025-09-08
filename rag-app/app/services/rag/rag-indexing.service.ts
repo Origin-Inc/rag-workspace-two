@@ -312,7 +312,7 @@ export class RAGIndexingService {
             ${page.workspaceId}::uuid,
             ${chunk.text},
             ${chunk.chunkIndex},
-            ${vectorString}::vector,
+            ${vectorString}::extensions.vector,
             ${JSON.stringify({
               ...chunk.metadata,
               indexedAt: new Date().toISOString(),

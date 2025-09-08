@@ -364,7 +364,7 @@ export class EmbeddingGenerationService {
         const results = pageId 
           ? await prisma.$queryRawUnsafe<any[]>(`
               SELECT * FROM search_embeddings(
-                $1::vector,
+                $1::extensions.vector,
                 $2::uuid,
                 $3::uuid,
                 $4::integer,
@@ -373,7 +373,7 @@ export class EmbeddingGenerationService {
             `, vectorString, workspaceId, pageId, limit, similarityThreshold)
           : await prisma.$queryRawUnsafe<any[]>(`
               SELECT * FROM search_embeddings(
-                $1::vector,
+                $1::extensions.vector,
                 $2::uuid,
                 NULL::uuid,
                 $3::integer,
