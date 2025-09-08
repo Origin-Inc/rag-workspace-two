@@ -181,7 +181,7 @@ class LocalRedisProvider implements RedisProvider {
 }
 
 class UpstashRedisProvider implements RedisProvider {
-  type: 'upstash' = 'upstash';
+  type = 'upstash' as const;
   client: any;
   private logger = new DebugLogger('UpstashRedis');
   private restUrl: string;
