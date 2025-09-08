@@ -63,12 +63,12 @@ node_modules/
 .vscode
 # OS specific
 
-# Task files
-# tasks.json
-# tasks/
-
 # Deployment notes with credentials
 VERCEL_ENV_UPDATE.md
 *_CREDENTIALS.md
 *_SECRETS.md
 *_ENV_*.md 
+
+# Task files
+# tasks.json
+# tasks/ 

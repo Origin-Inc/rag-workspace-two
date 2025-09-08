@@ -1,0 +1,19 @@
+# Task ID: 38
+# Title: Design AI Chat Block Architecture
+# Status: pending
+# Dependencies: 35, 36, 37
+# Priority: high
+# Description: Design the overall architecture for transforming the AI block into a conversational chat interface with document upload capabilities
+# Details:
+Define database schema for chat instances, messages, and document storage. Plan API endpoints for chat operations. Design component hierarchy and state management. Document integration points with existing RAG infrastructure.
+
+# Test Strategy:
+Review architecture documentation. Validate database schema design. Ensure all integration points are identified.
+
+# Subtasks:
+## 1. Define Database Schema Structure [pending]
+### Dependencies: None
+### Description: Design all database tables and relationships for the chat system
+### Details:
+Define chat_instances table with fields for id, pageId, workspaceId, title, systemPrompt, model, settings, createdAt, updatedAt. Design chat_messages table with proper indexing. Create chat_documents and message_blocks junction tables. Document all foreign key relationships.
+

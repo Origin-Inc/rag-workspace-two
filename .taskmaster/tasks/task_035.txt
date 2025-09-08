@@ -1,0 +1,298 @@
+# Task ID: 35
+# Title: Migrate to Asynchronous Embedding Generation with BullMQ
+# Status: pending
+# Dependencies: 19 (Not found), 6 (Not found), 20
+# Priority: high
+# Description: Decouple embedding generation from user requests by converting all synchronous OpenAI calls to queue-based processing using the existing BullMQ infrastructure, improving performance and database connection management while maintaining backward compatibility.
+# Details:
+1. Create dedicated embedding queue and processor in BullMQ:
+```typescript
+// app/queues/embedding.queue.server.ts
+import { Queue, Worker } from 'bullmq';
+import { redis } from '~/utils/redis.server';
+
+export const embeddingQueue = new Queue('embeddings', {
+  connection: redis,
+  defaultJobOptions: {
+    removeOnComplete: { count: 100 },
+    removeOnFail: { count: 500 },
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 2000 }
+  }
+});
+
+interface EmbeddingJobData {
+  type: 'document' | 'block' | 'page';
+  entityId: string;
+  content: string;
+  metadata?: Record<string, any>;
+  workspaceId: string;
+  priority?: number;
+}
+```
+
+2. Modify ultra-light-indexing.service.ts to queue jobs instead of direct processing:
+```typescript
+// Before (synchronous)
+await generateEmbedding(content);
+
+// After (asynchronous)
+await embeddingQueue.add('generate-embedding', {
+  type: 'block',
+  entityId: blockId,
+  content: processedContent,
+  workspaceId,
+  metadata: { pageId, blockType }
+}, {
+  priority: isUserTriggered ? 10 : 1,
+  delay: isUserTriggered ? 0 : 5000 // Delay non-critical updates
+});
+```
+
+3. Create embedding worker with connection pooling:
+```typescript
+// app/workers/embedding.worker.ts
+const embeddingWorker = new Worker('embeddings', async (job) => {
+  const { type, entityId, content, metadata, workspaceId } = job.data;
+  
+  // Use connection from pool
+  const embedding = await openai.embeddings.create({
+    model: 'text-embedding-3-small',
+    input: content,
+    dimensions: 1536
+  });
+  
+  // Store with optimized transaction
+  await prisma.$transaction(async (tx) => {
+    await tx.document.upsert({
+      where: { id: entityId },
+      create: {
+        id: entityId,
+        workspaceId,
+        content,
+        embedding: embedding.data[0].embedding,
+        metadata,
+        indexedAt: new Date()
+      },
+      update: {
+        content,
+        embedding: embedding.data[0].embedding,
+        metadata,
+        indexedAt: new Date()
+      }
+    });
+  }, {
+    maxWait: 5000,
+    timeout: 10000
+  });
+  
+  // Release connection immediately
+  return { entityId, status: 'indexed' };
+}, {
+  connection: redis,
+  concurrency: 5, // Process 5 embeddings in parallel
+  limiter: {
+    max: 100,
+    duration: 60000 // Max 100 embeddings per minute (OpenAI limit)
+  }
+});
+```
+
+4. Update editor.$pageId.tsx to use queue instead of synchronous calls:
+```typescript
+// Remove direct embedding generation
+// const embedding = await generateEmbedding(blockContent);
+
+// Add queue-based processing with status tracking
+const jobId = await embeddingQueue.add('generate-embedding', {
+  type: 'block',
+  entityId: block.id,
+  content: block.content,
+  workspaceId: workspace.id,
+  metadata: { pageId, userId: user.id }
+});
+
+// Optional: Track job status for UI feedback
+const job = await embeddingQueue.getJob(jobId);
+job.on('completed', (result) => {
+  // Update UI to show indexing complete
+});
+```
+
+5. Implement backward compatibility layer:
+```typescript
+// app/services/embedding-compat.server.ts
+export async function generateEmbeddingCompat(
+  content: string,
+  options?: { immediate?: boolean }
+) {
+  if (options?.immediate) {
+    // Fallback to synchronous for critical paths
+    return await generateEmbeddingDirect(content);
+  }
+  
+  // Default to queue-based
+  const job = await embeddingQueue.add('generate-embedding', {
+    type: 'direct',
+    content,
+    entityId: crypto.randomUUID()
+  });
+  
+  return job.id; // Return job ID for tracking
+}
+```
+
+6. Add job status monitoring and retry logic:
+```typescript
+// app/services/embedding-monitor.server.ts
+export class EmbeddingMonitor {
+  async getQueueHealth() {
+    const waiting = await embeddingQueue.getWaitingCount();
+    const active = await embeddingQueue.getActiveCount();
+    const failed = await embeddingQueue.getFailedCount();
+    
+    return { waiting, active, failed, healthy: failed < 100 };
+  }
+  
+  async retryFailedJobs() {
+    const failed = await embeddingQueue.getFailed();
+    for (const job of failed) {
+      await job.retry();
+    }
+  }
+}
+```
+
+7. Integrate with existing page-indexing infrastructure:
+```typescript
+// Modify existing page-indexing queue to delegate embedding generation
+await pageIndexingQueue.add('index-page', {
+  pageId,
+  includeEmbeddings: false // Don't generate inline
+});
+
+// Page indexing worker delegates to embedding queue
+if (shouldGenerateEmbeddings) {
+  await embeddingQueue.addBulk(
+    chunks.map(chunk => ({
+      name: 'generate-embedding',
+      data: {
+        type: 'page-chunk',
+        entityId: chunk.id,
+        content: chunk.content,
+        workspaceId,
+        metadata: { pageId, chunkIndex: chunk.index }
+      }
+    }))
+  );
+}
+```
+
+8. Add database connection pool optimization:
+```typescript
+// app/utils/prisma-pool.server.ts
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = global as { prismaPool?: PrismaClient };
+
+export const prismaPool = globalForPrisma.prismaPool || new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  },
+  log: ['error', 'warn'],
+  // Optimize for queue workers
+  connectionLimit: 10,
+  pool: {
+    min: 2,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    createTimeoutMillis: 30000,
+    acquireTimeoutMillis: 30000
+  }
+});
+```
+
+# Test Strategy:
+1. Verify queue creation by checking Redis for 'bull:embeddings:*' keys and confirming queue appears in BullMQ dashboard if available.
+
+2. Test async conversion by creating a new block in editor.$pageId.tsx and verifying: a) The request returns immediately (< 100ms), b) No OpenAI API calls are made synchronously, c) A job appears in the embedding queue within 1 second.
+
+3. Load test with 1000 concurrent block creations and verify: a) All requests complete in < 200ms, b) Database connections never exceed pool limit (monitor with `SELECT count(*) FROM pg_stat_activity`), c) Queue processes all jobs within 5 minutes.
+
+4. Test backward compatibility by calling legacy generateEmbedding functions and confirming they still work through the compatibility layer.
+
+5. Verify worker processing by monitoring: a) Jobs complete successfully (check job.finishedOn timestamps), b) Embeddings are stored in database with correct dimensions (1536), c) Retry logic works for failed jobs (simulate OpenAI API errors).
+
+6. Test priority handling by creating user-triggered and background jobs simultaneously, verify user-triggered jobs process first.
+
+7. Monitor memory usage during bulk operations (create 10,000 blocks rapidly) and verify: a) Memory stays under 512MB, b) No memory leaks in worker process, c) Redis memory usage is reasonable.
+
+8. Test error scenarios: a) OpenAI API timeout - verify job retries with exponential backoff, b) Database connection failure - verify jobs remain in queue and retry, c) Redis disconnection - verify graceful degradation.
+
+9. Verify integration with page-indexing by triggering full page reindex and confirming embedding jobs are created for each chunk.
+
+10. Performance benchmarks: a) Measure p95 response time for block creation (target < 100ms), b) Measure embedding generation throughput (target > 50/minute), c) Measure database connection pool efficiency (target < 10 active connections under load).
+
+# Subtasks:
+## 1. Create dedicated BullMQ embedding queue infrastructure [pending]
+### Dependencies: None
+### Description: Set up the embedding queue with Redis connection and proper job configuration including retry logic, backoff strategy, and dead letter queue handling
+### Details:
+Create app/queues/embedding.queue.server.ts with Queue initialization using redis from redis.server, configure defaultJobOptions with removeOnComplete (count: 100), removeOnFail (count: 500), attempts: 3, exponential backoff (delay: 2000ms), define EmbeddingJobData interface with type, entityId, content, metadata, workspaceId, and priority fields
+
+## 2. Modify ultra-light-indexing.service to use queue-based processing [pending]
+### Dependencies: 35.1
+### Description: Convert all synchronous generateEmbedding calls in ultra-light-indexing.service.ts to enqueue jobs instead of direct OpenAI API calls
+### Details:
+Replace direct openai.embeddings.create calls with embeddingQueue.add('generate-embedding', jobData), implement priority system where user-triggered operations get priority: 10 and background operations get priority: 1, add 5000ms delay for non-critical updates to batch processing
+
+## 3. Build embedding worker with connection pooling [pending]
+### Dependencies: 35.1
+### Description: Create the BullMQ worker that processes embedding jobs with proper connection management and transaction handling
+### Details:
+Create app/workers/embedding.worker.ts with Worker instance processing 'embeddings' queue, configure concurrency: 5 for parallel processing, implement rate limiter (max: 100, duration: 60000) for OpenAI API limits, use connectionPoolManager.executeWithPoolManagement for database operations, wrap database updates in transactions with maxWait: 5000 and timeout: 10000
+
+## 4. Update editor route to use asynchronous embedding generation [pending]
+### Dependencies: 35.1, 35.2
+### Description: Modify editor.$pageId.tsx action handler to enqueue embedding jobs instead of synchronous processing
+### Details:
+Remove direct calls to embeddingGenerationService.generateEmbedding in the action function, add embeddingQueue.add calls with appropriate job data including pageId, blockIds, and workspaceId, implement optional job status tracking for UI feedback using job.on('completed') event handlers
+
+## 5. Implement backward compatibility layer [pending]
+### Dependencies: 35.1, 35.3
+### Description: Create compatibility service to maintain backward compatibility for critical paths that require immediate embedding generation
+### Details:
+Create app/services/embedding-compat.server.ts with generateEmbeddingCompat function, implement immediate flag to fallback to synchronous generation for critical paths, default to queue-based processing returning job ID for tracking, maintain existing API surface for minimal code changes
+
+## 6. Add job status monitoring and health checks [pending]
+### Dependencies: 35.1, 35.3
+### Description: Create monitoring service to track queue health, job statistics, and implement retry logic for failed jobs
+### Details:
+Create app/services/embedding-monitor.server.ts with EmbeddingMonitor class, implement getQueueHealth() returning waiting, active, failed counts, add retryFailedJobs() to retry failed jobs from dead letter queue, create health threshold alerts when failed count exceeds 100
+
+## 7. Integrate with existing page-indexing infrastructure [pending]
+### Dependencies: 35.1, 35.2, 35.3
+### Description: Modify the existing page-indexing queue to delegate embedding generation to the new embedding queue
+### Details:
+Update page-indexing worker to set includeEmbeddings: false flag, implement delegation logic using embeddingQueue.addBulk for chunk processing, maintain page-chunk relationships in metadata for proper association, ensure backward compatibility with existing indexing flow
+
+## 8. Optimize database connection pool configuration [pending]
+### Dependencies: 35.3
+### Description: Configure Prisma client with optimized connection pool settings for queue workers
+### Details:
+Create app/utils/prisma-pool.server.ts with dedicated PrismaClient for workers, configure pool with min: 2, max: 10 connections, set timeouts (idle: 30000ms, create: 30000ms, acquire: 30000ms), implement connection reuse pattern for worker processes
+
+## 9. Implement worker lifecycle management [pending]
+### Dependencies: 35.3, 35.6
+### Description: Create worker startup script and graceful shutdown handling for production deployment
+### Details:
+Create npm run worker script to start embedding worker process, implement graceful shutdown on SIGTERM/SIGINT signals, add worker health checks and auto-restart capability, integrate with process manager (PM2 or similar) for production
+
+## 10. Add comprehensive testing and migration validation [pending]
+### Dependencies: 35.1, 35.2, 35.3, 35.4, 35.5, 35.6, 35.7, 35.8, 35.9
+### Description: Create test suite to validate the migration maintains functionality while improving performance
+### Details:
+Write integration tests for queue-based embedding flow, add performance benchmarks comparing sync vs async processing, test database connection pool behavior under load, validate backward compatibility layer works correctly, ensure no regression in search quality
+
