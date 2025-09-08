@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '~/types/supabase';
+import { getPoolingConfig } from './db-pooling.server';
 
-// Server-side Supabase client with service key (full access)
+// Server-side Supabase client with service key (full access) and connection pooling
 export function createSupabaseAdmin() {
   const supabaseUrl = process.env["VITE_SUPABASE_URL"] || process.env["SUPABASE_URL"] || 'http://127.0.0.1:54321';
   const supabaseServiceKey = process.env["SUPABASE_SERVICE_ROLE_KEY"] || process.env["SUPABASE_SERVICE_KEY"] || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
@@ -11,15 +12,26 @@ export function createSupabaseAdmin() {
     throw new Error('Missing Supabase environment variables');
   }
 
+  const poolingConfig = getPoolingConfig();
+  
   return createClient<Database>(supabaseUrl, supabaseServiceKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
     },
+    db: {
+      schema: 'public',
+    },
+    global: {
+      headers: {
+        // Hint to Supabase about our pooling mode
+        'x-connection-pooling': poolingConfig.port === 6543 ? 'transaction' : 'session',
+      },
+    },
   });
 }
 
-// Server-side Supabase client with user context
+// Server-side Supabase client with user context and connection pooling
 export function createSupabaseServerClient(accessToken?: string) {
   const supabaseUrl = process.env["VITE_SUPABASE_URL"] || process.env["SUPABASE_URL"] || 'http://127.0.0.1:54321';
   const supabaseAnonKey = process.env["VITE_SUPABASE_ANON_KEY"] || process.env["SUPABASE_ANON_KEY"] || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
@@ -29,21 +41,29 @@ export function createSupabaseServerClient(accessToken?: string) {
     throw new Error('Missing Supabase environment variables');
   }
 
+  const poolingConfig = getPoolingConfig();
+  
   const options: any = {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
     },
+    db: {
+      schema: 'public',
+    },
   };
 
+  // Set up headers with pooling hint
+  const headers: any = {
+    'x-connection-pooling': poolingConfig.port === 6543 ? 'transaction' : 'session',
+  };
+  
   // If we have an access token from our custom auth, pass it along
   if (accessToken) {
-    options.global = {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    };
+    headers.Authorization = `Bearer ${accessToken}`;
   }
+  
+  options.global = { headers };
 
   return createClient<Database>(supabaseUrl, supabaseAnonKey, options);
 }
