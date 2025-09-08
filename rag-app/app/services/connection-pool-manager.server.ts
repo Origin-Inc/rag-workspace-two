@@ -71,8 +71,8 @@ export class ConnectionPoolManager {
               return operation(tx as PrismaClient);
             },
             {
-              maxWait: 5000,
-              timeout,
+              maxWait: 10000, // Increased to 10s for queue wait
+              timeout: timeout || 15000, // Default 15s for transaction
               isolationLevel,
             }
           );
