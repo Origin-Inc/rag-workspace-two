@@ -161,7 +161,7 @@ class HalfvecMigrator {
             OFFSET ${offset}
           )
           UPDATE ${tableName} t
-          SET embedding_halfvec = t.embedding::halfvec(1536)
+          SET embedding_halfvec = t.embedding::extensions.halfvec(1536)
           FROM batch
           WHERE t.id = batch.id
         `);
@@ -222,7 +222,7 @@ class HalfvecMigrator {
         for (const testEmbedding of testQueries) {
           // Compare vector vs halfvec similarity
           const vectorResults = await prisma.$queryRawUnsafe<any[]>(`
-            SELECT id, 1 - (embedding <=> $1::vector) as similarity
+            SELECT id, 1 - (embedding <=> $1::extensions.vector) as similarity
             FROM ${table}
             WHERE embedding IS NOT NULL
             ORDER BY embedding <=> $1::vector
@@ -230,7 +230,7 @@ class HalfvecMigrator {
           `, testEmbedding);
           
           const halfvecResults = await prisma.$queryRawUnsafe<any[]>(`
-            SELECT id, 1 - (embedding_halfvec <=> $1::halfvec) as similarity
+            SELECT id, 1 - (embedding_halfvec <=> $1::extensions.halfvec) as similarity
             FROM ${table}
             WHERE embedding_halfvec IS NOT NULL
             ORDER BY embedding_halfvec <=> $1::halfvec

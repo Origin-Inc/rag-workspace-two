@@ -108,13 +108,13 @@ async function searchWithHalfvecColumn(
         pe.page_id,
         pe.chunk_text as content,
         pe.metadata,
-        1 - (pe.embedding_halfvec <=> ${vectorString}::halfvec) as similarity
+        1 - (pe.embedding_halfvec <=> ${vectorString}::extensions.halfvec) as similarity
       FROM page_embeddings pe
       WHERE 
         pe.workspace_id = ${workspaceId}::uuid
         AND pe.embedding_halfvec IS NOT NULL
         AND (${pageId}::uuid IS NULL OR pe.page_id = ${pageId}::uuid)
-        AND 1 - (pe.embedding_halfvec <=> ${vectorString}::halfvec) > ${threshold}
+        AND 1 - (pe.embedding_halfvec <=> ${vectorString}::extensions.halfvec) > ${threshold}
       
       UNION ALL
       
@@ -124,13 +124,13 @@ async function searchWithHalfvecColumn(
         be.page_id,
         be.chunk_text as content,
         be.metadata,
-        1 - (be.embedding_halfvec <=> ${vectorString}::halfvec) as similarity
+        1 - (be.embedding_halfvec <=> ${vectorString}::extensions.halfvec) as similarity
       FROM block_embeddings be
       WHERE 
         be.workspace_id = ${workspaceId}::uuid
         AND be.embedding_halfvec IS NOT NULL
         AND (${pageId}::uuid IS NULL OR be.page_id = ${pageId}::uuid)
-        AND 1 - (be.embedding_halfvec <=> ${vectorString}::halfvec) > ${threshold}
+        AND 1 - (be.embedding_halfvec <=> ${vectorString}::extensions.halfvec) > ${threshold}
       
       UNION ALL
       
@@ -140,13 +140,13 @@ async function searchWithHalfvecColumn(
         dre.page_id,
         dre.chunk_text as content,
         dre.metadata,
-        1 - (dre.embedding_halfvec <=> ${vectorString}::halfvec) as similarity
+        1 - (dre.embedding_halfvec <=> ${vectorString}::extensions.halfvec) as similarity
       FROM database_row_embeddings dre
       WHERE 
         dre.workspace_id = ${workspaceId}::uuid
         AND dre.embedding_halfvec IS NOT NULL
         AND (${pageId}::uuid IS NULL OR dre.page_id = ${pageId}::uuid)
-        AND 1 - (dre.embedding_halfvec <=> ${vectorString}::halfvec) > ${threshold}
+        AND 1 - (dre.embedding_halfvec <=> ${vectorString}::extensions.halfvec) > ${threshold}
       
       UNION ALL
       
@@ -156,12 +156,12 @@ async function searchWithHalfvecColumn(
         NULL as page_id,
         e.chunk_text as content,
         e.metadata,
-        1 - (e.embedding_halfvec <=> ${vectorString}::halfvec) as similarity
+        1 - (e.embedding_halfvec <=> ${vectorString}::extensions.halfvec) as similarity
       FROM embeddings e
       WHERE 
         (e.metadata->>'workspaceId')::text = ${workspaceId}
         AND e.embedding_halfvec IS NOT NULL
-        AND 1 - (e.embedding_halfvec <=> ${vectorString}::halfvec) > ${threshold}
+        AND 1 - (e.embedding_halfvec <=> ${vectorString}::extensions.halfvec) > ${threshold}
     )
     SELECT * FROM all_embeddings
     ORDER BY similarity DESC
@@ -194,13 +194,13 @@ async function searchWithVectorColumn(
         pe.page_id,
         pe.chunk_text as content,
         pe.metadata,
-        1 - (pe.embedding <=> ${vectorString}::vector) as similarity
+        1 - (pe.embedding <=> ${vectorString}::extensions.vector) as similarity
       FROM page_embeddings pe
       WHERE 
         pe.workspace_id = ${workspaceId}::uuid
         AND pe.embedding IS NOT NULL
         AND (${pageId}::uuid IS NULL OR pe.page_id = ${pageId}::uuid)
-        AND 1 - (pe.embedding <=> ${vectorString}::vector) > ${threshold}
+        AND 1 - (pe.embedding <=> ${vectorString}::extensions.vector) > ${threshold}
       
       UNION ALL
       
@@ -210,13 +210,13 @@ async function searchWithVectorColumn(
         be.page_id,
         be.chunk_text as content,
         be.metadata,
-        1 - (be.embedding <=> ${vectorString}::vector) as similarity
+        1 - (be.embedding <=> ${vectorString}::extensions.vector) as similarity
       FROM block_embeddings be
       WHERE 
         be.workspace_id = ${workspaceId}::uuid
         AND be.embedding IS NOT NULL
         AND (${pageId}::uuid IS NULL OR be.page_id = ${pageId}::uuid)
-        AND 1 - (be.embedding <=> ${vectorString}::vector) > ${threshold}
+        AND 1 - (be.embedding <=> ${vectorString}::extensions.vector) > ${threshold}
       
       UNION ALL
       
@@ -226,13 +226,13 @@ async function searchWithVectorColumn(
         dre.page_id,
         dre.chunk_text as content,
         dre.metadata,
-        1 - (dre.embedding <=> ${vectorString}::vector) as similarity
+        1 - (dre.embedding <=> ${vectorString}::extensions.vector) as similarity
       FROM database_row_embeddings dre
       WHERE 
         dre.workspace_id = ${workspaceId}::uuid
         AND dre.embedding IS NOT NULL
         AND (${pageId}::uuid IS NULL OR dre.page_id = ${pageId}::uuid)
-        AND 1 - (dre.embedding <=> ${vectorString}::vector) > ${threshold}
+        AND 1 - (dre.embedding <=> ${vectorString}::extensions.vector) > ${threshold}
       
       UNION ALL
       
@@ -242,12 +242,12 @@ async function searchWithVectorColumn(
         NULL as page_id,
         e.chunk_text as content,
         e.metadata,
-        1 - (e.embedding <=> ${vectorString}::vector) as similarity
+        1 - (e.embedding <=> ${vectorString}::extensions.vector) as similarity
       FROM embeddings e
       WHERE 
         (e.metadata->>'workspaceId')::text = ${workspaceId}
         AND e.embedding IS NOT NULL
-        AND 1 - (e.embedding <=> ${vectorString}::vector) > ${threshold}
+        AND 1 - (e.embedding <=> ${vectorString}::extensions.vector) > ${threshold}
     )
     SELECT * FROM all_embeddings
     ORDER BY similarity DESC
@@ -401,7 +401,7 @@ export async function updateSearchEmbeddingsFunction() {
             ue.chunk_text,
             CASE 
               WHEN ue.embedding_halfvec IS NULL THEN 0.0
-              ELSE 1 - (ue.embedding_halfvec <=> query_embedding::halfvec)
+              ELSE 1 - (ue.embedding_halfvec <=> query_embedding::extensions.halfvec)
             END AS similarity,
             ue.metadata
           FROM unified_embeddings_halfvec ue
@@ -409,7 +409,7 @@ export async function updateSearchEmbeddingsFunction() {
             AND (page_uuid IS NULL OR ue.page_id = page_uuid)
             AND (
               ue.embedding_halfvec IS NULL 
-              OR (1 - (ue.embedding_halfvec <=> query_embedding::halfvec)) >= similarity_threshold
+              OR (1 - (ue.embedding_halfvec <=> query_embedding::extensions.halfvec)) >= similarity_threshold
             )
           ORDER BY 
             CASE 
@@ -417,7 +417,7 @@ export async function updateSearchEmbeddingsFunction() {
               ELSE 0 
             END,
             CASE 
-              WHEN ue.embedding_halfvec IS NOT NULL THEN ue.embedding_halfvec <=> query_embedding::halfvec
+              WHEN ue.embedding_halfvec IS NOT NULL THEN ue.embedding_halfvec <=> query_embedding::extensions.halfvec
               ELSE NULL
             END
           LIMIT result_limit;
