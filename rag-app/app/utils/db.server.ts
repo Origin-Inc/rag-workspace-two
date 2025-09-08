@@ -1,4 +1,10 @@
 import { PrismaClient } from "@prisma/client";
+import { 
+  createPooledPrismaClient, 
+  executeWithTransaction,
+  getPoolingConfig,
+  buildDatabaseUrl 
+} from './db-pooling.server';
 
 let prisma: PrismaClient;
 
@@ -7,30 +13,12 @@ declare global {
   var __db__: PrismaClient | undefined;
 }
 
-// Production-ready Prisma configuration with proper connection pooling
+// Production-ready Prisma configuration with optimized connection pooling
 function createPrismaClient() {
-  // For Vercel/Supabase, we need to handle the connection string properly
-  let databaseUrl = process.env.DATABASE_URL || '';
+  // Use the new pooling configuration
+  const poolingConfig = getPoolingConfig();
+  const databaseUrl = buildDatabaseUrl(process.env.DATABASE_URL);
   
-  // If using Supabase pooler, ensure proper format and statement caching disabled
-  if (databaseUrl.includes('pooler.supabase.com')) {
-    // Parse the URL to modify query params
-    const url = new URL(databaseUrl);
-    // Ensure pgbouncer mode and disable statement caching to prevent prepared statement errors
-    url.searchParams.set('pgbouncer', 'true');
-    url.searchParams.set('statement_cache_size', '0');
-    url.searchParams.set('prepare', 'false');
-    // Use connection limit from URL or default to 50 for production
-    // The connection_limit should already be set in DATABASE_URL env var
-    if (!url.searchParams.has('connection_limit')) {
-      url.searchParams.set('connection_limit', '50');
-    }
-    // Increase pool timeout to prevent P2024 errors during heavy indexing
-    url.searchParams.set('pool_timeout', '30'); // 30 seconds instead of default 10
-    url.searchParams.set('connect_timeout', '30'); // 30 seconds connection timeout
-    databaseUrl = url.toString();
-  }
-
   const client = new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
     datasources: {
@@ -40,21 +28,45 @@ function createPrismaClient() {
     },
   });
 
-  // Monkey patch the client to handle prepared statement errors
+  // Enhanced transaction handling for pooling modes
   const originalTransaction = client.$transaction.bind(client);
   client.$transaction = async (...args: any[]) => {
-    try {
-      return await originalTransaction(...args);
-    } catch (error: any) {
-      // If we get a prepared statement error, retry once
-      if (error?.message?.includes('prepared statement') || error?.code === '42P05') {
-        console.warn('Prepared statement error detected, retrying transaction...');
-        await client.$disconnect();
-        await client.$connect();
+    const maxRetries = poolingConfig.port === 6543 ? 3 : 1; // More retries for transaction mode
+    let lastError: any;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
         return await originalTransaction(...args);
+      } catch (error: any) {
+        lastError = error;
+        
+        // Handle prepared statement errors (common in transaction mode)
+        if (error?.message?.includes('prepared statement') || error?.code === '42P05') {
+          console.warn(`Prepared statement error (attempt ${attempt}/${maxRetries})`);
+          
+          if (attempt < maxRetries) {
+            await client.$disconnect();
+            await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+            await client.$connect();
+            continue;
+          }
+        }
+        
+        // Handle connection pool exhaustion
+        if (error?.code === 'P2024' || error?.message?.includes('Too many connections')) {
+          console.warn(`Connection pool exhausted (attempt ${attempt}/${maxRetries})`);
+          
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+            continue;
+          }
+        }
+        
+        throw error;
       }
-      throw error;
     }
+    
+    throw lastError;
   };
 
   return client;
@@ -132,5 +144,8 @@ export async function withRetry<T>(
   
   throw lastError;
 }
+
+// Export enhanced transaction wrapper for transaction mode compatibility
+export { executeWithTransaction } from './db-pooling.server';
 
 export { prisma };
