@@ -1,0 +1,184 @@
+# Task ID: 37
+# Title: Optimize Connection Pooling with PgBouncer Transaction Mode
+# Status: pending
+# Dependencies: 10, 16, 35
+# Priority: high
+# Description: Switch database connections from Supabase session mode (port 5432) to transaction mode (port 6543) with proper PgBouncer configuration to handle 10x more connections with the same resources, including updating DATABASE_URL and Prisma configuration.
+# Details:
+1. **Update DATABASE_URL to use PgBouncer transaction mode**:
+```bash
+# Change from session mode (port 5432)
+DATABASE_URL="postgresql://postgres:password@localhost:5432/postgres?schema=public"
+
+# To transaction mode (port 6543) with PgBouncer parameters
+DATABASE_URL="postgresql://postgres:password@localhost:6543/postgres?schema=public&pgbouncer=true&connection_limit=1"
+```
+
+2. **Configure Prisma for transaction pooling compatibility**:
+```typescript
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"] // If using Prisma 5.10+
+}
+
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+```
+
+3. **Update Prisma client instantiation for pooling**:
+```typescript
+// app/utils/db.server.ts
+import { PrismaClient } from '@prisma/client';
+
+let prisma: PrismaClient;
+
+if (process.env.NODE_ENV === 'production') {
+  prisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+    // Reduced connection limit for transaction mode
+    // Each instance should use minimal connections
+    log: ['error', 'warn'],
+  });
+  
+  // Ensure connections are released properly
+  prisma.$connect();
+} else {
+  // Development can use session mode
+  if (!global.prisma) {
+    global.prisma = new PrismaClient();
+  }
+  prisma = global.prisma;
+}
+
+export { prisma };
+```
+
+4. **Configure connection limits for multiple instances**:
+```typescript
+// For Railway/Vercel with multiple instances
+// Each instance gets 1-2 connections max
+const CONNECTION_LIMIT = process.env.INSTANCE_COUNT 
+  ? Math.floor(100 / parseInt(process.env.INSTANCE_COUNT)) 
+  : 5;
+
+// Update DATABASE_URL dynamically
+const databaseUrl = new URL(process.env.DATABASE_URL!);
+databaseUrl.searchParams.set('connection_limit', CONNECTION_LIMIT.toString());
+databaseUrl.searchParams.set('pool_timeout', '0'); // Fail fast in transaction mode
+```
+
+5. **Handle transaction mode limitations**:
+```typescript
+// Wrap prepared statements in transactions
+// Transaction mode doesn't support prepared statements outside transactions
+async function executeWithTransaction<T>(
+  fn: (tx: PrismaClient) => Promise<T>
+): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    return fn(tx as PrismaClient);
+  }, {
+    maxWait: 5000, // 5 seconds max wait
+    timeout: 10000, // 10 seconds max transaction
+  });
+}
+
+// Use for complex queries
+const result = await executeWithTransaction(async (tx) => {
+  const user = await tx.user.findUnique({ where: { id } });
+  const workspace = await tx.workspace.findMany({ where: { userId: user.id } });
+  return { user, workspace };
+});
+```
+
+6. **Update Supabase client for connection pooling**:
+```typescript
+// app/utils/supabase.server.ts
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+// Configure for transaction pooling
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  db: {
+    schema: 'public',
+  },
+  auth: {
+    persistSession: false, // Server-side doesn't need sessions
+  },
+  // Reduce connection pool for Supabase client
+  global: {
+    headers: {
+      'x-connection-pooling': 'transaction',
+    },
+  },
+});
+```
+
+7. **Environment variable updates**:
+```env
+# .env.example
+# Transaction mode for production (port 6543)
+DATABASE_URL=postgresql://[user]:[password]@[host]:6543/[database]?schema=public&pgbouncer=true&connection_limit=1
+
+# Fallback for session mode if needed
+DATABASE_URL_SESSION=postgresql://[user]:[password]@[host]:5432/[database]?schema=public
+
+# Instance configuration for scaling
+INSTANCE_COUNT=10  # Number of app instances
+MAX_POOL_SIZE=100  # Total PgBouncer pool size
+```
+
+8. **Add health check for connection pool monitoring**:
+```typescript
+// app/routes/health.tsx
+export async function loader() {
+  try {
+    // Test connection
+    const start = Date.now();
+    await prisma.$queryRaw`SELECT 1`;
+    const latency = Date.now() - start;
+    
+    // Get pool stats if available
+    const poolStats = await prisma.$queryRaw`
+      SELECT count(*) as active_connections 
+      FROM pg_stat_activity 
+      WHERE datname = current_database()
+    `;
+    
+    return json({
+      status: 'healthy',
+      latency,
+      poolStats,
+      mode: 'transaction',
+      port: 6543,
+    });
+  } catch (error) {
+    return json({ status: 'unhealthy', error: error.message }, { status: 503 });
+  }
+}
+```
+
+# Test Strategy:
+1. **Verify PgBouncer transaction mode is active**: Connect to database and run `SHOW port` - should return 6543. Check PgBouncer logs for 'transaction' pooling mode confirmation.
+
+2. **Test connection limit enforcement**: Launch 20 concurrent database queries using a load testing script and verify only the configured connection_limit number of connections are active in pg_stat_activity.
+
+3. **Validate Prisma compatibility**: Run all existing Prisma queries and ensure they work with transaction pooling. Pay special attention to queries using prepared statements - they should be wrapped in transactions.
+
+4. **Load test with multiple instances**: Simulate 10 app instances each making 50 concurrent requests. Monitor that total database connections stay under 100 and no connection exhaustion errors occur.
+
+5. **Test failover behavior**: Kill active connections and verify the app recovers gracefully with transaction mode's fail-fast behavior. Response times should remain under 200ms even during connection cycling.
+
+6. **Monitor connection reuse**: Track connection age in PgBouncer stats and verify connections are being reused efficiently with avg connection age < 30 seconds.
+
+7. **Verify prepared statement handling**: Test that complex queries with prepared statements work when wrapped in transactions but fail outside transactions (expected behavior in transaction mode).
+
+8. **Performance benchmarks**: Compare before/after metrics - should see 10x increase in concurrent connection capacity, 50% reduction in connection overhead, and maintain p95 latency under 100ms.

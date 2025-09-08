@@ -1,10 +1,10 @@
 import { prisma } from '~/utils/db.server';
-import { openai } from '../openai.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { ContentExtractor } from './processors/content-extractor';
 import { DocumentChunkingService } from '../document-chunking.server';
 import { withRetry } from '~/utils/db.server';
 import { connectionPoolManager } from '../connection-pool-manager.server';
+import { ultraLightEmbeddingQueue } from './queues/ultra-light-embedding-queue';
 import type { Page } from '@prisma/client';
 
 /**
@@ -61,7 +61,7 @@ export class UltraLightIndexingService {
   }
   
   /**
-   * Debounce without Redis - 1 second for near real-time
+   * Debounce indexing - now supports async queue
    */
   private debounceIndexing(pageId: string, delayMs: number = 1000): void {
     const existing = this.indexingTimeouts.get(pageId);
@@ -69,14 +69,87 @@ export class UltraLightIndexingService {
     
     const timeout = setTimeout(async () => {
       this.indexingTimeouts.delete(pageId);
-      // Use connection pool manager for debounced operations too
-      await connectionPoolManager.executeWithPoolManagement(
-        `index-debounced-${pageId}`,
-        () => this.processPageUltraLight(pageId)
-      );
+      
+      // First try to queue with debouncing flag
+      const queueResult = await this.tryQueueDebounced(pageId);
+      
+      if (!queueResult) {
+        // Fallback to direct processing if queue not available
+        await connectionPoolManager.executeWithPoolManagement(
+          `index-debounced-${pageId}`,
+          () => this.processPageUltraLight(pageId)
+        );
+      }
     }, delayMs); // Default 1 second for real-time feel
     
     this.indexingTimeouts.set(pageId, timeout);
+  }
+  
+  /**
+   * Try to queue a debounced embedding job
+   */
+  private async tryQueueDebounced(pageId: string): Promise<boolean> {
+    try {
+      // Get page data first
+      const page = await withRetry(() => 
+        prisma.page.findUnique({
+          where: { id: pageId },
+          select: {
+            id: true,
+            title: true,
+            workspaceId: true,
+            blocks: true,
+            content: true
+          }
+        })
+      );
+      
+      if (!page || !page.workspaceId) return false;
+      
+      // Extract content
+      const content = this.extractEssentialContent(page);
+      if (!content || content.length < 50) {
+        await this.cleanupEmbeddings(pageId);
+        return true; // No content to index, but handled successfully
+      }
+      
+      // Create chunks
+      const chunks = this.createMinimalChunks(content, page.id, page.workspaceId);
+      
+      // Queue with debouncing
+      const jobId = await ultraLightEmbeddingQueue.queueEmbedding(
+        page.id,
+        page.workspaceId,
+        chunks.map(chunk => ({
+          text: chunk.text,
+          index: chunk.index,
+          metadata: {
+            pageTitle: page.title,
+            chunkSize: chunk.text.length,
+            indexedAt: new Date().toISOString()
+          }
+        })),
+        {
+          pageTitle: page.title,
+          priority: 'normal',
+          debounced: true // This ensures job deduplication
+        }
+      );
+      
+      if (jobId) {
+        this.logger.info('📋 Debounced embedding job queued', {
+          pageId,
+          jobId,
+          chunks: chunks.length
+        });
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      this.logger.error('Failed to queue debounced job', { pageId, error });
+      return false;
+    }
   }
   
   /**
@@ -267,11 +340,63 @@ export class UltraLightIndexingService {
   
   /**
    * Process in tiny batches to stay under request limit
+   * Now uses async queue for embedding generation
    */
   private async processTinyBatches(
     page: any,
     chunks: Array<{ text: string; index: number }>
   ): Promise<void> {
+    // Try to use async queue
+    const jobId = await ultraLightEmbeddingQueue.queueEmbedding(
+      page.id,
+      page.workspaceId,
+      chunks.map(chunk => ({
+        text: chunk.text,
+        index: chunk.index,
+        metadata: {
+          pageTitle: page.title,
+          chunkSize: chunk.text.length,
+          indexedAt: new Date().toISOString()
+        }
+      })),
+      {
+        pageTitle: page.title,
+        priority: 'normal',
+        debounced: false // Immediate processing for real-time updates
+      }
+    );
+    
+    if (jobId) {
+      // Successfully queued
+      this.logger.info('✅ Embedding job queued', {
+        pageId: page.id,
+        jobId,
+        chunks: chunks.length
+      });
+      
+      // Optionally wait for completion (for synchronous behavior)
+      // In production, we'd typically not wait and let it process async
+      if (process.env.WAIT_FOR_EMBEDDINGS === 'true') {
+        await this.waitForJobCompletion(jobId);
+      }
+    } else {
+      // Fallback to synchronous processing if queue not available
+      this.logger.warn('Queue not available, falling back to synchronous processing');
+      await this.processTinyBatchesSync(page, chunks);
+    }
+  }
+  
+  /**
+   * Synchronous fallback for when queue is not available
+   * (Original implementation kept as fallback)
+   */
+  private async processTinyBatchesSync(
+    page: any,
+    chunks: Array<{ text: string; index: number }>
+  ): Promise<void> {
+    // Only import openai when needed for fallback
+    const { openai } = await import('../openai.server');
+    
     // Delete ALL old embeddings for this page - aggressive cleanup
     // First count existing embeddings
     const countBefore = await withRetry(() =>
@@ -305,7 +430,7 @@ export class UltraLightIndexingService {
       })
     );
     
-    this.logger.info('🗑️ Deleted old embeddings', { 
+    this.logger.info('🗑️ Deleted old embeddings (sync)', { 
       pageId: page.id, 
       countBefore: this.safeBigIntToNumber(countBefore[0]?.count) || 0,
       deletedCount: this.safeBigIntToNumber(deleteResult),
@@ -367,9 +492,40 @@ export class UltraLightIndexingService {
         }
         
       } catch (error) {
-        this.logger.warn('Batch failed', { batch: i, error });
+        this.logger.warn('Batch failed (sync)', { batch: i, error });
       }
     }
+  }
+  
+  /**
+   * Wait for job completion (optional for synchronous behavior)
+   */
+  private async waitForJobCompletion(jobId: string, timeoutMs: number = 30000): Promise<void> {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeoutMs) {
+      const status = await ultraLightEmbeddingQueue.getJobStatus(jobId);
+      
+      if (!status) {
+        this.logger.warn('Job status not available', { jobId });
+        return;
+      }
+      
+      if (status.state === 'completed') {
+        this.logger.info('Job completed', { jobId, result: status.result });
+        return;
+      }
+      
+      if (status.state === 'failed') {
+        this.logger.error('Job failed', { jobId, error: status.error });
+        throw new Error(`Embedding job failed: ${status.error}`);
+      }
+      
+      // Wait a bit before checking again
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    this.logger.warn('Job completion timeout', { jobId, timeoutMs });
   }
   
   /**

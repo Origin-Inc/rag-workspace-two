@@ -1,7 +1,7 @@
 # Task ID: 28
 # Title: Future: Google Sheets Integration
 # Status: deferred
-# Dependencies: 22
+# Dependencies: 22 (Not found)
 # Priority: low
 # Description: Post-MVP feature to sync with Google Sheets. Not essential for wow factor - users can upload CSV exports from Sheets instead.
 # Details:

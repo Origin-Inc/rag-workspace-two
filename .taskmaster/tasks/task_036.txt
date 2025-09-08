@@ -1,0 +1,219 @@
+# Task ID: 36
+# Title: Migrate Vector Storage to Halfvec for 57% Storage Reduction
+# Status: pending
+# Dependencies: 6 (Not found), 16, 19 (Not found), 31, 32, 35
+# Priority: high
+# Description: Migrate all embedding columns from vector(1536) to halfvec(1536) type in PostgreSQL to achieve 57% storage reduction and 66% smaller indexes while maintaining search accuracy, including page_embeddings, block_embeddings, and database_row_embeddings tables.
+# Details:
+1. **Create reversible migration for halfvec conversion**:
+```sql
+-- Migration: 20XX_XX_XX_migrate_to_halfvec.sql
+-- Enable halfvec extension if not already enabled
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Step 1: Add new halfvec columns alongside existing vector columns
+ALTER TABLE page_embeddings ADD COLUMN embedding_halfvec halfvec(1536);
+ALTER TABLE block_embeddings ADD COLUMN embedding_halfvec halfvec(1536);
+ALTER TABLE database_row_embeddings ADD COLUMN embedding_halfvec halfvec(1536);
+ALTER TABLE documents ADD COLUMN embedding_halfvec halfvec(1536);
+
+-- Step 2: Convert existing embeddings to halfvec
+UPDATE page_embeddings SET embedding_halfvec = embedding::halfvec(1536) WHERE embedding IS NOT NULL;
+UPDATE block_embeddings SET embedding_halfvec = embedding::halfvec(1536) WHERE embedding IS NOT NULL;
+UPDATE database_row_embeddings SET embedding_halfvec = embedding::halfvec(1536) WHERE embedding IS NOT NULL;
+UPDATE documents SET embedding_halfvec = embedding::halfvec(1536) WHERE embedding IS NOT NULL;
+
+-- Step 3: Drop old vector indexes
+DROP INDEX IF EXISTS page_embeddings_embedding_idx;
+DROP INDEX IF EXISTS block_embeddings_embedding_idx;
+DROP INDEX IF EXISTS database_row_embeddings_embedding_idx;
+DROP INDEX IF EXISTS documents_embedding_hnsw_idx;
+DROP INDEX IF EXISTS documents_workspace_embedding_idx;
+
+-- Step 4: Create new HNSW indexes with halfvec_cosine_ops
+CREATE INDEX page_embeddings_halfvec_hnsw_idx ON page_embeddings 
+USING hnsw (embedding_halfvec halfvec_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+CREATE INDEX block_embeddings_halfvec_hnsw_idx ON block_embeddings 
+USING hnsw (embedding_halfvec halfvec_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+CREATE INDEX database_row_embeddings_halfvec_hnsw_idx ON database_row_embeddings 
+USING hnsw (embedding_halfvec halfvec_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+CREATE INDEX documents_halfvec_hnsw_idx ON documents 
+USING hnsw (embedding_halfvec halfvec_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+-- Step 5: Rename columns (atomic operation)
+ALTER TABLE page_embeddings RENAME COLUMN embedding TO embedding_vector_backup;
+ALTER TABLE page_embeddings RENAME COLUMN embedding_halfvec TO embedding;
+
+ALTER TABLE block_embeddings RENAME COLUMN embedding TO embedding_vector_backup;
+ALTER TABLE block_embeddings RENAME COLUMN embedding_halfvec TO embedding;
+
+ALTER TABLE database_row_embeddings RENAME COLUMN embedding TO embedding_vector_backup;
+ALTER TABLE database_row_embeddings RENAME COLUMN embedding_halfvec TO embedding;
+
+ALTER TABLE documents RENAME COLUMN embedding TO embedding_vector_backup;
+ALTER TABLE documents RENAME COLUMN embedding_halfvec TO embedding;
+```
+
+2. **Update all SQL queries and functions**:
+```typescript
+// app/services/rag/vector-search.server.ts
+// Before:
+const searchQuery = `
+  SELECT id, content, 1 - (embedding <=> $1::vector) as similarity
+  FROM documents
+  WHERE embedding <=> $1::vector < 0.3
+  ORDER BY embedding <=> $1::vector
+  LIMIT 10
+`;
+
+// After:
+const searchQuery = `
+  SELECT id, content, 1 - (embedding <=> $1::halfvec) as similarity
+  FROM documents
+  WHERE embedding <=> $1::halfvec < 0.3
+  ORDER BY embedding <=> $1::halfvec
+  LIMIT 10
+`;
+```
+
+3. **Update Prisma schema**:
+```prisma
+// schema.prisma
+model PageEmbedding {
+  id        String   @id @default(uuid())
+  pageId    String
+  embedding Unsupported("halfvec(1536)")
+  // Keep backup column during transition
+  embeddingVectorBackup Unsupported("vector(1536)")?  
+}
+```
+
+4. **Update embedding generation service**:
+```typescript
+// app/services/embeddings.server.ts
+export async function storeEmbedding(content: string, entityId: string) {
+  const embedding = await generateEmbedding(content);
+  
+  // Cast to halfvec when storing
+  await prisma.$executeRaw`
+    INSERT INTO page_embeddings (id, page_id, embedding)
+    VALUES (${uuid()}, ${entityId}, ${embedding}::halfvec(1536))
+  `;
+}
+```
+
+5. **Create rollback migration**:
+```sql
+-- Rollback: revert_halfvec_to_vector.sql
+-- Step 1: Rename columns back
+ALTER TABLE page_embeddings RENAME COLUMN embedding TO embedding_halfvec;
+ALTER TABLE page_embeddings RENAME COLUMN embedding_vector_backup TO embedding;
+
+-- Step 2: Drop halfvec indexes
+DROP INDEX IF EXISTS page_embeddings_halfvec_hnsw_idx;
+
+-- Step 3: Recreate vector indexes
+CREATE INDEX page_embeddings_embedding_idx ON page_embeddings 
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+-- Step 4: Drop halfvec columns
+ALTER TABLE page_embeddings DROP COLUMN embedding_halfvec;
+```
+
+6. **Performance monitoring setup**:
+```typescript
+// app/services/monitoring/vector-metrics.server.ts
+export async function compareSearchAccuracy() {
+  const testQueries = await getTestQueries();
+  const results = [];
+  
+  for (const query of testQueries) {
+    const vectorResults = await searchWithVector(query);
+    const halfvecResults = await searchWithHalfvec(query);
+    
+    const accuracy = calculateRecallAt10(vectorResults, halfvecResults);
+    results.push({ query, accuracy });
+  }
+  
+  return {
+    averageAccuracy: average(results.map(r => r.accuracy)),
+    storageReduction: await calculateStorageReduction(),
+    indexSizeReduction: await calculateIndexReduction()
+  };
+}
+```
+
+# Test Strategy:
+1. **Pre-migration validation**: Capture baseline metrics including current storage size using `SELECT pg_size_pretty(pg_total_relation_size('page_embeddings'))`, search response times for 100 test queries, and top-10 recall accuracy for standard test set.
+
+2. **Migration execution testing**: Run migration in test environment first, verify all data converts successfully with `SELECT COUNT(*) FROM page_embeddings WHERE embedding IS NULL AND embedding_vector_backup IS NOT NULL` returning 0, ensure no data loss by comparing row counts before and after.
+
+3. **Storage reduction verification**: Measure actual storage reduction using `SELECT pg_size_pretty(pg_total_relation_size('page_embeddings'))` and compare to baseline, verify 50-60% reduction achieved, check index sizes with `SELECT pg_size_pretty(pg_relation_size('page_embeddings_halfvec_hnsw_idx'))` showing 60-70% reduction.
+
+4. **Search accuracy testing**: Run same 100 test queries used in baseline, calculate recall@10 comparing halfvec results to original vector results, ensure accuracy degradation is < 2%, verify similarity scores remain within 0.01 tolerance.
+
+5. **Performance benchmarking**: Load test with 1000 concurrent searches, verify p95 latency remains < 100ms, ensure memory usage reduced by at least 40%, test with 50,000+ row datasets.
+
+6. **Application integration testing**: Verify all RAG search endpoints return results correctly, test AI block inline chat still retrieves relevant context, ensure citation system works with halfvec queries, validate knowledge graph traversal functions properly.
+
+7. **Rollback testing**: Execute rollback migration in test environment, verify data restores correctly to vector type, ensure all indexes recreate successfully, confirm search functionality returns to original state.
+
+8. **Edge case validation**: Test with null embeddings, verify handling, test partial migrations if process interrupted, ensure new embeddings store as halfvec automatically, verify background re-indexing jobs work with new type.
+
+# Subtasks:
+## 1. Create Prisma Migration for Halfvec Columns Addition [pending]
+### Dependencies: None
+### Description: Create a new Prisma migration file that adds halfvec columns alongside existing vector columns for page_embeddings, block_embeddings, database_row_embeddings, and documents tables
+### Details:
+Generate migration using `npx prisma migrate dev --name add_halfvec_columns --create-only` that adds embedding_halfvec halfvec(1536) columns to all embedding tables. Ensure the migration includes: CREATE EXTENSION IF NOT EXISTS vector; ALTER TABLE statements for page_embeddings, block_embeddings, database_row_embeddings, and documents tables. The migration should be reversible and follow the existing pattern in /rag-app/prisma/migrations/
+
+## 2. Implement Data Migration Script for Vector to Halfvec Conversion [pending]
+### Dependencies: 36.1
+### Description: Create a TypeScript script that safely converts existing vector embeddings to halfvec format with progress tracking and error handling
+### Details:
+Develop script at app/scripts/migrate-to-halfvec.ts that: Reads embeddings in batches of 1000 to avoid memory issues. Uses Prisma raw queries to convert vector to halfvec using PostgreSQL casting. Implements checkpointing to resume on failure. Logs progress and validates conversion accuracy. Handles null embeddings gracefully. Updates embedding_halfvec columns while preserving original data
+
+## 3. Update Vector Search Queries to Support Halfvec [pending]
+### Dependencies: 36.2
+### Description: Modify all vector similarity search functions in the codebase to use halfvec operators and proper type casting
+### Details:
+Update files including app/services/prisma-search.server.ts, app/services/rag/rag-indexing.service.ts to: Replace vector(1536) casts with halfvec(1536). Update similarity operators from vector_cosine_ops to halfvec_cosine_ops. Modify search queries to use embedding_halfvec column. Add feature flag to toggle between vector/halfvec during migration. Update type definitions for embedding arrays
+
+## 4. Create HNSW Indexes for Halfvec Columns [pending]
+### Dependencies: 36.2
+### Description: Build optimized HNSW indexes on halfvec columns with appropriate parameters for performance
+### Details:
+Create migration app/prisma/migrations/add_halfvec_indexes that: Drops existing vector indexes to free resources. Creates HNSW indexes with halfvec_cosine_ops on all embedding_halfvec columns. Uses m=16, ef_construction=64 parameters based on dataset size. Adds concurrent index creation to minimize downtime. Implements index for workspace-scoped queries
+
+## 5. Migrate Embedding Generation Service to Halfvec [pending]
+### Dependencies: 36.3
+### Description: Update the embedding generation service to store new embeddings directly as halfvec type
+### Details:
+Modify app/services/embedding-generation.server.ts to: Cast embedding arrays to halfvec when storing via Prisma $executeRaw. Update generateEmbedding and generateEmbeddingsBatch methods. Ensure proper error handling for halfvec conversion failures. Update batch processing in app/workers/indexing-processor.ts. Maintain backward compatibility during transition period
+
+## 6. Implement Performance Monitoring Dashboard [pending]
+### Dependencies: 36.4
+### Description: Create monitoring service to track storage reduction, query performance, and accuracy metrics during and after migration
+### Details:
+Create app/services/monitoring/vector-metrics.server.ts with: Storage size tracking using pg_size_pretty queries. Query latency monitoring with percentiles (p50, p95, p99). Recall accuracy calculation comparing vector vs halfvec results. Index size comparison metrics. Memory usage tracking. Export metrics to app/routes/app.performance-dashboard.tsx for visualization
+
+## 7. Execute Column Swap and Cleanup Migration [pending]
+### Dependencies: 36.1, 36.2, 36.3, 36.4, 36.5
+### Description: Perform the final atomic column rename operation to make halfvec the primary embedding column and archive vector columns
+### Details:
+Create final migration to: Rename embedding to embedding_vector_backup atomically. Rename embedding_halfvec to embedding. Update Prisma schema to reflect new column names. Keep backup columns for 30-day rollback window. Document rollback procedure in MIGRATION_GUIDE.md
+
+## 8. Create Comprehensive Migration Test Suite [pending]
+### Dependencies: 36.6, 36.7
+### Description: Develop automated test suite to validate the complete halfvec migration process including rollback scenarios
+### Details:
+Create app/services/__tests__/halfvec-migration.test.ts with: Integration tests for all migration steps. Performance benchmarks comparing vector vs halfvec. Accuracy tests with real-world query samples. Rollback scenario testing. Load testing with concurrent operations. Memory usage profiling. Document results in test report
+

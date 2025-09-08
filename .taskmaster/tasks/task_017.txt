@@ -1,7 +1,7 @@
 # Task ID: 17
 # Title: Implement Intelligent Content Generation Engine
 # Status: deferred
-# Dependencies: 5, 13, 14, 4, 6
+# Dependencies: 5 (Not found), 13 (Not found), 14 (Not found), 4 (Not found), 6 (Not found)
 # Priority: high
 # Description: Build AI-powered content generation system that can create full project templates with pages and blocks, generate context-aware content based on workspace patterns, add elements to specific pages on demand, and support batch generation for entire CRM/project structures with template inheritance
 # Details:
