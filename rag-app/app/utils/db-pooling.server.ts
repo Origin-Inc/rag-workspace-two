@@ -22,18 +22,18 @@ export interface PoolingConfig {
 // Determine optimal pooling configuration based on environment
 export function getPoolingConfig(): PoolingConfig {
   const isProduction = process.env.NODE_ENV === 'production';
-  const isVercel = process.env.VERCEL === '1';
-  const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined;
-  const instanceCount = parseInt(process.env.INSTANCE_COUNT || '10', 10); // Default to 10 instances
-  const maxPoolSize = parseInt(process.env.MAX_POOL_SIZE || '100', 10);
+  const isVercel = process.env['VERCEL'] === '1';
+  const isRailway = process.env['RAILWAY_ENVIRONMENT'] !== undefined;
+  const instanceCount = parseInt(process.env['INSTANCE_COUNT'] || '10', 10); // Default to 10 instances
+  const maxPoolSize = parseInt(process.env['MAX_POOL_SIZE'] || '100', 10);
   
   // Check if DATABASE_URL is using transaction pooler (port 6543)
-  const databaseUrl = process.env.DATABASE_URL || '';
+  const databaseUrl = process.env['DATABASE_URL'] || '';
   const isTransactionPooler = databaseUrl.includes(':6543');
   const isSessionPooler = databaseUrl.includes('pooler.supabase.com:5432');
   
   // For serverless, prefer transaction pooler
-  const usePooler = isProduction && (isVercel || isRailway || process.env.USE_TRANSACTION_MODE === 'true');
+  const usePooler = isProduction && (isVercel || isRailway || process.env['USE_TRANSACTION_MODE'] === 'true');
   
   if (isTransactionPooler) {
     // Transaction pooler configuration (port 6543)
@@ -74,7 +74,7 @@ export function getPoolingConfig(): PoolingConfig {
 // Build optimized DATABASE_URL based on pooling configuration
 export function buildDatabaseUrl(baseUrl?: string): string {
   const config = getPoolingConfig();
-  const url = new URL(baseUrl || process.env.DATABASE_URL || '');
+  const url = new URL(baseUrl || process.env['DATABASE_URL'] || '');
   
   // Preserve the original port from DATABASE_URL
   // Supabase uses specific ports for different pooler modes:
@@ -200,25 +200,30 @@ function wrapForTransactionMode(client: PrismaClient) {
   const originalTransaction = client.$transaction.bind(client);
   
   // Enhanced transaction handling for transaction mode
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client.$transaction = async (...args: any[]) => {
     const maxRetries = 3;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let lastError: any;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        // @ts-expect-error - args spread is handled correctly by originalTransaction
         return await originalTransaction(...args);
-      } catch (error: any) {
+      } catch (error) {
         lastError = error;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const errorAny = error as any;
         
         // Check for prepared statement errors
         if (
-          error?.message?.includes('prepared statement') ||
-          error?.code === '42P05' ||
-          error?.code === '25P02' // In failed transaction
+          errorAny?.message?.includes('prepared statement') ||
+          errorAny?.code === '42P05' ||
+          errorAny?.code === '25P02' // In failed transaction
         ) {
           logger.warn(`Transaction failed (attempt ${attempt}/${maxRetries})`, {
-            error: error.message,
-            code: error.code,
+            error: errorAny.message,
+            code: errorAny.code,
           });
           
           if (attempt < maxRetries) {
@@ -232,10 +237,10 @@ function wrapForTransactionMode(client: PrismaClient) {
         
         // Check for connection pool exhaustion
         if (
-          error?.message?.includes('connection') ||
-          error?.code === 'P2024' // Too many connections
+          errorAny?.message?.includes('connection') ||
+          errorAny?.code === 'P2024' // Too many connections
         ) {
-          logger.error('Connection pool exhausted', { error: error.message });
+          logger.error('Connection pool exhausted', { error: errorAny.message });
           
           if (attempt < maxRetries) {
             // Wait for connections to be released
@@ -288,7 +293,18 @@ export async function getPoolStats(client: PrismaClient): Promise<{
 }> {
   try {
     // Try to get PgBouncer stats if available
-    const pgbouncerStats = await client.$queryRaw<any[]>`
+    interface PgBouncerStats {
+      database: string;
+      cl_active: number;
+      cl_waiting: number;
+      sv_active: number;
+      sv_idle: number;
+      sv_used: number;
+      sv_tested: number;
+      sv_login: number;
+      maxwait: number;
+    }
+    const pgbouncerStats = await client.$queryRaw<PgBouncerStats[]>`
       SELECT 
         database,
         cl_active,
@@ -306,18 +322,25 @@ export async function getPoolStats(client: PrismaClient): Promise<{
     
     if (pgbouncerStats && pgbouncerStats.length > 0) {
       const stats = pgbouncerStats[0];
-      return {
-        activeConnections: stats.sv_active || 0,
-        idleConnections: stats.sv_idle || 0,
-        totalConnections: (stats.sv_active || 0) + (stats.sv_idle || 0) + (stats.sv_used || 0),
-        waitingClients: stats.cl_waiting || 0,
-        mode: 'pgbouncer',
-        port: getPoolingConfig().port,
-      };
+      if (stats) {
+        return {
+          activeConnections: stats.sv_active || 0,
+          idleConnections: stats.sv_idle || 0,
+          totalConnections: (stats.sv_active || 0) + (stats.sv_idle || 0) + (stats.sv_used || 0),
+          waitingClients: stats.cl_waiting || 0,
+          mode: 'pgbouncer',
+          port: getPoolingConfig().port,
+        };
+      }
     }
     
     // Fallback to PostgreSQL stats
-    const pgStats = await client.$queryRaw<any[]>`
+    interface PgStats {
+      active: bigint;
+      idle: bigint;
+      total: bigint;
+    }
+    const pgStats = await client.$queryRaw<PgStats[]>`
       SELECT 
         count(*) FILTER (WHERE state = 'active') as active,
         count(*) FILTER (WHERE state = 'idle') as idle,
@@ -327,6 +350,16 @@ export async function getPoolStats(client: PrismaClient): Promise<{
     `;
     
     const stats = pgStats[0];
+    if (!stats) {
+      return {
+        activeConnections: 0,
+        idleConnections: 0,
+        totalConnections: 0,
+        waitingClients: 0,
+        mode: 'unknown',
+        port: getPoolingConfig().port,
+      };
+    }
     return {
       activeConnections: Number(stats.active) || 0,
       idleConnections: Number(stats.idle) || 0,
@@ -363,7 +396,7 @@ export async function validatePoolingMode(client: PrismaClient): Promise<{
     
     // For Supabase pooler, we can't reliably check the port
     // Instead, check if we're using pgbouncer parameters
-    const databaseUrl = process.env.DATABASE_URL || '';
+    const databaseUrl = process.env['DATABASE_URL'] || '';
     const isUsingPooler = databaseUrl.includes('pooler.') || databaseUrl.includes('pgbouncer=true');
     
     // Test if prepared statements work outside transactions
@@ -375,9 +408,11 @@ export async function validatePoolingMode(client: PrismaClient): Promise<{
       await client.$queryRaw`DEALLOCATE test_stmt`;
       // If we get here, we're in session mode or direct connection
       isPgBouncer = false;
-    } catch (error: any) {
+    } catch (error) {
       // If it fails with prepared statement error, we're using PgBouncer
-      if (error?.message?.includes('prepared statement') || error?.code === '26000') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const errorAny = error as any;
+      if (errorAny?.message?.includes('prepared statement') || errorAny?.code === '26000') {
         isPgBouncer = true;
       }
     }
