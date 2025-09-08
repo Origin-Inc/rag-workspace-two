@@ -1,0 +1,11 @@
+# Task ID: 46
+# Title: Create Document Chunking and Embedding Pipeline
+# Status: pending
+# Dependencies: 45
+# Priority: high
+# Description: Build pipeline for chunking uploaded documents and generating embeddings for RAG context
+# Details:
+Extend SemanticChunker for document-specific chunking. Implement smart chunking based on document structure. Generate embeddings using OpenAI API. Store document chunks with metadata. Link chunks to chat instances. Implement background processing with BullMQ.
+
+# Test Strategy:
+Test chunking strategies for different formats. Verify embedding generation. Test chunk retrieval accuracy. Check background job processing.

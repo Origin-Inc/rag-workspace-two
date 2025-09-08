@@ -19,7 +19,8 @@
     "migrate:hierarchy": "tsx scripts/migrate-projects-to-pages.ts",
     "rollback:hierarchy": "tsx scripts/rollback-to-projects.ts",
     "redis:configure": "node scripts/configure-redis.js",
-    "prestart": "npm run redis:configure"
+    "prestart": "npm run redis:configure",
+    "test:async-embeddings": "tsx scripts/test-async-embeddings.ts"
   },
   "keywords": [],
   "author": "",

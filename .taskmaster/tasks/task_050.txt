@@ -1,0 +1,11 @@
+# Task ID: 50
+# Title: Add Chat API Endpoints
+# Status: pending
+# Dependencies: 41
+# Priority: high
+# Description: Create RESTful API endpoints for all chat operations
+# Details:
+Create POST /api/chat/create for new instances. Implement POST /api/chat/:id/message for sending messages. Add GET /api/chat/:id/history for conversation retrieval. Build POST /api/chat/:id/upload for file uploads. Create POST /api/chat/:id/block for block creation. Add message editing and deletion endpoints.
+
+# Test Strategy:
+Test all endpoints with various payloads. Verify authentication and authorization. Test error responses. Check rate limiting.
