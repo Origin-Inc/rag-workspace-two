@@ -274,7 +274,7 @@ export class MemoryOptimizedIndexingService {
               ${page.workspaceId}::uuid,
               ${emb.text},
               ${emb.chunkIndex},
-              ${vectorString}::extensions.vector,
+              ${vectorString}::vector,
               ${JSON.stringify({
                 ...emb.metadata,
                 indexedAt: new Date().toISOString(),
