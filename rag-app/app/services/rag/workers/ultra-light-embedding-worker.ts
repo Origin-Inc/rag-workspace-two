@@ -4,6 +4,7 @@ import { prisma } from '~/utils/db.server';
 import { withRetry } from '~/utils/db.server';
 import { connectionPoolManager } from '../../connection-pool-manager.server';
 import { DebugLogger } from '~/utils/debug-logger';
+import { ensureVectorSearchPath } from '~/utils/db-vector.server';
 import {
   EMBEDDING_QUEUE_NAME,
   getEmbeddingWorkerConfig,
@@ -254,6 +255,7 @@ export class UltraLightEmbeddingWorker {
       const estimatedSize = vectorString.length + chunk.text.length + 200;
       
       if (estimatedSize < this.MAX_REQUEST_SIZE) {
+        await ensureVectorSearchPath();
         await withRetry(() =>
           prisma.$executeRaw`
             INSERT INTO page_embeddings (
