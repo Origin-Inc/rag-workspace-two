@@ -4,6 +4,7 @@ import { DebugLogger } from '~/utils/debug-logger';
 import { ContentExtractor } from './processors/content-extractor';
 import { DocumentChunkingService } from '../document-chunking.server';
 import { withRetry } from '~/utils/db.server';
+import { ensureVectorSearchPath } from '~/utils/db-vector.server';
 import type { Page } from '@prisma/client';
 
 interface IndexingOptions {
@@ -208,6 +209,7 @@ export class OptimizedIndexingService {
           for (const emb of batch) {
             const vectorString = `[${emb.embedding.join(',')}]`;
             
+            await ensureVectorSearchPath();
             await tx.$executeRaw`
               INSERT INTO page_embeddings (
                 page_id,

@@ -3,32 +3,21 @@ import { DebugLogger } from './debug-logger';
 
 const logger = new DebugLogger('DBVector');
 
-let searchPathSet = false;
-
 /**
  * Ensures the search path includes the extensions schema for pgvector
  * This is required because pgvector is installed in the extensions schema on Supabase
+ * 
+ * IMPORTANT: In serverless environments, this must be called before EVERY query
+ * because connections are not persisted between function invocations
  */
 export async function ensureVectorSearchPath(): Promise<void> {
-  if (searchPathSet) {
-    return; // Already set for this connection
-  }
-  
   try {
-    // Set search path to include extensions schema
+    // Always set search path - no caching in serverless
     await prisma.$executeRaw`SET search_path TO public, extensions`;
-    searchPathSet = true;
     logger.trace('Search path set to include extensions schema');
   } catch (error) {
     logger.error('Failed to set search path', error);
-    // Try alternative approach - this might work on some configurations
-    try {
-      await prisma.$executeRaw`ALTER DATABASE postgres SET search_path TO public, extensions`;
-      searchPathSet = true;
-      logger.trace('Search path set via ALTER DATABASE');
-    } catch (altError) {
-      logger.error('Alternative search path setting also failed', altError);
-    }
+    // Don't throw - let the actual query fail with a more specific error
   }
 }
 

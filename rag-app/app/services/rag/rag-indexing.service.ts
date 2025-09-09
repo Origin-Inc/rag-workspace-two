@@ -4,6 +4,7 @@ import { DebugLogger } from '~/utils/debug-logger';
 import { openai } from '../openai.server';
 import { SemanticChunker } from './processors/semantic-chunker';
 import { ContentExtractor } from './processors/content-extractor';
+import { ensureVectorSearchPath } from '~/utils/db-vector.server';
 import type { Page } from '@prisma/client';
 
 interface IndexingJob {
@@ -299,6 +300,7 @@ export class RAGIndexingService {
       for (const chunk of chunks) {
         const vectorString = `[${chunk.embedding.join(',')}]`;
         
+        await ensureVectorSearchPath();
         await tx.$executeRaw`
           INSERT INTO page_embeddings (
             page_id,
