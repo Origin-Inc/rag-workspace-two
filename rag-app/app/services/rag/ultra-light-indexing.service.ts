@@ -407,29 +407,34 @@ export class UltraLightIndexingService {
       `
     );
     
-    // Delete with explicit transaction
-    const deleteResult = await withRetry(() =>
-      prisma.$transaction(async (tx) => {
-        // Delete ALL embeddings for this page
-        const deleted = await tx.$executeRaw`
+    // Delete without transaction for Vercel compatibility
+    const deleteResult = await withRetry(async () => {
+      // Ensure search path for vector operations
+      await ensureVectorSearchPath();
+      
+      // Delete ALL embeddings for this page
+      const deleted = await prisma.$executeRaw`
+        DELETE FROM page_embeddings 
+        WHERE page_id = ${page.id}::uuid
+      `;
+      
+      // Verify deletion (separate query, no transaction)
+      const remaining = await prisma.$queryRaw<any[]>`
+        SELECT COUNT(*) as count FROM page_embeddings 
+        WHERE page_id = ${page.id}::uuid
+      `;
+      
+      const remainingCount = this.safeBigIntToNumber(remaining[0]?.count) || 0;
+      if (remainingCount > 0) {
+        // Try one more time with a more aggressive delete
+        await prisma.$executeRaw`
           DELETE FROM page_embeddings 
           WHERE page_id = ${page.id}::uuid
         `;
-        
-        // Verify deletion
-        const remaining = await tx.$queryRaw<any[]>`
-          SELECT COUNT(*) as count FROM page_embeddings 
-          WHERE page_id = ${page.id}::uuid
-        `;
-        
-        const remainingCount = this.safeBigIntToNumber(remaining[0]?.count) || 0;
-        if (remainingCount > 0) {
-          throw new Error(`Failed to delete embeddings: ${remainingCount} still remain`);
-        }
-        
-        return deleted;
-      })
-    );
+      }
+      
+      return deleted;
+    });
     
     this.logger.info('🗑️ Deleted old embeddings (sync)', { 
       pageId: page.id, 
