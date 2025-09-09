@@ -1,6 +1,7 @@
 import { prisma } from '~/utils/db.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { openai } from '../openai.server';
+import { ensureVectorSearchPath } from '~/utils/db-vector.server';
 
 const logger = new DebugLogger('VectorMetrics');
 
@@ -266,6 +267,7 @@ export class VectorMetricsService {
         
         // Time vector search
         const vectorStart = Date.now();
+        await ensureVectorSearchPath();
         const vectorResults = await prisma.$queryRaw<any[]>`
           SELECT id, chunk_text, 1 - (embedding <=> ${vectorString}::vector) as similarity
           FROM page_embeddings
@@ -278,6 +280,7 @@ export class VectorMetricsService {
         
         // Time halfvec search
         const halfvecStart = Date.now();
+        await ensureVectorSearchPath();
         const halfvecResults = await prisma.$queryRaw<any[]>`
           SELECT id, chunk_text, 1 - (embedding_halfvec <=> ${vectorString}::halfvec) as similarity
           FROM page_embeddings

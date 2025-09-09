@@ -1,6 +1,7 @@
 import { prisma } from '~/utils/db.server';
 import OpenAI from 'openai';
 import { DebugLogger } from '~/utils/debug-logger';
+import { ensureVectorSearchPath } from '~/utils/db-vector.server';
 
 const logger = new DebugLogger('HalfvecSearch');
 
@@ -100,6 +101,7 @@ async function searchWithHalfvecColumn(
   const vectorString = `[${queryEmbedding.join(',')}]`;
   
   // Search across all embedding tables using halfvec
+  await ensureVectorSearchPath();
   const results = await prisma.$queryRaw<any[]>`
     WITH all_embeddings AS (
       -- Page embeddings
@@ -186,6 +188,7 @@ async function searchWithVectorColumn(
   const vectorString = `[${queryEmbedding.join(',')}]`;
   
   // Search across all embedding tables using vector
+  await ensureVectorSearchPath();
   const results = await prisma.$queryRaw<any[]>`
     WITH all_embeddings AS (
       -- Page embeddings
@@ -332,6 +335,7 @@ async function shouldUseHalfvec(forceVectorType: 'vector' | 'halfvec' | 'auto'):
   // Auto mode: check if halfvec columns have data
   if (USE_HALFVEC) {
     try {
+      await ensureVectorSearchPath();
       const result = await prisma.$queryRaw<any[]>`
         SELECT EXISTS (
           SELECT 1 FROM page_embeddings 
@@ -371,6 +375,7 @@ export async function updateSearchEmbeddingsFunction() {
   logger.info('Updating search_embeddings function for halfvec support...');
   
   try {
+    await ensureVectorSearchPath();
     await prisma.$executeRaw`
       CREATE OR REPLACE FUNCTION search_embeddings(
         query_embedding vector,
@@ -459,6 +464,7 @@ export async function updateSearchEmbeddingsFunction() {
     logger.info('✅ Updated search_embeddings function');
     
     // Also create the unified_embeddings_halfvec view
+    await ensureVectorSearchPath();
     await prisma.$executeRaw`
       CREATE OR REPLACE VIEW unified_embeddings_halfvec AS
         SELECT 

@@ -10,6 +10,7 @@ import { debounce } from "~/utils/performance";
 import { Prisma } from "@prisma/client";
 import { indexingCoordinator } from "~/services/rag/indexing-coordinator.service";
 import { asyncEmbeddingService } from "~/services/rag/async-embedding.service";
+import { ultraLightIndexingService } from "~/services/rag/ultra-light-indexing.service";
 import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
 import { pageHierarchyService } from "~/services/page-hierarchy.server";
 import { AIBlockService } from "~/services/ai-block-service.server";
