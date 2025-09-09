@@ -89,7 +89,7 @@ export async function action({ request }: ActionFunctionArgs) {
         ${page.workspaceId}::uuid,
         ${textContent},
         0,
-        ${`[${embedding.join(',')}]`}::extensions.vector,
+        ${`[${embedding.join(',')}]`}::vector,
         ${JSON.stringify({ 
           title: page.title,
           projectId: page.projectId,
