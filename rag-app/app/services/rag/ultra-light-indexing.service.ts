@@ -3,7 +3,6 @@ import { DebugLogger } from '~/utils/debug-logger';
 import { ContentExtractor } from './processors/content-extractor';
 import { DocumentChunkingService } from '../document-chunking.server';
 import { withRetry } from '~/utils/db.server';
-import { connectionPoolManager } from '../connection-pool-manager.server';
 import { ultraLightEmbeddingQueue } from './queues/ultra-light-embedding-queue';
 import { ensureVectorSearchPath } from '~/utils/db-vector.server';
 import type { Page } from '@prisma/client';
@@ -53,11 +52,9 @@ export class UltraLightIndexingService {
       // 1-second debounce to batch rapid saves but still feel instant
       this.debounceIndexing(pageId, 1000);
     } else {
-      // Use connection pool manager to prevent exhaustion
-      await connectionPoolManager.executeWithPoolManagement(
-        `index-${pageId}`,
-        () => this.processPageUltraLight(pageId)
-      );
+      // Direct processing without transaction wrapper for Vercel compatibility
+      // Transactions cause timeouts in serverless environments
+      await this.processPageUltraLight(pageId);
     }
   }
   
@@ -76,10 +73,8 @@ export class UltraLightIndexingService {
       
       if (!queueResult) {
         // Fallback to direct processing if queue not available
-        await connectionPoolManager.executeWithPoolManagement(
-          `index-debounced-${pageId}`,
-          () => this.processPageUltraLight(pageId)
-        );
+        // No transaction wrapper - causes timeouts in serverless
+        await this.processPageUltraLight(pageId);
       }
     }, delayMs); // Default 1 second for real-time feel
     
