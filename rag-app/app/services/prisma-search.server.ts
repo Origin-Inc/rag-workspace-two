@@ -1,4 +1,5 @@
 import { prisma } from '~/utils/db.server';
+import { executeVectorQuery, formatEmbeddingForSQL } from '~/utils/db-vector.server';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -31,19 +32,20 @@ export async function searchWithPrisma(
     
     if (queryEmbedding) {
       // Use vector similarity search with raw SQL
-      const vectorString = `[${queryEmbedding.join(',')}]`;
+      const vectorString = formatEmbeddingForSQL(queryEmbedding);
       
-      const results = await prisma.$queryRaw<any[]>`
+      // Use executeVectorQuery which handles search path
+      const results = await executeVectorQuery<any[]>`
         SELECT 
           e.document_id as id,
           e.chunk_text as content,
           e.metadata,
-          1 - (e.embedding <=> ${vectorString}::extensions.vector) as similarity
+          1 - (e.embedding <=> ${vectorString}::vector) as similarity
         FROM embeddings e
         WHERE 
           (e.metadata->>'workspaceId')::text = ${workspaceId}
-          AND 1 - (e.embedding <=> ${vectorString}::extensions.vector) > 0.3
-        ORDER BY e.embedding <=> ${vectorString}::extensions.vector
+          AND 1 - (e.embedding <=> ${vectorString}::vector) > 0.3
+        ORDER BY e.embedding <=> ${vectorString}::vector
         LIMIT ${limit}
       `;
       
