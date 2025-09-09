@@ -267,7 +267,7 @@ export class VectorMetricsService {
         // Time vector search
         const vectorStart = Date.now();
         const vectorResults = await prisma.$queryRaw<any[]>`
-          SELECT id, chunk_text, 1 - (embedding <=> ${vectorString}::extensions.vector) as similarity
+          SELECT id, chunk_text, 1 - (embedding <=> ${vectorString}::vector) as similarity
           FROM page_embeddings
           WHERE embedding IS NOT NULL
           ORDER BY embedding <=> ${vectorString}::vector
@@ -279,7 +279,7 @@ export class VectorMetricsService {
         // Time halfvec search
         const halfvecStart = Date.now();
         const halfvecResults = await prisma.$queryRaw<any[]>`
-          SELECT id, chunk_text, 1 - (embedding_halfvec <=> ${vectorString}::extensions.halfvec) as similarity
+          SELECT id, chunk_text, 1 - (embedding_halfvec <=> ${vectorString}::halfvec) as similarity
           FROM page_embeddings
           WHERE embedding_halfvec IS NOT NULL
           ORDER BY embedding_halfvec <=> ${vectorString}::halfvec

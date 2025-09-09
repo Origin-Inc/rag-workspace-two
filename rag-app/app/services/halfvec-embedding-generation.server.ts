@@ -202,7 +202,7 @@ export class HalfvecEmbeddingGenerationService {
               ${workspaceId}::uuid,
               ${chunk.text},
               ${chunk.index},
-              ${vectorString}::extensions.halfvec(1536),
+              ${vectorString}::halfvec(1536),
               ${JSON.stringify({
                 ...metadata,
                 vectorType: 'halfvec',
@@ -228,8 +228,8 @@ export class HalfvecEmbeddingGenerationService {
               ${workspaceId}::uuid,
               ${chunk.text},
               ${chunk.index},
-              ${vectorString}::extensions.vector(1536),
-              ${vectorString}::extensions.halfvec(1536),
+              ${vectorString}::vector(1536),
+              ${vectorString}::halfvec(1536),
               ${JSON.stringify({
                 ...metadata,
                 vectorType: 'both',
@@ -254,7 +254,7 @@ export class HalfvecEmbeddingGenerationService {
               ${workspaceId}::uuid,
               ${chunk.text},
               ${chunk.index},
-              ${vectorString}::extensions.vector(1536),
+              ${vectorString}::vector(1536),
               ${JSON.stringify({
                 ...metadata,
                 vectorType: 'vector',
@@ -311,7 +311,7 @@ export class HalfvecEmbeddingGenerationService {
               ${workspaceId}::uuid,
               ${chunk.text},
               ${chunk.index},
-              ${vectorString}::extensions.halfvec(1536),
+              ${vectorString}::halfvec(1536),
               ${JSON.stringify({
                 ...metadata,
                 vectorType: 'halfvec',
@@ -339,8 +339,8 @@ export class HalfvecEmbeddingGenerationService {
               ${workspaceId}::uuid,
               ${chunk.text},
               ${chunk.index},
-              ${vectorString}::extensions.vector(1536),
-              ${vectorString}::extensions.halfvec(1536),
+              ${vectorString}::vector(1536),
+              ${vectorString}::halfvec(1536),
               ${JSON.stringify({
                 ...metadata,
                 vectorType: 'both',
@@ -367,7 +367,7 @@ export class HalfvecEmbeddingGenerationService {
               ${workspaceId}::uuid,
               ${chunk.text},
               ${chunk.index},
-              ${vectorString}::extensions.vector(1536),
+              ${vectorString}::vector(1536),
               ${JSON.stringify({
                 ...metadata,
                 vectorType: 'vector',
