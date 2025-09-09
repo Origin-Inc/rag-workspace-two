@@ -51,7 +51,7 @@ export class ConnectionPoolManager {
     const config = getPoolingConfig();
     const { 
       maxRetries = config.port === 6543 ? 3 : 1,
-      timeout = 30000, // Increased to 30 seconds for indexing operations
+      timeout = 9000, // 9 seconds for Vercel Hobby (10s limit with 1s buffer)
       isolationLevel = 'ReadCommitted'
     } = options;
     
@@ -71,7 +71,7 @@ export class ConnectionPoolManager {
               return operation(tx as PrismaClient);
             },
             {
-              maxWait: 20000, // Increased to 20s for queue wait
+              maxWait: 8000, // 8s max wait for Vercel constraints
               timeout: timeout, // Use the timeout from options (30s default)
               isolationLevel,
             }

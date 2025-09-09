@@ -363,6 +363,16 @@ export class EmbeddingGenerationService {
         // Use Prisma.sql for proper type handling
         // Use search_embeddings function which returns: id, content, metadata, similarity, source_type, source_id
         await ensureVectorSearchPath();
+        
+        // Log the actual parameters being sent
+        this.logger.info('🔍 Calling search_embeddings with params:', {
+          vectorLength: vectorString.length,
+          workspaceId,
+          pageId,
+          limit,
+          similarityThreshold
+        });
+        
         const results = pageId 
           ? await prisma.$queryRawUnsafe<any[]>(`
               SELECT * FROM search_embeddings(
