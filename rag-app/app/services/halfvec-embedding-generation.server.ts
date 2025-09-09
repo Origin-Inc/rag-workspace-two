@@ -2,6 +2,7 @@ import { prisma } from '~/utils/db.server';
 import { openai } from './openai.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { withRetry } from '~/utils/db.server';
+import { ensureVectorSearchPath } from '~/utils/db-vector.server';
 
 const logger = new DebugLogger('HalfvecEmbeddingGeneration');
 
@@ -188,6 +189,7 @@ export class HalfvecEmbeddingGenerationService {
       
       if (vectorType === 'halfvec') {
         // Store as halfvec only
+        await ensureVectorSearchPath();
         await withRetry(() =>
           prisma.$executeRaw`
             INSERT INTO page_embeddings (
@@ -213,6 +215,7 @@ export class HalfvecEmbeddingGenerationService {
         );
       } else if (vectorType === 'both' || STORE_BOTH_TYPES) {
         // Store both vector and halfvec (during migration)
+        await ensureVectorSearchPath();
         await withRetry(() =>
           prisma.$executeRaw`
             INSERT INTO page_embeddings (
@@ -240,6 +243,7 @@ export class HalfvecEmbeddingGenerationService {
         );
       } else {
         // Store as traditional vector
+        await ensureVectorSearchPath();
         await withRetry(() =>
           prisma.$executeRaw`
             INSERT INTO page_embeddings (
@@ -295,6 +299,7 @@ export class HalfvecEmbeddingGenerationService {
       
       if (vectorType === 'halfvec') {
         // Store as halfvec only
+        await ensureVectorSearchPath();
         await withRetry(() =>
           prisma.$executeRaw`
             INSERT INTO block_embeddings (
@@ -322,6 +327,7 @@ export class HalfvecEmbeddingGenerationService {
         );
       } else if (vectorType === 'both' || STORE_BOTH_TYPES) {
         // Store both vector and halfvec (during migration)
+        await ensureVectorSearchPath();
         await withRetry(() =>
           prisma.$executeRaw`
             INSERT INTO block_embeddings (
@@ -351,6 +357,7 @@ export class HalfvecEmbeddingGenerationService {
         );
       } else {
         // Store as traditional vector
+        await ensureVectorSearchPath();
         await withRetry(() =>
           prisma.$executeRaw`
             INSERT INTO block_embeddings (

@@ -5,6 +5,7 @@ import { DocumentChunkingService } from '../document-chunking.server';
 import { withRetry } from '~/utils/db.server';
 import { connectionPoolManager } from '../connection-pool-manager.server';
 import { ultraLightEmbeddingQueue } from './queues/ultra-light-embedding-queue';
+import { ensureVectorSearchPath } from '~/utils/db-vector.server';
 import type { Page } from '@prisma/client';
 
 /**
@@ -460,8 +461,11 @@ export class UltraLightIndexingService {
           const estimatedSize = vectorString.length + chunk.text.length + 200;
           
           if (estimatedSize < this.MAX_REQUEST_SIZE) {
-            await withRetry(() =>
-              prisma.$executeRaw`
+            await withRetry(async () => {
+              // Ensure search path is set for pgvector
+              await ensureVectorSearchPath();
+              
+              return prisma.$executeRaw`
                 INSERT INTO page_embeddings (
                   page_id,
                   workspace_id,
@@ -481,8 +485,8 @@ export class UltraLightIndexingService {
                     indexedAt: new Date().toISOString()
                   })}::jsonb
                 )
-              `
-            );
+              `;
+            });
           }
         }
         

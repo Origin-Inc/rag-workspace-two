@@ -3,6 +3,7 @@ import { createSupabaseAdmin } from '~/utils/supabase.server';
 import { documentChunkingService, type DocumentChunk } from './document-chunking.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { prisma } from '~/utils/db.server';
+import { ensureVectorSearchPath } from '~/utils/db-vector.server';
 
 interface EmbeddingResult {
   embedding: number[];
@@ -361,6 +362,7 @@ export class EmbeddingGenerationService {
         // Build the query based on whether pageId is provided
         // Use Prisma.sql for proper type handling
         // Use search_embeddings function which returns: id, content, metadata, similarity, source_type, source_id
+        await ensureVectorSearchPath();
         const results = pageId 
           ? await prisma.$queryRawUnsafe<any[]>(`
               SELECT * FROM search_embeddings(

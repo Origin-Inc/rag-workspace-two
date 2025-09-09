@@ -4,6 +4,7 @@ import { DebugLogger } from '~/utils/debug-logger';
 import { openai } from '../openai.server';
 import { SemanticChunker } from './processors/semantic-chunker';
 import { ContentExtractor } from './processors/content-extractor';
+import { ensureVectorSearchPath } from '~/utils/db-vector.server';
 import type { Page, IndexingQueue } from '@prisma/client';
 
 interface EmbeddingJob {
@@ -260,6 +261,7 @@ export class AsyncEmbeddingService {
       
       // Insert new embeddings
       for (const embedding of embeddings) {
+        await ensureVectorSearchPath();
         await tx.$executeRaw`
           INSERT INTO page_embeddings (
             id, page_id, workspace_id, chunk_text, chunk_index, 

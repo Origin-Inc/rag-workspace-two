@@ -5,6 +5,7 @@ import { halfvecEmbeddingService } from '../halfvec-embedding-generation.server'
 import { searchWithHalfvec } from '../halfvec-search.server';
 import { vectorMetricsService } from '../monitoring/vector-metrics.server';
 import { openai } from '../openai.server';
+import { ensureVectorSearchPath } from '~/utils/db-vector.server';
 
 // Mock OpenAI
 vi.mock('../openai.server', () => ({
@@ -96,6 +97,7 @@ describe('Halfvec Migration Test Suite', () => {
     it('should convert vector embeddings to halfvec format', async () => {
       // Insert test embedding as vector
       const vectorString = `[${testEmbedding.join(',')}]`;
+      await ensureVectorSearchPath();
       await prisma.$executeRaw`
         INSERT INTO page_embeddings (
           page_id, workspace_id, chunk_text, chunk_index, embedding
@@ -109,6 +111,7 @@ describe('Halfvec Migration Test Suite', () => {
       `;
       
       // Run conversion
+      await ensureVectorSearchPath();
       await prisma.$executeRaw`
         UPDATE page_embeddings 
         SET embedding_halfvec = embedding::halfvec(1536)
@@ -133,6 +136,7 @@ describe('Halfvec Migration Test Suite', () => {
       // Compare similarity scores between vector and halfvec
       const queryVector = `[${testEmbedding.join(',')}]`;
       
+      await ensureVectorSearchPath();
       const vectorResult = await prisma.$queryRaw<any[]>`
         SELECT 1 - (embedding <=> ${queryVector}::vector) as similarity
         FROM page_embeddings
@@ -227,6 +231,7 @@ describe('Halfvec Migration Test Suite', () => {
         const embedding = Array(1536).fill(0).map(() => Math.random());
         const vectorString = `[${embedding.join(',')}]`;
         
+        await ensureVectorSearchPath();
         await prisma.$executeRaw`
           INSERT INTO page_embeddings (
             page_id, workspace_id, chunk_text, chunk_index, 
