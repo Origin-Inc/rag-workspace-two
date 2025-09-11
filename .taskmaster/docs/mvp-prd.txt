@@ -1,0 +1,122 @@
+# Product Requirements Document - Data Analytics Chat Interface MVP
+
+## Executive Summary
+Transform the existing RAG application into a data analytics platform with a chat-based interface. Users can upload CSV/Excel files, ask questions in natural language, get instant analysis with visualizations, and add results to their document pages.
+
+## Core Workflow
+The MVP must support this single workflow flawlessly:
+1. User opens a page with the AI chat sidebar visible
+2. User drags CSV/Excel files into the chat
+3. User asks questions in natural language (e.g., "Which product will sell most?")
+4. AI generates SQL queries, executes them on the data, and returns results
+5. User can add any result to their page as a block
+6. User can request visualizations which appear in chat and can be added to the page
+
+## Technical Requirements
+
+### UI Changes
+- Remove AI command palette and AI blocks from the current implementation
+- Keep AI Assistant for individual blocks
+- Add persistent AI chat sidebar on the right side (30% width)
+- Single chat thread per page (no multiple threads in MVP)
+- Chat messages persist with the page
+
+### Core Technologies
+- DuckDB WASM for in-browser SQL processing
+- Plotly.js for data visualizations
+- OpenAI GPT-4 for natural language to SQL conversion
+- PapaParse for CSV parsing
+- Existing React/Remix stack
+
+### Data Processing
+- Support CSV and Excel file uploads (up to 50MB)
+- Automatic schema detection and data profiling
+- Natural language queries converted to SQL
+- Results formatted and displayed in chat
+- Error handling for invalid queries
+
+### Visualization Features
+- Basic chart types: bar, line, scatter, pie
+- AI-powered chart type selection
+- Interactive Plotly.js charts
+- Resize and interaction capabilities
+- Export chart as image
+
+### Block Generation
+- "Add to Page" button on all AI responses
+- Create appropriate block types (text, data table, chart)
+- Maintain formatting when adding to page
+- Allow editing after block creation
+- Track which blocks came from which chat messages
+
+## Implementation Priorities
+
+### Week 1: Foundation
+- Set up DuckDB WASM integration
+- Create chat sidebar component with proper state management
+- Implement file upload with drag-and-drop
+- Parse CSV files and load into DuckDB
+- Display data preview in chat
+
+### Week 2: AI Analysis
+- Create OpenAI prompts for SQL generation
+- Execute DuckDB queries from generated SQL
+- Format and display query results
+- Handle errors gracefully
+- Support queries across multiple uploaded files
+
+### Week 3: Visualizations
+- Integrate Plotly.js
+- Implement chart generation from data
+- AI-powered chart type selection
+- Display charts in chat messages
+- Add interactivity features
+
+### Week 4: Polish & Integration
+- Implement "Add to Page" functionality
+- Create block generation logic
+- End-to-end testing
+- Performance optimization
+- Bug fixes and UI polish
+
+## Data Models
+- ChatMessage: Store chat history per page
+- DataFile: Track uploaded files and their DuckDB table names
+- Block: Extend to track if generated from chat
+
+## API Endpoints
+- POST /api/chat/message - Send message and get AI response
+- GET /api/chat/:pageId - Get chat history for a page
+- POST /api/data/upload - Upload file and create DuckDB table
+- POST /api/data/query - Execute SQL query on uploaded data
+- POST /api/blocks/from-chat - Create block from chat message
+
+## Success Criteria
+- User can complete core workflow in under 2 minutes
+- 95% file upload success rate
+- 80% query success rate
+- All generated blocks are editable
+- Performance: <500ms query response time
+
+## Out of Scope for MVP
+- Multiple chat threads per page
+- Python/ML predictions (Pyodide)
+- PDF document processing
+- Web research capabilities
+- Collaboration features
+- Report templates
+- Multi-agent orchestration
+- Advanced authentication
+
+## Testing Requirements
+- Unit tests for SQL generation
+- Integration tests for file upload flow
+- E2E tests for complete workflow
+- Performance testing with 50MB files
+- Browser compatibility testing
+
+## Risks and Mitigations
+- DuckDB browser memory limits: Test early with large files, set 50MB limit
+- SQL generation accuracy: Show query preview, allow manual editing
+- Complex data relationships: Start with single-table queries
+- Browser compatibility: Test on Chrome, Firefox, Safari, Edge

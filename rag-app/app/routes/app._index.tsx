@@ -6,6 +6,7 @@ import { prisma } from "~/utils/db.server";
 import { ChatInterface } from "~/components/chat/ChatInterface";
 import { FileText, Clock, Folder, ExternalLink } from "lucide-react";
 import { Link } from "@remix-run/react";
+import { DuckDBTest } from "~/components/duckdb-test";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = await requireAuthenticatedUser(request);
@@ -102,6 +103,11 @@ export default function AppIndex() {
         <p className="mt-2 text-gray-600 dark:text-gray-400">
           You're working in <span className="font-medium">{currentWorkspace.name}</span>
         </p>
+      </div>
+
+      {/* DuckDB Test Component - Temporary for testing */}
+      <div className="mb-8">
+        <DuckDBTest />
       </div>
 
       {/* Two Column Layout */}
