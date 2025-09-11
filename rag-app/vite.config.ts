@@ -16,6 +16,11 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    headers: {
+      // CORS headers for WASM module fetching
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+    },
   },
   build: {
     target: 'esnext',
@@ -32,7 +37,13 @@ export default defineConfig({
       '@heroicons/react/24/outline',
       '@heroicons/react/24/solid'
     ],
-    exclude: ['@mapbox/node-pre-gyp'],
+    exclude: [
+      '@mapbox/node-pre-gyp',
+      '@duckdb/duckdb-wasm' // Exclude DuckDB WASM from optimization
+    ],
     force: true, // Force re-optimization
+  },
+  worker: {
+    format: 'es', // Use ES modules for workers
   },
 });
