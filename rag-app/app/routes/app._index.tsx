@@ -7,6 +7,7 @@ import { ChatInterface } from "~/components/chat/ChatInterface";
 import { FileText, Clock, Folder, ExternalLink } from "lucide-react";
 import { Link } from "@remix-run/react";
 import { DuckDBTest } from "~/components/duckdb-test";
+import { ChatStoreTest } from "~/components/chat-store-test";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = await requireAuthenticatedUser(request);
@@ -105,9 +106,10 @@ export default function AppIndex() {
         </p>
       </div>
 
-      {/* DuckDB Test Component - Temporary for testing */}
-      <div className="mb-8">
+      {/* Test Components - Temporary for testing */}
+      <div className="mb-8 space-y-4">
         <DuckDBTest />
+        <ChatStoreTest pageId="test-page-123" />
       </div>
 
       {/* Two Column Layout */}
