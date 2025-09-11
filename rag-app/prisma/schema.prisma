@@ -61,6 +61,8 @@ model Workspace {
   blockEmbeddings BlockEmbedding[]
   databaseRowEmbeddings DatabaseRowEmbedding[]
   indexingQueue IndexingQueue[]
+  chatMessages   ChatMessage[]
+  dataFiles      DataFile[]
 
   @@index([slug])
   @@map("workspaces")
@@ -183,6 +185,8 @@ model Page {
   children    Page[]   @relation("PageHierarchy")
   pageEmbeddings PageEmbedding[]
   blockEmbeddings BlockEmbedding[]
+  chatMessages ChatMessage[]
+  dataFiles   DataFile[]
 
   @@unique([workspaceId, slug]) // New unique constraint for workspace-based slugs
   @@unique([projectId, slug]) // Keep for backward compatibility
@@ -537,4 +541,44 @@ model QueryAuditLog {
   @@index([executedAt])
   @@index([success])
   @@map("query_audit_logs")
+}
+
+model ChatMessage {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pageId      String      @map("page_id") @db.Uuid
+  workspaceId String      @map("workspace_id") @db.Uuid
+  role        String      @db.VarChar(20) // 'user' or 'assistant'
+  content     String      @db.Text
+  metadata    Json?       @db.JsonB // For storing block generation data, SQL queries, etc.
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  page        Page        @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  @@index([pageId])
+  @@index([workspaceId])
+  @@index([createdAt])
+  @@map("chat_messages")
+}
+
+model DataFile {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pageId      String      @map("page_id") @db.Uuid
+  workspaceId String      @map("workspace_id") @db.Uuid
+  filename    String      @db.VarChar(255)
+  tableName   String      @map("table_name") @db.VarChar(100) // DuckDB table name
+  schema      Json        @db.JsonB // Column info (name, type, sample data)
+  rowCount    Int         @map("row_count")
+  sizeBytes   Int         @map("size_bytes")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  page        Page        @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  @@index([pageId])
+  @@index([workspaceId])
+  @@index([tableName])
+  @@map("data_files")
 }
