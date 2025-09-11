@@ -2038,9 +2038,7 @@
       {
         "id": 38,
         "title": "Design AI Chat Block Architecture",
-        "description": "Design the overall architecture for transforming the AI block into a conversational chat interface with document upload capabilities",
-        "details": "Define database schema for chat instances, messages, and document storage. Plan API endpoints for chat operations. Design component hierarchy and state management. Document integration points with existing RAG infrastructure.",
-        "testStrategy": "Review architecture documentation. Validate database schema design. Ensure all integration points are identified.",
+        "description": "Design the architecture for a data analytics chat sidebar with natural language SQL query capabilities and file upload support",
         "status": "pending",
         "dependencies": [
           35,
@@ -2048,38 +2046,76 @@
           37
         ],
         "priority": "high",
+        "details": "Define database schema for single chat per page with message history. Design persistent sidebar component (30% width) with DuckDB WASM integration. Plan natural language to SQL conversion pipeline. Design file upload flow for CSV/Excel processing. Document block generation from chat responses.",
+        "testStrategy": "Review architecture documentation for MVP scope feasibility. Validate database schema supports single chat per page. Verify DuckDB WASM integration approach. Test file upload and SQL generation pipeline design.",
         "subtasks": [
           {
             "id": 1,
-            "title": "Define Database Schema Structure",
-            "description": "Design all database tables and relationships for the chat system",
-            "details": "Define chat_instances table with fields for id, pageId, workspaceId, title, systemPrompt, model, settings, createdAt, updatedAt. Design chat_messages table with proper indexing. Create chat_documents and message_blocks junction tables. Document all foreign key relationships.",
+            "title": "Design MVP Chat Database Schema",
+            "description": "Design simplified database schema for single chat per page",
             "status": "pending",
             "dependencies": [],
-            "parentTaskId": 38
+            "details": "Define page_chats table with fields for id, pageId, workspaceId, createdAt, updatedAt (one-to-one with pages). Design chat_messages table with id, pageChatId, role, content, sqlQuery, timestamp, metadata. Create uploaded_files table for CSV/Excel references. Keep schema minimal for 4-week MVP.",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Design Chat Sidebar Component Architecture",
+            "description": "Plan persistent sidebar component structure and state management",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Design 30% width sidebar that persists across page navigation. Define component hierarchy: ChatSidebar > MessageList > Message, FileUploader, QueryInput. Plan state management for messages, file uploads, and SQL results. Design responsive behavior for mobile/tablet views.",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Plan DuckDB WASM Integration",
+            "description": "Design browser-based SQL processing architecture",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Plan DuckDB WASM initialization and lifecycle management. Design in-memory database structure for uploaded CSV/Excel files. Define SQL execution pipeline and result formatting. Plan memory management and performance optimization strategies.",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Design Natural Language to SQL Pipeline",
+            "description": "Plan conversion system from natural language to SQL queries",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Design prompt engineering for SQL generation using OpenAI. Plan schema introspection for uploaded files. Define query validation and error handling. Design fallback mechanisms for ambiguous queries. Document supported query patterns for MVP.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Design Block Generation from Chat",
+            "description": "Plan system for creating page blocks from chat responses",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Design mechanism to generate table blocks from SQL results. Plan chart block creation from data analysis. Define text block generation for insights. Design drag-and-drop or click-to-add interface for adding blocks to page. Document block type mappings.",
+            "testStrategy": ""
           }
         ]
       },
       {
         "id": 39,
         "title": "Create Database Schema for Chat System",
-        "description": "Design and implement database tables for chat instances, messages, and document associations",
-        "details": "Create Prisma schema for: chat_instances table (id, pageId, workspaceId, title, systemPrompt, model, createdAt), chat_messages table (id, chatInstanceId, role, content, timestamp, metadata), chat_documents table (id, chatInstanceId, documentId, addedAt), message_blocks table (id, messageId, blockId, blockType). Add necessary indexes and relationships.",
-        "testStrategy": "Validate schema with Prisma migrate. Test CRUD operations. Verify foreign key constraints.",
+        "description": "Design and implement database tables for data analytics chat system with file upload tracking",
         "status": "pending",
         "dependencies": [
           38
         ],
         "priority": "high",
+        "details": "Create minimal MVP schema for data analytics chat: ChatMessage table (id, pageId, workspaceId, role, content, timestamp, metadata) for storing chat conversations per page. DataFile table (id, pageId, workspaceId, filename, originalName, fileType, tableName, uploadedAt, metadata) for tracking uploaded CSV/Excel files and their corresponding DuckDB table names. Add necessary indexes for query performance. Keep schema simple and focused on 4-week MVP scope.",
+        "testStrategy": "Validate schema with Prisma migrate. Test CRUD operations for chat messages and file records. Verify foreign key constraints. Test file metadata storage and retrieval.",
         "subtasks": [
           {
             "id": 1,
             "title": "Update Prisma Schema File",
-            "description": "Add chat-related models to the Prisma schema",
-            "details": "Add ChatInstance model with fields: id (UUID), pageId, workspaceId, title, systemPrompt, model, settings (JSON), createdAt, updatedAt. Create ChatMessage model with proper relations. Add ChatDocument and MessageBlock junction tables. Define proper indexes for query performance.",
+            "description": "Add data analytics chat-related models to the Prisma schema",
             "status": "pending",
             "dependencies": [],
-            "parentTaskId": 39
+            "details": "Add ChatMessage model with fields: id (UUID), pageId, workspaceId, role (user/assistant/system), content, timestamp, metadata (JSON for storing query results, chart configs). Create DataFile model with fields: id (UUID), pageId, workspaceId, filename, originalName, fileType (csv/excel), tableName (DuckDB table reference), uploadedAt, metadata (JSON for column info, row count). Define indexes on pageId and workspaceId for fast queries.",
+            "testStrategy": ""
           }
         ]
       },
@@ -2149,14 +2185,14 @@
       {
         "id": 44,
         "title": "Build File Upload and Processing System",
-        "description": "Implement file upload interface with support for PPTX, CSV, DOCX, and XLSX formats",
-        "details": "Create FileUploadDropzone component with drag-and-drop support. Implement file type validation and size limits. Add upload progress indicators. Build DocumentProcessingService for file handling. Store uploaded files in database. Display file processing status in UI.",
-        "testStrategy": "Test file upload with various formats. Verify file validation. Test upload progress. Check error handling for invalid files.",
+        "description": "Implement file upload interface in chat sidebar with support for CSV and Excel formats for data analysis",
         "status": "pending",
         "dependencies": [
           40
         ],
         "priority": "high",
+        "details": "Create FileUploadDropzone component integrated into the chat sidebar with drag-and-drop support. Focus on CSV and Excel files only (remove PPTX/DOCX support for MVP). Implement file type validation for .csv, .xls, and .xlsx with 50MB size limit. Use PapaParse library for CSV parsing. Load parsed data directly into DuckDB WASM tables for in-browser SQL analytics. Display data preview in chat interface after successful upload. Add upload progress indicators. Skip server-side storage for MVP - keep data in browser memory/DuckDB.",
+        "testStrategy": "Test file upload with various CSV and Excel formats. Verify PapaParse CSV parsing accuracy. Test DuckDB table creation from uploaded data. Verify 50MB file size limit enforcement. Test data preview rendering in chat. Check error handling for invalid files and oversized uploads.",
         "subtasks": []
       },
       {
@@ -2249,11 +2285,207 @@
         ],
         "priority": "medium",
         "subtasks": []
+      },
+      {
+        "id": 52,
+        "title": "Setup DuckDB WASM and Chat Infrastructure",
+        "description": "Initialize DuckDB WASM in the browser environment and create the foundational chat sidebar component with proper state management for the data analytics interface",
+        "details": "1. Install DuckDB WASM package (@duckdb/duckdb-wasm)\n2. Create initialization service for DuckDB instance management\n3. Implement chat sidebar component at 30% width on right side\n4. Setup Zustand/Redux store for chat state management\n5. Create ChatMessage model in Prisma schema with pageId, content, role, timestamp fields\n6. Implement chat persistence API endpoints (GET /api/chat/:pageId, POST /api/chat/message)\n7. Remove existing AI command palette and AI blocks components\n8. Ensure chat state persists with page navigation\n\nPseudo-code for DuckDB initialization:\n```\nclass DuckDBService {\n  async initialize() {\n    const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();\n    const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);\n    const worker = await duckdb.createWorker(bundle.mainWorker);\n    const logger = new duckdb.ConsoleLogger();\n    const db = new duckdb.AsyncDuckDB(logger, worker);\n    await db.instantiate(bundle.mainModule);\n    return db;\n  }\n}\n```",
+        "testStrategy": "1. Unit test DuckDB initialization and connection\n2. Test chat sidebar responsive behavior at different screen sizes\n3. Verify chat message persistence across page refreshes\n4. Test WebSocket/SSE connection for real-time updates\n5. Validate proper cleanup of DuckDB resources on unmount\n6. Test chat state management with multiple messages",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install and Configure DuckDB WASM Dependencies",
+            "description": "Install the @duckdb/duckdb-wasm package and configure the necessary build settings for WASM module loading in the Remix/Vite environment",
+            "dependencies": [],
+            "details": "Run npm install @duckdb/duckdb-wasm. Update vite.config.ts to handle WASM file loading by adding appropriate plugins and optimizeDeps exclusions. Configure public directory for serving WASM bundles. Add necessary TypeScript type definitions. Ensure proper CORS headers for WASM module fetching from CDN.\n<info added on 2025-09-11T21:27:19.905Z>\nPackage successfully installed with version 1.29.0, adding 6 dependencies. Vite configuration updated with wasm plugin, optimizeDeps exclusions for @duckdb/duckdb-wasm, and proper header settings for WASM file serving. Created comprehensive DuckDBService class at app/services/duckdb/duckdb.service.ts implementing singleton pattern with async initialization, connection management, query execution with proper error handling, CSV/JSON import capabilities, and resource cleanup. Test component created at app/components/duckdb-test.tsx demonstrating successful initialization and basic query functionality. Development server confirmed running on port 3001 with WASM modules loading correctly in browser environment.\n</info added on 2025-09-11T21:27:19.905Z>",
+            "status": "done",
+            "testStrategy": "Verify package installation and module resolution. Test WASM file loading in development and production builds. Validate TypeScript types are properly recognized."
+          },
+          {
+            "id": 2,
+            "title": "Create DuckDB Initialization Service",
+            "description": "Implement a singleton service class that manages DuckDB WASM instance initialization, connection pooling, and lifecycle management in the browser environment",
+            "dependencies": [
+              "52.1"
+            ],
+            "details": "Create app/services/duckdb/duckdb-service.client.ts implementing the DuckDBService class with initialize(), getConnection(), executeQuery(), and cleanup() methods. Use the provided pseudo-code pattern with JSDELIVR bundles. Implement singleton pattern to ensure single instance across the app. Add error handling for initialization failures. Create helper methods for common operations like table creation and data loading.",
+            "status": "pending",
+            "testStrategy": "Unit test singleton behavior and initialization flow. Test connection reuse and cleanup. Verify error handling for failed initialization. Test query execution with sample data."
+          },
+          {
+            "id": 3,
+            "title": "Update Prisma Schema and Generate Migration for Chat Messages",
+            "description": "Add ChatMessage model to the Prisma schema with proper relationships and create database migration for chat persistence",
+            "dependencies": [],
+            "details": "Update prisma/schema.prisma to add ChatMessage model with fields: id (String, @id, @default(cuid())), pageId (String), page (relation to Page model), workspaceId (String), workspace (relation to Workspace model), content (String, @db.Text), role (String - 'user' or 'assistant'), timestamp (DateTime, @default(now())), metadata (Json?). Add appropriate indexes for pageId and workspaceId. Run npx prisma migrate dev to create migration. Update Prisma client generation.",
+            "status": "pending",
+            "testStrategy": "Verify migration applies successfully. Test CRUD operations on ChatMessage model. Validate foreign key constraints with Page and Workspace models."
+          },
+          {
+            "id": 4,
+            "title": "Implement Chat State Management with Zustand",
+            "description": "Create Zustand store for managing chat state including messages, active conversations, and UI state for the chat sidebar",
+            "dependencies": [
+              "52.3"
+            ],
+            "details": "Create app/stores/chat-store.ts with Zustand store containing: messages array, activePageId, isSidebarOpen boolean, addMessage(), clearMessages(), setActivePageId(), toggleSidebar() actions. Implement message persistence to localStorage for draft messages. Add WebSocket/SSE connection state management. Create hooks like useChatMessages() and useChatSidebar() for component consumption. Include typing indicators and connection status.",
+            "status": "pending",
+            "testStrategy": "Test state updates and persistence. Verify message ordering and deduplication. Test sidebar toggle state. Validate localStorage sync."
+          },
+          {
+            "id": 5,
+            "title": "Build Chat Sidebar Component with Responsive Layout",
+            "description": "Create the chat sidebar React component with 30% width layout, message display, input area, and responsive behavior",
+            "dependencies": [
+              "52.4"
+            ],
+            "details": "Create app/components/chat/ChatSidebar.tsx with fixed 30% width positioning on the right side. Implement message list with virtualization for performance using react-window. Add ChatInput component with textarea and send button. Style with Tailwind CSS for consistent design. Implement responsive behavior for mobile screens (full width overlay). Add message timestamp formatting and role-based styling (user vs assistant). Include loading states and error boundaries.",
+            "status": "pending",
+            "testStrategy": "Test responsive layout at various screen sizes. Verify message rendering and scrolling behavior. Test input validation and submission. Check accessibility with screen readers."
+          },
+          {
+            "id": 6,
+            "title": "Create Chat API Endpoints and Remove Legacy AI Components",
+            "description": "Implement REST API endpoints for chat persistence and remove existing AI command palette and AI blocks components",
+            "dependencies": [
+              "52.3",
+              "52.5"
+            ],
+            "details": "Create app/routes/api.chat.$pageId.tsx with GET loader for fetching chat history. Create app/routes/api.chat.message.tsx with POST action for saving messages. Implement proper authentication and workspace validation. Add pagination for message history. Remove app/components/ai-command-palette and related AI blocks components. Update any imports and references to removed components. Ensure proper error handling and response formatting.",
+            "status": "pending",
+            "testStrategy": "Test API authentication and authorization. Verify message creation and retrieval. Test pagination limits. Validate proper cleanup of removed components."
+          }
+        ]
+      },
+      {
+        "id": 53,
+        "title": "Implement File Upload and Data Processing",
+        "description": "Create drag-and-drop file upload functionality for CSV/Excel files with automatic parsing and loading into DuckDB tables",
+        "details": "1. Install PapaParse for CSV parsing and xlsx for Excel files\n2. Implement drag-and-drop zone in chat interface\n3. Create file upload handler with 50MB size validation\n4. Parse CSV/Excel files and detect schema automatically\n5. Create DuckDB tables from parsed data\n6. Implement DataFile model in Prisma (fileName, tableName, schema, uploadedAt)\n7. Create POST /api/data/upload endpoint\n8. Display data preview in chat after successful upload\n9. Handle multiple file uploads and create relationships\n\nPseudo-code for file processing:\n```\nasync function processFile(file) {\n  if (file.size > 50 * 1024 * 1024) throw new Error('File too large');\n  \n  let data;\n  if (file.name.endsWith('.csv')) {\n    data = await parseCSV(file);\n  } else if (file.name.endsWith('.xlsx')) {\n    data = await parseExcel(file);\n  }\n  \n  const schema = inferSchema(data);\n  const tableName = sanitizeTableName(file.name);\n  \n  await duckdb.exec(`CREATE TABLE ${tableName} AS SELECT * FROM data`);\n  await duckdb.registerFileBuffer(tableName, data);\n  \n  return { tableName, schema, rowCount: data.length };\n}\n```",
+        "testStrategy": "1. Test file upload with various CSV/Excel formats\n2. Validate 50MB file size limit enforcement\n3. Test schema detection accuracy with different data types\n4. Verify DuckDB table creation and data integrity\n5. Test error handling for corrupted files\n6. Performance test with maximum file size\n7. Test multiple simultaneous file uploads",
+        "priority": "high",
+        "dependencies": [
+          52
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 54,
+        "title": "Build Natural Language to SQL Query Engine",
+        "description": "Implement OpenAI GPT-4 integration to convert natural language questions into SQL queries and execute them on uploaded data",
+        "details": "1. Create OpenAI prompt engineering system for SQL generation\n2. Build context-aware prompt with table schemas\n3. Implement SQL query validation and sanitization\n4. Execute queries on DuckDB and handle results\n5. Create POST /api/data/query endpoint\n6. Format query results for display (tables, numbers, aggregations)\n7. Implement error recovery for invalid SQL\n8. Add query preview/editing capability\n\nPrompt template:\n```\nSystem: You are a SQL expert. Convert natural language to DuckDB SQL.\nAvailable tables and schemas:\n${tables.map(t => `Table: ${t.name}\\nColumns: ${t.columns}`).join('\\n')}\n\nRules:\n- Use DuckDB SQL syntax\n- Return only the SQL query\n- Handle aggregations, joins, and filters\n- Use appropriate date/time functions\n\nUser question: ${question}\nSQL Query:\n```\n\nQuery execution:\n```\nasync function executeQuery(sql, tables) {\n  try {\n    const conn = await duckdb.connect();\n    const result = await conn.query(sql);\n    return formatResults(result);\n  } catch (error) {\n    return handleQueryError(error, sql);\n  }\n}\n```",
+        "testStrategy": "1. Test SQL generation accuracy with various question types\n2. Validate SQL injection prevention\n3. Test query execution with different data types\n4. Verify error handling for malformed queries\n5. Test performance with complex joins and aggregations\n6. Validate result formatting for different query types\n7. Test context awareness with multiple tables",
+        "priority": "high",
+        "dependencies": [
+          53
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set Up OpenAI Integration and Prompt Engineering System",
+            "description": "Create the OpenAI service integration and develop the prompt engineering system for converting natural language to SQL queries",
+            "dependencies": [],
+            "details": "Create an OpenAI service module that handles API communication. Implement the prompt template system with configurable system prompts and user messages. Design the prompt structure to include table schemas, column types, and DuckDB-specific SQL syntax rules. Include few-shot examples in the prompt for better accuracy. Set up environment variables for OpenAI API key and model configuration (GPT-4). Create a prompt builder function that dynamically constructs prompts based on available tables and their schemas.",
+            "status": "pending",
+            "testStrategy": "Test prompt generation with various table schemas. Verify API connection and error handling. Test with different natural language patterns to ensure consistent prompt formatting."
+          },
+          {
+            "id": 2,
+            "title": "Implement Schema Introspection and Context Building",
+            "description": "Build the system to extract and format table schemas from uploaded data for use in prompt context",
+            "dependencies": [
+              "54.1"
+            ],
+            "details": "Create a schema extraction service that reads table metadata from DuckDB. Build functions to introspect column names, data types, and relationships. Format schema information into a structured format for prompt inclusion. Implement caching mechanism for schema data to avoid repeated introspection. Create utility functions to detect data types, primary keys, and foreign key relationships. Build a context manager that maintains the current state of available tables and their schemas for each query session.",
+            "status": "pending",
+            "testStrategy": "Test schema extraction with various data types (CSV, JSON, Parquet). Verify accurate type detection and column mapping. Test with tables containing special characters and reserved SQL keywords."
+          },
+          {
+            "id": 3,
+            "title": "Build SQL Generation and Validation Layer",
+            "description": "Implement the core logic for generating SQL queries from natural language and validating them for safety and correctness",
+            "dependencies": [
+              "54.1",
+              "54.2"
+            ],
+            "details": "Create the query generation service that calls OpenAI API with prepared prompts. Implement SQL validation using a parser to check for dangerous operations (DROP, DELETE, ALTER). Build sanitization functions to prevent SQL injection attacks. Create a query validator that checks generated SQL against the actual schema. Implement query rewriting for common patterns and DuckDB-specific syntax. Add support for query complexity analysis to prevent resource-intensive operations. Build a query preview system that shows the generated SQL before execution.",
+            "status": "pending",
+            "testStrategy": "Test SQL generation with various question complexities. Validate SQL injection prevention with malicious inputs. Test query validation against schema mismatches. Verify DuckDB-specific syntax handling."
+          },
+          {
+            "id": 4,
+            "title": "Create Query Execution Engine and Result Formatting",
+            "description": "Build the system to execute validated SQL queries on DuckDB and format results for display",
+            "dependencies": [
+              "54.3"
+            ],
+            "details": "Implement the DuckDB connection manager with connection pooling. Create the query executor with timeout and resource limits. Build result formatters for different output types (tables, charts, aggregations). Implement pagination for large result sets. Create type-aware formatters for dates, numbers, and currency. Build result caching mechanism for repeated queries. Implement streaming for large result sets. Create response transformers for frontend consumption including metadata about query execution time and row counts.",
+            "status": "pending",
+            "testStrategy": "Test query execution with various data volumes. Verify timeout and resource limit enforcement. Test result formatting for different data types and aggregation results. Validate pagination and streaming for large datasets."
+          },
+          {
+            "id": 5,
+            "title": "Implement API Endpoint and Error Recovery System",
+            "description": "Create the REST API endpoint for natural language queries and build comprehensive error handling with recovery mechanisms",
+            "dependencies": [
+              "54.3",
+              "54.4"
+            ],
+            "details": "Create POST /api/data/query endpoint with request validation using Zod schemas. Implement error classification system (syntax errors, schema errors, execution errors). Build error recovery with query suggestions and corrections. Create fallback mechanisms for common query patterns. Implement retry logic with exponential backoff for transient failures. Add comprehensive logging and monitoring for query performance. Build user-friendly error messages with actionable suggestions. Create query history tracking for debugging and analytics. Implement rate limiting and authentication checks.",
+            "status": "pending",
+            "testStrategy": "Test endpoint with various payload formats. Verify error recovery for malformed queries. Test rate limiting and authentication. Validate error messages are user-friendly and actionable. Test performance under concurrent requests."
+          }
+        ]
+      },
+      {
+        "id": 55,
+        "title": "Implement Data Visualization System",
+        "description": "Integrate Plotly.js for creating interactive charts from query results with AI-powered chart type selection",
+        "details": "1. Install Plotly.js React components\n2. Create chart type selection AI prompt\n3. Build chart generation service for different types (bar, line, scatter, pie)\n4. Implement chart configuration based on data structure\n5. Add interactive features (zoom, pan, hover tooltips)\n6. Create chart display component in chat messages\n7. Implement chart export as image functionality\n8. Handle responsive sizing in chat and page blocks\n\nChart type selection prompt:\n```\nGiven this data structure and user intent:\nColumns: ${columns}\nData sample: ${sample}\nUser question: ${question}\n\nRecommend the best chart type and configuration:\n- type: bar|line|scatter|pie\n- x_axis: column_name\n- y_axis: column_name\n- groupBy: column_name (optional)\n```\n\nChart generation:\n```\nfunction generateChart(data, config) {\n  const trace = {\n    x: data.map(row => row[config.x_axis]),\n    y: data.map(row => row[config.y_axis]),\n    type: config.type,\n    mode: config.type === 'scatter' ? 'markers' : undefined\n  };\n  \n  const layout = {\n    title: config.title,\n    responsive: true,\n    autosize: true\n  };\n  \n  return { data: [trace], layout };\n}\n```",
+        "testStrategy": "1. Test chart type selection accuracy\n2. Validate chart rendering with different data types\n3. Test interactive features across browsers\n4. Verify responsive behavior in chat and blocks\n5. Test export functionality for various chart types\n6. Performance test with large datasets\n7. Test error handling for incompatible data",
+        "priority": "medium",
+        "dependencies": [
+          54
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 56,
+        "title": "Create Block Generation and Page Integration",
+        "description": "Implement functionality to convert chat messages and results into page blocks with proper formatting and editability",
+        "details": "1. Create 'Add to Page' button component for chat messages\n2. Implement block type detection based on content\n3. Build POST /api/blocks/from-chat endpoint\n4. Create block generation logic for text, tables, and charts\n5. Maintain formatting and interactivity when converting\n6. Track chat message to block relationships\n7. Ensure blocks are fully editable after creation\n8. Update Block model to include chatMessageId reference\n\nBlock generation logic:\n```\nfunction createBlockFromMessage(message, pageId) {\n  let blockType, content;\n  \n  if (message.type === 'visualization') {\n    blockType = 'chart';\n    content = {\n      plotlyConfig: message.chartConfig,\n      data: message.data\n    };\n  } else if (message.type === 'query_result') {\n    blockType = 'data_table';\n    content = {\n      columns: message.columns,\n      rows: message.rows\n    };\n  } else {\n    blockType = 'text';\n    content = { text: message.content };\n  }\n  \n  return {\n    pageId,\n    type: blockType,\n    content,\n    position: getNextPosition(pageId),\n    chatMessageId: message.id\n  };\n}\n```",
+        "testStrategy": "1. Test block creation from different message types\n2. Verify formatting preservation during conversion\n3. Test block editability after creation\n4. Validate position calculation for new blocks\n5. Test relationship tracking between messages and blocks\n6. Verify chart interactivity in page blocks\n7. Test undo/redo functionality with generated blocks",
+        "priority": "medium",
+        "dependencies": [
+          55
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 57,
+        "title": "Performance Optimization and Production Readiness",
+        "description": "Optimize query performance, implement caching, add comprehensive error handling, and ensure the system meets production requirements",
+        "details": "1. Implement Redis caching for repeated queries\n2. Add query result pagination for large datasets\n3. Optimize DuckDB memory usage and cleanup\n4. Implement comprehensive error boundaries\n5. Add loading states and progress indicators\n6. Create performance monitoring and analytics\n7. Implement rate limiting for AI API calls\n8. Add comprehensive logging and debugging tools\n9. Ensure <500ms query response time\n10. Browser compatibility fixes\n\nCaching implementation:\n```\nclass QueryCache {\n  async get(sql, tables) {\n    const key = hashQuery(sql, tables);\n    return redis.get(key);\n  }\n  \n  async set(sql, tables, result) {\n    const key = hashQuery(sql, tables);\n    await redis.setex(key, 3600, JSON.stringify(result));\n  }\n}\n```\n\nPerformance monitoring:\n```\nconst performanceMiddleware = async (req, res, next) => {\n  const start = Date.now();\n  res.on('finish', () => {\n    const duration = Date.now() - start;\n    if (duration > 500) {\n      logger.warn(`Slow query: ${req.path} took ${duration}ms`);\n    }\n  });\n  next();\n};\n```",
+        "testStrategy": "1. Load test with 50MB files and complex queries\n2. Test cache hit/miss scenarios\n3. Verify memory cleanup and garbage collection\n4. Test error recovery mechanisms\n5. Validate performance metrics (<500ms target)\n6. Browser compatibility testing (Chrome, Firefox, Safari, Edge)\n7. End-to-end workflow completion in <2 minutes\n8. Stress test with concurrent users",
+        "priority": "low",
+        "dependencies": [
+          56
+        ],
+        "status": "pending",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-09-08T01:13:08.324Z",
+      "updated": "2025-09-11T21:27:23.819Z",
       "description": "Tasks for master context"
     }
   }
