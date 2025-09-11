@@ -2,7 +2,7 @@ import { Worker, Job } from 'bullmq';
 import { openai } from '../../openai.server';
 import { prisma } from '~/utils/db.server';
 import { withRetry } from '~/utils/db.server';
-import { connectionPoolManager } from '../../connection-pool-manager.server';
+// Removed connectionPoolManager - causes transaction timeouts in Vercel
 import { DebugLogger } from '~/utils/debug-logger';
 import { ensureVectorSearchPath } from '~/utils/db-vector.server';
 import {
@@ -95,50 +95,58 @@ export class UltraLightEmbeddingWorker {
     });
     
     try {
-      // Use connection pool manager to prevent exhaustion
-      const result = await connectionPoolManager.executeWithPoolManagement(
-        `embed-job-${job.id}`,
-        async () => {
-          // First, clean up old embeddings
-          await this.cleanupOldEmbeddings(pageId);
-          
-          // Process chunks in batches
-          let totalEmbeddings = 0;
-          const totalChunks = chunks.length;
-          
-          for (let i = 0; i < chunks.length; i += this.BATCH_SIZE) {
-            const batch = chunks.slice(i, i + this.BATCH_SIZE);
-            const progress = Math.floor((i / totalChunks) * 100);
-            
-            // Update job progress
-            await job.updateProgress(progress);
-            
-            // Generate embeddings for batch
-            const embeddings = await this.generateBatchEmbeddings(batch);
-            
-            // Store embeddings in database
-            await this.storeEmbeddings(
-              pageId,
-              workspaceId,
-              pageTitle || '',
-              batch,
-              embeddings
-            );
-            
-            totalEmbeddings += embeddings.length;
-            
-            // Small delay between batches to avoid rate limiting
-            if (i + this.BATCH_SIZE < chunks.length) {
-              await new Promise(resolve => setTimeout(resolve, 200));
-            }
-          }
-          
-          // Clear AI cache for the page
-          await this.clearAICache(pageId, workspaceId);
-          
-          return totalEmbeddings;
+      // Direct execution without connection pool - transactions cause timeouts
+      this.logger.info('🔧 === WORKER PROCESSING START ===', {
+        jobId: job.id,
+        pageId,
+        chunksToProcess: chunks.length,
+        timestamp: new Date().toISOString()
+      });
+      
+      // First, clean up old embeddings
+      await this.cleanupOldEmbeddings(pageId);
+      
+      // Process chunks in batches
+      let totalEmbeddings = 0;
+      const totalChunks = chunks.length;
+      
+      for (let i = 0; i < chunks.length; i += this.BATCH_SIZE) {
+        const batch = chunks.slice(i, i + this.BATCH_SIZE);
+        const progress = Math.floor((i / totalChunks) * 100);
+        
+        this.logger.info('📦 Processing batch', {
+          batchStart: i,
+          batchSize: batch.length,
+          progress: `${progress}%`
+        });
+        
+        // Update job progress
+        await job.updateProgress(progress);
+        
+        // Generate embeddings for batch
+        const embeddings = await this.generateBatchEmbeddings(batch);
+        
+        // Store embeddings in database
+        await this.storeEmbeddings(
+          pageId,
+          workspaceId,
+          pageTitle || '',
+          batch,
+          embeddings
+        );
+        
+        totalEmbeddings += embeddings.length;
+        
+        // Small delay between batches to avoid rate limiting
+        if (i + this.BATCH_SIZE < chunks.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
-      );
+      }
+      
+      // Clear AI cache for the page
+      await this.clearAICache(pageId, workspaceId);
+      
+      const result = totalEmbeddings;
       
       const processingTime = Date.now() - startTime;
       
