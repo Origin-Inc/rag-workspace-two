@@ -1,6 +1,5 @@
 import { prisma } from '~/utils/db.server';
 import { DebugLogger } from '~/utils/debug-logger';
-import { connectionPoolManager } from '../connection-pool-manager.server';
 
 /**
  * Service to clean up stale and duplicate embeddings
@@ -12,26 +11,41 @@ export class EmbeddingCleanupService {
    * Remove all duplicate embeddings, keeping only the most recent ones
    */
   async cleanupDuplicates(pageId?: string): Promise<number> {
-    this.logger.info('Starting duplicate cleanup', { pageId });
+    this.logger.info('🧹 === STARTING DUPLICATE CLEANUP ===', { 
+      pageId,
+      timestamp: new Date().toISOString(),
+      caller: new Error().stack?.split('\n')[2]
+    });
     
-    // Use connection pool manager to prevent exhaustion
-    return connectionPoolManager.executeWithPoolManagement(
-      `cleanup-${pageId || 'all'}`,
-      async () => {
-        try {
-          if (pageId) {
-            // Clean specific page
-            return await this.cleanupPageDuplicates(pageId);
-          } else {
-            // Clean all pages
-            return await this.cleanupAllDuplicates();
-          }
-        } catch (error) {
-          this.logger.error('Cleanup failed', { error });
-          throw error;
-        }
+    // Direct execution without transaction wrapper - transactions cause timeouts in Vercel
+    try {
+      let result: number;
+      
+      if (pageId) {
+        this.logger.info('📄 Cleaning specific page', { pageId });
+        result = await this.cleanupPageDuplicates(pageId);
+      } else {
+        this.logger.info('🌍 Cleaning all pages');
+        result = await this.cleanupAllDuplicates();
       }
-    );
+      
+      this.logger.info('✅ === CLEANUP COMPLETED ===', { 
+        pageId,
+        deletedCount: result,
+        duration: `${Date.now()}ms`
+      });
+      
+      return result;
+    } catch (error) {
+      this.logger.error('❌ === CLEANUP FAILED ===', { 
+        pageId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      // Don't throw - return 0 to prevent blocking other operations
+      return 0;
+    }
   }
 
   private async cleanupPageDuplicates(pageId: string): Promise<number> {

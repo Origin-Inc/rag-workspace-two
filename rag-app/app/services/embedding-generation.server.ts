@@ -365,12 +365,14 @@ export class EmbeddingGenerationService {
         await ensureVectorSearchPath();
         
         // Log the actual parameters being sent
-        this.logger.info('🔍 Calling search_embeddings with params:', {
+        this.logger.info('🔍 === CALLING SEARCH_EMBEDDINGS ===', {
           vectorLength: vectorString.length,
           workspaceId,
           pageId,
           limit,
-          similarityThreshold
+          similarityThreshold,
+          timestamp: new Date().toISOString(),
+          caller: new Error().stack?.split('\n')[2]
         });
         
         const results = pageId 
@@ -393,17 +395,26 @@ export class EmbeddingGenerationService {
               )
             `, vectorString, workspaceId, limit, similarityThreshold);
         
-        this.logger.info('✅ Vector search completed', { 
+        this.logger.info('✅ === VECTOR SEARCH COMPLETED ===', { 
           resultsCount: results.length,
           searchedPageId: pageId,
           actualWorkspaceId: workspaceId,
-          results: results.map(r => ({
+          queryExecuted: pageId ? 'page-specific' : 'workspace-wide',
+          firstResult: results.length > 0 ? {
+            id: results[0].id,
+            source_type: results[0].source_type,
+            source_id: results[0].source_id,
+            similarity: results[0].similarity,
+            contentLength: results[0].content?.length,
+            contentPreview: results[0].content?.substring(0, 200)
+          } : null,
+          allResults: results.map(r => ({
             id: r.id,
             source_type: r.source_type,
             source_id: r.source_id,
             similarity: r.similarity,
-            textPreview: r.content?.substring(0, 200),
-            metadata: r.metadata
+            hasContent: !!r.content,
+            contentLength: r.content?.length
           }))
         });
         
