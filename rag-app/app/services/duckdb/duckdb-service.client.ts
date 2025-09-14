@@ -6,6 +6,7 @@ export class DuckDBService {
   private db: AsyncDuckDB | null = null;
   private connection: AsyncDuckDBConnection | null = null;
   private isInitialized = false;
+  private initializationError: Error | null = null;
 
   private constructor() {}
 
@@ -22,15 +23,32 @@ export class DuckDBService {
       return;
     }
 
+    // Check if we've already tried and failed
+    if (this.initializationError) {
+      console.warn('DuckDB initialization previously failed, skipping');
+      throw this.initializationError;
+    }
+
     try {
-      // Get the bundles from jsDelivr CDN
+      // Only initialize in browser environment
+      if (typeof window === 'undefined') {
+        console.log('DuckDB skipped - server environment');
+        return;
+      }
+
+      // Get the bundles from jsDelivr CDN (works in production)
       const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
       
       // Select the best bundle for the current browser
       const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
       
+      // Validate bundle components
+      if (!bundle.mainWorker) {
+        throw new Error('DuckDB bundle missing mainWorker');
+      }
+      
       // Create a worker for DuckDB
-      const worker = await duckdb.createWorker(bundle.mainWorker!);
+      const worker = await duckdb.createWorker(bundle.mainWorker);
       
       // Create a logger
       const logger = new duckdb.ConsoleLogger();
@@ -46,8 +64,16 @@ export class DuckDBService {
       console.log('DuckDB initialized successfully');
     } catch (error) {
       console.error('Failed to initialize DuckDB:', error);
-      throw new Error(`DuckDB initialization failed: ${error}`);
+      this.initializationError = error instanceof Error ? error : new Error('Unknown DuckDB initialization error');
+      // Don't throw in production - allow app to function without DuckDB
+      if (process.env.NODE_ENV === 'development') {
+        throw this.initializationError;
+      }
     }
+  }
+
+  public isReady(): boolean {
+    return this.isInitialized && this.connection !== null;
   }
 
   public async getConnection(): Promise<AsyncDuckDBConnection> {
@@ -61,90 +87,133 @@ export class DuckDBService {
   }
 
   public async executeQuery(query: string): Promise<any[]> {
-    const conn = await this.getConnection();
-    const result = await conn.query(query);
-    return result.toArray();
+    try {
+      const conn = await this.getConnection();
+      const result = await conn.query(query);
+      return result.toArray();
+    } catch (error) {
+      console.error('Query execution failed:', error);
+      return [];
+    }
   }
 
   public async createTableFromCSV(tableName: string, csvData: string): Promise<void> {
-    const conn = await this.getConnection();
-    
-    // First, create a temporary file in DuckDB's virtual file system
-    await this.db!.registerFileText(`${tableName}.csv`, csvData);
-    
-    // Create table from CSV
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS ${tableName} AS 
-      SELECT * FROM read_csv_auto('${tableName}.csv', header=true)
-    `);
-    
-    console.log(`Table ${tableName} created successfully`);
+    try {
+      const conn = await this.getConnection();
+      
+      // First, create a temporary file in DuckDB's virtual file system
+      await this.db!.registerFileText(`${tableName}.csv`, csvData);
+      
+      // Create table from CSV
+      await conn.query(`
+        CREATE TABLE IF NOT EXISTS ${tableName} AS 
+        SELECT * FROM read_csv_auto('${tableName}.csv', header=true)
+      `);
+      
+      console.log(`Table ${tableName} created successfully`);
+    } catch (error) {
+      console.error('Failed to create table from CSV:', error);
+      throw error;
+    }
   }
 
   public async createTableFromJSON(tableName: string, jsonData: any[]): Promise<void> {
-    const conn = await this.getConnection();
-    
-    // Convert JSON to CSV format for DuckDB
-    if (jsonData.length === 0) {
-      throw new Error('Cannot create table from empty data');
+    try {
+      const conn = await this.getConnection();
+      
+      // Convert JSON to CSV format for DuckDB
+      if (jsonData.length === 0) {
+        throw new Error('Cannot create table from empty data');
+      }
+      
+      // Register JSON data
+      const jsonString = JSON.stringify(jsonData);
+      await this.db!.registerFileText(`${tableName}.json`, jsonString);
+      
+      // Create table from JSON
+      await conn.query(`
+        CREATE TABLE IF NOT EXISTS ${tableName} AS 
+        SELECT * FROM read_json_auto('${tableName}.json')
+      `);
+      
+      console.log(`Table ${tableName} created from JSON successfully`);
+    } catch (error) {
+      console.error('Failed to create table from JSON:', error);
+      throw error;
     }
-    
-    // Register JSON data
-    const jsonString = JSON.stringify(jsonData);
-    await this.db!.registerFileText(`${tableName}.json`, jsonString);
-    
-    // Create table from JSON
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS ${tableName} AS 
-      SELECT * FROM read_json_auto('${tableName}.json')
-    `);
-    
-    console.log(`Table ${tableName} created from JSON successfully`);
   }
 
   public async getTableSchema(tableName: string): Promise<any[]> {
-    const conn = await this.getConnection();
-    const result = await conn.query(`DESCRIBE ${tableName}`);
-    return result.toArray();
+    try {
+      const conn = await this.getConnection();
+      const result = await conn.query(`DESCRIBE ${tableName}`);
+      return result.toArray();
+    } catch (error) {
+      console.error('Failed to get table schema:', error);
+      return [];
+    }
   }
 
   public async getTables(): Promise<string[]> {
-    const conn = await this.getConnection();
-    const result = await conn.query(`SHOW TABLES`);
-    const tables = result.toArray();
-    return tables.map((row: any) => row.name || row.Name);
+    try {
+      const conn = await this.getConnection();
+      const result = await conn.query(`SHOW TABLES`);
+      const tables = result.toArray();
+      return tables.map((row: any) => row.name || row.Name);
+    } catch (error) {
+      console.error('Failed to get tables:', error);
+      return [];
+    }
   }
 
   public async dropTable(tableName: string): Promise<void> {
-    const conn = await this.getConnection();
-    await conn.query(`DROP TABLE IF EXISTS ${tableName}`);
-    console.log(`Table ${tableName} dropped`);
+    try {
+      const conn = await this.getConnection();
+      await conn.query(`DROP TABLE IF EXISTS ${tableName}`);
+      console.log(`Table ${tableName} dropped`);
+    } catch (error) {
+      console.error('Failed to drop table:', error);
+    }
   }
 
   public async cleanup(): Promise<void> {
-    if (this.connection) {
-      await this.connection.close();
-      this.connection = null;
+    try {
+      if (this.connection) {
+        await this.connection.close();
+        this.connection = null;
+      }
+      if (this.db) {
+        await this.db.terminate();
+        this.db = null;
+      }
+      this.isInitialized = false;
+      console.log('DuckDB cleaned up');
+    } catch (error) {
+      console.error('Failed to cleanup DuckDB:', error);
     }
-    if (this.db) {
-      await this.db.terminate();
-      this.db = null;
-    }
-    this.isInitialized = false;
-    console.log('DuckDB cleaned up');
   }
 
   public async getTableRowCount(tableName: string): Promise<number> {
-    const conn = await this.getConnection();
-    const result = await conn.query(`SELECT COUNT(*) as count FROM ${tableName}`);
-    const data = result.toArray();
-    return data[0]?.count || 0;
+    try {
+      const conn = await this.getConnection();
+      const result = await conn.query(`SELECT COUNT(*) as count FROM ${tableName}`);
+      const data = result.toArray();
+      return data[0]?.count || 0;
+    } catch (error) {
+      console.error('Failed to get row count:', error);
+      return 0;
+    }
   }
 
   public async getTableSample(tableName: string, limit: number = 10): Promise<any[]> {
-    const conn = await this.getConnection();
-    const result = await conn.query(`SELECT * FROM ${tableName} LIMIT ${limit}`);
-    return result.toArray();
+    try {
+      const conn = await this.getConnection();
+      const result = await conn.query(`SELECT * FROM ${tableName} LIMIT ${limit}`);
+      return result.toArray();
+    } catch (error) {
+      console.error('Failed to get table sample:', error);
+      return [];
+    }
   }
 }
 
