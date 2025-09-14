@@ -1,10 +1,11 @@
 import { ChatSidebarSimple } from '~/components/chat/ChatSidebarSimple';
+import { ChatSidebarMinimal } from '~/components/chat/ChatSidebarMinimal';
 import { ChatSidebar } from '~/components/chat/ChatSidebar';
 import { ClientOnly } from '~/components/ClientOnly';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function TestSidebar() {
-  const [testType, setTestType] = useState<'simple' | 'full' | 'wrapped'>('simple');
+  const [testType, setTestType] = useState<'simple' | 'minimal' | 'full' | 'wrapped'>('simple');
   
   return (
     <div className="min-h-screen bg-gray-100 p-8">
@@ -21,10 +22,16 @@ export default function TestSidebar() {
               Simple (No Store)
             </button>
             <button
+              onClick={() => setTestType('minimal')}
+              className={`px-4 py-2 rounded ${testType === 'minimal' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+            >
+              Minimal Store
+            </button>
+            <button
               onClick={() => setTestType('full')}
               className={`px-4 py-2 rounded ${testType === 'full' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
             >
-              Full (With Store)
+              Full Store
             </button>
             <button
               onClick={() => setTestType('wrapped')}
@@ -46,6 +53,10 @@ export default function TestSidebar() {
       {/* Render selected sidebar type */}
       {testType === 'simple' && (
         <ChatSidebarSimple pageId="test-page-123" />
+      )}
+      
+      {testType === 'minimal' && (
+        <ChatSidebarMinimal pageId="test-page-123" />
       )}
       
       {testType === 'full' && (
