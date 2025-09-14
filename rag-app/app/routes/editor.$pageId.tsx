@@ -1124,19 +1124,17 @@ export default function EditorPage() {
       
       {/* Chat Sidebar - Wrapped in ClientOnly to prevent hydration issues */}
       <ClientOnly fallback={null}>
-        {() => (
-          <ChatSidebar 
-            pageId={page.id}
-            onSendMessage={async (message) => {
-          console.log('Chat message:', message);
-          // TODO: Implement chat message handling with SQL generation
-        }}
-            onFileUpload={async (file) => {
-              console.log('File uploaded:', file.name);
-              // TODO: Implement file upload and DuckDB table creation
-            }}
-          />
-        )}
+        <ChatSidebar 
+          pageId={page.id}
+          onSendMessage={async (message) => {
+            console.log('Chat message:', message);
+            // TODO: Implement chat message handling with SQL generation
+          }}
+          onFileUpload={async (file) => {
+            console.log('File uploaded:', file.name);
+            // TODO: Implement file upload and DuckDB table creation
+          }}
+        />
       </ClientOnly>
       
       {/* Command Palette - rendered as modal */}
