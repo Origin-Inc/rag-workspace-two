@@ -1,0 +1,146 @@
+import { useState } from 'react';
+import { User, Bot, ChevronDown, ChevronUp, Code, BarChart, Plus } from 'lucide-react';
+import type { ChatMessage as ChatMessageType } from '~/stores/chat-store';
+import { cn } from '~/utils/cn';
+
+interface ChatMessageProps {
+  message: ChatMessageType;
+  onAddToPage?: (message: ChatMessageType) => void;
+}
+
+export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const isUser = message.role === 'user';
+  const isSystem = message.role === 'system';
+  
+  const formatTime = (date: Date) => {
+    return new Date(date).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+  
+  return (
+    <div 
+      className={cn(
+        "flex gap-3",
+        isUser && "flex-row-reverse",
+        isSystem && "justify-center"
+      )}
+    >
+      {/* Avatar */}
+      {!isSystem && (
+        <div className={cn(
+          "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
+          isUser ? "bg-blue-500" : "bg-gray-700"
+        )}>
+          {isUser ? (
+            <User className="w-4 h-4 text-white" />
+          ) : (
+            <Bot className="w-4 h-4 text-white" />
+          )}
+        </div>
+      )}
+      
+      {/* Message Content */}
+      <div className={cn(
+        "flex-1 space-y-1",
+        isUser && "flex flex-col items-end",
+        isSystem && "max-w-full"
+      )}>
+        {/* Message Bubble */}
+        <div className={cn(
+          "rounded-lg px-4 py-2 max-w-[85%]",
+          isUser ? "bg-blue-500 text-white" : 
+          isSystem ? "bg-yellow-50 text-yellow-800 border border-yellow-200 text-sm text-center w-full" :
+          "bg-gray-100 text-gray-900"
+        )}>
+          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          
+          {/* Metadata */}
+          {message.metadata && !isSystem && (
+            <div className="mt-2 pt-2 border-t border-opacity-20 border-current">
+              {/* SQL Query */}
+              {message.metadata.sql && (
+                <div className="mb-2">
+                  <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="flex items-center gap-1 text-xs opacity-80 hover:opacity-100"
+                  >
+                    <Code className="w-3 h-3" />
+                    <span>SQL Query</span>
+                    {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+                  {isExpanded && (
+                    <pre className={cn(
+                      "mt-1 p-2 rounded text-xs overflow-x-auto",
+                      isUser ? "bg-blue-600" : "bg-gray-200 text-gray-800"
+                    )}>
+                      <code>{message.metadata.sql}</code>
+                    </pre>
+                  )}
+                </div>
+              )}
+              
+              {/* Chart Type */}
+              {message.metadata.chartType && (
+                <div className="flex items-center gap-1 text-xs opacity-80">
+                  <BarChart className="w-3 h-3" />
+                  <span>Chart: {message.metadata.chartType}</span>
+                </div>
+              )}
+              
+              {/* Data Files Used */}
+              {message.metadata.dataFiles && message.metadata.dataFiles.length > 0 && (
+                <div className="text-xs opacity-80 mt-1">
+                  <span>Files: {message.metadata.dataFiles.join(', ')}</span>
+                </div>
+              )}
+              
+              {/* Error */}
+              {message.metadata.error && (
+                <div className={cn(
+                  "text-xs mt-1 p-1 rounded",
+                  isUser ? "bg-red-400 bg-opacity-20" : "bg-red-100 text-red-700"
+                )}>
+                  Error: {message.metadata.error}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        
+        {/* Footer */}
+        <div className={cn(
+          "flex items-center gap-2 text-xs text-gray-500",
+          isUser && "flex-row-reverse"
+        )}>
+          <span>{formatTime(message.timestamp)}</span>
+          
+          {/* Add to Page Button */}
+          {!isUser && !isSystem && message.metadata && (message.metadata.sql || message.metadata.chartType) && onAddToPage && (
+            <button
+              onClick={() => onAddToPage(message)}
+              className="flex items-center gap-1 px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Add to Page</span>
+            </button>
+          )}
+        </div>
+        
+        {/* Streaming Indicator */}
+        {message.isStreaming && (
+          <div className="flex items-center gap-1 text-xs text-gray-500">
+            <div className="flex gap-1">
+              <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+            <span>Thinking...</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -2,6 +2,7 @@ import { json, LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useFetcher, Link, NavLink, useLocation } from "@remix-run/react";
 import { EnhancedBlockEditor } from "~/components/editor/EnhancedBlockEditor";
 import { ClientOnly } from "~/components/ClientOnly";
+import { ChatSidebar } from "~/components/chat/ChatSidebar";
 import { prisma } from "~/utils/db.server";
 import { requireUser, getUser } from "~/services/auth/auth.server";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -1112,6 +1113,19 @@ export default function EditorPage() {
           </ClientOnly>
         </div>
       </div>
+      
+      {/* Chat Sidebar */}
+      <ChatSidebar 
+        pageId={page.id}
+        onSendMessage={async (message) => {
+          console.log('Chat message:', message);
+          // TODO: Implement chat message handling with SQL generation
+        }}
+        onFileUpload={async (file) => {
+          console.log('File uploaded:', file.name);
+          // TODO: Implement file upload and DuckDB table creation
+        }}
+      />
       
       {/* Command Palette - rendered as modal */}
       <ClientOnly fallback={null}>
