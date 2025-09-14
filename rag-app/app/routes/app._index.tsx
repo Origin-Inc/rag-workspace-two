@@ -6,8 +6,9 @@ import { prisma } from "~/utils/db.server";
 import { ChatInterface } from "~/components/chat/ChatInterface";
 import { FileText, Clock, Folder, ExternalLink } from "lucide-react";
 import { Link } from "@remix-run/react";
-import { DuckDBTest } from "~/components/duckdb-test";
-import { ChatStoreTest } from "~/components/chat-store-test";
+// Test components removed - were causing infinite re-render in production
+// import { DuckDBTest } from "~/components/duckdb-test";
+// import { ChatStoreTest } from "~/components/chat-store-test";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = await requireAuthenticatedUser(request);
@@ -104,12 +105,6 @@ export default function AppIndex() {
         <p className="mt-2 text-gray-600 dark:text-gray-400">
           You're working in <span className="font-medium">{currentWorkspace.name}</span>
         </p>
-      </div>
-
-      {/* Test Components - Temporary for testing */}
-      <div className="mb-8 space-y-4">
-        <DuckDBTest />
-        <ChatStoreTest pageId="test-page-123" />
       </div>
 
       {/* Two Column Layout */}
