@@ -2,8 +2,8 @@ import { json, LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useFetcher, Link, NavLink, useLocation } from "@remix-run/react";
 import { EnhancedBlockEditor } from "~/components/editor/EnhancedBlockEditor";
 import { ClientOnly } from "~/components/ClientOnly";
-// Using debug version for production troubleshooting
-import { ChatSidebar } from "~/components/chat/ChatSidebarDebug";
+// Fixed version with stable empty array references
+import { ChatSidebar } from "~/components/chat/ChatSidebar";
 import { prisma } from "~/utils/db.server";
 import { requireUser, getUser } from "~/services/auth/auth.server";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -1123,9 +1123,8 @@ export default function EditorPage() {
         </div>
       </div>
       
-      {/* Chat Sidebar - TEMPORARILY DISABLED FOR DEBUGGING */}
-      {/* Issue: React Error #185 infinite loop in production */}
-      {/* <ClientOnly fallback={null}>
+      {/* Chat Sidebar - Fixed with stable empty array references */}
+      <ClientOnly fallback={null}>
         <ChatSidebar 
           pageId={page.id}
           onSendMessage={async (message) => {
@@ -1137,7 +1136,7 @@ export default function EditorPage() {
             // TODO: Implement file upload and DuckDB table creation
           }}
         />
-      </ClientOnly> */}
+      </ClientOnly>
       
       {/* Command Palette - rendered as modal */}
       <ClientOnly fallback={null}>
