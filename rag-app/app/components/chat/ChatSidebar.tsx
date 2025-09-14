@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, Send, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useFetcher } from '@remix-run/react';
 import { useChatMessages, useChatDataFiles, useChatSidebar, useChatConnection } from '~/stores/chat-store';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
@@ -23,6 +24,7 @@ export function ChatSidebar({
   const { dataFiles, addDataFile, removeDataFile } = useChatDataFiles(pageId);
   const { isSidebarOpen, setSidebarOpen } = useChatSidebar();
   const { isLoading, setLoading, connectionStatus } = useChatConnection();
+  const fetcher = useFetcher();
   
   const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);

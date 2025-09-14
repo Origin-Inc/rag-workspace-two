@@ -12,9 +12,10 @@ import { Prisma } from "@prisma/client";
 import { indexingCoordinator } from "~/services/rag/indexing-coordinator.service";
 import { asyncEmbeddingService } from "~/services/rag/async-embedding.service";
 import { ultraLightIndexingService } from "~/services/rag/ultra-light-indexing.service";
-import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
+// Legacy AI services - disabled for data analytics pivot
+// import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
 import { pageHierarchyService } from "~/services/page-hierarchy.server";
-import { AIBlockService } from "~/services/ai-block-service.server";
+// import { AIBlockService } from "~/services/ai-block-service.server";
 import { PageTreeNavigation } from "~/components/navigation/PageTreeNavigation";
 import type { PageTreeNode } from "~/components/navigation/PageTreeNavigation";
 import { UserMenu } from "~/components/navigation/UserMenu";
@@ -268,8 +269,14 @@ export async function action({ params, request }: ActionFunctionArgs) {
     }
 
     try {
-      console.log('[AI Command Action] Calling blockManipulationIntegration service');
-      // Use the integration service for AI commands
+      // Legacy AI command processing - disabled for data analytics pivot
+      console.log('[AI Command Action] Legacy AI commands disabled');
+      return json({ 
+        success: false, 
+        message: 'AI commands temporarily disabled during data analytics migration' 
+      });
+      
+      /* Disabled legacy code
       const result = await blockManipulationIntegration.processNaturalLanguageCommand(
         command,
         {
@@ -318,8 +325,9 @@ export async function action({ params, request }: ActionFunctionArgs) {
       });
 
       // Clear AI block cache after AI command updates
-      const aiBlockService = AIBlockService.getInstance();
-      aiBlockService.clearCacheForPage(page.workspaceId, pageId);
+      // const aiBlockService = AIBlockService.getInstance();
+      // aiBlockService.clearCacheForPage(page.workspaceId, pageId);
+      */
 
       // Queue for immediate indexing after AI command (ultra-light mode)
       ultraLightIndexingService.indexPage(pageId, true).catch(error => {
@@ -463,10 +471,10 @@ export async function action({ params, request }: ActionFunctionArgs) {
         });
       }
       
-      // Clear AI block cache for this page to ensure fresh responses
-      const aiBlockService = AIBlockService.getInstance();
-      const cacheKeysCleared = aiBlockService.clearCacheForPage(page.workspaceId, pageId);
-      console.log('[Cache Clear] AI block cache cleared for page:', pageId, 'Keys cleared:', cacheKeysCleared);
+      // Legacy AI block cache clearing - disabled for data analytics pivot
+      // const aiBlockService = AIBlockService.getInstance();
+      // const cacheKeysCleared = aiBlockService.clearCacheForPage(page.workspaceId, pageId);
+      // console.log('[Cache Clear] AI block cache cleared for page:', pageId, 'Keys cleared:', cacheKeysCleared);
       
       // Extract text content for logging
       let textContent = '';
@@ -565,9 +573,9 @@ export async function action({ params, request }: ActionFunctionArgs) {
           
           console.log('[Database Reconnected] Save successful after reconnection');
           
-          // Clear AI block cache after reconnection save
-          const aiBlockService = AIBlockService.getInstance();
-          aiBlockService.clearCacheForPage(page.workspaceId, pageId);
+          // Legacy AI block cache clearing - disabled for data analytics pivot
+          // const aiBlockService = AIBlockService.getInstance();
+          // aiBlockService.clearCacheForPage(page.workspaceId, pageId);
           
           // Queue for indexing after recovery save (ultra-light immediate mode)
           ultraLightIndexingService.indexPage(pageId, true).catch(error => {
