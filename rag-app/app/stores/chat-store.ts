@@ -187,7 +187,12 @@ export const useChatStore = create<ChatState>()(
 
 // Hooks for specific state slices
 export const useChatMessages = (pageId: string) => {
-  const messages = useChatStore((state) => state.getMessagesForPage(pageId));
+  // Use a stable selector that only re-renders when the specific page's messages change
+  const messages = useChatStore((state) => {
+    const pageMessages = state.messages.get(pageId);
+    return pageMessages || [];
+  });
+  
   const addMessage = useChatStore((state) => state.addMessage);
   const updateMessage = useChatStore((state) => state.updateMessage);
   const deleteMessage = useChatStore((state) => state.deleteMessage);
@@ -205,7 +210,12 @@ export const useChatMessages = (pageId: string) => {
 };
 
 export const useChatDataFiles = (pageId: string) => {
-  const dataFiles = useChatStore((state) => state.getDataFilesForPage(pageId));
+  // Use a stable selector that only re-renders when the specific page's files change
+  const dataFiles = useChatStore((state) => {
+    const pageFiles = state.dataFiles.get(pageId);
+    return pageFiles || [];
+  });
+  
   const addDataFile = useChatStore((state) => state.addDataFile);
   const removeDataFile = useChatStore((state) => state.removeDataFile);
   const clearDataFiles = useChatStore((state) => state.clearDataFiles);
