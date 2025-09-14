@@ -14,36 +14,71 @@ interface ChatSidebarProps {
   className?: string;
 }
 
+// Debug version with extensive logging
 export function ChatSidebar({ 
   pageId, 
   onSendMessage,
   onFileUpload,
   className 
 }: ChatSidebarProps) {
+  console.log('[ChatSidebar] Render start', { pageId, timestamp: Date.now() });
+  
+  // Track render count
+  const renderCount = useRef(0);
+  renderCount.current++;
+  console.log('[ChatSidebar] Render count:', renderCount.current);
+  
+  // Log hook calls
+  console.log('[ChatSidebar] Calling useChatMessages hook');
   const { messages, addMessage, clearMessages } = useChatMessages(pageId);
+  console.log('[ChatSidebar] Messages from hook:', messages.length);
+  
+  console.log('[ChatSidebar] Calling useChatDataFiles hook');
   const { dataFiles, addDataFile, removeDataFile } = useChatDataFiles(pageId);
+  console.log('[ChatSidebar] DataFiles from hook:', dataFiles.length);
+  
+  console.log('[ChatSidebar] Calling useChatSidebar hook');
   const { isSidebarOpen, setSidebarOpen } = useChatSidebar();
+  console.log('[ChatSidebar] Sidebar open:', isSidebarOpen);
+  
+  console.log('[ChatSidebar] Calling useChatConnection hook');
   const { isLoading, setLoading, connectionStatus } = useChatConnection();
+  console.log('[ChatSidebar] Connection status:', connectionStatus);
+  
   const fetcher = useFetcher();
   
   const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  // Auto-scroll to bottom when new messages arrive
+  // Log effect execution
   useEffect(() => {
+    console.log('[ChatSidebar] useEffect for auto-scroll triggered, messages.length:', messages.length);
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]); // Only depend on length, not the array reference
+    
+    return () => {
+      console.log('[ChatSidebar] useEffect cleanup');
+    };
+  }, [messages.length]);
+  
+  // Monitor for rapid re-renders
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (renderCount.current > 50) {
+        console.error('[ChatSidebar] CRITICAL: Too many renders!', renderCount.current);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
   
   const handleSendMessage = async (content: string) => {
+    console.log('[ChatSidebar] handleSendMessage called');
     if (!content.trim()) return;
     
-    // Add user message
     addMessage({
       role: 'user',
       content,
     });
     
-    // Call parent handler if provided
     if (onSendMessage) {
       setLoading(true);
       try {
@@ -62,7 +97,7 @@ export function ChatSidebar({
   };
   
   const handleFileUpload = async (file: File) => {
-    // Add file to store
+    console.log('[ChatSidebar] handleFileUpload called');
     addDataFile({
       filename: file.name,
       tableName: file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_'),
@@ -71,13 +106,11 @@ export function ChatSidebar({
       sizeBytes: file.size,
     });
     
-    // Add info message
     addMessage({
       role: 'system',
       content: `File "${file.name}" uploaded successfully. Processing...`,
     });
     
-    // Call parent handler if provided
     if (onFileUpload) {
       setLoading(true);
       try {
@@ -122,10 +155,15 @@ export function ChatSidebar({
     }
   };
   
+  console.log('[ChatSidebar] Rendering toggle button or sidebar');
+  
   if (!isSidebarOpen) {
     return (
       <button
-        onClick={() => setSidebarOpen(true)}
+        onClick={() => {
+          console.log('[ChatSidebar] Toggle button clicked - opening');
+          setSidebarOpen(true);
+        }}
         className="fixed right-0 top-1/2 -translate-y-1/2 bg-white border-l border-gray-200 rounded-l-lg p-2 shadow-lg hover:bg-gray-50 z-40"
         aria-label="Open chat sidebar"
       >
@@ -157,7 +195,10 @@ export function ChatSidebar({
           </p>
         </div>
         <button
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => {
+            console.log('[ChatSidebar] Close button clicked');
+            setSidebarOpen(false);
+          }}
           className="p-1 hover:bg-gray-100 rounded-lg"
           aria-label="Close sidebar"
         >
@@ -201,26 +242,26 @@ export function ChatSidebar({
         <div ref={messagesEndRef} />
       </div>
       
-      {/* Drag Overlay */}
+      {/* File Upload Zone */}
       {isDragging && (
         <div className="absolute inset-0 bg-blue-50 bg-opacity-90 flex items-center justify-center z-60">
           <div className="text-center">
-            <Upload className="w-16 h-16 mx-auto mb-4 text-blue-500" />
+            <Upload className="w-16 h-16 mx-auto text-blue-500 mb-4" />
             <p className="text-lg font-medium text-blue-700">Drop files here</p>
-            <p className="text-sm text-blue-600 mt-1">CSV and Excel files supported</p>
+            <p className="text-sm text-blue-600 mt-2">CSV and Excel files only</p>
           </div>
         </div>
       )}
       
-      {/* File Upload Zone */}
-      <FileUploadZone onFileUpload={handleFileUpload} />
-      
-      {/* Input */}
-      <ChatInput 
-        onSendMessage={handleSendMessage}
-        disabled={isLoading}
-        placeholder={dataFiles.length === 0 ? "Upload data first..." : "Ask a question about your data..."}
-      />
+      {/* Input Area */}
+      <div className="border-t border-gray-200 p-4 space-y-3">
+        <FileUploadZone onFileUpload={handleFileUpload} />
+        <ChatInput 
+          onSendMessage={handleSendMessage}
+          isLoading={isLoading}
+          placeholder="Ask about your data..."
+        />
+      </div>
     </div>
   );
 }
