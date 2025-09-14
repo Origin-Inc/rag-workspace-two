@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 
 export interface ChatMessage {
   id: string;
@@ -187,16 +188,16 @@ export const useChatStore = create<ChatState>()(
 
 // Hooks for specific state slices
 export const useChatMessages = (pageId: string) => {
-  // Use a stable selector that only re-renders when the specific page's messages change
-  const messages = useChatStore((state) => {
-    const pageMessages = state.messages.get(pageId);
-    return pageMessages || [];
-  });
-  
-  const addMessage = useChatStore((state) => state.addMessage);
-  const updateMessage = useChatStore((state) => state.updateMessage);
-  const deleteMessage = useChatStore((state) => state.deleteMessage);
-  const clearMessages = useChatStore((state) => state.clearMessages);
+  // Use useShallow to prevent re-renders from new array references
+  const { messages, addMessage, updateMessage, deleteMessage, clearMessages } = useChatStore(
+    useShallow((state) => ({
+      messages: state.messages.get(pageId) || [],
+      addMessage: state.addMessage,
+      updateMessage: state.updateMessage,
+      deleteMessage: state.deleteMessage,
+      clearMessages: state.clearMessages,
+    }))
+  );
   
   return {
     messages,
@@ -210,15 +211,15 @@ export const useChatMessages = (pageId: string) => {
 };
 
 export const useChatDataFiles = (pageId: string) => {
-  // Use a stable selector that only re-renders when the specific page's files change
-  const dataFiles = useChatStore((state) => {
-    const pageFiles = state.dataFiles.get(pageId);
-    return pageFiles || [];
-  });
-  
-  const addDataFile = useChatStore((state) => state.addDataFile);
-  const removeDataFile = useChatStore((state) => state.removeDataFile);
-  const clearDataFiles = useChatStore((state) => state.clearDataFiles);
+  // Use useShallow to prevent re-renders from new array references
+  const { dataFiles, addDataFile, removeDataFile, clearDataFiles } = useChatStore(
+    useShallow((state) => ({
+      dataFiles: state.dataFiles.get(pageId) || [],
+      addDataFile: state.addDataFile,
+      removeDataFile: state.removeDataFile,
+      clearDataFiles: state.clearDataFiles,
+    }))
+  );
   
   return {
     dataFiles,
