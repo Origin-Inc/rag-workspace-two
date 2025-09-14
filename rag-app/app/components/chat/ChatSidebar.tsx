@@ -32,7 +32,7 @@ export function ChatSidebar({
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages.length]); // Only depend on length, not the array reference
   
   const handleSendMessage = async (content: string) => {
     if (!content.trim()) return;
