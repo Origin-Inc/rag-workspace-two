@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, Send, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useFetcher } from '@remix-run/react';
-import { useChatMessages, useChatDataFiles, useChatSidebar, useChatConnection } from '~/stores/chat-store-fixed';
+import { useChatMessages, useChatDataFiles, useChatSidebar, useChatConnection } from '~/stores/chat-store-ultimate-fix';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { FileUploadZone } from './FileUploadZone';
