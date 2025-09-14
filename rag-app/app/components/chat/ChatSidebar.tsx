@@ -126,10 +126,10 @@ export function ChatSidebar({
     return (
       <button
         onClick={() => setSidebarOpen(true)}
-        className="fixed right-0 top-1/2 -translate-y-1/2 bg-white border-l border-gray-200 rounded-l-lg p-2 shadow-lg hover:bg-gray-50 z-40"
+        className="fixed right-4 bottom-4 bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 z-40 transition-colors"
         aria-label="Open chat sidebar"
       >
-        <ChevronLeft className="w-5 h-5" />
+        <ChevronLeft className="w-6 h-6" />
       </button>
     );
   }
@@ -137,8 +137,8 @@ export function ChatSidebar({
   return (
     <div 
       className={cn(
-        "fixed right-0 top-0 h-full bg-white border-l border-gray-200 shadow-xl z-50 flex flex-col",
-        "w-full sm:w-[30%] lg:w-[30%]",
+        "fixed right-0 top-0 h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 shadow-xl flex flex-col",
+        "w-[400px]",
         "transition-transform duration-300 ease-in-out",
         isSidebarOpen ? "translate-x-0" : "translate-x-full",
         className
@@ -148,27 +148,27 @@ export function ChatSidebar({
       onDrop={handleDrop}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Data Chat</h2>
-          <p className="text-xs text-gray-500">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Data Chat</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             {connectionStatus === 'connected' ? '🟢 Connected' : 
              connectionStatus === 'connecting' ? '🟡 Connecting...' : '🔴 Disconnected'}
           </p>
         </div>
         <button
           onClick={() => setSidebarOpen(false)}
-          className="p-1 hover:bg-gray-100 rounded-lg"
+          className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           aria-label="Close sidebar"
         >
-          <X className="w-5 h-5" />
+          <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
         </button>
       </div>
       
       {/* Data Files */}
       {dataFiles.length > 0 && (
-        <div className="px-4 py-2 border-b border-gray-200 bg-gray-50">
-          <p className="text-xs font-medium text-gray-600 mb-1">Uploaded Files:</p>
+        <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Uploaded Files:</p>
           <div className="space-y-1">
             {dataFiles.map((file) => (
               <div key={file.id} className="flex items-center justify-between text-xs">
@@ -186,10 +186,10 @@ export function ChatSidebar({
       )}
       
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white dark:bg-gray-900">
         {messages.length === 0 ? (
-          <div className="text-center text-gray-500 mt-8">
-            <Upload className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+          <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
+            <Upload className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
             <p className="text-sm">Upload CSV or Excel files to start analyzing</p>
             <p className="text-xs mt-2">Drag and drop or use the upload button below</p>
           </div>
