@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, Send, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useFetcher } from '@remix-run/react';
-import { useChatMessages, useChatDataFiles, useChatSidebar, useChatConnection } from '~/stores/chat-store-ultimate-fix';
+import { useChatMessages, useChatDataFiles, useChatConnection } from '~/stores/chat-store-ultimate-fix';
+import { useLayoutStore } from '~/stores/layout-store';
+import { ResizeHandle } from '~/components/ui/ResizeHandle';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { FileUploadZone } from './FileUploadZone';
@@ -22,8 +24,13 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   const { messages, addMessage, clearMessages } = useChatMessages(pageId);
   const { dataFiles, addDataFile, removeDataFile } = useChatDataFiles(pageId);
-  const { isSidebarOpen, setSidebarOpen } = useChatSidebar();
   const { isLoading, setLoading, connectionStatus } = useChatConnection();
+  const { 
+    isChatSidebarOpen, 
+    setChatSidebarOpen, 
+    chatSidebarWidth, 
+    setChatSidebarWidth 
+  } = useLayoutStore();
   const fetcher = useFetcher();
   
   const [isDragging, setIsDragging] = useState(false);
@@ -122,10 +129,10 @@ export function ChatSidebar({
     }
   };
   
-  if (!isSidebarOpen) {
+  if (!isChatSidebarOpen) {
     return (
       <button
-        onClick={() => setSidebarOpen(true)}
+        onClick={() => setChatSidebarOpen(true)}
         className="fixed right-4 bottom-4 bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 z-40 transition-colors"
         aria-label="Open chat sidebar"
       >
@@ -137,16 +144,27 @@ export function ChatSidebar({
   return (
     <div 
       className={cn(
-        "fixed right-0 top-0 h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 shadow-xl flex flex-col",
-        "w-[400px]",
+        "fixed right-0 top-0 h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 shadow-xl flex",
         "transition-transform duration-300 ease-in-out",
-        isSidebarOpen ? "translate-x-0" : "translate-x-full",
+        isChatSidebarOpen ? "translate-x-0" : "translate-x-full",
         className
       )}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      style={{ width: `${chatSidebarWidth}px` }}
     >
+      {/* Resize handle */}
+      <ResizeHandle
+        orientation="vertical"
+        onResize={(delta) => setChatSidebarWidth(chatSidebarWidth - delta)}
+        className="absolute left-0 top-0 h-full -translate-x-1/2 z-10"
+      />
+      
+      {/* Sidebar content */}
+      <div 
+        className="flex-1 flex flex-col"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <div>
@@ -157,7 +175,7 @@ export function ChatSidebar({
           </p>
         </div>
         <button
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => setChatSidebarOpen(false)}
           className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           aria-label="Close sidebar"
         >
@@ -212,15 +230,16 @@ export function ChatSidebar({
         </div>
       )}
       
-      {/* File Upload Zone */}
-      <FileUploadZone onFileUpload={handleFileUpload} />
+        {/* File Upload Zone */}
+        <FileUploadZone onFileUpload={handleFileUpload} />
       
-      {/* Input */}
-      <ChatInput 
-        onSendMessage={handleSendMessage}
-        disabled={isLoading}
-        placeholder={dataFiles.length === 0 ? "Upload data first..." : "Ask a question about your data..."}
-      />
+        {/* Input */}
+        <ChatInput 
+          onSendMessage={handleSendMessage}
+          disabled={isLoading}
+          placeholder={dataFiles.length === 0 ? "Upload data first..." : "Ask a question about your data..."}
+        />
+      </div>
     </div>
   );
 }
