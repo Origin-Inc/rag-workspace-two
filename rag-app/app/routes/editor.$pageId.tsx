@@ -4,6 +4,8 @@ import { EnhancedBlockEditor } from "~/components/editor/EnhancedBlockEditor";
 import { ClientOnly } from "~/components/ClientOnly";
 // Fixed version with stable empty array references
 import { ChatSidebar } from "~/components/chat/ChatSidebar";
+import { useChatSidebar } from "~/stores/chat-store-ultimate-fix";
+import { cn } from "~/utils/cn";
 import { prisma } from "~/utils/db.server";
 import { requireUser, getUser } from "~/services/auth/auth.server";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -854,6 +856,9 @@ export default function EditorPage() {
     };
   }, []);
 
+  // Get chat sidebar state
+  const { isSidebarOpen: isChatSidebarOpen } = useChatSidebar();
+
   return (
     <div className="h-full flex">
       {/* Mobile sidebar backdrop */}
@@ -1032,8 +1037,11 @@ export default function EditorPage() {
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Main Content Area - adjust width based on chat sidebar */}
+      <div className={cn(
+        "flex-1 flex flex-col min-w-0 transition-all duration-300",
+        isChatSidebarOpen ? "mr-[400px]" : "mr-0"
+      )}>
         {/* Top Header with mobile menu button */}
         <header className="flex-shrink-0 bg-white dark:bg-[rgba(33,33,33,1)] dark:border-[rgba(33, 33, 33, 1)]">
           <div className="flex items-center justify-between h-12 px-4 lg:px-6">
