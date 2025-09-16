@@ -215,6 +215,104 @@ export class DuckDBService {
       return [];
     }
   }
+
+  public async createTableFromData(
+    tableName: string, 
+    data: any[], 
+    schema?: { columns: Array<{ name: string; type: string }> }
+  ): Promise<void> {
+    if (!data || data.length === 0) {
+      throw new Error('Cannot create table from empty data');
+    }
+
+    try {
+      const conn = await this.getConnection();
+      
+      // Drop table if exists
+      await conn.query(`DROP TABLE IF EXISTS ${tableName}`);
+      
+      // Generate CREATE TABLE statement if schema is provided
+      if (schema && schema.columns.length > 0) {
+        const columnDefs = schema.columns.map(col => {
+          let duckdbType = 'VARCHAR';
+          switch (col.type.toLowerCase()) {
+            case 'number':
+              duckdbType = 'DOUBLE';
+              break;
+            case 'boolean':
+              duckdbType = 'BOOLEAN';
+              break;
+            case 'date':
+              duckdbType = 'DATE';
+              break;
+            case 'datetime':
+              duckdbType = 'TIMESTAMP';
+              break;
+            default:
+              duckdbType = 'VARCHAR';
+          }
+          return `"${col.name}" ${duckdbType}`;
+        }).join(', ');
+        
+        await conn.query(`CREATE TABLE ${tableName} (${columnDefs})`);
+        
+        // Prepare data for insertion
+        const values = data.map(row => {
+          const vals = schema.columns.map(col => {
+            const val = row[col.name];
+            if (val === null || val === undefined) return 'NULL';
+            if (col.type === 'string' || col.type === 'date' || col.type === 'datetime') {
+              return `'${String(val).replace(/'/g, "''")}'`;
+            }
+            return val;
+          }).join(', ');
+          return `(${vals})`;
+        });
+        
+        // Insert data in batches to avoid query size limits
+        const batchSize = 1000;
+        for (let i = 0; i < values.length; i += batchSize) {
+          const batch = values.slice(i, i + batchSize).join(', ');
+          await conn.query(`INSERT INTO ${tableName} VALUES ${batch}`);
+        }
+      } else {
+        // Use JSON import for automatic schema detection
+        const jsonString = JSON.stringify(data);
+        await this.db!.registerFileText(`${tableName}_import.json`, jsonString);
+        
+        await conn.query(`
+          CREATE TABLE ${tableName} AS 
+          SELECT * FROM read_json_auto('${tableName}_import.json')
+        `);
+      }
+      
+      console.log(`Table ${tableName} created with ${data.length} rows`);
+    } catch (error) {
+      console.error('Failed to create table from data:', error);
+      throw error;
+    }
+  }
+
+  public async tableExists(tableName: string): Promise<boolean> {
+    try {
+      const tables = await this.getTables();
+      return tables.includes(tableName);
+    } catch (error) {
+      console.error('Failed to check table existence:', error);
+      return false;
+    }
+  }
+
+  public async renameTable(oldName: string, newName: string): Promise<void> {
+    try {
+      const conn = await this.getConnection();
+      await conn.query(`ALTER TABLE ${oldName} RENAME TO ${newName}`);
+      console.log(`Table ${oldName} renamed to ${newName}`);
+    } catch (error) {
+      console.error('Failed to rename table:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance getter
