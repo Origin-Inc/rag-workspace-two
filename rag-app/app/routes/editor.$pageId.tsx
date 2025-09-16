@@ -891,9 +891,9 @@ export default function EditorPage() {
           "lg:relative lg:translate-x-0"
         )}
         style={{ 
-          width: isMenuCollapsed ? 
-            `${LAYOUT_CONSTANTS.COLLAPSED_MENU_WIDTH}px` : 
-            `${menuSidebarWidth}px` 
+          width: sidebarOpen && !isMenuCollapsed ? '256px' : // Mobile always full width
+                 isMenuCollapsed ? `${LAYOUT_CONSTANTS.COLLAPSED_MENU_WIDTH}px` : 
+                 `${menuSidebarWidth}px` 
         }}
         aria-label="Main navigation"
       >
@@ -918,24 +918,33 @@ export default function EditorPage() {
           )}
         </button>
 
-        {/* Workspace Switcher */}
+        {/* Workspace Icon - Always at top */}
         <div className={cn(
-          "flex-shrink-0 p-2",
-          isMenuCollapsed && "px-1"
+          "flex-shrink-0",
+          isMenuCollapsed ? "p-2" : "p-2"
         )}>
           <div className="relative" data-dropdown="workspace">
             <button
-              onClick={() => setWorkspaceDropdownOpen(!workspaceDropdownOpen)}
+              onClick={() => isMenuCollapsed ? null : setWorkspaceDropdownOpen(!workspaceDropdownOpen)}
               className={cn(
-                "w-full flex items-center justify-between px-3 py-0.7 text-sm font-medium text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800",
-                isMenuCollapsed && "px-2 justify-center"
+                "w-full flex items-center rounded-lg transition-colors",
+                isMenuCollapsed 
+                  ? "justify-center p-2 hover:bg-gray-100 dark:hover:bg-gray-800" 
+                  : "justify-between px-3 py-0.7 text-sm font-medium text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
               )}
               aria-label="Switch workspace"
               aria-expanded={workspaceDropdownOpen}
               aria-haspopup="true"
+              title={isMenuCollapsed ? currentWorkspace?.name || 'Workspace' : undefined}
             >
-              <div className="flex items-center min-w-0">
-                <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold">
+              <div className={cn(
+                "flex items-center",
+                isMenuCollapsed && "justify-center"
+              )}>
+                <div className={cn(
+                  "flex-shrink-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold",
+                  isMenuCollapsed ? "w-9 h-9" : "w-8 h-8"
+                )}>
                   {currentWorkspace?.name.charAt(0).toUpperCase() || 'W'}
                 </div>
                 {!isMenuCollapsed && (
@@ -983,8 +992,11 @@ export default function EditorPage() {
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-4 space-y-1" aria-label="Primary navigation">
+        {/* Navigation - Icons only when collapsed */}
+        <nav className={cn(
+          "flex-1 overflow-y-auto space-y-1",
+          isMenuCollapsed ? "px-2 py-2" : "p-4"
+        )} aria-label="Primary navigation">
           {navigation.map((item) => {
             const Icon = item.icon;
             
@@ -994,10 +1006,17 @@ export default function EditorPage() {
                 <button
                   key={item.name}
                   onClick={() => setCommandPaletteOpen(true)}
-                  className="w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className={cn(
+                    "w-full flex items-center text-sm font-medium rounded-lg transition-colors text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700",
+                    isMenuCollapsed ? "justify-center p-2" : "px-3 py-2"
+                  )}
+                  title={isMenuCollapsed ? item.name : undefined}
                 >
-                  <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                  {item.name}
+                  <Icon className={cn(
+                    "h-5 w-5 flex-shrink-0",
+                    !isMenuCollapsed && "mr-3"
+                  )} />
+                  {!isMenuCollapsed && item.name}
                 </button>
               );
             }
@@ -1006,13 +1025,14 @@ export default function EditorPage() {
               <NavLink
                 key={item.name}
                 to={item.href}
-                className={({ isActive }) => `
-                  flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors
-                  ${isActive 
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200' 
-                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }
-                `}
+                className={({ isActive }) => cn(
+                  "flex items-center text-sm font-medium rounded-lg transition-colors",
+                  isActive 
+                    ? "bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
+                    : "text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700",
+                  isMenuCollapsed ? "justify-center p-2" : "px-3 py-2"
+                )}
+                title={isMenuCollapsed ? item.name : undefined}
               >
                 <Icon className={cn(
                   "h-5 w-5 flex-shrink-0",
@@ -1023,20 +1043,14 @@ export default function EditorPage() {
             );
           })}
 
-          {/* Pages Section */}
-          <div className="pt-4">
-            <div className={cn(
-              "flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300",
-              isMenuCollapsed && "px-2 justify-center"
-            )}>
-              <div className="flex items-center">
-                <DocumentIcon className={cn(
-                  "h-5 w-5",
-                  !isMenuCollapsed && "mr-3"
-                )} />
-                {!isMenuCollapsed && <span>Pages</span>}
-              </div>
-              {!isMenuCollapsed && (
+          {/* Pages Section - ONLY show when expanded */}
+          {!isMenuCollapsed && (
+            <div className="pt-4">
+              <div className="flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                <div className="flex items-center">
+                  <DocumentIcon className="h-5 w-5 mr-3" />
+                  <span>Pages</span>
+                </div>
                 <Link
                   to="/app/pages/new"
                   className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
@@ -1044,55 +1058,74 @@ export default function EditorPage() {
                 >
                   <PlusIcon className="h-4 w-4" />
                 </Link>
-              )}
+              </div>
+              
+              {/* Page Tree Navigation */}
+              <div className="mt-1">
+                <PageTreeNavigation
+                  workspaceSlug={currentWorkspace?.slug || ''}
+                  pages={pageTree as PageTreeNode[]}
+                  currentPageId={page.id}
+                  onCreatePage={(parentId) => {
+                    // Navigate to create page route
+                    window.location.href = `/app/pages/new${parentId ? `?parentId=${parentId}` : ''}`;
+                  }}
+                  onMovePage={async (pageId, newParentId) => {
+                    // Call API to move page
+                    const formData = new FormData();
+                    if (newParentId) formData.append('parentId', newParentId);
+                    
+                    const response = await fetch(`/api/pages/${pageId}`, {
+                      method: 'PATCH',
+                      body: formData
+                    });
+                    
+                    if (response.ok) {
+                      window.location.reload();
+                    } else {
+                      console.error('Failed to move page');
+                    }
+                  }}
+                  onDeletePage={async (pageId) => {
+                    // Call API to delete page
+                    const response = await fetch(`/api/pages/${pageId}`, {
+                      method: 'DELETE'
+                    });
+                    
+                    if (response.ok) {
+                      window.location.reload();
+                    } else {
+                      console.error('Failed to delete page');
+                    }
+                  }}
+                />
+              </div>
             </div>
-            
-            {/* Page Tree Navigation */}
-            <div className="mt-1">
-              <PageTreeNavigation
-                workspaceSlug={currentWorkspace?.slug || ''}
-                pages={pageTree as PageTreeNode[]}
-                currentPageId={page.id}
-                onCreatePage={(parentId) => {
-                  // Navigate to create page route
-                  window.location.href = `/app/pages/new${parentId ? `?parentId=${parentId}` : ''}`;
-                }}
-                onMovePage={async (pageId, newParentId) => {
-                  // Call API to move page
-                  const formData = new FormData();
-                  if (newParentId) formData.append('parentId', newParentId);
-                  
-                  const response = await fetch(`/api/pages/${pageId}`, {
-                    method: 'PATCH',
-                    body: formData
-                  });
-                  
-                  if (response.ok) {
-                    window.location.reload();
-                  } else {
-                    console.error('Failed to move page');
-                  }
-                }}
-                onDeletePage={async (pageId) => {
-                  // Call API to delete page
-                  const response = await fetch(`/api/pages/${pageId}`, {
-                    method: 'DELETE'
-                  });
-                  
-                  if (response.ok) {
-                    window.location.reload();
-                  } else {
-                    console.error('Failed to delete page');
-                  }
-                }}
-              />
-            </div>
-          </div>
+          )}
         </nav>
 
-        {/* User Menu */}
-        <div className="flex-shrink-0 p-4 border-t border-gray-200">
-          <UserMenu user={user} currentWorkspace={currentWorkspace ? { id: currentWorkspace.id, name: currentWorkspace.name } : undefined} />
+        {/* User Profile at Bottom */}
+        <div className={cn(
+          "flex-shrink-0 border-t border-gray-200 dark:border-gray-700",
+          isMenuCollapsed ? "p-2" : "p-4"
+        )}>
+          {isMenuCollapsed ? (
+            // Collapsed: Just show user avatar centered
+            <div className="flex justify-center">
+              <button
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                title={user.name || user.email}
+                onClick={() => setMenuCollapsed(false)}
+              >
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                  {(user.name || user.email || '?').charAt(0).toUpperCase()}
+                </div>
+              </button>
+            </div>
+          ) : (
+            // Expanded: Show full UserMenu
+            <UserMenu user={user} currentWorkspace={currentWorkspace ? { id: currentWorkspace.id, name: currentWorkspace.name } : undefined} />
+          )}
         </div>
       </aside>
 
