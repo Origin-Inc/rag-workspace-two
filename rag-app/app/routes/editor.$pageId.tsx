@@ -4,7 +4,8 @@ import { EnhancedBlockEditor } from "~/components/editor/EnhancedBlockEditor";
 import { ClientOnly } from "~/components/ClientOnly";
 // Fixed version with stable empty array references
 import { ChatSidebar } from "~/components/chat/ChatSidebar";
-import { useChatSidebar } from "~/stores/chat-store-ultimate-fix";
+import { useLayoutStore, LAYOUT_CONSTANTS } from "~/stores/layout-store";
+import { ResizeHandle } from "~/components/ui/ResizeHandle";
 import { cn } from "~/utils/cn";
 import { prisma } from "~/utils/db.server";
 import { requireUser, getUser } from "~/services/auth/auth.server";
@@ -34,6 +35,8 @@ import {
   Bars3Icon,
   XMarkIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
 
@@ -856,8 +859,15 @@ export default function EditorPage() {
     };
   }, []);
 
-  // Get chat sidebar state
-  const { isSidebarOpen: isChatSidebarOpen } = useChatSidebar();
+  // Get layout state
+  const { 
+    isChatSidebarOpen, 
+    chatSidebarWidth,
+    isMenuCollapsed,
+    setMenuCollapsed,
+    menuSidebarWidth,
+    setMenuSidebarWidth
+  } = useLayoutStore();
 
   return (
     <div className="h-full flex">
@@ -870,22 +880,56 @@ export default function EditorPage() {
         />
       )}
 
-      {/* Sidebar - same as app.tsx */}
+      {/* Sidebar with resize and collapse */}
       <aside 
-        className={`
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-64 
-          bg-white dark:bg-[rgba(33,33,33,1)] border-r border-gray-200 dark:border-[rgba(33, 33, 33, 1)] transition-transform duration-300 ease-in-out
-          flex flex-col h-full
-        `}
+        className={cn(
+          "relative bg-white dark:bg-[rgba(33,33,33,1)] border-r border-gray-200 dark:border-[rgba(33, 33, 33, 1)] transition-all duration-300 ease-in-out",
+          "flex flex-col h-full",
+          // Mobile behavior
+          sidebarOpen ? "fixed inset-y-0 left-0 z-50 translate-x-0" : "fixed inset-y-0 left-0 z-50 -translate-x-full",
+          // Desktop behavior
+          "lg:relative lg:translate-x-0"
+        )}
+        style={{ 
+          width: isMenuCollapsed ? 
+            `${LAYOUT_CONSTANTS.COLLAPSED_MENU_WIDTH}px` : 
+            `${menuSidebarWidth}px` 
+        }}
         aria-label="Main navigation"
       >
+        {/* Resize handle for desktop */}
+        {!isMenuCollapsed && (
+          <ResizeHandle
+            orientation="vertical"
+            onResize={(delta) => setMenuSidebarWidth(menuSidebarWidth + delta)}
+            className="absolute right-0 top-0 h-full translate-x-1/2 z-10 hidden lg:block"
+          />
+        )}
+        {/* Collapse/Expand Button for Desktop */}
+        <button
+          onClick={() => setMenuCollapsed(!isMenuCollapsed)}
+          className="absolute -right-3 top-1/2 -translate-y-1/2 hidden lg:flex w-6 h-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 z-20 transition-colors"
+          aria-label={isMenuCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isMenuCollapsed ? (
+            <ChevronRightIcon className="w-3 h-3" />
+          ) : (
+            <ChevronLeftIcon className="w-3 h-3" />
+          )}
+        </button>
+
         {/* Workspace Switcher */}
-        <div className="flex-shrink-0 p-2">
+        <div className={cn(
+          "flex-shrink-0 p-2",
+          isMenuCollapsed && "px-1"
+        )}>
           <div className="relative" data-dropdown="workspace">
             <button
               onClick={() => setWorkspaceDropdownOpen(!workspaceDropdownOpen)}
-              className="w-full flex items-center justify-between px-3 py-0.7 text-sm font-medium text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+              className={cn(
+                "w-full flex items-center justify-between px-3 py-0.7 text-sm font-medium text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800",
+                isMenuCollapsed && "px-2 justify-center"
+              )}
               aria-label="Switch workspace"
               aria-expanded={workspaceDropdownOpen}
               aria-haspopup="true"
@@ -894,9 +938,13 @@ export default function EditorPage() {
                 <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold">
                   {currentWorkspace?.name.charAt(0).toUpperCase() || 'W'}
                 </div>
-                <span className="ml-3 truncate">{currentWorkspace?.name || 'Workspace'}</span>
+                {!isMenuCollapsed && (
+                  <span className="ml-3 truncate">{currentWorkspace?.name || 'Workspace'}</span>
+                )}
               </div>
-              <ChevronDownIcon className="ml-2 h-4 w-4 text-gray-500 flex-shrink-0" />
+              {!isMenuCollapsed && (
+                <ChevronDownIcon className="ml-2 h-4 w-4 text-gray-500 flex-shrink-0" />
+              )}
             </button>
 
             {/* Workspace Dropdown */}
@@ -966,26 +1014,37 @@ export default function EditorPage() {
                   }
                 `}
               >
-                <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                {item.name}
+                <Icon className={cn(
+                  "h-5 w-5 flex-shrink-0",
+                  !isMenuCollapsed && "mr-3"
+                )} />
+                {!isMenuCollapsed && item.name}
               </NavLink>
             );
           })}
 
           {/* Pages Section */}
           <div className="pt-4">
-            <div className="flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <div className={cn(
+              "flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300",
+              isMenuCollapsed && "px-2 justify-center"
+            )}>
               <div className="flex items-center">
-                <DocumentIcon className="mr-3 h-5 w-5" />
-                <span>Pages</span>
+                <DocumentIcon className={cn(
+                  "h-5 w-5",
+                  !isMenuCollapsed && "mr-3"
+                )} />
+                {!isMenuCollapsed && <span>Pages</span>}
               </div>
-              <Link
-                to="/app/pages/new"
-                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
-                aria-label="Create new page"
-              >
-                <PlusIcon className="h-4 w-4" />
-              </Link>
+              {!isMenuCollapsed && (
+                <Link
+                  to="/app/pages/new"
+                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
+                  aria-label="Create new page"
+                >
+                  <PlusIcon className="h-4 w-4" />
+                </Link>
+              )}
             </div>
             
             {/* Page Tree Navigation */}
@@ -1039,9 +1098,11 @@ export default function EditorPage() {
 
       {/* Main Content Area - adjust width based on chat sidebar */}
       <div className={cn(
-        "flex-1 flex flex-col min-w-0 transition-all duration-300",
-        isChatSidebarOpen ? "mr-[400px]" : "mr-0"
-      )}>
+        "flex-1 flex flex-col min-w-0 transition-all duration-300"
+      )}
+      style={{
+        marginRight: isChatSidebarOpen ? `${chatSidebarWidth}px` : '0'
+      }}>
         {/* Top Header with mobile menu button */}
         <header className="flex-shrink-0 bg-white dark:bg-[rgba(33,33,33,1)] dark:border-[rgba(33, 33, 33, 1)]">
           <div className="flex items-center justify-between h-12 px-4 lg:px-6">
