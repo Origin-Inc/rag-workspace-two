@@ -2,8 +2,7 @@ import type { ActionFunction } from '@remix-run/node';
 import { json, unstable_parseMultipartFormData } from '@remix-run/node';
 import { requireUser } from '~/services/auth/auth.server';
 import { FileUploadService } from '~/services/file-upload.server';
-import { FileProcessingService } from '~/services/file-processing.server';
-import { prisma } from '~/utils/prisma.server';
+import { prisma } from '~/utils/db.server';
 import { z } from 'zod';
 
 // Custom upload handler for processing file uploads
