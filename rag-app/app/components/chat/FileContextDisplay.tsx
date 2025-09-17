@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, FileText, FileSpreadsheet, File, ChevronRight, Database, Eye, Loader2 } from 'lucide-react';
 import { cn } from '~/utils/cn';
 import { useChatDataFiles } from '~/stores/chat-store-ultimate-fix';
-import type { FileSchema } from '~/services/file-processing.server';
+import type { FileSchema } from '~/services/file-processing.client';
 
 interface FileChipProps {
   file: {
