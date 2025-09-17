@@ -1229,6 +1229,7 @@ export default function EditorPage() {
       <ClientOnly fallback={null}>
         <ChatSidebar 
           pageId={page.id}
+          workspaceId={page.workspaceId}
           onSendMessage={async (message) => {
             console.log('Chat message:', message);
             // TODO: Implement chat message handling with SQL generation
