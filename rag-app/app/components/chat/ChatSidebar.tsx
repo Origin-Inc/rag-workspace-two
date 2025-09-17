@@ -88,61 +88,57 @@ export function ChatSidebar({
       content: `File "${file.name}" uploaded successfully. Processing...`,
     });
     
-    // Call parent handler if provided
-    if (onFileUpload) {
-      setLoading(true);
-      try {
-        await onFileUpload(file);
-        
-        // After successful upload, load data into DuckDB
-        const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
-        const duckdb = getDuckDB();
-        
-        // Initialize DuckDB if not already done
-        if (!duckdb.isReady()) {
-          await duckdb.initialize();
-        }
-        
-        // Process the file based on type
-        const { FileProcessingService } = await import('~/services/file-processing.client');
-        const processed = await FileProcessingService.processFile(file);
-        
-        // Load data into DuckDB
-        if (duckdb.isReady() && processed.data && processed.data.length > 0) {
-          await duckdb.createTableFromData(
-            processed.tableName,
-            processed.data,
-            processed.schema
-          );
-          
-          // Update the file in store with proper data
-          removeDataFile(tempFileId);
-          addDataFile({
-            id: processed.tableName,
-            filename: file.name,
-            tableName: processed.tableName,
-            schema: processed.schema,
-            rowCount: processed.data.length,
-            sizeBytes: file.size,
-            uploadedAt: new Date(),
-          });
-          
-          addMessage({
-            role: 'system',
-            content: `File "${file.name}" loaded into table "${processed.tableName}" with ${processed.data.length} rows.`,
-          });
-        }
-      } catch (error) {
-        console.error('Error uploading file:', error);
-        removeDataFile(tempFileId);
-        addMessage({
-          role: 'assistant',
-          content: `Failed to process file "${file.name}".`,
-          metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
-        });
-      } finally {
-        setLoading(false);
+    // Process file client-side
+    setLoading(true);
+    try {
+      // Load data into DuckDB directly
+      const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
+      const duckdb = getDuckDB();
+      
+      // Initialize DuckDB if not already done
+      if (!duckdb.isReady()) {
+        await duckdb.initialize();
       }
+      
+      // Process the file based on type
+      const { FileProcessingService } = await import('~/services/file-processing.client');
+      const processed = await FileProcessingService.processFile(file);
+      
+      // Load data into DuckDB
+      if (duckdb.isReady() && processed.data && processed.data.length > 0) {
+        await duckdb.createTableFromData(
+          processed.tableName,
+          processed.data,
+          processed.schema
+        );
+        
+        // Update the file in store with proper data
+        removeDataFile(tempFileId);
+        addDataFile({
+          id: processed.tableName,
+          filename: file.name,
+          tableName: processed.tableName,
+          schema: processed.schema,
+          rowCount: processed.data.length,
+          sizeBytes: file.size,
+          uploadedAt: new Date(),
+        });
+        
+        addMessage({
+          role: 'system',
+          content: `File "${file.name}" loaded into table "${processed.tableName}" with ${processed.data.length} rows.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      removeDataFile(tempFileId);
+      addMessage({
+        role: 'assistant',
+        content: `Failed to process file "${file.name}".`,
+        metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
+      });
+    } finally {
+      setLoading(false);
     }
   };
   
