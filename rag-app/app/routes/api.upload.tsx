@@ -117,9 +117,20 @@ export const action: ActionFunction = async ({ request }) => {
 
     // Get other form fields
     const workspaceId = formData.get('workspaceId') as string;
-    const pageId = formData.get('pageId') as string | undefined;
+    const pageIdRaw = formData.get('pageId') as string | null;
+    const pageId = pageIdRaw && pageIdRaw !== '' ? pageIdRaw : undefined;
     const isShared = formData.get('isShared') === 'true';
     const processImmediately = formData.get('processImmediately') === 'true';
+
+    // Debug logging
+    console.log('Upload request fields:', {
+      workspaceId,
+      pageId,
+      isShared,
+      processImmediately,
+      fileSize: file.buffer.length,
+      filename: file.filename
+    });
 
     // Validate fields
     const validation = uploadSchema.safeParse({
@@ -130,6 +141,7 @@ export const action: ActionFunction = async ({ request }) => {
     });
 
     if (!validation.success) {
+      console.error('Validation error:', validation.error.flatten());
       return json(
         { error: 'Invalid request data', details: validation.error.flatten() },
         { status: 400 }

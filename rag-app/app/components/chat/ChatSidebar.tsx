@@ -12,6 +12,7 @@ import { cn } from '~/utils/cn';
 
 interface ChatSidebarProps {
   pageId: string;
+  workspaceId?: string;
   onSendMessage?: (message: string) => Promise<void>;
   onFileUpload?: (file: File) => Promise<void>;
   className?: string;
@@ -19,6 +20,7 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({ 
   pageId, 
+  workspaceId,
   onSendMessage,
   onFileUpload,
   className 
@@ -91,20 +93,18 @@ export function ChatSidebar({
     // Process file client-side for immediate use
     setLoading(true);
     try {
-      // Get workspace ID from page or URL
-      const workspaceId = window.location.pathname.split('/')[2] || 'default';
-      
-      // Upload to server for persistence (if file is small enough for direct upload)
-      const MAX_DIRECT_UPLOAD = 10 * 1024 * 1024; // 10MB
-      
-      if (file.size <= MAX_DIRECT_UPLOAD) {
-        // Direct upload for smaller files
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('workspaceId', workspaceId);
-        formData.append('pageId', pageId);
-        formData.append('isShared', 'false');
-        formData.append('processImmediately', 'true');
+      // Upload to server for persistence if workspaceId is provided
+      if (workspaceId) {
+        const MAX_DIRECT_UPLOAD = 10 * 1024 * 1024; // 10MB
+        
+        if (file.size <= MAX_DIRECT_UPLOAD) {
+          // Direct upload for smaller files
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('workspaceId', workspaceId);
+          formData.append('pageId', pageId);
+          formData.append('isShared', 'false');
+          formData.append('processImmediately', 'true');
         
         const uploadResponse = await fetch('/api/upload', {
           method: 'POST',
@@ -122,12 +122,12 @@ export function ChatSidebar({
           const result = await uploadResponse.json();
           console.log('File uploaded to server:', result.fileId);
         }
-      } else {
-        // For large files, get a signed URL for direct browser upload
-        const formData = new FormData();
-        formData.append('workspaceId', workspaceId);
-        formData.append('filename', file.name);
-        formData.append('isShared', 'false');
+        } else {
+          // For large files, get a signed URL for direct browser upload
+          const formData = new FormData();
+          formData.append('workspaceId', workspaceId);
+          formData.append('filename', file.name);
+          formData.append('isShared', 'false');
         
         const urlResponse = await fetch('/api/upload', {
           method: 'POST',
@@ -153,8 +153,11 @@ export function ChatSidebar({
               role: 'system',
               content: `Large file "${file.name}" uploaded to cloud storage.`,
             });
+            }
           }
         }
+      } else {
+        console.log('No workspace ID provided, using local-only storage');
       }
       
       // Process file client-side for immediate use with DuckDB
