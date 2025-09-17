@@ -60,8 +60,7 @@ export const action: ActionFunction = async ({ request }) => {
           id: workspaceId,
           userWorkspaces: {
             some: {
-              userId: user.id,
-              status: 'active'
+              userId: user.id
             }
           }
         }
@@ -262,8 +261,7 @@ export const loader: LoaderFunction = async ({ request }) => {
           workspace: {
             userWorkspaces: {
               some: {
-                userId: user.id,
-                status: 'active'
+                userId: user.id
               }
             }
           }
