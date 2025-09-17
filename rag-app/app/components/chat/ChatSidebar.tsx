@@ -114,7 +114,7 @@ export function ChatSidebar({
           throw new Error(error.error || 'Failed to get upload URL');
         }
         
-        const { fileId, uploadUrl, storagePath, expiresIn } = await signedUrlResponse.json();
+        const { fileId, uploadUrl, storagePath, token, expiresIn } = await signedUrlResponse.json();
         
         // Step 2: Upload directly to Supabase Storage
         setUploadProgress(prev => prev ? { ...prev, status: 'uploading', progress: 30 } : null);
@@ -135,7 +135,7 @@ export function ChatSidebar({
             if (uploadRequest.status >= 200 && uploadRequest.status < 300) {
               resolve();
             } else {
-              reject(new Error(`Upload failed with status ${uploadRequest.status}`));
+              reject(new Error(`Upload failed with status ${uploadRequest.status}: ${uploadRequest.responseText}`));
             }
           });
           
@@ -148,10 +148,21 @@ export function ChatSidebar({
           });
         });
         
-        // Start the upload
-        uploadRequest.open('PUT', uploadUrl);
-        uploadRequest.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-        uploadRequest.send(file);
+        // Supabase signed upload URLs expect POST with FormData
+        if (uploadUrl.includes('storage/v1/upload/signed')) {
+          // This is a Supabase signed upload URL - use POST with FormData
+          const formData = new FormData();
+          formData.append('', file, file.name); // Empty field name for Supabase
+          
+          uploadRequest.open('POST', uploadUrl);
+          // Don't set Content-Type, let browser set it with boundary for multipart
+          uploadRequest.send(formData);
+        } else {
+          // Fallback: regular signed URL (PUT request)
+          uploadRequest.open('PUT', uploadUrl);
+          uploadRequest.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+          uploadRequest.send(file);
+        }
         
         // Wait for upload to complete
         await uploadPromise;

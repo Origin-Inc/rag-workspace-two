@@ -152,28 +152,54 @@ export class FileUploadService {
     workspace: Workspace,
     filename: string,
     isShared?: boolean
-  ): Promise<{ uploadUrl: string; storagePath: string }> {
+  ): Promise<{ uploadUrl: string; storagePath: string; token?: string }> {
     const timestamp = Date.now();
     const safeFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
     const storagePath = isShared
       ? `workspace/${workspace.id}/${timestamp}_${safeFilename}`
       : `${user.id}/${timestamp}_${safeFilename}`;
 
-    // Create a signed upload URL (valid for 1 hour)
-    const { data, error } = await supabase.storage
-      .from(this.BUCKET_NAME)
-      .createSignedUploadUrl(storagePath, {
-        upsert: false
-      });
+    try {
+      // Use the createSignedUploadUrl method for direct browser uploads
+      const { data, error } = await supabase.storage
+        .from(this.BUCKET_NAME)
+        .createSignedUploadUrl(storagePath);
 
-    if (error || !data) {
-      throw new Error(`Failed to generate upload URL: ${error?.message}`);
+      if (error || !data) {
+        throw error || new Error('No data returned from createSignedUploadUrl');
+      }
+
+      // The data contains both the signedUrl and a token
+      // For browser uploads, we need to construct the full upload URL
+      const baseUrl = process.env.SUPABASE_URL || supabaseUrl;
+      const uploadUrl = `${baseUrl}/storage/v1/upload/signed?token=${data.token}`;
+
+      return {
+        uploadUrl,
+        storagePath,
+        token: data.token
+      };
+    } catch (error) {
+      console.error('Failed to create signed upload URL:', error);
+      
+      // Fallback: Create a regular signed URL for PUT requests
+      try {
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from(this.BUCKET_NAME)
+          .createSignedUrl(storagePath, 300);
+
+        if (signedError || !signedData) {
+          throw signedError || new Error('Failed to create signed URL');
+        }
+
+        return {
+          uploadUrl: signedData.signedUrl,
+          storagePath
+        };
+      } catch (fallbackError) {
+        throw new Error(`Failed to generate upload URL: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
+      }
     }
-
-    return {
-      uploadUrl: data.signedUrl,
-      storagePath
-    };
   }
 
   /**
