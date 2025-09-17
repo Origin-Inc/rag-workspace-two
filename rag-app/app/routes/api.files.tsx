@@ -2,7 +2,7 @@ import type { ActionFunction, LoaderFunction } from '@remix-run/node';
 import { json } from '@remix-run/node';
 import { requireUser } from '~/services/auth/auth.server';
 import { FileUploadService } from '~/services/file-upload.server';
-import { prisma } from '~/utils/prisma.server';
+import { prisma } from '~/utils/db.server';
 import { z } from 'zod';
 
 // Schema for query parameters

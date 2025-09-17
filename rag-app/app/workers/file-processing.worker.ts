@@ -1,4 +1,4 @@
-import { prisma } from '~/utils/prisma.server';
+import { prisma } from '~/utils/db.server';
 import { FileBatchProcessor } from '~/services/file-batch-processor.server';
 import { getRedis } from '~/utils/redis.server';
 import { parentPort } from 'worker_threads';

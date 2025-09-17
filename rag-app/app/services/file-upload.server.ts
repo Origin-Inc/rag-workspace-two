@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { prisma } from '~/utils/prisma.server';
+import { prisma } from '~/utils/db.server';
 import crypto from 'crypto';
 import type { User, Workspace } from '@prisma/client';
 

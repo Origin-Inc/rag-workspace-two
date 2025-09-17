@@ -1,7 +1,7 @@
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { Readable } from 'stream';
-import { prisma } from '~/utils/prisma.server';
+import { prisma } from '~/utils/db.server';
 import { FileUploadService } from './file-upload.server';
 import type { FileSchema } from './file-processing.client';
 import { createClient } from '@supabase/supabase-js';
