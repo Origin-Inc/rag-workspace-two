@@ -601,6 +601,11 @@ model UserFile {
   storagePath       String      @map("storage_path") @db.Text // Supabase Storage path
   storageUrl        String?     @map("storage_url") @db.Text // Public/signed URL
   
+  // Upload status
+  uploadStatus      String      @default("pending") @map("upload_status") @db.VarChar(20)
+  // pending, completed, failed, cancelled
+  uploadedAt        DateTime?   @map("uploaded_at") @db.Timestamptz(6)
+  
   // Processing status
   processingStatus  String      @default("pending") @map("processing_status") @db.VarChar(20) 
   // pending, processing, completed, failed
