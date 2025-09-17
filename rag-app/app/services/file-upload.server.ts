@@ -160,45 +160,39 @@ export class FileUploadService {
       : `${user.id}/${timestamp}_${safeFilename}`;
 
     try {
-      // Use the createSignedUploadUrl method for direct browser uploads
-      const { data, error } = await supabase.storage
+      // First, create an empty file to reserve the path
+      // This is necessary because Supabase requires the file to exist before creating a signed URL
+      const { error: uploadError } = await supabase.storage
         .from(this.BUCKET_NAME)
-        .createSignedUploadUrl(storagePath);
+        .upload(storagePath, new Uint8Array(0), {
+          contentType: 'application/octet-stream',
+          upsert: true // Allow overwriting the placeholder
+        });
 
-      if (error || !data) {
-        throw error || new Error('No data returned from createSignedUploadUrl');
+      if (uploadError) {
+        console.error('Failed to create placeholder file:', uploadError);
+        throw uploadError;
       }
 
-      // The data contains both the signedUrl and a token
-      // For browser uploads, we need to construct the full upload URL
-      const baseUrl = process.env.SUPABASE_URL || supabaseUrl;
-      const uploadUrl = `${baseUrl}/storage/v1/upload/signed?token=${data.token}`;
+      // Now create a signed URL for the file
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from(this.BUCKET_NAME)
+        .createSignedUrl(storagePath, 300); // 5 minutes expiry
 
+      if (signedError || !signedData) {
+        console.error('Failed to create signed URL:', signedError);
+        throw signedError || new Error('Failed to create signed URL');
+      }
+
+      // Return the signed URL which can be used with PUT request
       return {
-        uploadUrl,
+        uploadUrl: signedData.signedUrl,
         storagePath,
-        token: data.token
+        token: undefined
       };
     } catch (error) {
-      console.error('Failed to create signed upload URL:', error);
-      
-      // Fallback: Create a regular signed URL for PUT requests
-      try {
-        const { data: signedData, error: signedError } = await supabase.storage
-          .from(this.BUCKET_NAME)
-          .createSignedUrl(storagePath, 300);
-
-        if (signedError || !signedData) {
-          throw signedError || new Error('Failed to create signed URL');
-        }
-
-        return {
-          uploadUrl: signedData.signedUrl,
-          storagePath
-        };
-      } catch (fallbackError) {
-        throw new Error(`Failed to generate upload URL: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
-      }
+      console.error('Failed to generate upload URL:', error);
+      throw new Error(`Failed to generate upload URL: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
     }
   }
 
