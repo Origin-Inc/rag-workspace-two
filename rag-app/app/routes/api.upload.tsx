@@ -97,7 +97,7 @@ export const action: ActionFunction = async ({ request }) => {
       });
 
       // Generate signed URL for direct upload
-      const { uploadUrl, storagePath } = await FileUploadService.generateUploadUrl(
+      const { uploadUrl, storagePath, token } = await FileUploadService.generateUploadUrl(
         user,
         workspace,
         filename,
@@ -115,6 +115,7 @@ export const action: ActionFunction = async ({ request }) => {
         fileId: fileRecord.id,
         uploadUrl,
         storagePath,
+        token, // Include token in case client needs it
         expiresIn: 300, // URL expires in 5 minutes
       });
 
