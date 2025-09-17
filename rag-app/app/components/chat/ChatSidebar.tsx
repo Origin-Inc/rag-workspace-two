@@ -104,7 +104,7 @@ export function ChatSidebar({
         }
         
         // Process the file based on type
-        const { FileProcessingService } = await import('~/services/file-processing.server');
+        const { FileProcessingService } = await import('~/services/file-processing.client');
         const processed = await FileProcessingService.processFile(file);
         
         // Load data into DuckDB

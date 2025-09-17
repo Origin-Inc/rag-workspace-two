@@ -1,4 +1,4 @@
-import type { FileSchema } from '~/services/file-processing.server';
+import type { FileSchema } from '~/services/file-processing.client';
 
 export interface ContextItem {
   type: 'system' | 'schema' | 'data' | 'message' | 'query';
