@@ -1,0 +1,553 @@
+# Task ID: 53
+# Title: Implement File Upload and Data Processing
+# Status: pending
+# Dependencies: 52
+# Priority: high
+# Description: Create drag-and-drop file upload functionality for CSV/Excel files with automatic parsing and loading into DuckDB tables
+# Details:
+1. Install PapaParse for CSV parsing and xlsx for Excel files
+2. Implement drag-and-drop zone in chat interface
+3. Create file upload handler with 50MB size validation
+4. Parse CSV/Excel files and detect schema automatically
+5. Create DuckDB tables from parsed data
+6. Implement DataFile model in Prisma (fileName, tableName, schema, uploadedAt)
+7. Create POST /api/data/upload endpoint
+8. Display data preview in chat after successful upload
+9. Handle multiple file uploads and create relationships
+
+Pseudo-code for file processing:
+```
+async function processFile(file) {
+  if (file.size > 50 * 1024 * 1024) throw new Error('File too large');
+  
+  let data;
+  if (file.name.endsWith('.csv')) {
+    data = await parseCSV(file);
+  } else if (file.name.endsWith('.xlsx')) {
+    data = await parseExcel(file);
+  }
+  
+  const schema = inferSchema(data);
+  const tableName = sanitizeTableName(file.name);
+  
+  await duckdb.exec(`CREATE TABLE ${tableName} AS SELECT * FROM data`);
+  await duckdb.registerFileBuffer(tableName, data);
+  
+  return { tableName, schema, rowCount: data.length };
+}
+```
+
+# Test Strategy:
+1. Test file upload with various CSV/Excel formats
+2. Validate 50MB file size limit enforcement
+3. Test schema detection accuracy with different data types
+4. Verify DuckDB table creation and data integrity
+5. Test error handling for corrupted files
+6. Performance test with maximum file size
+7. Test multiple simultaneous file uploads
+
+# Subtasks:
+## 1. Install and Configure File Parsing Libraries [done]
+### Dependencies: None
+### Description: Set up PapaParse for CSV parsing and SheetJS (xlsx) for Excel file processing with TypeScript definitions
+### Details:
+Run npm install papaparse @types/papaparse xlsx @types/xlsx. Create a file-parsers.server.ts service module in app/services/ to centralize all parsing logic. Configure PapaParse with proper TypeScript types and set up SheetJS for both .xlsx and .xls support. Export utility functions for each file type.
+
+## 2. Create DataFile Prisma Model and Migration [done]
+### Dependencies: None
+### Description: Design and implement the DataFile model in Prisma schema with proper relationships to workspace and user models
+### Details:
+Update prisma/schema.prisma to add DataFile model with fields: id (String @id @default(cuid())), fileName (String), originalFileName (String), tableName (String @unique), schema (Json), rowCount (Int), fileSize (Int), mimeType (String), workspaceId (String), userId (String), uploadedAt (DateTime @default(now())), updatedAt (DateTime @updatedAt). Add relations to Workspace and User models. Run npx prisma migrate dev --name add_datafile_model to create migration.
+<info added on 2025-09-16T19:01:20.492Z>
+DataFile model confirmed to already exist in schema at lines 565-584 with correct field structure. Model includes id, pageId, workspaceId, filename, tableName, schema (Json), rowCount, sizeBytes, and createdAt fields. The existing model uses slightly different field names than originally planned (filename vs fileName, sizeBytes vs fileSize, no explicit userId field but has pageId relation). Migration is unnecessary as the model is already present in the database schema.
+</info added on 2025-09-16T19:01:20.492Z>
+
+## 3. Implement Drag-and-Drop Upload Component [done]
+### Dependencies: 53.1
+### Description: Build a reusable drag-and-drop file upload component with visual feedback and file validation
+### Details:
+Create FileUploadZone.tsx component in app/components/chat/ using React DnD or native HTML5 drag-and-drop API. Implement visual states for idle, hover, and uploading. Add file type validation (only .csv, .xlsx, .xls) and size validation (50MB limit) on the client side. Include progress indicator during upload. Use Framer Motion for smooth transitions. Accept multiple files simultaneously.
+
+## 4. Build File Processing Service with Schema Detection [done]
+### Dependencies: 53.1, 53.2
+### Description: Create server-side service to parse uploaded files and automatically detect data schema and types
+### Details:
+Implement FileProcessingService in app/services/file-processing.server.ts. For CSV: use PapaParse with dynamic typing enabled. For Excel: use SheetJS to read all sheets and convert to JSON. Implement inferSchema function that analyzes first 100 rows to detect column types (string, number, date, boolean). Handle edge cases like empty cells, mixed types, and date formats. Create sanitizeTableName function to ensure valid DuckDB table names (remove spaces, special chars, add prefix if starts with number).
+
+## 5. Integrate DuckDB for Data Storage [done]
+### Dependencies: 53.4
+### Description: Set up DuckDB connection and implement table creation from parsed file data
+### Details:
+Install @duckdb/node-api. Create duckdb.server.ts service to manage DuckDB connections. Implement createTableFromData function that takes parsed data and schema, generates CREATE TABLE statement with proper column types, and loads data using DuckDB's bulk insert capabilities. Handle table name conflicts by appending timestamps. Implement connection pooling for concurrent uploads. Store DuckDB files in a dedicated directory structure.
+
+## 6. Create File Upload API Endpoint [done]
+### Dependencies: 53.3, 53.4, 53.5
+### Description: Build the POST /api/data/upload endpoint to handle file uploads and coordinate processing pipeline
+### Details:
+Create app/routes/api.data.upload.tsx with action handler. Use unstable_parseMultipartFormData for file handling. Implement transaction pattern: validate file, parse content, detect schema, create DuckDB table, save metadata to DataFile model. Return structured response with tableName, schema, rowCount, and preview data (first 10 rows). Include proper error handling with rollback on failure. Add rate limiting using Redis to prevent abuse.
+
+## 7. Implement Data Preview Component [done]
+### Dependencies: 53.6
+### Description: Create a data table preview component to display uploaded data in the chat interface
+### Details:
+Build DataPreview.tsx component that renders a scrollable table with column headers and data rows. Implement virtualization for large datasets using @tanstack/react-virtual. Add column type indicators (icons for text, number, date). Include summary statistics (row count, column count, file size). Support sorting and basic filtering. Integrate with existing chat message rendering system. Add 'Load more' functionality for datasets larger than preview limit.
+
+## 8. Handle Multiple Files and Relationships [done]
+### Dependencies: 53.6, 53.7
+### Description: Extend the system to support uploading multiple files and establish relationships between tables
+### Details:
+Modify upload endpoint to accept multiple files in a single request. Implement batch processing with progress tracking for each file. Add relationship detection by analyzing column names and data patterns (look for common ID fields, foreign key patterns). Create a relationships metadata table in Prisma to store detected or user-defined relationships. Update the UI to show upload progress for multiple files with individual status indicators. Implement a relationship viewer component that shows connections between uploaded tables.
+
+## 9. Create File Context Display Component [pending]
+### Dependencies: 53.7
+### Description: Build a visual component to show uploaded files in the chat interface using modern UI patterns
+### Details:
+Create a FileContextDisplay component that shows all uploaded files for the current page/chat session. Implementation requirements:
+
+1. **Visual Design**: Use "chips" or "pills" UI pattern with file icons, names, and sizes. Each chip should show: file icon (based on type), truncated filename, file size, and an X button for removal.
+
+2. **Location**: Display above the chat input area as a horizontal scrollable list when files are present. Show/hide based on whether files exist for the current context.
+
+3. **Interactive Features**: Click chip to see file details (schema, row count, preview), hover to show full filename and upload time, drag to reorder priority in context, visual indication of files actively being used in current query.
+
+4. **State Management**: Integrate with existing chat store's dataFiles Map, update UI reactively when files are added/removed, maintain selection state for which files are "active" in context.
+
+5. **Responsive Design**: Collapse to icon-only view on mobile, show first 3-5 files with "+N more" indicator if many files, expandable drawer for full file list.
+
+Reference implementations: ChatPDF's side panel, Perplexity's attachment chips, PowerBI Copilot's "attached items" display, Material Design chip components.
+
+## 10. Implement Natural Language File Reference Parser [pending]
+### Dependencies: 53.8
+### Description: Create a system to detect and parse file references in natural language queries
+### Details:
+Build a FileReferenceParser service that identifies when users reference specific uploaded files in their questions. Implementation details:
+
+1. **Pattern Detection**: Identify common patterns like "in sales.csv", "from the Excel file", "using the data I uploaded", "in the first file", "combine data from file1 and file2". Support both explicit references (by filename) and implicit references (the file, my data, the spreadsheet).
+
+2. **Reference Resolution**: Match detected references to actual uploaded files using fuzzy matching for filenames, context clues (file type mentions), upload order (first, second, latest), and partial name matching.
+
+3. **Query Enhancement**: Modify the SQL generation prompt to explicitly include only referenced tables. Add table aliasing based on file references. Provide clear context about which tables map to which files.
+
+4. **Ambiguity Handling**: When references are unclear, prompt user for clarification with suggestions. Handle cases where multiple files could match. Default to all available files if no specific reference is made.
+
+5. **Integration Points**: Hook into the query API endpoint before SQL generation. Store reference mappings in query metadata for citation tracking. Pass resolved references to the OpenAI prompt builder.
+
+Example: "What's the total revenue in sales.csv for Q4?" → Detects "sales.csv" → Maps to table "sales_abc123" → Includes only this table in SQL context.
+
+## 11. Build File Management Interface [pending]
+### Dependencies: 53.9
+### Description: Create a comprehensive file management system for uploaded data files with deletion, details view, and context control
+### Details:
+Implement a FileManagementPanel component that provides full control over uploaded files. Requirements:
+
+1. **File List View**: Expandable panel/drawer showing all uploaded files for the current page. Display file metadata: name, size, upload time, row count, column count, last accessed. Group files by upload session or date. Search/filter functionality for many files.
+
+2. **Individual File Actions**: Delete file (with confirmation dialog) - removes from DuckDB and database. View detailed schema with column types and sample data. Download original file if stored. Rename table in DuckDB. Refresh/re-process file if source changed.
+
+3. **Bulk Operations**: Select multiple files for bulk deletion. Export selected files as a dataset. Clear all files for current page. Archive old files (30+ days as per Perplexity pattern).
+
+4. **Context Controls**: Toggle files in/out of active query context. Set file priority for token window management (primary, secondary, reference-only). Define relationships between files manually if not auto-detected. Set file-specific query hints or aliases.
+
+5. **API Endpoints**: DELETE /api/data/file/:fileId - remove single file. PATCH /api/data/file/:fileId - update metadata. GET /api/data/files/:pageId - list all files. POST /api/data/files/bulk - bulk operations.
+
+6. **Storage Management**: Track storage usage per workspace. Implement file retention policies (30-day default). Auto-cleanup of orphaned DuckDB tables. Warning before hitting storage limits.
+
+Reference: Perplexity's 30-day retention, ChatGPT's file management in Code Interpreter, PowerBI's data source management.
+
+## 12. Implement Intelligent Context Window Management [pending]
+### Dependencies: 53.10
+### Description: Build a system to intelligently manage file context within token limits using hybrid context stuffing and vector search
+### Details:
+Create a ContextWindowManager service that optimizes how file data is included in prompts, similar to ChatGPT Enterprise's approach. Implementation:
+
+1. **Token Budgeting**: Calculate token counts for each file's schema and sample data. Set max context window (e.g., 110k tokens for context, leaving room for query/response). Implement token counting using tiktoken library. Reserve tokens for system prompt, user query, and response.
+
+2. **Hybrid Loading Strategy**: 
+   - **Direct Inclusion** (Context Stuffing): Include full schema for all referenced files. Add sample rows for small files (<1000 rows). Include statistical summaries for numerical columns.
+   - **Vector Search** (For excess data): Generate embeddings for file chunks using OpenAI. Store in pgvector alongside table metadata. Retrieve relevant chunks based on user query. Include retrieved context separately in prompt.
+
+3. **Intelligent Sampling**: When files exceed token budget, implement smart sampling:
+   - Take first N rows for time-series context
+   - Random sampling for statistical representation  
+   - Include rows with extreme values (min/max)
+   - Stratified sampling for categorical columns
+   - Query-relevant sampling based on detected filters
+
+4. **Priority System**: User-referenced files get highest priority. Recently queried files get medium priority. Background files get minimal context. Allow manual priority override in file management UI.
+
+5. **Context Optimization**: Compress schemas by removing redundant information. Use abbreviated column descriptions. Cache preprocessed context for repeated queries. Dynamically adjust based on query complexity.
+
+6. **Metadata Tracking**: Store what data was included vs excluded in each query. Track token usage per query for optimization. Log retrieval performance metrics. Monitor context effectiveness for result quality.
+
+Based on: ChatGPT Enterprise's 110k token context stuffing + vector search, Perplexity's extraction of "most important parts" for long files.
+
+## 13. Create File Citation and Attribution System [pending]
+### Dependencies: 53.11, 53.12
+### Description: Build a system to track and display which files were used to generate each response
+### Details:
+Implement a CitationSystem that tracks file usage and provides clear attribution in chat responses. Requirements:
+
+1. **Citation Tracking**: Store which files/tables were accessed per query in ChatMessage metadata. Track specific columns and rows used if applicable. Record whether file was directly queried or used for context. Include confidence scores for multi-file joins.
+
+2. **Visual Citation Display**: Show inline citations in responses (e.g., [1], [2] superscripts). Hoverable citations reveal file name and relevant snippet. Click citation to scroll to file in context display or show preview modal. Footer section listing all sources used, similar to ChatPDF.
+
+3. **Citation Formats**:
+   - **Inline**: "Total revenue was $1.2M [sales.csv]"
+   - **Footnote**: Response text with numbered citations [1][2], footnotes at bottom
+   - **Side panel**: Dedicated panel showing sources for current response
+   - **Confidence indicator**: Show how certain the system is about each source
+
+4. **Attribution Metadata**: For each citation, track:
+   - File name and upload timestamp
+   - Specific SQL queries that accessed the file  
+   - Rows/columns referenced
+   - Transformation applied (aggregation, filter, join)
+   - Relevance score to the question
+
+5. **Multi-file Attribution**: When queries join multiple files, show relationship path. Indicate primary vs supporting data sources. Display data lineage for complex transformations. Warning when results depend on assumed relationships.
+
+6. **Export & Audit**: Export chat history with full citations. Generate attribution report for compliance. Track file usage statistics over time. API endpoint to retrieve citation metadata.
+
+7. **Integration Points**: Modify SQL executor to track table access. Update ChatMessage model to store citation data. Enhance DataPreview to highlight cited sections. Add citation preferences to user settings.
+
+Based on: ChatPDF's clickable citations with source scrolling, ChatGPT's footnote-style citations, Academic paper citation standards.
+
+## 14. Integrate Client-Side DuckDB Data Loading [pending]
+### Dependencies: 53.6, 53.8
+### Description: Connect the file upload system with browser-based DuckDB instance for immediate data availability
+### Details:
+Bridge the file upload API with the client-side DuckDB service to ensure uploaded data is immediately queryable in the browser. Implementation:
+
+1. **Client-Side Data Loading**: After successful file upload API response, fetch the processed data from the response. Load data into browser DuckDB using existing createTableFromData method. Maintain sync between server metadata (DataFile) and client tables.
+
+2. **Data Transfer Optimization**: 
+   - For small files (<5MB), include full data in upload response
+   - For large files, implement streaming endpoint GET /api/data/content/:fileId
+   - Use chunked transfer encoding for progressive loading
+   - Compress data with gzip for network efficiency
+   - Cache loaded data in IndexedDB for offline access
+
+3. **State Synchronization**: On page load, fetch list of DataFiles for current page. Check which tables exist in browser DuckDB. Load missing tables from server automatically. Track loading progress with visual indicators.
+
+4. **Client-Side Schema Validation**: Verify uploaded schema matches DuckDB table schema. Handle schema evolution (columns added/removed). Provide migration tools for schema changes. Alert user to inconsistencies.
+
+5. **Performance Optimizations**: Lazy load tables only when queried. Implement table pagination for very large datasets. Use Web Workers for data processing to avoid UI blocking. Virtual scrolling for data previews.
+
+6. **Offline Capabilities**: Store table data in IndexedDB with metadata. Enable offline querying of cached data. Sync changes when connection restored. Show offline/online status in UI.
+
+7. **Error Recovery**: Handle DuckDB initialization failures gracefully. Retry failed data loads with exponential backoff. Provide manual reload option for failed tables. Clear corrupt data and re-fetch from server.
+
+Note: This bridges our server-side file processing with client-side DuckDB execution, ensuring seamless data availability for natural language queries.
+
+## 15. Implement PDF Text and Table Extraction System [pending]
+### Dependencies: 53.1, 53.4
+### Description: Build comprehensive PDF processing capability to extract text, tables, and images for analysis in chat
+### Details:
+Create a PDFProcessingService that handles PDF uploads with text extraction, table detection, and OCR capabilities similar to Claude and ChatGPT. Implementation:
+
+1. **PDF Text Extraction (Native PDFs)**:
+   - Install pdf-parse for server-side text extraction: npm install pdf-parse @types/pdf-parse
+   - Extract text with page numbers and structure preservation
+   - Maintain heading hierarchy and paragraph boundaries
+   - Extract metadata (title, author, creation date, page count)
+   - Handle multi-column layouts by detecting column breaks
+   - Support for PDFs up to 100 pages (like Claude's limit)
+
+2. **OCR for Scanned PDFs**:
+   - Install tesseract.js for browser/server OCR: npm install tesseract.js
+   - Detect if PDF pages are image-based (no selectable text)
+   - Convert PDF pages to images using pdf.js or pdfjs-dist
+   - Run OCR on image pages with language detection
+   - Merge OCR text with native text for hybrid PDFs
+   - Cache OCR results to avoid reprocessing
+
+3. **Table Detection and Extraction**:
+   - Implement rule-based table detection using text positioning
+   - Identify table boundaries using whitespace patterns
+   - Extract table structure (headers, rows, columns)
+   - Convert tables to structured JSON format
+   - Generate CREATE TABLE statements for DuckDB
+   - Handle merged cells and nested tables
+   - Support for both bordered and borderless tables
+
+4. **Image and Chart Handling**:
+   - Extract embedded images from PDFs
+   - Generate descriptions using OpenAI Vision API (if enabled)
+   - Store image references with page numbers
+   - Link images to nearby text for context
+   - Support charts/graphs extraction for data analysis
+
+5. **Processing Pipeline**:
+   ```typescript
+   async function processPDF(file: File) {
+     const metadata = await extractMetadata(file);
+     const pages = await extractPages(file);
+     
+     for (const page of pages) {
+       if (hasSelectableText(page)) {
+         text = await extractNativeText(page);
+       } else {
+         text = await runOCR(page);
+       }
+       
+       tables = await detectTables(text);
+       images = await extractImages(page);
+     }
+     
+     return { metadata, text, tables, images };
+   }
+   ```
+
+6. **Performance Optimization**:
+   - Process PDFs in Web Workers to avoid blocking UI
+   - Stream large PDFs page by page
+   - Implement progress indicators for long documents
+   - Parallel processing for OCR on multiple pages
+   - Compress extracted text for storage
+
+7. **File Size and Limits**:
+   - 30MB file size limit (matching Claude's chat limit)
+   - 100-page limit for visual processing
+   - Fall back to text-only for larger documents
+   - Warning messages for oversized files
+
+Based on: Claude's PDF capabilities with OCR and table recognition, ChatGPT's 512MB limit but limited OCR, Modern PDF.js for rendering and extraction.
+
+## 16. Create PDF-to-DuckDB Table Conversion Pipeline [pending]
+### Dependencies: 53.15, 53.5
+### Description: Build automated pipeline to convert PDF tables into queryable DuckDB tables for SQL analysis
+### Details:
+Implement a PDF2DuckDBConverter that automatically transforms extracted PDF tables into DuckDB tables for natural language querying. Implementation:
+
+1. **Table Structure Analysis**:
+   - Analyze extracted table JSON from PDFProcessingService
+   - Infer column types from table data (string, number, date, boolean)
+   - Detect header rows vs data rows
+   - Handle tables without headers (auto-generate column names)
+   - Identify primary key candidates
+   - Detect related tables across multiple pages
+
+2. **Data Cleaning and Transformation**:
+   - Clean extracted data (remove special characters, normalize spacing)
+   - Handle merged cells by duplicating values
+   - Parse formatted numbers (currency, percentages, thousands separators)
+   - Convert date strings to consistent format
+   - Handle missing/null values appropriately
+   - Split compound cells (e.g., "Name (ID)" → separate columns)
+
+3. **Table Generation Strategy**:
+   ```typescript
+   async function convertPDFTablesToSQL(pdfData: PDFExtractResult) {
+     const tables = [];
+     
+     // Group related tables (e.g., continued across pages)
+     const groupedTables = groupRelatedTables(pdfData.tables);
+     
+     for (const tableGroup of groupedTables) {
+       const schema = inferTableSchema(tableGroup);
+       const tableName = generateTableName(pdfData.filename, tableGroup);
+       
+       // Create DuckDB table
+       await duckdb.createTableFromData(
+         tableName,
+         tableGroup.data,
+         schema
+       );
+       
+       tables.push({
+         name: tableName,
+         pageNumbers: tableGroup.pages,
+         rowCount: tableGroup.data.length,
+         schema
+       });
+     }
+     
+     return tables;
+   }
+   ```
+
+4. **Multi-Table Handling**:
+   - Create separate tables for each distinct table in PDF
+   - Use naming convention: `{filename}_{page}_{tableIndex}`
+   - Detect and create relationships between tables
+   - Handle footnotes and references as separate linked tables
+   - Support hierarchical data (parent-child relationships)
+
+5. **Special PDF Structures**:
+   - **Financial Statements**: Parse balance sheets, income statements
+   - **Invoices**: Extract line items, totals, metadata
+   - **Reports**: Handle summary tables and detail tables
+   - **Forms**: Convert form fields to table columns
+   - **Catalogs**: Extract product listings with specifications
+
+6. **Text Content Integration**:
+   - Create a `{filename}_text` table with full text content
+   - Structure: page_number, section, content, type (heading/paragraph)
+   - Enable full-text search across document
+   - Link text sections to nearby tables
+   - Extract key-value pairs from unstructured text
+
+7. **Metadata and Citations**:
+   - Store PDF metadata in `{filename}_metadata` table
+   - Track source page for each data point
+   - Maintain extraction confidence scores
+   - Create audit trail of transformations applied
+   - Enable citation back to specific PDF pages
+
+8. **Query Enhancement**:
+   - Auto-generate sample queries for extracted tables
+   - Create view combining related tables
+   - Add computed columns for common calculations
+   - Generate data dictionary from table/column names
+   - Suggest JOIN conditions for related tables
+
+9. **Error Handling**:
+   - Validate extracted data before table creation
+   - Provide manual correction interface for OCR errors
+   - Flag suspicious data for review
+   - Fallback to text-only mode if table extraction fails
+   - Log extraction issues with page references
+
+Example Output:
+```sql
+-- From invoice.pdf
+CREATE TABLE invoice_items (
+  item_name VARCHAR,
+  quantity INTEGER,
+  unit_price DECIMAL,
+  total DECIMAL,
+  source_page INTEGER
+);
+
+CREATE TABLE invoice_metadata (
+  invoice_number VARCHAR,
+  date DATE,
+  vendor VARCHAR,
+  total_amount DECIMAL
+);
+```
+
+Based on: ChatPDF's structured extraction, PowerBI's automated table detection, Claude's ability to understand complex PDF structures.
+
+## 17. Build PDF Viewer with Split-Screen Chat Interface [pending]
+### Dependencies: 53.15, 53.9
+### Description: Create interactive PDF viewer with side-by-side chat, clickable citations, and page navigation like Claude and ChatPDF
+### Details:
+Implement a PDFViewerChat component that provides an integrated PDF viewing and chat experience similar to Claude's split-screen mode and ChatPDF's interface. Implementation:
+
+1. **Split-Screen Layout**:
+   - Left panel (60%): PDF viewer with page navigation
+   - Right panel (40%): Chat interface with context-aware responses  
+   - Draggable divider to adjust panel sizes
+   - Full-screen toggle for focused reading
+   - Collapsible panels for mobile responsiveness
+   - Remember user's layout preferences
+
+2. **PDF Rendering with pdf.js**:
+   ```typescript
+   // Install: npm install pdfjs-dist @types/pdfjs-dist
+   import * as pdfjsLib from 'pdfjs-dist';
+   
+   const PDFViewer = ({ file, onPageChange, highlights }) => {
+     // Render current page
+     // Handle zoom controls
+     // Support text selection
+     // Overlay highlights for citations
+   };
+   ```
+
+3. **Interactive Citation System**:
+   - Clickable citations in chat responses [1] [2] style
+   - Click citation → PDF scrolls to exact page/position
+   - Highlight referenced text in yellow on PDF
+   - Show citation preview on hover (page thumbnail + text snippet)
+   - Breadcrumb trail showing: Page X > Section > Paragraph
+   - Multi-citation support for answers from multiple pages
+
+4. **Page Navigation Features**:
+   - Page thumbnails sidebar with preview
+   - Quick jump to page by number
+   - Previous/Next page buttons
+   - Keyboard shortcuts (arrow keys, Page Up/Down)
+   - Search within PDF with highlighting
+   - Bookmark important pages
+   - Navigation history (back/forward)
+
+5. **Text Selection and Query**:
+   - Select text in PDF → "Ask about this" popup
+   - Right-click context menu with options:
+     * Ask AI about selection
+     * Copy text
+     * Add to context
+     * Create table from selection
+   - Drag to select across pages
+   - Smart selection (double-click for word, triple for paragraph)
+
+6. **Visual Annotation Layer**:
+   - Highlight tables detected by extraction system
+   - Box around images/charts with "Analyze" button
+   - Color-code different types of content
+   - Show extraction confidence with opacity
+   - Manual correction tools for misidentified elements
+
+7. **Synchronized Scrolling**:
+   - Auto-scroll PDF when new citation referenced
+   - Smooth scroll animations with highlighting
+   - Maintain scroll position per conversation
+   - Jump to page from chat mentions ("on page 5...")
+   - Mini-map showing current position in document
+
+8. **Chat Context Integration**:
+   - Show current page number in chat input placeholder
+   - Display "Currently viewing: Page X" indicator
+   - Include visible page content in context automatically
+   - Quick insert buttons for:
+     * Current page tables
+     * Visible text
+     * Selected content
+   - Context pills showing: "PDF: filename.pdf (Page 1-10)"
+
+9. **Advanced Features**:
+   - **Compare Mode**: View two PDFs side by side
+   - **Presentation Mode**: Full-screen PDF with chat overlay
+   - **Export Options**: 
+     * Chat + citations as markdown
+     * Annotated PDF with highlights
+     * Combined report with Q&A
+   - **Collaborative Features**:
+     * Share view with specific page/highlight
+     * Export conversation with PDF context
+     * Generate summary of discussed sections
+
+10. **Performance Optimization**:
+    - Lazy load PDF pages (render ±2 pages from current)
+    - Cache rendered pages in memory
+    - Progressive loading for large PDFs
+    - Low-resolution previews while scrolling
+    - Web Worker for PDF operations
+    - Virtual scrolling for thumbnail sidebar
+
+11. **Mobile Adaptation**:
+    - Swipe between PDF and chat views
+    - Pinch to zoom on PDF
+    - Tap citations to switch views
+    - Bottom sheet for chat on PDF view
+    - Responsive toolbar positioning
+
+Example UI Structure:
+```
++------------------+------------------+
+|   PDF Viewer     |   Chat Panel     |
+|                  |                  |
+| Page 5 of 50     | Q: What's the    |
+| [PDF Content]    |    total revenue?|
+| ==highlighted==  |                  |
+|                  | A: $1.2M [5]     |
+|                  |    ^^clickable   |
++------------------+------------------+
+| [<] [>] [🔍] [⚙️] | [📎] [Send...]   |
++------------------+------------------+
+```
+
+Based on: Claude's PDF split-screen with citations, ChatPDF's side-by-side interface, Adobe Acrobat's annotation tools, Research paper readers like Mendeley.
+
