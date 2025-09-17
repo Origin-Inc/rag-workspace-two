@@ -1,0 +1,85 @@
+# Task ID: 54
+# Title: Build Natural Language to SQL Query Engine
+# Status: pending
+# Dependencies: 53
+# Priority: high
+# Description: Implement OpenAI GPT-4 integration to convert natural language questions into SQL queries and execute them on uploaded data
+# Details:
+1. Create OpenAI prompt engineering system for SQL generation
+2. Build context-aware prompt with table schemas
+3. Implement SQL query validation and sanitization
+4. Execute queries on DuckDB and handle results
+5. Create POST /api/data/query endpoint
+6. Format query results for display (tables, numbers, aggregations)
+7. Implement error recovery for invalid SQL
+8. Add query preview/editing capability
+
+Prompt template:
+```
+System: You are a SQL expert. Convert natural language to DuckDB SQL.
+Available tables and schemas:
+${tables.map(t => `Table: ${t.name}\nColumns: ${t.columns}`).join('\n')}
+
+Rules:
+- Use DuckDB SQL syntax
+- Return only the SQL query
+- Handle aggregations, joins, and filters
+- Use appropriate date/time functions
+
+User question: ${question}
+SQL Query:
+```
+
+Query execution:
+```
+async function executeQuery(sql, tables) {
+  try {
+    const conn = await duckdb.connect();
+    const result = await conn.query(sql);
+    return formatResults(result);
+  } catch (error) {
+    return handleQueryError(error, sql);
+  }
+}
+```
+
+# Test Strategy:
+1. Test SQL generation accuracy with various question types
+2. Validate SQL injection prevention
+3. Test query execution with different data types
+4. Verify error handling for malformed queries
+5. Test performance with complex joins and aggregations
+6. Validate result formatting for different query types
+7. Test context awareness with multiple tables
+
+# Subtasks:
+## 1. Set Up OpenAI Integration and Prompt Engineering System [pending]
+### Dependencies: None
+### Description: Create the OpenAI service integration and develop the prompt engineering system for converting natural language to SQL queries
+### Details:
+Create an OpenAI service module that handles API communication. Implement the prompt template system with configurable system prompts and user messages. Design the prompt structure to include table schemas, column types, and DuckDB-specific SQL syntax rules. Include few-shot examples in the prompt for better accuracy. Set up environment variables for OpenAI API key and model configuration (GPT-4). Create a prompt builder function that dynamically constructs prompts based on available tables and their schemas.
+
+## 2. Implement Schema Introspection and Context Building [pending]
+### Dependencies: 54.1
+### Description: Build the system to extract and format table schemas from uploaded data for use in prompt context
+### Details:
+Create a schema extraction service that reads table metadata from DuckDB. Build functions to introspect column names, data types, and relationships. Format schema information into a structured format for prompt inclusion. Implement caching mechanism for schema data to avoid repeated introspection. Create utility functions to detect data types, primary keys, and foreign key relationships. Build a context manager that maintains the current state of available tables and their schemas for each query session.
+
+## 3. Build SQL Generation and Validation Layer [pending]
+### Dependencies: 54.1, 54.2
+### Description: Implement the core logic for generating SQL queries from natural language and validating them for safety and correctness
+### Details:
+Create the query generation service that calls OpenAI API with prepared prompts. Implement SQL validation using a parser to check for dangerous operations (DROP, DELETE, ALTER). Build sanitization functions to prevent SQL injection attacks. Create a query validator that checks generated SQL against the actual schema. Implement query rewriting for common patterns and DuckDB-specific syntax. Add support for query complexity analysis to prevent resource-intensive operations. Build a query preview system that shows the generated SQL before execution.
+
+## 4. Create Query Execution Engine and Result Formatting [pending]
+### Dependencies: 54.3
+### Description: Build the system to execute validated SQL queries on DuckDB and format results for display
+### Details:
+Implement the DuckDB connection manager with connection pooling. Create the query executor with timeout and resource limits. Build result formatters for different output types (tables, charts, aggregations). Implement pagination for large result sets. Create type-aware formatters for dates, numbers, and currency. Build result caching mechanism for repeated queries. Implement streaming for large result sets. Create response transformers for frontend consumption including metadata about query execution time and row counts.
+
+## 5. Implement API Endpoint and Error Recovery System [pending]
+### Dependencies: 54.3, 54.4
+### Description: Create the REST API endpoint for natural language queries and build comprehensive error handling with recovery mechanisms
+### Details:
+Create POST /api/data/query endpoint with request validation using Zod schemas. Implement error classification system (syntax errors, schema errors, execution errors). Build error recovery with query suggestions and corrections. Create fallback mechanisms for common query patterns. Implement retry logic with exponential backoff for transient failures. Add comprehensive logging and monitoring for query performance. Build user-friendly error messages with actionable suggestions. Create query history tracking for debugging and analytics. Implement rate limiting and authentication checks.
+

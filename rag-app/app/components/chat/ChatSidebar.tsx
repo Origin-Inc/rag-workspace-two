@@ -7,6 +7,7 @@ import { ResizeHandle } from '~/components/ui/ResizeHandle';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { FileUploadZone } from './FileUploadZone';
+import { FileContextDisplay } from './FileContextDisplay';
 import { cn } from '~/utils/cn';
 
 interface ChatSidebarProps {
@@ -69,13 +70,16 @@ export function ChatSidebar({
   };
   
   const handleFileUpload = async (file: File) => {
-    // Add file to store
+    // Add placeholder file to store
+    const tempFileId = `temp_${Date.now()}`;
     addDataFile({
+      id: tempFileId,
       filename: file.name,
       tableName: file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_'),
-      schema: [],
+      schema: { columns: [], rowCount: 0, sampleData: [] },
       rowCount: 0,
       sizeBytes: file.size,
+      uploadedAt: new Date(),
     });
     
     // Add info message
@@ -89,8 +93,48 @@ export function ChatSidebar({
       setLoading(true);
       try {
         await onFileUpload(file);
+        
+        // After successful upload, load data into DuckDB
+        const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
+        const duckdb = getDuckDB();
+        
+        // Initialize DuckDB if not already done
+        if (!duckdb.isReady()) {
+          await duckdb.initialize();
+        }
+        
+        // Process the file based on type
+        const { FileProcessingService } = await import('~/services/file-processing.server');
+        const processed = await FileProcessingService.processFile(file);
+        
+        // Load data into DuckDB
+        if (duckdb.isReady() && processed.data && processed.data.length > 0) {
+          await duckdb.createTableFromData(
+            processed.tableName,
+            processed.data,
+            processed.schema
+          );
+          
+          // Update the file in store with proper data
+          removeDataFile(tempFileId);
+          addDataFile({
+            id: processed.tableName,
+            filename: file.name,
+            tableName: processed.tableName,
+            schema: processed.schema,
+            rowCount: processed.data.length,
+            sizeBytes: file.size,
+            uploadedAt: new Date(),
+          });
+          
+          addMessage({
+            role: 'system',
+            content: `File "${file.name}" loaded into table "${processed.tableName}" with ${processed.data.length} rows.`,
+          });
+        }
       } catch (error) {
         console.error('Error uploading file:', error);
+        removeDataFile(tempFileId);
         addMessage({
           role: 'assistant',
           content: `Failed to process file "${file.name}".`,
@@ -183,24 +227,29 @@ export function ChatSidebar({
         </button>
       </div>
       
-      {/* Data Files */}
+      {/* File Context Display */}
       {dataFiles.length > 0 && (
-        <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Uploaded Files:</p>
-          <div className="space-y-1">
-            {dataFiles.map((file) => (
-              <div key={file.id} className="flex items-center justify-between text-xs">
-                <span className="truncate">{file.filename}</span>
-                <button
-                  onClick={() => removeDataFile(file.id)}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+        <FileContextDisplay 
+          pageId={pageId}
+          onFileClick={(fileId) => {
+            // Handle file click - could open preview modal or show details
+            console.log('File clicked:', fileId);
+            addMessage({
+              role: 'system',
+              content: `Selected file: ${dataFiles.find(f => f.id === fileId)?.filename || fileId}`,
+            });
+          }}
+          onFileRemove={(fileId) => {
+            const file = dataFiles.find(f => f.id === fileId);
+            if (file) {
+              removeDataFile(fileId);
+              addMessage({
+                role: 'system',
+                content: `Removed file: ${file.filename}`,
+              });
+            }
+          }}
+        />
       )}
       
       {/* Messages */}
@@ -235,6 +284,7 @@ export function ChatSidebar({
       
         {/* Input */}
         <ChatInput 
+          pageId={pageId}
           onSendMessage={handleSendMessage}
           disabled={isLoading}
           placeholder={dataFiles.length === 0 ? "Upload data first..." : "Ask a question about your data..."}
