@@ -148,21 +148,11 @@ export function ChatSidebar({
           });
         });
         
-        // Supabase signed upload URLs expect POST with FormData
-        if (uploadUrl.includes('storage/v1/upload/signed')) {
-          // This is a Supabase signed upload URL - use POST with FormData
-          const formData = new FormData();
-          formData.append('', file, file.name); // Empty field name for Supabase
-          
-          uploadRequest.open('POST', uploadUrl);
-          // Don't set Content-Type, let browser set it with boundary for multipart
-          uploadRequest.send(formData);
-        } else {
-          // Fallback: regular signed URL (PUT request)
-          uploadRequest.open('PUT', uploadUrl);
-          uploadRequest.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-          uploadRequest.send(file);
-        }
+        // For Supabase signed URLs, use PUT request to replace the placeholder
+        uploadRequest.open('PUT', uploadUrl);
+        uploadRequest.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        uploadRequest.setRequestHeader('x-upsert', 'true'); // Allow overwriting
+        uploadRequest.send(file);
         
         // Wait for upload to complete
         await uploadPromise;
