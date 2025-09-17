@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Send, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Send, Upload, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useFetcher } from '@remix-run/react';
 import { useChatMessages, useChatDataFiles, useChatConnection } from '~/stores/chat-store-ultimate-fix';
 import { useLayoutStore } from '~/stores/layout-store';
@@ -16,6 +16,13 @@ interface ChatSidebarProps {
   onSendMessage?: (message: string) => Promise<void>;
   onFileUpload?: (file: File) => Promise<void>;
   className?: string;
+}
+
+interface UploadProgress {
+  filename: string;
+  progress: number;
+  status: 'requesting' | 'uploading' | 'confirming' | 'processing' | 'complete' | 'error';
+  error?: string;
 }
 
 export function ChatSidebar({ 
@@ -37,12 +44,13 @@ export function ChatSidebar({
   const fetcher = useFetcher();
   
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]); // Only depend on length, not the array reference
+  }, [messages.length]);
   
   const handleSendMessage = async (content: string) => {
     if (!content.trim()) return;
@@ -72,92 +80,119 @@ export function ChatSidebar({
   };
   
   const handleFileUpload = async (file: File) => {
-    // Add placeholder file to store
-    const tempFileId = `temp_${Date.now()}`;
-    addDataFile({
-      id: tempFileId,
+    // Start upload progress tracking
+    setUploadProgress({
       filename: file.name,
-      tableName: file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_'),
-      schema: { columns: [], rowCount: 0, sampleData: [] },
-      rowCount: 0,
-      sizeBytes: file.size,
-      uploadedAt: new Date(),
+      progress: 0,
+      status: 'requesting'
     });
-    
-    // Add info message
-    addMessage({
-      role: 'system',
-      content: `File "${file.name}" uploaded successfully. Processing...`,
-    });
-    
+
     // Process file client-side for immediate use
     setLoading(true);
     try {
-      // Upload to server for persistence if workspaceId is provided
+      // If workspaceId provided, upload to server for persistence
       if (workspaceId) {
-        const MAX_DIRECT_UPLOAD = 10 * 1024 * 1024; // 10MB
+        // Step 1: Request signed URL
+        setUploadProgress(prev => prev ? { ...prev, status: 'requesting', progress: 10 } : null);
         
-        if (file.size <= MAX_DIRECT_UPLOAD) {
-          // Direct upload for smaller files
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('workspaceId', workspaceId);
-          formData.append('pageId', pageId);
-          formData.append('isShared', 'false');
-          formData.append('processImmediately', 'true');
-        
-        const uploadResponse = await fetch('/api/upload', {
+        const signedUrlResponse = await fetch('/api/upload', {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'request-upload-url',
+            workspaceId,
+            pageId: pageId || null,
+            filename: file.name,
+            fileSize: file.size,
+            mimeType: file.type || 'application/octet-stream',
+            isShared: false
+          }),
         });
         
-        if (!uploadResponse.ok) {
-          const error = await uploadResponse.json();
-          console.error('Server upload failed:', error);
-          addMessage({
-            role: 'system',
-            content: `Note: File saved locally only. Server backup failed: ${error.error}`,
-          });
-        } else {
-          const result = await uploadResponse.json();
-          console.log('File uploaded to server:', result.fileId);
+        if (!signedUrlResponse.ok) {
+          const error = await signedUrlResponse.json();
+          throw new Error(error.error || 'Failed to get upload URL');
         }
-        } else {
-          // For large files, get a signed URL for direct browser upload
-          const formData = new FormData();
-          formData.append('workspaceId', workspaceId);
-          formData.append('filename', file.name);
-          formData.append('isShared', 'false');
         
-        const urlResponse = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'X-Upload-Mode': 'signed-url' },
-          body: formData,
-        });
+        const { fileId, uploadUrl, storagePath, expiresIn } = await signedUrlResponse.json();
         
-        if (urlResponse.ok) {
-          const { uploadUrl, storagePath } = await urlResponse.json();
-          
-          // Upload directly to storage
-          const storageResponse = await fetch(uploadUrl, {
-            method: 'PUT',
-            body: file,
-            headers: {
-              'Content-Type': file.type,
-            },
-          });
-          
-          if (storageResponse.ok) {
-            console.log('Large file uploaded to storage:', storagePath);
-            addMessage({
-              role: 'system',
-              content: `Large file "${file.name}" uploaded to cloud storage.`,
-            });
-            }
+        // Step 2: Upload directly to Supabase Storage
+        setUploadProgress(prev => prev ? { ...prev, status: 'uploading', progress: 30 } : null);
+        
+        const uploadRequest = new XMLHttpRequest();
+        
+        // Track upload progress
+        uploadRequest.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 60) + 30; // 30-90%
+            setUploadProgress(prev => prev ? { ...prev, progress: percentComplete } : null);
           }
+        });
+        
+        // Create a promise for the upload
+        const uploadPromise = new Promise<void>((resolve, reject) => {
+          uploadRequest.addEventListener('load', () => {
+            if (uploadRequest.status >= 200 && uploadRequest.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`Upload failed with status ${uploadRequest.status}`));
+            }
+          });
+          
+          uploadRequest.addEventListener('error', () => {
+            reject(new Error('Network error during upload'));
+          });
+          
+          uploadRequest.addEventListener('abort', () => {
+            reject(new Error('Upload cancelled'));
+          });
+        });
+        
+        // Start the upload
+        uploadRequest.open('PUT', uploadUrl);
+        uploadRequest.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        uploadRequest.send(file);
+        
+        // Wait for upload to complete
+        await uploadPromise;
+        
+        // Step 3: Confirm upload completion
+        setUploadProgress(prev => prev ? { ...prev, status: 'confirming', progress: 95 } : null);
+        
+        const confirmResponse = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'confirm-upload',
+            fileId,
+            storagePath,
+            processImmediately: true
+          }),
+        });
+        
+        if (!confirmResponse.ok) {
+          const error = await confirmResponse.json();
+          throw new Error(error.error || 'Failed to confirm upload');
         }
+        
+        const result = await confirmResponse.json();
+        console.log('File uploaded successfully:', result);
+        
+        // Update progress to complete
+        setUploadProgress(prev => prev ? { ...prev, status: 'complete', progress: 100 } : null);
+        
+        // Add success message
+        addMessage({
+          role: 'system',
+          content: `File "${file.name}" uploaded successfully. Processing in background...`,
+        });
       } else {
         console.log('No workspace ID provided, using local-only storage');
+        // Add info message for local-only processing
+        addMessage({
+          role: 'system',
+          content: `File "${file.name}" will be processed locally for this session only.`,
+        });
       }
       
       // Process file client-side for immediate use with DuckDB
@@ -181,8 +216,7 @@ export function ChatSidebar({
           processed.schema
         );
         
-        // Update the file in store with proper data
-        removeDataFile(tempFileId);
+        // Add the file to local store
         addDataFile({
           id: processed.tableName,
           filename: file.name,
@@ -195,17 +229,29 @@ export function ChatSidebar({
         
         addMessage({
           role: 'system',
-          content: `File "${file.name}" loaded with ${processed.data.length} rows. Available for immediate querying.`,
+          content: `File "${file.name}" loaded with ${processed.data.length} rows. Ready for querying!`,
         });
       }
+      
+      // Clear upload progress after a delay
+      setTimeout(() => setUploadProgress(null), 2000);
+      
     } catch (error) {
       console.error('Error processing file:', error);
-      removeDataFile(tempFileId);
+      setUploadProgress(prev => prev ? { 
+        ...prev, 
+        status: 'error', 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      } : null);
+      
       addMessage({
         role: 'assistant',
-        content: `Failed to process file "${file.name}".`,
+        content: `Failed to upload file "${file.name}".`,
         metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
       });
+      
+      // Clear error after delay
+      setTimeout(() => setUploadProgress(null), 5000);
     } finally {
       setLoading(false);
     }
@@ -317,6 +363,35 @@ export function ChatSidebar({
         />
       )}
       
+      {/* Upload Progress */}
+      {uploadProgress && (
+        <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {uploadProgress.status === 'requesting' && 'Preparing upload...'}
+              {uploadProgress.status === 'uploading' && `Uploading ${uploadProgress.filename}...`}
+              {uploadProgress.status === 'confirming' && 'Confirming upload...'}
+              {uploadProgress.status === 'processing' && 'Processing file...'}
+              {uploadProgress.status === 'complete' && 'Upload complete!'}
+              {uploadProgress.status === 'error' && `Error: ${uploadProgress.error}`}
+            </span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {uploadProgress.progress}%
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+            <div 
+              className={cn(
+                "h-2 rounded-full transition-all duration-300",
+                uploadProgress.status === 'error' ? "bg-red-600" : 
+                uploadProgress.status === 'complete' ? "bg-green-600" : "bg-blue-600"
+              )}
+              style={{ width: `${uploadProgress.progress}%` }}
+            />
+          </div>
+        </div>
+      )}
+      
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white dark:bg-gray-900">
         {messages.length === 0 ? (
@@ -351,7 +426,7 @@ export function ChatSidebar({
         <ChatInput 
           pageId={pageId}
           onSendMessage={handleSendMessage}
-          disabled={isLoading}
+          disabled={isLoading || uploadProgress !== null}
           placeholder={dataFiles.length === 0 ? "Upload data first..." : "Ask a question about your data..."}
         />
       </div>

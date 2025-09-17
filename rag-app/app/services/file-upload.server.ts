@@ -344,4 +344,27 @@ export class FileUploadService {
       }
     });
   }
+
+  /**
+   * Verify if a file exists in storage
+   */
+  static async verifyFileExists(storagePath: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase.storage
+        .from(this.BUCKET_NAME)
+        .list(storagePath.split('/').slice(0, -1).join('/'), {
+          search: storagePath.split('/').pop()
+        });
+
+      if (error) {
+        console.error('Error checking file existence:', error);
+        return false;
+      }
+
+      return data && data.length > 0;
+    } catch (error) {
+      console.error('Error verifying file:', error);
+      return false;
+    }
+  }
 }

@@ -19,7 +19,8 @@ ON CONFLICT (id) DO UPDATE SET
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- Enable RLS for the bucket
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- Note: RLS is already enabled by default on storage.objects in Supabase
+-- ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can upload files to their own folder
 CREATE POLICY "Users can upload their own files" 
@@ -67,10 +68,9 @@ USING (
     -- Check if path starts with 'workspace/'
     (storage.foldername(name))[1] = 'workspace'
     AND EXISTS (
-      SELECT 1 FROM "UserWorkspace" uw
-      WHERE uw."userId" = auth.uid()
-      AND uw."workspaceId" = (storage.foldername(name))[2]::uuid
-      AND uw.status = 'active'
+      SELECT 1 FROM user_workspaces uw
+      WHERE uw.user_id = auth.uid()
+      AND uw.workspace_id = (storage.foldername(name))[2]::uuid
     )
   )
 )
@@ -80,11 +80,9 @@ WITH CHECK (
     -- Check if path starts with 'workspace/'
     (storage.foldername(name))[1] = 'workspace'
     AND EXISTS (
-      SELECT 1 FROM "UserWorkspace" uw
-      WHERE uw."userId" = auth.uid()
-      AND uw."workspaceId" = (storage.foldername(name))[2]::uuid
-      AND uw.status = 'active'
-      AND uw.role IN ('owner', 'admin', 'member') -- Only certain roles can upload
+      SELECT 1 FROM user_workspaces uw
+      WHERE uw.user_id = auth.uid()
+      AND uw.workspace_id = (storage.foldername(name))[2]::uuid
     )
   )
 );

@@ -1,79 +1,60 @@
-import type { ActionFunction } from '@remix-run/node';
-import { json, unstable_parseMultipartFormData } from '@remix-run/node';
+import type { ActionFunction, LoaderFunction } from '@remix-run/node';
+import { json } from '@remix-run/node';
 import { requireUser } from '~/services/auth/auth.server';
 import { FileUploadService } from '~/services/file-upload.server';
 import { prisma } from '~/utils/db.server';
 import { z } from 'zod';
 
-// Custom upload handler for processing file uploads
-const uploadHandler = async ({
-  name,
-  data,
-  filename,
-  contentType
-}: {
-  name: string;
-  data: AsyncIterable<Uint8Array>;
-  filename?: string;
-  contentType?: string;
-}) => {
-  if (name !== 'file' || !filename) {
-    return undefined;
-  }
+/**
+ * Production-ready file upload API that works on Vercel
+ * Uses direct browser-to-Supabase uploads to bypass serverless limitations
+ * 
+ * Flow:
+ * 1. Client requests signed URL (POST with metadata)
+ * 2. Client uploads directly to Supabase Storage
+ * 3. Client confirms upload completion (POST with confirmation)
+ */
 
-  try {
-    // Collect file data into buffer
-    const chunks: Uint8Array[] = [];
-    for await (const chunk of data) {
-      chunks.push(chunk);
-    }
-    
-    if (chunks.length === 0) {
-      console.error('No chunks received for file:', filename);
-      return undefined;
-    }
-    
-    const buffer = Buffer.concat(chunks);
-    
-    return {
-      buffer,
-      filename,
-      contentType: contentType || 'application/octet-stream'
-    };
-  } catch (error) {
-    console.error('Error in uploadHandler:', error);
-    return undefined;
-  }
-};
-
-// Schema for request validation
-const uploadSchema = z.object({
+// Schema for signed URL request
+const signedUrlSchema = z.object({
   workspaceId: z.string().uuid(),
-  pageId: z.string().uuid().optional(),
+  pageId: z.string().uuid().optional().nullable(),
+  filename: z.string().min(1),
+  fileSize: z.number().positive(),
+  mimeType: z.string(),
   isShared: z.boolean().optional(),
-  processImmediately: z.boolean().optional()
+});
+
+// Schema for upload confirmation
+const confirmUploadSchema = z.object({
+  fileId: z.string().uuid(),
+  storagePath: z.string(),
+  processImmediately: z.boolean().optional(),
 });
 
 export const action: ActionFunction = async ({ request }) => {
   try {
-    // Require authenticated user
     const user = await requireUser(request);
+    const contentType = request.headers.get('Content-Type');
+    
+    // Parse JSON body (no multipart!)
+    const body = await request.json();
+    const action = body.action;
 
-    // Check if this is a request for signed URL (for large files)
-    if (request.headers.get('X-Upload-Mode') === 'signed-url') {
-      const formData = await request.formData();
-      const workspaceId = formData.get('workspaceId') as string;
-      const filename = formData.get('filename') as string;
-      const isShared = formData.get('isShared') === 'true';
-
-      if (!workspaceId || !filename) {
+    if (action === 'request-upload-url') {
+      // Step 1: Generate signed URL for direct upload
+      const validation = signedUrlSchema.safeParse(body);
+      
+      if (!validation.success) {
         return json(
-          { error: 'Missing required fields' },
+          { error: 'Invalid request', details: validation.error.flatten() },
           { status: 400 }
         );
       }
 
-      // Get workspace
+      const { workspaceId, pageId, filename, fileSize, mimeType, isShared } = validation.data;
+
+      // Verify workspace access
       const workspace = await prisma.workspace.findFirst({
         where: {
           id: workspaceId,
@@ -87,197 +68,173 @@ export const action: ActionFunction = async ({ request }) => {
       });
 
       if (!workspace) {
+        return json({ error: 'Workspace not found' }, { status: 404 });
+      }
+
+      // Check file size limit (500MB max for Supabase)
+      const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+      if (fileSize > MAX_FILE_SIZE) {
         return json(
-          { error: 'Workspace not found' },
-          { status: 404 }
+          { error: 'File too large', maxSize: MAX_FILE_SIZE },
+          { status: 413 }
         );
       }
 
-      // Generate signed upload URL
+      // Create file record in database first
+      const fileRecord = await prisma.userFile.create({
+        data: {
+          userId: user.id,
+          workspaceId,
+          pageId: pageId || undefined,
+          originalName: filename,
+          mimeType,
+          sizeBytes: fileSize,
+          storagePath: '', // Will be updated after upload
+          isShared: isShared || false,
+          processingStatus: 'pending',
+          uploadStatus: 'pending',
+        }
+      });
+
+      // Generate signed URL for direct upload
       const { uploadUrl, storagePath } = await FileUploadService.generateUploadUrl(
         user,
         workspace,
         filename,
-        isShared
+        isShared || false
       );
 
+      // Update file record with storage path
+      await prisma.userFile.update({
+        where: { id: fileRecord.id },
+        data: { storagePath }
+      });
+
       return json({
+        success: true,
+        fileId: fileRecord.id,
         uploadUrl,
         storagePath,
-        mode: 'direct-upload'
+        expiresIn: 300, // URL expires in 5 minutes
       });
-    }
 
-    // Parse multipart form data for direct uploads
-    let formData: FormData;
-    let file: {
-      buffer: Buffer;
-      filename: string;
-      contentType: string;
-    } | null = null;
-
-    try {
-      // Try using the custom upload handler first
-      formData = await unstable_parseMultipartFormData(request, uploadHandler);
-      file = formData.get('file') as any;
-    } catch (error) {
-      console.error('Error parsing multipart data with custom handler:', error);
+    } else if (action === 'confirm-upload') {
+      // Step 2: Confirm successful upload and trigger processing
+      const validation = confirmUploadSchema.safeParse(body);
       
-      // Fallback to standard FormData parsing
-      try {
-        formData = await request.formData();
-        const fileBlob = formData.get('file') as File | null;
-        
-        if (fileBlob && fileBlob instanceof File) {
-          const arrayBuffer = await fileBlob.arrayBuffer();
-          file = {
-            buffer: Buffer.from(arrayBuffer),
-            filename: fileBlob.name,
-            contentType: fileBlob.type || 'application/octet-stream'
-          };
-        }
-      } catch (fallbackError) {
-        console.error('Error with fallback FormData parsing:', fallbackError);
+      if (!validation.success) {
         return json(
-          { error: 'Failed to parse uploaded file' },
+          { error: 'Invalid confirmation', details: validation.error.flatten() },
           { status: 400 }
         );
       }
-    }
 
-    if (!file) {
-      return json(
-        { error: 'No file provided' },
-        { status: 400 }
-      );
-    }
+      const { fileId, storagePath, processImmediately } = validation.data;
 
-    // Validate file buffer exists
-    if (!file.buffer) {
-      console.error('File buffer is undefined for file:', file.filename);
-      return json(
-        { error: 'File upload failed - empty file buffer' },
-        { status: 400 }
-      );
-    }
-
-    // Get other form fields
-    const workspaceId = formData.get('workspaceId') as string;
-    const pageIdRaw = formData.get('pageId') as string | null;
-    const pageId = pageIdRaw && pageIdRaw !== '' ? pageIdRaw : undefined;
-    const isShared = formData.get('isShared') === 'true';
-    const processImmediately = formData.get('processImmediately') === 'true';
-
-    // Debug logging
-    console.log('Upload request fields:', {
-      workspaceId,
-      pageId,
-      isShared,
-      processImmediately,
-      fileSize: file.buffer?.length || 0,
-      filename: file.filename
-    });
-
-    // Validate fields
-    const validation = uploadSchema.safeParse({
-      workspaceId,
-      pageId,
-      isShared,
-      processImmediately
-    });
-
-    if (!validation.success) {
-      console.error('Validation error:', validation.error.flatten());
-      return json(
-        { error: 'Invalid request data', details: validation.error.flatten() },
-        { status: 400 }
-      );
-    }
-
-    // Get workspace
-    const workspace = await prisma.workspace.findFirst({
-      where: {
-        id: workspaceId,
-        userWorkspaces: {
-          some: {
-            userId: user.id,
-            status: 'active'
-          }
-        }
-      }
-    });
-
-    if (!workspace) {
-      return json(
-        { error: 'Workspace not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check file size limit (10MB for direct upload, larger files should use signed URLs)
-    const MAX_DIRECT_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB
-    if (file.buffer.length > MAX_DIRECT_UPLOAD_SIZE) {
-      return json(
-        { 
-          error: 'File too large for direct upload', 
-          suggestion: 'Use signed URL upload for files larger than 10MB' 
+      // Verify file record exists and belongs to user
+      const file = await prisma.userFile.findFirst({
+        where: {
+          id: fileId,
+          userId: user.id,
+          uploadStatus: 'pending'
         },
-        { status: 413 }
-      );
-    }
+        include: { workspace: true }
+      });
 
-    // Upload file to Supabase Storage
-    const uploadResult = await FileUploadService.uploadFile({
-      user,
-      workspace,
-      pageId,
-      file: file.buffer,
-      filename: file.filename,
-      mimeType: file.contentType,
-      isShared
-    });
+      if (!file) {
+        return json({ error: 'File not found or already processed' }, { status: 404 });
+      }
 
-    // If processImmediately is true, create a processing job
-    if (processImmediately) {
-      const jobType = file.contentType.includes('pdf') 
-        ? 'extract_pdf' 
-        : file.contentType.includes('excel') || file.filename.endsWith('.xlsx')
-        ? 'parse_excel'
-        : 'parse_csv';
+      // Verify the file actually exists in storage
+      const exists = await FileUploadService.verifyFileExists(storagePath);
+      if (!exists) {
+        await prisma.userFile.update({
+          where: { id: fileId },
+          data: {
+            uploadStatus: 'failed',
+            processingError: 'File not found in storage'
+          }
+        });
+        return json({ error: 'Upload verification failed' }, { status: 400 });
+      }
 
-      await prisma.fileProcessingJob.create({
+      // Mark upload as complete
+      await prisma.userFile.update({
+        where: { id: fileId },
         data: {
-          fileId: uploadResult.fileId,
-          workspaceId: workspace.id,
-          jobType,
-          status: 'pending',
-          priority: 5
+          uploadStatus: 'completed',
+          uploadedAt: new Date()
         }
       });
 
-      // Update file status to processing
-      await FileUploadService.updateProcessingStatus(
-        uploadResult.fileId,
-        'processing'
-      );
+      // Create processing job if requested
+      if (processImmediately) {
+        const jobType = file.mimeType.includes('pdf') 
+          ? 'extract_pdf' 
+          : file.mimeType.includes('excel') || file.originalName.endsWith('.xlsx')
+          ? 'parse_excel'
+          : 'parse_csv';
+
+        const job = await prisma.fileProcessingJob.create({
+          data: {
+            fileId,
+            workspaceId: file.workspaceId,
+            jobType,
+            status: 'pending',
+            priority: 5
+          }
+        });
+
+        // Update file processing status
+        await prisma.userFile.update({
+          where: { id: fileId },
+          data: { processingStatus: 'processing' }
+        });
+
+        return json({
+          success: true,
+          fileId,
+          jobId: job.id,
+          message: 'File uploaded and queued for processing'
+        });
+      }
+
+      return json({
+        success: true,
+        fileId,
+        message: 'File uploaded successfully'
+      });
+
+    } else if (action === 'cancel-upload') {
+      // Optional: Clean up cancelled uploads
+      const { fileId } = body;
+      
+      if (!fileId) {
+        return json({ error: 'File ID required' }, { status: 400 });
+      }
+
+      await prisma.userFile.updateMany({
+        where: {
+          id: fileId,
+          userId: user.id,
+          uploadStatus: 'pending'
+        },
+        data: {
+          uploadStatus: 'cancelled',
+          processingStatus: 'cancelled'
+        }
+      });
+
+      return json({ success: true, message: 'Upload cancelled' });
     }
 
-    return json({
-      success: true,
-      fileId: uploadResult.fileId,
-      storagePath: uploadResult.storagePath,
-      signedUrl: uploadResult.signedUrl,
-      checksum: uploadResult.checksum,
-      message: processImmediately 
-        ? 'File uploaded and queued for processing' 
-        : 'File uploaded successfully'
-    });
+    return json({ error: 'Invalid action' }, { status: 400 });
 
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('Upload API error:', error);
     return json(
       { 
-        error: 'Upload failed', 
+        error: 'Upload operation failed', 
         details: error instanceof Error ? error.message : 'Unknown error' 
       },
       { status: 500 }
@@ -285,8 +242,8 @@ export const action: ActionFunction = async ({ request }) => {
   }
 };
 
-// GET endpoint to check upload status
-export const loader = async ({ request }: { request: Request }) => {
+// GET endpoint to check upload/processing status
+export const loader: LoaderFunction = async ({ request }) => {
   const user = await requireUser(request);
   const url = new URL(request.url);
   const fileId = url.searchParams.get('fileId');
@@ -339,6 +296,7 @@ export const loader = async ({ request }: { request: Request }) => {
   return json({
     fileId: file.id,
     filename: file.originalName,
+    uploadStatus: file.uploadStatus,
     processingStatus: file.processingStatus,
     processingError: file.processingError,
     dataTable: file.dataTable,
