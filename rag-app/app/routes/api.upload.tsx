@@ -80,12 +80,16 @@ export const action: ActionFunction = async ({ request }) => {
       }
 
       // Create file record in database first
+      // Generate safe filename for storage
+      const safeFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
+      
       const fileRecord = await prisma.userFile.create({
         data: {
           userId: user.id,
           workspaceId,
           pageId: pageId || undefined,
-          originalName: filename,
+          filename: safeFilename,  // Required field - sanitized filename
+          originalName: filename,   // Original filename as uploaded
           mimeType,
           sizeBytes: fileSize,
           storagePath: '', // Will be updated after upload
