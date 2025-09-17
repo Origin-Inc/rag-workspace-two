@@ -216,8 +216,7 @@ export class FileUploadService {
             workspace: {
               userWorkspaces: {
                 some: {
-                  userId,
-                  status: 'active'
+                  userId
                 }
               }
             }
