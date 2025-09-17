@@ -35,6 +35,7 @@ model User {
   userWorkspaces    UserWorkspace[]
   auditLogs         AuditLog[]
   invitations       Invitation[]
+  userFiles         UserFile[]
 
   @@index([email])
   @@index([emailVerificationToken])
@@ -63,6 +64,9 @@ model Workspace {
   indexingQueue IndexingQueue[]
   chatMessages   ChatMessage[]
   dataFiles      DataFile[]
+  userFiles      UserFile[]
+  userDataTables UserDataTable[]
+  fileProcessingJobs FileProcessingJob[]
 
   @@index([slug])
   @@map("workspaces")
@@ -187,6 +191,7 @@ model Page {
   blockEmbeddings BlockEmbedding[]
   chatMessages ChatMessage[]
   dataFiles   DataFile[]
+  userFiles   UserFile[]
 
   @@unique([workspaceId, slug]) // New unique constraint for workspace-based slugs
   @@unique([projectId, slug]) // Keep for backward compatibility
@@ -581,4 +586,136 @@ model DataFile {
   @@index([workspaceId])
   @@index([tableName])
   @@map("data_files")
+}
+
+// New models for persistent file storage
+model UserFile {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String      @map("user_id") @db.Uuid
+  workspaceId       String      @map("workspace_id") @db.Uuid
+  pageId            String?     @map("page_id") @db.Uuid // Optional page association
+  filename          String      @db.VarChar(255)
+  originalName      String      @map("original_name") @db.VarChar(255)
+  mimeType          String      @map("mime_type") @db.VarChar(100)
+  sizeBytes         BigInt      @map("size_bytes")
+  storagePath       String      @map("storage_path") @db.Text // Supabase Storage path
+  storageUrl        String?     @map("storage_url") @db.Text // Public/signed URL
+  
+  // Processing status
+  processingStatus  String      @default("pending") @map("processing_status") @db.VarChar(20) 
+  // pending, processing, completed, failed
+  processingError   String?     @map("processing_error") @db.Text
+  processedAt       DateTime?   @map("processed_at") @db.Timestamptz(6)
+  
+  // Data table reference (if processed into table)
+  dataTableId       String?     @map("data_table_id") @db.Uuid
+  
+  // File metadata
+  metadata          Json        @default("{}") @db.JsonB // Additional file info
+  checksum          String?     @db.VarChar(64) // SHA-256 hash
+  
+  // Sharing settings
+  isShared          Boolean     @default(false) @map("is_shared")
+  shareScope        String?     @map("share_scope") @db.VarChar(20) // workspace, public
+  
+  // Timestamps
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastAccessedAt    DateTime?   @map("last_accessed_at") @db.Timestamptz(6)
+  expiresAt         DateTime?   @map("expires_at") @db.Timestamptz(6) // For temporary files
+  
+  // Relations
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace         Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  page              Page?       @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  dataTable         UserDataTable? @relation(fields: [dataTableId], references: [id], onDelete: SetNull)
+  processingJobs    FileProcessingJob[]
+  
+  @@unique([workspaceId, storagePath])
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([pageId])
+  @@index([processingStatus])
+  @@index([createdAt])
+  @@index([checksum])
+  @@map("user_files")
+}
+
+model UserDataTable {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId     String      @map("workspace_id") @db.Uuid
+  tableName       String      @map("table_name") @db.VarChar(100) // Unique table name in DB
+  displayName     String      @map("display_name") @db.VarChar(255)
+  
+  // Schema information
+  schema          Json        @db.JsonB // Column definitions
+  rowCount        Int         @map("row_count")
+  sampleData      Json?       @map("sample_data") @db.JsonB // First 10 rows for preview
+  
+  // Storage method
+  storageType     String      @map("storage_type") @db.VarChar(20) // postgres, duckdb, external
+  tablePath       String?     @map("table_path") @db.Text // For external storage
+  
+  // Metadata
+  metadata        Json        @default("{}") @db.JsonB
+  statistics      Json?       @db.JsonB // Column stats, null counts, etc.
+  
+  // Access control
+  isPublic        Boolean     @default(false) @map("is_public")
+  permissions     Json        @default("[]") @db.JsonB // User/role permissions
+  
+  // Timestamps
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastQueriedAt   DateTime?   @map("last_queried_at") @db.Timestamptz(6)
+  
+  // Relations
+  workspace       Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  files           UserFile[]
+  
+  @@unique([workspaceId, tableName])
+  @@index([workspaceId])
+  @@index([tableName])
+  @@index([createdAt])
+  @@map("user_data_tables")
+}
+
+model FileProcessingJob {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fileId          String      @map("file_id") @db.Uuid
+  workspaceId     String      @map("workspace_id") @db.Uuid
+  
+  // Job details
+  jobType         String      @map("job_type") @db.VarChar(50) // parse_csv, parse_excel, extract_pdf
+  status          String      @default("pending") @db.VarChar(20) // pending, running, completed, failed
+  priority        Int         @default(5)
+  
+  // Progress tracking
+  totalRows       Int?        @map("total_rows")
+  processedRows   Int         @default(0) @map("processed_rows")
+  progressPercent Int         @default(0) @map("progress_percent")
+  
+  // Error handling
+  retryCount      Int         @default(0) @map("retry_count")
+  maxRetries      Int         @default(3) @map("max_retries")
+  errorMessage    String?     @map("error_message") @db.Text
+  errorDetails    Json?       @map("error_details") @db.JsonB
+  
+  // Timing
+  startedAt       DateTime?   @map("started_at") @db.Timestamptz(6)
+  completedAt     DateTime?   @map("completed_at") @db.Timestamptz(6)
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Worker info
+  workerId        String?     @map("worker_id") @db.VarChar(100)
+  
+  // Relations
+  file            UserFile    @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  workspace       Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  @@index([status, priority])
+  @@index([fileId])
+  @@index([workspaceId])
+  @@index([createdAt])
+  @@map("file_processing_jobs")
 }

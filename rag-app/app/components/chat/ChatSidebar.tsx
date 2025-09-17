@@ -88,10 +88,76 @@ export function ChatSidebar({
       content: `File "${file.name}" uploaded successfully. Processing...`,
     });
     
-    // Process file client-side
+    // Process file client-side for immediate use
     setLoading(true);
     try {
-      // Load data into DuckDB directly
+      // Get workspace ID from page or URL
+      const workspaceId = window.location.pathname.split('/')[2] || 'default';
+      
+      // Upload to server for persistence (if file is small enough for direct upload)
+      const MAX_DIRECT_UPLOAD = 10 * 1024 * 1024; // 10MB
+      
+      if (file.size <= MAX_DIRECT_UPLOAD) {
+        // Direct upload for smaller files
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('workspaceId', workspaceId);
+        formData.append('pageId', pageId);
+        formData.append('isShared', 'false');
+        formData.append('processImmediately', 'true');
+        
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!uploadResponse.ok) {
+          const error = await uploadResponse.json();
+          console.error('Server upload failed:', error);
+          addMessage({
+            role: 'system',
+            content: `Note: File saved locally only. Server backup failed: ${error.error}`,
+          });
+        } else {
+          const result = await uploadResponse.json();
+          console.log('File uploaded to server:', result.fileId);
+        }
+      } else {
+        // For large files, get a signed URL for direct browser upload
+        const formData = new FormData();
+        formData.append('workspaceId', workspaceId);
+        formData.append('filename', file.name);
+        formData.append('isShared', 'false');
+        
+        const urlResponse = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'X-Upload-Mode': 'signed-url' },
+          body: formData,
+        });
+        
+        if (urlResponse.ok) {
+          const { uploadUrl, storagePath } = await urlResponse.json();
+          
+          // Upload directly to storage
+          const storageResponse = await fetch(uploadUrl, {
+            method: 'PUT',
+            body: file,
+            headers: {
+              'Content-Type': file.type,
+            },
+          });
+          
+          if (storageResponse.ok) {
+            console.log('Large file uploaded to storage:', storagePath);
+            addMessage({
+              role: 'system',
+              content: `Large file "${file.name}" uploaded to cloud storage.`,
+            });
+          }
+        }
+      }
+      
+      // Process file client-side for immediate use with DuckDB
       const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
       const duckdb = getDuckDB();
       
@@ -104,7 +170,7 @@ export function ChatSidebar({
       const { FileProcessingService } = await import('~/services/file-processing.client');
       const processed = await FileProcessingService.processFile(file);
       
-      // Load data into DuckDB
+      // Load data into DuckDB for immediate querying
       if (duckdb.isReady() && processed.data && processed.data.length > 0) {
         await duckdb.createTableFromData(
           processed.tableName,
@@ -126,11 +192,11 @@ export function ChatSidebar({
         
         addMessage({
           role: 'system',
-          content: `File "${file.name}" loaded into table "${processed.tableName}" with ${processed.data.length} rows.`,
+          content: `File "${file.name}" loaded with ${processed.data.length} rows. Available for immediate querying.`,
         });
       }
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('Error processing file:', error);
       removeDataFile(tempFileId);
       addMessage({
         role: 'assistant',
