@@ -21,19 +21,29 @@ const uploadHandler = async ({
     return undefined;
   }
 
-  // Collect file data into buffer
-  const chunks: Uint8Array[] = [];
-  for await (const chunk of data) {
-    chunks.push(chunk);
+  try {
+    // Collect file data into buffer
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of data) {
+      chunks.push(chunk);
+    }
+    
+    if (chunks.length === 0) {
+      console.error('No chunks received for file:', filename);
+      return undefined;
+    }
+    
+    const buffer = Buffer.concat(chunks);
+    
+    return {
+      buffer,
+      filename,
+      contentType: contentType || 'application/octet-stream'
+    };
+  } catch (error) {
+    console.error('Error in uploadHandler:', error);
+    return undefined;
   }
-  
-  const buffer = Buffer.concat(chunks);
-  
-  return {
-    buffer,
-    filename,
-    contentType: contentType || 'application/octet-stream'
-  };
 };
 
 // Schema for request validation
@@ -99,18 +109,54 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     // Parse multipart form data for direct uploads
-    const formData = await unstable_parseMultipartFormData(request, uploadHandler);
-    
-    // Get file from form data
-    const file = formData.get('file') as {
+    let formData: FormData;
+    let file: {
       buffer: Buffer;
       filename: string;
       contentType: string;
-    } | null;
+    } | null = null;
+
+    try {
+      // Try using the custom upload handler first
+      formData = await unstable_parseMultipartFormData(request, uploadHandler);
+      file = formData.get('file') as any;
+    } catch (error) {
+      console.error('Error parsing multipart data with custom handler:', error);
+      
+      // Fallback to standard FormData parsing
+      try {
+        formData = await request.formData();
+        const fileBlob = formData.get('file') as File | null;
+        
+        if (fileBlob && fileBlob instanceof File) {
+          const arrayBuffer = await fileBlob.arrayBuffer();
+          file = {
+            buffer: Buffer.from(arrayBuffer),
+            filename: fileBlob.name,
+            contentType: fileBlob.type || 'application/octet-stream'
+          };
+        }
+      } catch (fallbackError) {
+        console.error('Error with fallback FormData parsing:', fallbackError);
+        return json(
+          { error: 'Failed to parse uploaded file' },
+          { status: 400 }
+        );
+      }
+    }
 
     if (!file) {
       return json(
         { error: 'No file provided' },
+        { status: 400 }
+      );
+    }
+
+    // Validate file buffer exists
+    if (!file.buffer) {
+      console.error('File buffer is undefined for file:', file.filename);
+      return json(
+        { error: 'File upload failed - empty file buffer' },
         { status: 400 }
       );
     }
@@ -128,7 +174,7 @@ export const action: ActionFunction = async ({ request }) => {
       pageId,
       isShared,
       processImmediately,
-      fileSize: file.buffer.length,
+      fileSize: file.buffer?.length || 0,
       filename: file.filename
     });
 
