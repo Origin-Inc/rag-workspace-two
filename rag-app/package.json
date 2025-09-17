@@ -16,6 +16,8 @@
     "test:coverage": "vitest run --coverage",
     "worker": "tsx start-indexing-worker-robust.ts",
     "worker:dev": "tsx watch start-indexing-worker-robust.ts",
+    "worker:files": "node scripts/run-file-worker.js",
+    "worker:files:dev": "tsx watch scripts/run-file-worker.js",
     "migrate:hierarchy": "tsx scripts/migrate-projects-to-pages.ts",
     "rollback:hierarchy": "tsx scripts/rollback-to-projects.ts",
     "redis:configure": "node scripts/configure-redis.js",
