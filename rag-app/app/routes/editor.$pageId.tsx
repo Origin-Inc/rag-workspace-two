@@ -1235,32 +1235,8 @@ export default function EditorPage() {
           }}
           onFileUpload={async (file) => {
             console.log('File uploaded:', file.name);
-            
-            // Create FormData for file upload
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            // Upload file to the server
-            try {
-              const response = await fetch(`/api/data/upload?pageId=${page.id}&workspaceId=${page.workspaceId}`, {
-                method: 'POST',
-                body: formData
-              });
-              
-              if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Upload failed');
-              }
-              
-              const result = await response.json();
-              console.log('Upload result:', result);
-              
-              // The file data will be automatically added to the chat store
-              // through the ChatSidebar component's internal handleFileUpload
-            } catch (error) {
-              console.error('File upload error:', error);
-              throw error;
-            }
+            // File processing is handled entirely client-side in ChatSidebar
+            // No need to upload to server since we're using DuckDB WASM
           }}
         />
       </ClientOnly>
