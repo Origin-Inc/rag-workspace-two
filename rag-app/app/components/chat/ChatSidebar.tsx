@@ -80,6 +80,14 @@ export function ChatSidebar({
   };
   
   const handleFileUpload = async (file: File) => {
+    console.log('[ChatSidebar] Starting file upload', {
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type,
+      workspaceId,
+      pageId
+    });
+
     // Start upload progress tracking
     setUploadProgress({
       filename: file.name,
@@ -92,92 +100,83 @@ export function ChatSidebar({
     try {
       // If workspaceId provided, upload to server for persistence
       if (workspaceId) {
-        // Step 1: Request signed URL
-        setUploadProgress(prev => prev ? { ...prev, status: 'requesting', progress: 10 } : null);
+        console.log('[ChatSidebar] Using direct client-to-Supabase upload');
         
-        const signedUrlResponse = await fetch('/api/upload', {
+        // Step 1: Initialize Supabase client if needed
+        const { supabaseUpload } = await import('~/services/supabase-upload.client');
+        
+        // Get Supabase config from window.ENV (should be set by root.tsx)
+        const supabaseUrl = window.ENV?.SUPABASE_URL;
+        const supabaseAnonKey = window.ENV?.SUPABASE_ANON_KEY;
+        
+        console.log('[ChatSidebar] Supabase config', {
+          hasUrl: !!supabaseUrl,
+          hasKey: !!supabaseAnonKey
+        });
+        
+        if (!supabaseUrl || !supabaseAnonKey) {
+          console.error('[ChatSidebar] Missing Supabase configuration');
+          throw new Error('Supabase configuration not available');
+        }
+        
+        // Initialize the upload client
+        await supabaseUpload.initialize(supabaseUrl, supabaseAnonKey);
+        
+        // Generate storage path
+        const timestamp = Date.now();
+        const safeFilename = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const storagePath = `uploads/${workspaceId}/${timestamp}_${safeFilename}`;
+        
+        console.log('[ChatSidebar] Upload path', { storagePath });
+        setUploadProgress(prev => prev ? { ...prev, status: 'uploading', progress: 10 } : null);
+        
+        // Step 2: Upload directly to Supabase
+        const uploadResult = await supabaseUpload.uploadFile(file, storagePath, {
+          bucket: 'user-uploads',
+          onProgress: (progress) => {
+            console.log(`[ChatSidebar] Upload progress: ${progress}%`);
+            setUploadProgress(prev => prev ? { 
+              ...prev, 
+              progress: Math.min(90, progress * 0.9) // Cap at 90% until confirmation
+            } : null);
+          },
+          upsert: true
+        });
+        
+        if (uploadResult.error) {
+          console.error('[ChatSidebar] Upload failed', uploadResult.error);
+          throw new Error(uploadResult.error);
+        }
+        
+        console.log('[ChatSidebar] Upload successful', uploadResult);
+        setUploadProgress(prev => prev ? { ...prev, status: 'confirming', progress: 95 } : null);
+        
+        // Step 3: Register the upload with the server
+        console.log('[ChatSidebar] Registering upload with server');
+        const registerResponse = await fetch('/api/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            action: 'request-upload-url',
+            action: 'register-upload',
             workspaceId,
             pageId: pageId || null,
             filename: file.name,
             fileSize: file.size,
             mimeType: file.type || 'application/octet-stream',
+            storagePath: uploadResult.path,
+            storageUrl: uploadResult.url,
             isShared: false
           }),
         });
         
-        if (!signedUrlResponse.ok) {
-          const error = await signedUrlResponse.json();
-          throw new Error(error.error || 'Failed to get upload URL');
+        if (!registerResponse.ok) {
+          const error = await registerResponse.json();
+          console.error('[ChatSidebar] Failed to register upload', error);
+          throw new Error(error.error || 'Failed to register upload');
         }
         
-        const { fileId, uploadUrl, storagePath, token, expiresIn } = await signedUrlResponse.json();
-        
-        // Step 2: Upload directly to Supabase Storage
-        setUploadProgress(prev => prev ? { ...prev, status: 'uploading', progress: 30 } : null);
-        
-        const uploadRequest = new XMLHttpRequest();
-        
-        // Track upload progress
-        uploadRequest.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            const percentComplete = Math.round((event.loaded / event.total) * 60) + 30; // 30-90%
-            setUploadProgress(prev => prev ? { ...prev, progress: percentComplete } : null);
-          }
-        });
-        
-        // Create a promise for the upload
-        const uploadPromise = new Promise<void>((resolve, reject) => {
-          uploadRequest.addEventListener('load', () => {
-            if (uploadRequest.status >= 200 && uploadRequest.status < 300) {
-              resolve();
-            } else {
-              reject(new Error(`Upload failed with status ${uploadRequest.status}: ${uploadRequest.responseText}`));
-            }
-          });
-          
-          uploadRequest.addEventListener('error', () => {
-            reject(new Error('Network error during upload'));
-          });
-          
-          uploadRequest.addEventListener('abort', () => {
-            reject(new Error('Upload cancelled'));
-          });
-        });
-        
-        // For Supabase signed URLs, use PUT request to replace the placeholder
-        uploadRequest.open('PUT', uploadUrl);
-        uploadRequest.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-        uploadRequest.setRequestHeader('x-upsert', 'true'); // Allow overwriting
-        uploadRequest.send(file);
-        
-        // Wait for upload to complete
-        await uploadPromise;
-        
-        // Step 3: Confirm upload completion
-        setUploadProgress(prev => prev ? { ...prev, status: 'confirming', progress: 95 } : null);
-        
-        const confirmResponse = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'confirm-upload',
-            fileId,
-            storagePath,
-            processImmediately: true
-          }),
-        });
-        
-        if (!confirmResponse.ok) {
-          const error = await confirmResponse.json();
-          throw new Error(error.error || 'Failed to confirm upload');
-        }
-        
-        const result = await confirmResponse.json();
-        console.log('File uploaded successfully:', result);
+        const result = await registerResponse.json();
+        console.log('[ChatSidebar] File registered successfully:', result);
         
         // Update progress to complete
         setUploadProgress(prev => prev ? { ...prev, status: 'complete', progress: 100 } : null);

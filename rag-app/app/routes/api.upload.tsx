@@ -32,16 +32,127 @@ const confirmUploadSchema = z.object({
   processImmediately: z.boolean().optional(),
 });
 
+// Schema for registering completed upload
+const registerUploadSchema = z.object({
+  workspaceId: z.string().uuid(),
+  pageId: z.string().uuid().optional().nullable(),
+  filename: z.string().min(1),
+  fileSize: z.number().positive(),
+  mimeType: z.string(),
+  storagePath: z.string(),
+  storageUrl: z.string().optional(),
+  isShared: z.boolean().optional(),
+});
+
 export const action: ActionFunction = async ({ request }) => {
+  console.log('[API Upload] Request received', {
+    method: request.method,
+    headers: Object.fromEntries(request.headers.entries()),
+  });
+
   try {
     const user = await requireUser(request);
+    console.log('[API Upload] User authenticated', { userId: user.id });
+    
     const contentType = request.headers.get('Content-Type');
     
     // Parse JSON body (no multipart!)
     const body = await request.json();
     const action = body.action;
+    console.log('[API Upload] Action requested', { action, body });
 
-    if (action === 'request-upload-url') {
+    if (action === 'register-upload') {
+      // New approach: Register an already-uploaded file
+      const validation = registerUploadSchema.safeParse(body);
+      
+      if (!validation.success) {
+        console.error('[API Upload] Validation failed', validation.error.flatten());
+        return json(
+          { error: 'Invalid request', details: validation.error.flatten() },
+          { status: 400 }
+        );
+      }
+
+      const { workspaceId, pageId, filename, fileSize, mimeType, storagePath, storageUrl, isShared } = validation.data;
+
+      // Verify workspace access
+      console.log('[API Upload] Verifying workspace access', { workspaceId });
+      const workspace = await prisma.workspace.findFirst({
+        where: {
+          id: workspaceId,
+          userWorkspaces: {
+            some: {
+              userId: user.id
+            }
+          }
+        }
+      });
+
+      if (!workspace) {
+        console.error('[API Upload] Workspace not found or access denied');
+        return json({ error: 'Workspace not found' }, { status: 404 });
+      }
+
+      console.log('[API Upload] Creating file record');
+      const safeFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
+      
+      // Create file record in database
+      const fileRecord = await prisma.userFile.create({
+        data: {
+          userId: user.id,
+          workspaceId,
+          pageId: pageId || undefined,
+          filename: safeFilename,
+          originalName: filename,
+          mimeType,
+          sizeBytes: fileSize,
+          storagePath,
+          storageUrl,
+          isShared: isShared || false,
+          processingStatus: 'pending',
+          uploadStatus: 'completed',
+          uploadedAt: new Date(),
+        }
+      });
+
+      console.log('[API Upload] File record created', { fileId: fileRecord.id });
+
+      // Create processing job if it's a data file
+      if (mimeType.includes('csv') || mimeType.includes('excel') || filename.endsWith('.xlsx')) {
+        const jobType = mimeType.includes('pdf') 
+          ? 'extract_pdf' 
+          : mimeType.includes('excel') || filename.endsWith('.xlsx')
+          ? 'parse_excel'
+          : 'parse_csv';
+
+        console.log('[API Upload] Creating processing job', { jobType });
+        const job = await prisma.fileProcessingJob.create({
+          data: {
+            fileId: fileRecord.id,
+            workspaceId,
+            jobType,
+            status: 'pending',
+            priority: 5
+          }
+        });
+
+        console.log('[API Upload] Processing job created', { jobId: job.id });
+
+        return json({
+          success: true,
+          fileId: fileRecord.id,
+          jobId: job.id,
+          message: 'File registered and queued for processing'
+        });
+      }
+
+      return json({
+        success: true,
+        fileId: fileRecord.id,
+        message: 'File registered successfully'
+      });
+
+    } else if (action === 'request-upload-url') {
       // Step 1: Generate signed URL for direct upload
       const validation = signedUrlSchema.safeParse(body);
       
