@@ -312,9 +312,9 @@ export const LexicalBlockEditor = memo(function LexicalBlockEditor({
   }, [blocks, onChange]);
 
   return (
-    <div className={cn("h-full bg-white flex flex-col", className)}>
+    <div className={cn("h-full bg-white flex flex-col dark:bg-[rgba(33,33,33,1)]", className)}>
       {/* Editor content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto dark:bg-[rgba(33,33,33,1)]">
         {blocks.map((block, index) => (
           <BlockEditor
             key={block.id}

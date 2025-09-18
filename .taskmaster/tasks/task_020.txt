@@ -1,6 +1,6 @@
 # Task ID: 20
 # Title: Rebuild Page Editor with Notion/Coda-style Block Architecture
-# Status: deferred
+# Status: canceled
 # Dependencies: 6 (Not found), 14 (Not found)
 # Priority: high
 # Description: CRITICAL: Complete rebuild of the page editor to implement a production-ready block-based architecture similar to Notion and Coda, replacing the broken drag-and-drop canvas with inline block editing, slash commands, keyboard navigation, and virtual scrolling for optimal performance. This is blocking content creation and must be completed before Task 16 (RAG Infrastructure) since users cannot create content for the RAG system without a functional editor.

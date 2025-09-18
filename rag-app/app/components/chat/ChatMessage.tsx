@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { User, Bot, ChevronDown, ChevronUp, Code, BarChart, Plus } from 'lucide-react';
 import type { ChatMessage as ChatMessageType } from '~/stores/chat-store';
 import { cn } from '~/utils/cn';
@@ -50,12 +52,67 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
       )}>
         {/* Message Bubble */}
         <div className={cn(
-          "rounded-lg px-4 py-2 max-w-[85%]",
-          isUser ? "bg-blue-500 text-white" : 
-          isSystem ? "bg-yellow-50 text-yellow-800 border border-yellow-200 text-sm text-center w-full" :
-          "bg-gray-100 text-gray-900"
+          "rounded-lg px-4 py-2 max-w-full break-words",
+          isUser ? "bg-blue-500 text-white max-w-[85%]" : 
+          isSystem ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800 text-sm text-center w-full" :
+          "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
         )}>
-          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          {isUser || isSystem ? (
+            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          ) : (
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm]}
+              className="prose prose-sm max-w-none dark:prose-invert"
+              components={{
+                // Custom renderers for better styling
+                table: ({children}) => (
+                  <div className="overflow-x-auto my-2">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                thead: ({children}) => (
+                  <thead className="bg-gray-50 dark:bg-gray-700">{children}</thead>
+                ),
+                tbody: ({children}) => (
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">{children}</tbody>
+                ),
+                th: ({children}) => (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    {children}
+                  </th>
+                ),
+                td: ({children}) => (
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                    {children}
+                  </td>
+                ),
+                h3: ({children}) => (
+                  <h3 className="text-sm font-semibold mt-3 mb-2">{children}</h3>
+                ),
+                p: ({children}) => (
+                  <p className="mb-2">{children}</p>
+                ),
+                em: ({children}) => (
+                  <em className="text-gray-600 dark:text-gray-400 text-sm">{children}</em>
+                ),
+                strong: ({children}) => (
+                  <strong className="font-semibold">{children}</strong>
+                ),
+                code: ({inline, children, ...props}) => (
+                  inline ? 
+                    <code className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs" {...props}>{children}</code> :
+                    <code className="block p-2 bg-gray-900 dark:bg-gray-800 text-gray-100 rounded text-xs overflow-x-auto" {...props}>{children}</code>
+                ),
+                pre: ({children}) => (
+                  <pre className="bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto my-2">{children}</pre>
+                ),
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          )}
           
           {/* Metadata */}
           {message.metadata && !isSystem && (
@@ -74,7 +131,7 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                   {isExpanded && (
                     <pre className={cn(
                       "mt-1 p-2 rounded text-xs overflow-x-auto",
-                      isUser ? "bg-blue-600" : "bg-gray-200 text-gray-800"
+                      isUser ? "bg-blue-600" : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                     )}>
                       <code>{message.metadata.sql}</code>
                     </pre>
@@ -101,7 +158,7 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
               {message.metadata.error && (
                 <div className={cn(
                   "text-xs mt-1 p-1 rounded",
-                  isUser ? "bg-red-400 bg-opacity-20" : "bg-red-100 text-red-700"
+                  isUser ? "bg-red-400 bg-opacity-20" : "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400"
                 )}>
                   Error: {message.metadata.error}
                 </div>
@@ -121,7 +178,7 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
           {!isUser && !isSystem && message.metadata && (message.metadata.sql || message.metadata.chartType) && onAddToPage && (
             <button
               onClick={() => onAddToPage(message)}
-              className="flex items-center gap-1 px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700"
+              className="flex items-center gap-1 px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-300"
             >
               <Plus className="w-3 h-3" />
               <span>Add to Page</span>

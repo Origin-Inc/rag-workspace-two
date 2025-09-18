@@ -88,7 +88,6 @@ const BlockComponent = memo(({
   workspaceId?: string;
   onAIAction?: (blockId: string, command: string) => Promise<void>;
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -588,12 +587,10 @@ const BlockComponent = memo(({
   return (
     <div
       className={cn(
-        "group relative px-4 py-2 transition-colors",
-        isSelected && "bg-blue-50 border-l-2 border-blue-400",
-        isHovered && !isSelected && "bg-gray-50"
+        "group relative px-4 py-2",
+        isSelected && "bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-400 dark:border-blue-500"
+        // Removed hover effect completely per requirements
       )}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       onClick={() => onSelect(block.id)}
     >
       {/* Block handle - Notion style */}
@@ -607,7 +604,7 @@ const BlockComponent = memo(({
             e.stopPropagation();
             onAddBelow(block.id);
           }}
-          className="p-1 hover:bg-gray-200 rounded"
+          className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
           title="Add block below"
         >
           <Plus className="w-4 h-4 text-gray-400" />
@@ -615,7 +612,7 @@ const BlockComponent = memo(({
         
         {/* Grip handle for drag and menu */}
         <button
-          className="p-1 hover:bg-gray-200 rounded cursor-move relative"
+          className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded cursor-move relative"
           draggable
           onDragStart={(e) => {
             setIsDragging(true);
@@ -633,14 +630,14 @@ const BlockComponent = memo(({
         
         {/* Dropdown menu */}
         {showMenu && (
-          <div className="absolute top-full left-0 mt-1 bg-white shadow-lg rounded-lg border border-gray-200 py-1 z-50 w-48">
-            <div className="px-3 py-1 text-xs font-medium text-gray-500 uppercase">Turn into</div>
+          <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 shadow-lg rounded-lg border border-gray-200 dark:border-gray-700 py-1 z-50 w-48">
+            <div className="px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Turn into</div>
             <button
               onClick={() => {
                 onTransform(block.id, 'paragraph');
                 setShowMenu(false);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
             >
               <Type className="w-4 h-4" />
               Text
@@ -650,7 +647,7 @@ const BlockComponent = memo(({
                 onTransform(block.id, 'heading1');
                 setShowMenu(false);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
             >
               <Heading1 className="w-4 h-4" />
               Heading 1
@@ -660,7 +657,7 @@ const BlockComponent = memo(({
                 onTransform(block.id, 'heading2');
                 setShowMenu(false);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
             >
               <Heading2 className="w-4 h-4" />
               Heading 2
@@ -670,7 +667,7 @@ const BlockComponent = memo(({
                 onTransform(block.id, 'heading3');
                 setShowMenu(false);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
             >
               <Heading3 className="w-4 h-4" />
               Heading 3
@@ -680,7 +677,7 @@ const BlockComponent = memo(({
                 onTransform(block.id, 'bulletList');
                 setShowMenu(false);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
             >
               <List className="w-4 h-4" />
               Bullet List
@@ -690,7 +687,7 @@ const BlockComponent = memo(({
                 onTransform(block.id, 'numberedList');
                 setShowMenu(false);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
             >
               <ListOrdered className="w-4 h-4" />
               Numbered List
@@ -700,7 +697,7 @@ const BlockComponent = memo(({
                 onTransform(block.id, 'todoList');
                 setShowMenu(false);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
             >
               <CheckSquare className="w-4 h-4" />
               To-do List
@@ -710,7 +707,7 @@ const BlockComponent = memo(({
                 onTransform(block.id, 'quote');
                 setShowMenu(false);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
             >
               <Quote className="w-4 h-4" />
               Quote
@@ -721,7 +718,7 @@ const BlockComponent = memo(({
                 onUpdate(block.id, { code: '', language: 'javascript' });
                 setShowMenu(false);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
             >
               <Code className="w-4 h-4" />
               Code
@@ -743,7 +740,7 @@ const BlockComponent = memo(({
                 });
                 setShowMenu(false);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
             >
               <Database className="w-4 h-4" />
               Database
@@ -754,7 +751,7 @@ const BlockComponent = memo(({
                 onUpdate(block.id, { prompt: '', analysis: '', context: {} });
                 setShowMenu(false);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
             >
               <Sparkles className="w-4 h-4" />
               AI Analysis
@@ -768,7 +765,7 @@ const BlockComponent = memo(({
                 setShowAIPanel(true);
                 setShowMenu(false);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-sm w-full text-left"
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
             >
               <Sparkles className="w-4 h-4" />
               AI Assistant
@@ -989,7 +986,7 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
   }, [onAICommand]);
 
   return (
-    <div className={cn("h-full bg-white flex flex-col", className)}>
+    <div className={cn("h-full bg-white flex flex-col dark:bg-dark-primary", className)}>
       {/* Editor content */}
       <div className="flex-1 overflow-y-auto">
         {blocks.map((block, index) => (

@@ -111,7 +111,7 @@ export default function AppIndex() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Chat Interface - Takes up 2 columns on large screens */}
         <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Ask AI Assistant
@@ -128,7 +128,7 @@ export default function AppIndex() {
 
         {/* Recent Pages - Single column */}
         <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Recent Pages
@@ -196,7 +196,7 @@ export default function AppIndex() {
       <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Link
           to="/app/pages/new"
-          className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
+          className="p-4 bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
         >
           <h3 className="font-medium text-gray-900 dark:text-white">Create Page</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -206,7 +206,7 @@ export default function AppIndex() {
         
         <Link
           to="/app/pages"
-          className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
+          className="p-4 bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
         >
           <h3 className="font-medium text-gray-900 dark:text-white">Browse Pages</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -216,7 +216,7 @@ export default function AppIndex() {
         
         <Link
           to="/app/settings"
-          className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
+          className="p-4 bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
         >
           <h3 className="font-medium text-gray-900 dark:text-white">Settings</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">

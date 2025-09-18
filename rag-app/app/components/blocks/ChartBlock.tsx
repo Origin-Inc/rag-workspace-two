@@ -25,11 +25,18 @@ interface ChartBlockProps {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
+// Dark mode colors for better contrast
+const DARK_COLORS = ['#60a5fa', '#34d399', '#fbbf24', '#fb7185', '#a78bfa', '#6ee7b7'];
+
 export function ChartBlock({ id, content, onUpdate, onDelete }: ChartBlockProps) {
+  // Check if dark mode is active
+  const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
+  const chartColors = isDarkMode ? DARK_COLORS : COLORS;
+  
   if (!content?.config?.data) {
     return (
-      <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-        <p className="text-gray-500">No chart data available</p>
+      <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
+        <p className="text-gray-500 dark:text-gray-400">No chart data available</p>
       </div>
     );
   }
@@ -41,8 +48,8 @@ export function ChartBlock({ id, content, onUpdate, onDelete }: ChartBlockProps)
   if (!data || !data.labels || !Array.isArray(data.labels)) {
     console.error('[ChartBlock] Invalid data structure:', data);
     return (
-      <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-        <p className="text-gray-500">Invalid chart data structure</p>
+      <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
+        <p className="text-gray-500 dark:text-gray-400">Invalid chart data structure</p>
       </div>
     );
   }
@@ -66,16 +73,25 @@ export function ChartBlock({ id, content, onUpdate, onDelete }: ChartBlockProps)
         return (
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
+              <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#374151' : '#e5e7eb'} />
+              <XAxis dataKey="name" stroke={isDarkMode ? '#9ca3af' : '#4b5563'} />
+              <YAxis stroke={isDarkMode ? '#9ca3af' : '#4b5563'} />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: isDarkMode ? '#1f2937' : '#ffffff',
+                  border: `1px solid ${isDarkMode ? '#374151' : '#e5e7eb'}`,
+                  borderRadius: '0.375rem'
+                }}
+                labelStyle={{ color: isDarkMode ? '#f3f4f6' : '#111827' }}
+              />
+              <Legend 
+                wrapperStyle={{ color: isDarkMode ? '#9ca3af' : '#4b5563' }}
+              />
               {data.datasets.map((dataset, index) => (
                 <Bar 
                   key={index}
                   dataKey={`value${index}`}
-                  fill={COLORS[index % COLORS.length]}
+                  fill={chartColors[index % chartColors.length]}
                   name={dataset.label || `Series ${index + 1}`}
                 />
               ))}
@@ -87,17 +103,26 @@ export function ChartBlock({ id, content, onUpdate, onDelete }: ChartBlockProps)
         return (
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
+              <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#374151' : '#e5e7eb'} />
+              <XAxis dataKey="name" stroke={isDarkMode ? '#9ca3af' : '#4b5563'} />
+              <YAxis stroke={isDarkMode ? '#9ca3af' : '#4b5563'} />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: isDarkMode ? '#1f2937' : '#ffffff',
+                  border: `1px solid ${isDarkMode ? '#374151' : '#e5e7eb'}`,
+                  borderRadius: '0.375rem'
+                }}
+                labelStyle={{ color: isDarkMode ? '#f3f4f6' : '#111827' }}
+              />
+              <Legend 
+                wrapperStyle={{ color: isDarkMode ? '#9ca3af' : '#4b5563' }}
+              />
               {data.datasets.map((dataset, index) => (
                 <Line
                   key={index}
                   type="monotone"
                   dataKey={`value${index}`}
-                  stroke={COLORS[index % COLORS.length]}
+                  stroke={chartColors[index % chartColors.length]}
                   name={dataset.label || `Series ${index + 1}`}
                 />
               ))}
@@ -121,15 +146,23 @@ export function ChartBlock({ id, content, onUpdate, onDelete }: ChartBlockProps)
                 cy="50%"
                 labelLine={false}
                 label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                labelStyle={{ fill: isDarkMode ? '#f3f4f6' : '#111827' }}
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
               >
                 {pieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: isDarkMode ? '#1f2937' : '#ffffff',
+                  border: `1px solid ${isDarkMode ? '#374151' : '#e5e7eb'}`,
+                  borderRadius: '0.375rem'
+                }}
+                labelStyle={{ color: isDarkMode ? '#f3f4f6' : '#111827' }}
+              />
             </PieChart>
           </ResponsiveContainer>
         );

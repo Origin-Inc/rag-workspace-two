@@ -89,7 +89,7 @@ export default function PagesIndex() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Page Tree - Takes up 2 columns */}
         <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Page Hierarchy
@@ -147,7 +147,7 @@ export default function PagesIndex() {
 
         {/* Recent Pages - Single column */}
         <div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Recently Updated
@@ -177,7 +177,7 @@ export default function PagesIndex() {
           </div>
 
           {/* Quick Stats */}
-          <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+          <div className="mt-6 bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
             <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
               Workspace Stats
             </h3>
