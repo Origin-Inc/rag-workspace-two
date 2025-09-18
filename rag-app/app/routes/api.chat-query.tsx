@@ -40,7 +40,16 @@ IMPORTANT RULES:
 6. Limit results to 1000 rows unless specified otherwise
 7. Use DuckDB-specific functions when appropriate
 
-Response format:
+You must return a valid JSON object with this structure:
+{
+  "sql": "SELECT * FROM table_name LIMIT 10",
+  "explanation": "Brief explanation of what the query does",
+  "tables": ["table_name"],
+  "confidence": 0.9,
+  "suggestedVisualization": "table"
+}
+
+Fields:
 - sql: The SQL query (required)
 - explanation: A brief explanation of what the query does
 - tables: Array of table names used in the query
@@ -96,7 +105,8 @@ Remember to:
 - Use exact table names as provided
 - Include LIMIT clause for large results
 - Use appropriate aggregations for summary requests
-- Return only executable DuckDB SQL`;
+- Return only executable DuckDB SQL
+- Respond with a valid JSON object containing the SQL and metadata`;
 
     logger.trace('Generating SQL with OpenAI', { 
       query, 
