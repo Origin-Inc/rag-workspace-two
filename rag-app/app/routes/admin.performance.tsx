@@ -168,7 +168,7 @@ export default function PerformanceDashboard() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-200 dark:bg-dark-primary">
                 {slowQueries.length > 0 ? (
                   slowQueries.map((query, index) => (
                     <tr key={index} className="hover:bg-gray-50">
