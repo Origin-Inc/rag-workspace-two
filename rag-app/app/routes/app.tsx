@@ -12,6 +12,9 @@ import { UserMenu } from "~/components/navigation/UserMenu";
 import { ClientOnly } from "~/components/ClientOnly";
 import { ThemeToggle } from "~/components/theme/ThemeToggle";
 import { redisHealthChecker } from "~/services/redis-health-check.server";
+import { useLayoutStore, LAYOUT_CONSTANTS } from "~/stores/layout-store";
+import { ResizeHandle } from "~/components/ui/ResizeHandle";
+import { cn } from "~/utils/cn";
 import { 
   HomeIcon, 
   DocumentIcon, 
@@ -21,6 +24,8 @@ import {
   Bars3Icon,
   XMarkIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
 
@@ -161,6 +166,14 @@ export default function AppLayout() {
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
+  // Get layout state from store
+  const {
+    isMenuCollapsed,
+    setIsMenuCollapsed,
+    menuSidebarWidth,
+    setMenuSidebarWidth
+  } = useLayoutStore();
+
   // Main navigation items
   const navigation: NavigationItem[] = [
     { name: 'Home', href: '/app', icon: HomeIcon },
@@ -203,34 +216,51 @@ export default function AppLayout() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar with resize and collapse */}
       <aside 
-        className={`
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-64 
-          bg-white dark:bg-[rgba(33,33,33,1)] border-r border-gray-200 dark:border-[rgba(33, 33, 33, 1)] transition-transform duration-300 ease-in-out
-          flex flex-col h-full
-        `}
+        className={cn(
+          "bg-white dark:bg-[rgba(33,33,33,1)] border-r border-gray-200 dark:border-gray-700",
+          "flex flex-col h-full",
+          // Mobile behavior
+          sidebarOpen ? "fixed inset-y-0 left-0 z-50 translate-x-0" : "fixed inset-y-0 left-0 z-50 -translate-x-full",
+          // Desktop behavior
+          "lg:relative lg:translate-x-0"
+        )}
+        style={{ 
+          width: sidebarOpen && !isMenuCollapsed ? '256px' : // Mobile always full width
+                 isMenuCollapsed ? `${LAYOUT_CONSTANTS.COLLAPSED_MENU_WIDTH}px` : 
+                 `${menuSidebarWidth}px` 
+        }}
         aria-label="Main navigation"
       >
+        {/* Resize handle for desktop */}
+        {!isMenuCollapsed && (
+          <ResizeHandle
+            orientation="vertical"
+            onResize={(delta) => setMenuSidebarWidth(menuSidebarWidth + delta)}
+            className="absolute right-0 top-0 h-full translate-x-1/2 z-10 hidden lg:block"
+          />
+        )}
+        
         {/* Workspace Switcher */}
         <div className="flex-shrink-0 p-2">
-          <div className="relative" data-dropdown="workspace">
-            <button
-              onClick={() => setWorkspaceDropdownOpen(!workspaceDropdownOpen)}
-              className="w-full flex items-center justify-between px-3 py-0.7 text-sm font-medium text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
-              aria-label="Switch workspace"
-              aria-expanded={workspaceDropdownOpen}
-              aria-haspopup="true"
-            >
-              <div className="flex items-center min-w-0">
-                <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold">
-                  {currentWorkspace?.name.charAt(0).toUpperCase() || 'W'}
+          {!isMenuCollapsed ? (
+            <div className="relative" data-dropdown="workspace">
+              <button
+                onClick={() => setWorkspaceDropdownOpen(!workspaceDropdownOpen)}
+                className="w-full flex items-center justify-between px-3 py-0.7 text-sm font-medium text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                aria-label="Switch workspace"
+                aria-expanded={workspaceDropdownOpen}
+                aria-haspopup="true"
+              >
+                <div className="flex items-center min-w-0">
+                  <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold">
+                    {currentWorkspace?.name.charAt(0).toUpperCase() || 'W'}
+                  </div>
+                  <span className="ml-3 truncate">{currentWorkspace?.name || 'Workspace'}</span>
                 </div>
-                <span className="ml-3 truncate">{currentWorkspace?.name || 'Workspace'}</span>
-              </div>
-              <ChevronDownIcon className="ml-2 h-4 w-4 text-gray-500 flex-shrink-0" />
-            </button>
+                <ChevronDownIcon className="ml-2 h-4 w-4 text-gray-500 flex-shrink-0" />
+              </button>
 
             {/* Workspace Dropdown */}
             {workspaceDropdownOpen && (
@@ -266,6 +296,17 @@ export default function AppLayout() {
               </div>
             )}
           </div>
+          ) : (
+            /* Collapsed state - only show icon */
+            <button
+              className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              aria-label={currentWorkspace?.name || 'Workspace'}
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-semibold">
+                {currentWorkspace?.name.charAt(0).toUpperCase() || 'W'}
+              </div>
+            </button>
+          )}
         </div>
 
         {/* Navigation */}
@@ -279,10 +320,14 @@ export default function AppLayout() {
                 <button
                   key={item.name}
                   onClick={() => setCommandPaletteOpen(true)}
-                  className="w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className={cn(
+                    "w-full flex items-center text-sm font-medium rounded-lg transition-colors text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700",
+                    isMenuCollapsed ? "justify-center px-2 py-2" : "px-3 py-2"
+                  )}
+                  title={isMenuCollapsed ? item.name : undefined}
                 >
-                  <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                  {item.name}
+                  <Icon className={cn("h-5 w-5 flex-shrink-0", !isMenuCollapsed && "mr-3")} />
+                  {!isMenuCollapsed && item.name}
                 </button>
               );
             }
@@ -291,39 +336,42 @@ export default function AppLayout() {
               <NavLink
                 key={item.name}
                 to={item.href}
-                className={({ isActive }) => `
-                  flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors
-                  ${isActive 
+                className={({ isActive }) => cn(
+                  "flex items-center text-sm font-medium rounded-lg transition-colors",
+                  isActive 
                     ? 'bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200' 
-                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }
-                `}
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700',
+                  isMenuCollapsed ? "justify-center px-2 py-2" : "px-3 py-2"
+                )}
+                title={isMenuCollapsed ? item.name : undefined}
               >
-                <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                {item.name}
+                <Icon className={cn("h-5 w-5 flex-shrink-0", !isMenuCollapsed && "mr-3")} />
+                {!isMenuCollapsed && item.name}
               </NavLink>
             );
           })}
 
           {/* Pages Section */}
           <div className="pt-4">
-            <div className="flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-              <div className="flex items-center">
-                <DocumentIcon className="mr-3 h-5 w-5" />
-                <span>Pages</span>
-              </div>
-              <Link
-                to="/app/pages/new"
-                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
-                aria-label="Create new page"
-              >
-                <PlusIcon className="h-4 w-4" />
-              </Link>
-            </div>
-            
-            {/* Page Tree Navigation */}
-            <div className="mt-1">
-              <PageTreeNavigation
+            {!isMenuCollapsed ? (
+              <>
+                <div className="flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <div className="flex items-center">
+                    <DocumentIcon className="mr-3 h-5 w-5" />
+                    <span>Pages</span>
+                  </div>
+                  <Link
+                    to="/app/pages/new"
+                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
+                    aria-label="Create new page"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                  </Link>
+                </div>
+                
+                {/* Page Tree Navigation */}
+                <div className="mt-1">
+                  <PageTreeNavigation
                 workspaceSlug={currentWorkspace?.slug || ''}
                 pages={pageTree as PageTreeNode[]}
                 currentPageId={undefined}
@@ -359,14 +407,47 @@ export default function AppLayout() {
                     console.error('Failed to delete page');
                   }
                 }}
-              />
-            </div>
+                  />
+                </div>
+              </>
+            ) : (
+              /* Collapsed state - only show page icon */
+              <NavLink
+                to="/app/pages"
+                className={({ isActive }) => cn(
+                  "flex items-center justify-center px-2 py-2 text-sm font-medium rounded-lg transition-colors",
+                  isActive 
+                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200' 
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+                )}
+                title="Pages"
+              >
+                <DocumentIcon className="h-5 w-5" />
+              </NavLink>
+            )}
           </div>
         </nav>
 
-        {/* User Menu */}
-        <div className="flex-shrink-0 p-4 border-t border-gray-200">
-          <UserMenu user={user} currentWorkspace={currentWorkspace ? { id: currentWorkspace.id, name: currentWorkspace.name } : undefined} />
+        {/* User Menu and Collapse Button */}
+        <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700">
+          {!isMenuCollapsed && (
+            <div className="p-4">
+              <UserMenu user={user} currentWorkspace={currentWorkspace ? { id: currentWorkspace.id, name: currentWorkspace.name } : undefined} />
+            </div>
+          )}
+          
+          {/* Collapse button - only show on desktop */}
+          <button
+            onClick={() => setIsMenuCollapsed(!isMenuCollapsed)}
+            className="hidden lg:flex w-full items-center justify-center px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-t border-gray-200 dark:border-gray-700"
+            aria-label={isMenuCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isMenuCollapsed ? (
+              <ChevronRightIcon className="h-5 w-5" />
+            ) : (
+              <ChevronLeftIcon className="h-5 w-5" />
+            )}
+          </button>
         </div>
       </aside>
 
