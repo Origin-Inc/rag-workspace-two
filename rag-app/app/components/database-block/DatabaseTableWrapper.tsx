@@ -265,7 +265,7 @@ export function DatabaseTableWrapper({
               {columns.map((column) => (
                 <th
                   key={column.id}
-                  className="px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-white uppercase tracking-wider"
+                  className="px-2 py-2 text-left text-xs font-medium text-gray-700 dark:text-white tracking-wider"
                   style={{ width: column.width }}
                 >
                   <div className="flex items-center justify-between group">
