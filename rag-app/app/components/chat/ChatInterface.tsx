@@ -92,7 +92,7 @@ export function ChatInterface({ workspaceId, initialMessages = [] }: ChatInterfa
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+    <div className="flex flex-col h-full bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg shadow-sm">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {messages.length === 0 ? (
