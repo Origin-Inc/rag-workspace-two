@@ -469,10 +469,6 @@ export function ChatSidebar({
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Data Chat</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {connectionStatus === 'connected' ? '🟢 Connected' : 
-             connectionStatus === 'connecting' ? '🟡 Connecting...' : '🔴 Disconnected'}
-          </p>
         </div>
         <button
           onClick={() => setChatSidebarOpen(false)}
@@ -538,7 +534,7 @@ export function ChatSidebar({
       )}
       
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white dark:bg-gray-900">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-white dark:bg-gray-900">
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
             <Upload className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
