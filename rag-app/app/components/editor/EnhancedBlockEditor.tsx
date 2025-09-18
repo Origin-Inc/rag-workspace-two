@@ -989,7 +989,7 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
   }, [onAICommand]);
 
   return (
-    <div className={cn("h-full bg-white flex flex-col", className)}>
+    <div className={cn("h-full bg-white flex flex-col dark:bg-[rgba(33,33,33,1)]", className)}>
       {/* Editor content */}
       <div className="flex-1 overflow-y-auto">
         {blocks.map((block, index) => (
