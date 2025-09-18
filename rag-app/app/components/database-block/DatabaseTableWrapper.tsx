@@ -217,10 +217,10 @@ export function DatabaseTableWrapper({
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200 dark:border-dark-primary dark:bg-dark-primary">
             <tr>
-              {columns.map((column, index) => (
+              {columns.map((column) => (
                 <th
                   key={column.id}
-                  className={`px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-white uppercase tracking-wider ${index !== columns.length - 1 ? 'border-r border-gray-200 dark:border-dark-primary' : ''}`}
+                  className="px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-white uppercase tracking-wider"
                   style={{ width: column.width }}
                 >
                   <div className="flex items-center justify-between group">
