@@ -19,6 +19,7 @@ import type {
 } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import stylesheet from "~/styles/tailwind.css?url";
+import themeVariables from "~/styles/theme-variables.css?url";
 
 export const meta: MetaFunction = () => {
   return [
@@ -31,6 +32,7 @@ export const meta: MetaFunction = () => {
 };
 
 export const links: LinksFunction = () => [
+  { rel: "stylesheet", href: themeVariables },
   { rel: "stylesheet", href: stylesheet },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },

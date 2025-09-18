@@ -88,7 +88,6 @@ const BlockComponent = memo(({
   workspaceId?: string;
   onAIAction?: (blockId: string, command: string) => Promise<void>;
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -588,12 +587,10 @@ const BlockComponent = memo(({
   return (
     <div
       className={cn(
-        "group relative px-4 py-2 transition-colors",
-        isSelected && "bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-400 dark:border-blue-500",
-        isHovered && !isSelected && "bg-gray-50 dark:bg-gray-800"
+        "group relative px-4 py-2",
+        isSelected && "bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-400 dark:border-blue-500"
+        // Removed hover effect completely per requirements
       )}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       onClick={() => onSelect(block.id)}
     >
       {/* Block handle - Notion style */}
@@ -989,7 +986,7 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
   }, [onAICommand]);
 
   return (
-    <div className={cn("h-full bg-white flex flex-col dark:bg-[rgba(33,33,33,1)]", className)}>
+    <div className={cn("h-full bg-white flex flex-col dark:bg-dark-primary", className)}>
       {/* Editor content */}
       <div className="flex-1 overflow-y-auto">
         {blocks.map((block, index) => (
