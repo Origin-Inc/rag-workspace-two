@@ -177,9 +177,9 @@ export function ChartBlock({ id, content, onUpdate, onDelete }: ChartBlockProps)
   };
 
   return (
-    <div className="my-4 p-4 border border-gray-200 rounded-lg bg-white">
+    <div className="my-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[rgba(33,33,33,1)]">
       {title && (
-        <h3 className="text-lg font-semibold mb-4">{title}</h3>
+        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{title}</h3>
       )}
       <div className="relative">
         {renderChart()}

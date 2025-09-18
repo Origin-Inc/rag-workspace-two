@@ -433,7 +433,7 @@ export const EnhancedDatabaseTable = memo(forwardRef<
   return (
     <ErrorBoundary>
       <div 
-        className={cn('flex flex-col h-full bg-white', className)}
+        className={cn('flex flex-col h-full bg-white dark:bg-[rgba(33,33,33,1)]', className)}
         ref={containerRef}
         tabIndex={0}
         onKeyDown={handleKeyDown}
@@ -482,11 +482,11 @@ export const EnhancedDatabaseTable = memo(forwardRef<
             {/* Column Headers */}
             <div
               ref={headerRef}
-              className="sticky top-0 z-20 bg-gray-50 border-b border-gray-200 flex"
+              className="sticky top-0 z-20 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex"
               style={{ height: HEADER_HEIGHT, minWidth: totalWidth }}
             >
               {/* Row Number Header */}
-              <div className="sticky left-0 z-30 w-12 bg-gray-50 border-r border-gray-200 flex items-center justify-center">
+              <div className="sticky left-0 z-30 w-12 bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex items-center justify-center">
                 <input
                   type="checkbox"
                   checked={selectedRows.size === rows.length && rows.length > 0}
@@ -579,7 +579,7 @@ export const EnhancedDatabaseTable = memo(forwardRef<
                       <div
                         key={row.id}
                         className={cn(
-                          'absolute left-0 flex border-b border-gray-200 hover:bg-gray-50',
+                          'absolute left-0 flex border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800',
                           isSelected && 'bg-blue-50'
                         )}
                         style={{
@@ -593,7 +593,7 @@ export const EnhancedDatabaseTable = memo(forwardRef<
                         onContextMenu={(e) => handleContextMenu(e, row.id)}
                       >
                         {/* Row Number */}
-                        <div className="sticky left-0 z-10 w-12 bg-white border-r border-gray-200 flex items-center justify-center text-xs text-gray-500">
+                        <div className="sticky left-0 z-10 w-12 bg-white dark:bg-[rgba(33,33,33,1)] border-r border-gray-200 dark:border-gray-700 flex items-center justify-center text-xs text-gray-500 dark:text-gray-400">
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -659,7 +659,7 @@ export const EnhancedDatabaseTable = memo(forwardRef<
 
           {/* Loading Overlay */}
           {isLoading && (
-            <div className="absolute bottom-4 right-4 bg-white rounded-lg shadow-lg px-4 py-2">
+            <div className="absolute bottom-4 right-4 bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg shadow-lg px-4 py-2">
               <div className="flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                 <span className="text-sm text-gray-600">Loading...</span>
