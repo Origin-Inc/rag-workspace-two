@@ -190,7 +190,7 @@ export function DatabaseTableWrapper({
   return (
     <div className={cn("w-full rounded-lg overflow-hidden", className)}>
       {/* Simple header */}
-      <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 dark:bg-dark-primary dark:border-dark-primary">
+      <div className="bg-gray-50 px-4 py-2 dark:bg-dark-primary">
         <div className="flex items-center justify-between">
           <span className="text-xl font-bold text-gray-700 dark:text-white">
             Database ({rows.length} rows × {columns.length} columns)
@@ -267,7 +267,7 @@ export function DatabaseTableWrapper({
                     )}
                   </td>
                 ))}
-                <td className="px-2">
+                <td className="px-2 dark:bg-dark-primary">
                   <button
                     onClick={() => handleDeleteRow(row.id)}
                     className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 text-sm"
