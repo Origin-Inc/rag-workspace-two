@@ -117,24 +117,43 @@ export function ChatSidebar({
           workspaceId
         );
 
-        // Format the results
-        let responseContent = result.sqlGeneration.explanation;
+        // Build a comprehensive response
+        let responseContent = '';
+        
+        // Add data context if available
+        if ((result.sqlGeneration as any).dataContext) {
+          responseContent += (result.sqlGeneration as any).dataContext + '\n\n';
+        }
+        
+        // Add the main explanation
+        responseContent += result.sqlGeneration.explanation;
+        
+        // Add insights if available
+        if ((result.sqlGeneration as any).insights) {
+          responseContent += '\n\n' + (result.sqlGeneration as any).insights;
+        }
         
         if (result.queryResult.success) {
           if (result.queryResult.data && result.queryResult.data.length > 0) {
-            // Add formatted results to response
+            // Add formatted results
+            responseContent += '\n\n### Results\n';
             const formattedResults = duckDBQuery.formatResults(result.queryResult);
-            responseContent += '\n\n' + formattedResults;
+            responseContent += formattedResults;
+            
+            // Add execution details in a subtle way
+            if (result.queryResult.executionTime) {
+              responseContent += `\n\n*Query executed in ${result.queryResult.executionTime.toFixed(2)}ms*`;
+            }
           } else {
-            responseContent += '\n\nNo results found.';
-          }
-          
-          // Add execution details
-          if (result.queryResult.executionTime) {
-            responseContent += `\n\nExecution time: ${result.queryResult.executionTime.toFixed(2)}ms`;
+            responseContent += '\n\nNo results found for this query.';
           }
         } else {
-          responseContent += '\n\nError: ' + result.queryResult.error;
+          responseContent += '\n\n⚠️ **Error:** ' + result.queryResult.error;
+        }
+        
+        // Add SQL details in a collapsible section
+        if (result.sqlGeneration.sql) {
+          responseContent += '\n\n<details>\n<summary>View SQL Query</summary>\n\n```sql\n' + result.sqlGeneration.sql + '\n```\n</details>';
         }
 
         // Add assistant response

@@ -139,7 +139,7 @@ export class DuckDBQueryService {
   }
 
   /**
-   * Format query results for display
+   * Format query results for display with proper markdown
    */
   public formatResults(result: QueryResult): string {
     if (!result.success || !result.data) {
@@ -153,49 +153,52 @@ export class DuckDBQueryService {
     // For single value results
     if (result.data.length === 1 && Object.keys(result.data[0]).length === 1) {
       const value = Object.values(result.data[0])[0];
-      return `Result: ${value}`;
+      return `**Result:** ${value}`;
     }
 
-    // For small result sets, format as text table
-    if (result.data.length <= 10) {
-      return this.formatAsTextTable(result.data, result.columns);
-    }
-
-    // For large result sets, return summary
-    return `Query returned ${result.rowCount} rows. Execution time: ${result.executionTime?.toFixed(2)}ms`;
+    // Format as markdown table for better display
+    return this.formatAsMarkdownTable(result.data, result.columns);
   }
 
   /**
-   * Format data as a simple text table
+   * Format data as a markdown table
    */
-  private formatAsTextTable(data: any[], columns?: string[]): string {
+  private formatAsMarkdownTable(data: any[], columns?: string[]): string {
     if (!data || data.length === 0) return 'No data';
 
     const cols = columns || Object.keys(data[0]);
-    const maxWidths: { [key: string]: number } = {};
-
-    // Calculate max width for each column
-    cols.forEach(col => {
-      maxWidths[col] = col.length;
-      data.forEach(row => {
-        const value = String(row[col] ?? '');
-        maxWidths[col] = Math.max(maxWidths[col], value.length);
-      });
+    
+    // Build markdown table
+    let table = '| ' + cols.map(col => this.formatColumnName(col)).join(' | ') + ' |\n';
+    table += '|' + cols.map(() => '---').join('|') + '|\n';
+    
+    // Add data rows (limit to 20 for display)
+    const displayData = data.slice(0, 20);
+    displayData.forEach(row => {
+      table += '| ' + cols.map(col => {
+        const value = row[col];
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'number') {
+          return Number.isInteger(value) ? value.toString() : value.toFixed(2);
+        }
+        return String(value);
+      }).join(' | ') + ' |\n';
     });
-
-    // Build header
-    let table = cols.map(col => col.padEnd(maxWidths[col])).join(' | ') + '\n';
-    table += cols.map(col => '-'.repeat(maxWidths[col])).join('-+-') + '\n';
-
-    // Build rows
-    data.forEach(row => {
-      table += cols.map(col => {
-        const value = String(row[col] ?? '');
-        return value.padEnd(maxWidths[col]);
-      }).join(' | ') + '\n';
-    });
-
+    
+    if (data.length > 20) {
+      table += `\n*Showing first 20 of ${data.length} rows*\n`;
+    }
+    
     return table;
+  }
+  
+  /**
+   * Format column names to be more readable
+   */
+  private formatColumnName(name: string): string {
+    return name
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, l => l.toUpperCase());
   }
 
   /**

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { User, Bot, ChevronDown, ChevronUp, Code, BarChart, Plus } from 'lucide-react';
 import type { ChatMessage as ChatMessageType } from '~/stores/chat-store';
 import { cn } from '~/utils/cn';
@@ -55,7 +57,62 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
           isSystem ? "bg-yellow-50 text-yellow-800 border border-yellow-200 text-sm text-center w-full" :
           "bg-gray-100 text-gray-900"
         )}>
-          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          {isUser || isSystem ? (
+            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          ) : (
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm]}
+              className="prose prose-sm max-w-none dark:prose-invert"
+              components={{
+                // Custom renderers for better styling
+                table: ({children}) => (
+                  <div className="overflow-x-auto my-2">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                thead: ({children}) => (
+                  <thead className="bg-gray-50">{children}</thead>
+                ),
+                tbody: ({children}) => (
+                  <tbody className="bg-white divide-y divide-gray-200">{children}</tbody>
+                ),
+                th: ({children}) => (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {children}
+                  </th>
+                ),
+                td: ({children}) => (
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
+                    {children}
+                  </td>
+                ),
+                h3: ({children}) => (
+                  <h3 className="text-sm font-semibold mt-3 mb-2">{children}</h3>
+                ),
+                p: ({children}) => (
+                  <p className="mb-2">{children}</p>
+                ),
+                em: ({children}) => (
+                  <em className="text-gray-600 text-sm">{children}</em>
+                ),
+                strong: ({children}) => (
+                  <strong className="font-semibold">{children}</strong>
+                ),
+                code: ({inline, children, ...props}) => (
+                  inline ? 
+                    <code className="px-1 py-0.5 bg-gray-200 rounded text-xs" {...props}>{children}</code> :
+                    <code className="block p-2 bg-gray-900 text-gray-100 rounded text-xs overflow-x-auto" {...props}>{children}</code>
+                ),
+                pre: ({children}) => (
+                  <pre className="bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto my-2">{children}</pre>
+                ),
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          )}
           
           {/* Metadata */}
           {message.metadata && !isSystem && (

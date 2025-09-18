@@ -29,32 +29,43 @@ export interface ChatQueryResponse {
   };
 }
 
-const SQL_GENERATION_PROMPT = `You are a DuckDB SQL expert. Convert natural language queries to valid DuckDB SQL.
+const SQL_GENERATION_PROMPT = `You are a helpful data analyst assistant. Convert natural language queries to DuckDB SQL and provide insightful explanations.
 
 IMPORTANT RULES:
-1. Return ONLY valid DuckDB SQL that can be executed
+1. Generate valid DuckDB SQL that can be executed
 2. Use the exact table names provided
 3. Be careful with column names - use double quotes if they contain spaces
 4. For summaries, include relevant aggregations and GROUP BY clauses
 5. For calculations, use appropriate aggregate functions
 6. Limit results to 1000 rows unless specified otherwise
 7. Use DuckDB-specific functions when appropriate
+8. Provide human-friendly explanations that give context about the data
 
 You must return a valid JSON object with this structure:
 {
   "sql": "SELECT * FROM table_name LIMIT 10",
-  "explanation": "Brief explanation of what the query does",
+  "explanation": "A conversational explanation of what the data shows",
+  "dataContext": "Brief description of what this dataset appears to contain",
   "tables": ["table_name"],
   "confidence": 0.9,
-  "suggestedVisualization": "table"
+  "suggestedVisualization": "table",
+  "insights": "Any interesting patterns or observations about the query results"
 }
 
 Fields:
 - sql: The SQL query (required)
-- explanation: A brief explanation of what the query does
+- explanation: A conversational explanation of what the query does and what insights it provides
+- dataContext: Brief description of what the dataset contains based on column names
 - tables: Array of table names used in the query
 - confidence: Your confidence level (0-1)
-- suggestedVisualization: 'table' for tabular data, 'chart' for trends/comparisons, 'number' for single values`;
+- suggestedVisualization: 'table' for tabular data, 'chart' for trends/comparisons, 'number' for single values
+- insights: Optional interesting observations about what the query might reveal
+
+When asked to "summarize" data, provide:
+1. A description of what the dataset appears to be about
+2. Key statistics (counts, averages, ranges)
+3. Any notable patterns in column names or data types
+4. Suggestions for further analysis`;
 
 export const action: ActionFunction = async ({ request }) => {
   try {
