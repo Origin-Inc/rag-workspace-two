@@ -1170,7 +1170,7 @@ export default function EditorPage() {
         <div className="bg-white dark:bg-dark-primary shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <h1 className="text-xl font-semibold text-gray-900">
+              <h1 className="text-xxl font-semibold text-gray-900 dark:text-white">
                 {page.title || "Untitled Page"}
               </h1>
               <EmbeddingStatusIndicator 
