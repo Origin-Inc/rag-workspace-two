@@ -1230,15 +1230,6 @@ export default function EditorPage() {
         <ChatSidebar 
           pageId={page.id}
           workspaceId={page.workspaceId}
-          onSendMessage={async (message) => {
-            console.log('Chat message:', message);
-            // TODO: Implement chat message handling with SQL generation
-          }}
-          onFileUpload={async (file) => {
-            console.log('File uploaded:', file.name);
-            // File processing is handled entirely client-side in ChatSidebar
-            // No need to upload to server since we're using DuckDB WASM
-          }}
         />
       </ClientOnly>
       

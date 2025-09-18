@@ -9,6 +9,7 @@ import { ChatInput } from './ChatInput';
 import { FileUploadZone } from './FileUploadZone';
 import { FileContextDisplay } from './FileContextDisplay';
 import { cn } from '~/utils/cn';
+import { duckDBQuery } from '~/services/duckdb/duckdb-query.client';
 
 interface ChatSidebarProps {
   pageId: string;
@@ -47,6 +48,35 @@ export function ChatSidebar({
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
+  // Load chat history on mount
+  useEffect(() => {
+    const loadChatHistory = async () => {
+      try {
+        const response = await fetch(`/api/chat/messages/${pageId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.messages && data.messages.length > 0) {
+            // Clear existing messages and load from database
+            clearMessages();
+            data.messages.forEach((msg: any) => {
+              addMessage({
+                role: msg.role,
+                content: msg.content,
+                metadata: msg.metadata,
+              });
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load chat history:', error);
+      }
+    };
+
+    if (pageId) {
+      loadChatHistory();
+    }
+  }, [pageId]);
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -60,9 +90,99 @@ export function ChatSidebar({
       role: 'user',
       content,
     });
+
+    // Save user message to database
+    try {
+      await fetch(`/api/chat/messages/${pageId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: 'user',
+          content,
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to save user message:', error);
+    }
     
-    // Call parent handler if provided
-    if (onSendMessage) {
+    // Check if we have data files to query
+    if (dataFiles.length > 0) {
+      setLoading(true);
+      try {
+        // Process natural language query
+        const result = await duckDBQuery.processNaturalLanguageQuery(
+          content,
+          dataFiles,
+          pageId,
+          workspaceId
+        );
+
+        // Format the results
+        let responseContent = result.sqlGeneration.explanation;
+        
+        if (result.queryResult.success) {
+          if (result.queryResult.data && result.queryResult.data.length > 0) {
+            // Add formatted results to response
+            const formattedResults = duckDBQuery.formatResults(result.queryResult);
+            responseContent += '\n\n' + formattedResults;
+          } else {
+            responseContent += '\n\nNo results found.';
+          }
+          
+          // Add execution details
+          if (result.queryResult.executionTime) {
+            responseContent += `\n\nExecution time: ${result.queryResult.executionTime.toFixed(2)}ms`;
+          }
+        } else {
+          responseContent += '\n\nError: ' + result.queryResult.error;
+        }
+
+        // Add assistant response
+        addMessage({
+          role: 'assistant',
+          content: responseContent,
+          metadata: {
+            sql: result.sqlGeneration.sql,
+            results: result.queryResult.data,
+            tables: result.sqlGeneration.tables,
+            error: result.queryResult.error,
+            confidence: result.sqlGeneration.confidence,
+            visualization: result.sqlGeneration.suggestedVisualization,
+          },
+        });
+
+        // Save assistant message to database
+        try {
+          await fetch(`/api/chat/messages/${pageId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              role: 'assistant',
+              content: responseContent,
+              metadata: {
+                sql: result.sqlGeneration.sql,
+                tables: result.sqlGeneration.tables,
+                confidence: result.sqlGeneration.confidence,
+              },
+            }),
+          });
+        } catch (error) {
+          console.error('Failed to save assistant message:', error);
+        }
+      } catch (error) {
+        console.error('Error processing query:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        
+        addMessage({
+          role: 'assistant',
+          content: `Sorry, I encountered an error processing your query: ${errorMessage}`,
+          metadata: { error: errorMessage },
+        });
+      } finally {
+        setLoading(false);
+      }
+    } else if (onSendMessage) {
+      // Fall back to parent handler if no data files
       setLoading(true);
       try {
         await onSendMessage(content);
@@ -76,6 +196,12 @@ export function ChatSidebar({
       } finally {
         setLoading(false);
       }
+    } else {
+      // No data files and no parent handler
+      addMessage({
+        role: 'assistant',
+        content: 'Please upload some data files first to start querying.',
+      });
     }
   };
   

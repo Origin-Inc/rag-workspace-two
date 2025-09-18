@@ -313,6 +313,17 @@ export class DuckDBService {
       throw error;
     }
   }
+
+  public async executeQuery(sql: string): Promise<any> {
+    try {
+      const conn = await this.getConnection();
+      const result = await conn.query(sql);
+      return result;
+    } catch (error) {
+      console.error('Failed to execute query:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance getter
