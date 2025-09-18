@@ -1,7 +1,17 @@
 import { useState, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { DatabaseColumn, DatabaseRow } from '~/types/database-block';
+import type { DatabaseColumn } from '~/types/database-block';
 import { cn } from '~/utils/cn';
+
+// Local type for simplified row structure used in this wrapper
+interface SimpleRow {
+  id: string;
+  blockId: string;
+  cells: Record<string, any>;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface DatabaseTableWrapperProps {
   initialData?: any;
@@ -18,6 +28,13 @@ export function DatabaseTableWrapper({
   onDataChange,
   className
 }: DatabaseTableWrapperProps) {
+  // Initialize database name
+  const [databaseName, setDatabaseName] = useState<string>(
+    initialData?.name || 'Untitled Database'
+  );
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+  
   // Initialize columns and rows from initial data or create defaults
   const [columns, setColumns] = useState<DatabaseColumn[]>(() => {
     if (initialData?.columns) {
@@ -40,7 +57,7 @@ export function DatabaseTableWrapper({
     ];
   });
 
-  const [rows, setRows] = useState<DatabaseRow[]>(() => {
+  const [rows, setRows] = useState<SimpleRow[]>(() => {
     if (initialData?.rows && Array.isArray(initialData.rows)) {
       // Ensure all rows have proper structure with cells property
       return initialData.rows.map((row: any, index: number) => {
@@ -85,8 +102,8 @@ export function DatabaseTableWrapper({
 
   // Update parent when data changes
   const handleDataUpdate = useCallback(() => {
-    onDataChange?.({ columns, rows });
-  }, [columns, rows, onDataChange]);
+    onDataChange?.({ name: databaseName, columns, rows });
+  }, [databaseName, columns, rows, onDataChange]);
 
   // Column operations
   const handleAddColumn = useCallback(() => {
@@ -142,7 +159,7 @@ export function DatabaseTableWrapper({
 
   // Row operations
   const handleAddRow = useCallback(() => {
-    const newRow: DatabaseRow = {
+    const newRow: SimpleRow = {
       id: `row_${uuidv4()}`,
       blockId: '',
       cells: columns.reduce((acc, col) => ({
@@ -192,9 +209,37 @@ export function DatabaseTableWrapper({
       {/* Simple header */}
       <div className="bg-gray-50 px-4 py-2 dark:bg-dark-primary">
         <div className="flex items-center justify-between">
-          <span className="text-xl font-bold text-gray-700 dark:text-white">
-            Database ({rows.length} rows × {columns.length} columns)
-          </span>
+          {isEditingName ? (
+            <input
+              type="text"
+              value={databaseName}
+              onChange={(e) => setDatabaseName(e.target.value)}
+              onBlur={() => {
+                setIsEditingName(false);
+                handleDataUpdate();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setIsEditingName(false);
+                  handleDataUpdate();
+                }
+                if (e.key === 'Escape') {
+                  setDatabaseName(initialData?.name || 'Untitled Database');
+                  setIsEditingName(false);
+                }
+              }}
+              className="text-xl font-bold bg-transparent border-b-2 border-blue-500 outline-none dark:text-white"
+              autoFocus
+            />
+          ) : (
+            <h2
+              className="text-xl font-bold text-gray-700 dark:text-white cursor-pointer hover:text-gray-900 dark:hover:text-gray-100"
+              onClick={() => setIsEditingName(true)}
+              title="Click to edit database name"
+            >
+              {databaseName}
+            </h2>
+          )}
           <div className="flex gap-2">
             <button
               onClick={handleAddColumn}
@@ -224,7 +269,38 @@ export function DatabaseTableWrapper({
                   style={{ width: column.width }}
                 >
                   <div className="flex items-center justify-between group">
-                    <span>{column.name}</span>
+                    {editingColumnId === column.id ? (
+                      <input
+                        type="text"
+                        value={column.name}
+                        onChange={(e) => handleUpdateColumn(column.id, { name: e.target.value })}
+                        onBlur={() => {
+                          setEditingColumnId(null);
+                          handleDataUpdate();
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setEditingColumnId(null);
+                            handleDataUpdate();
+                          }
+                          if (e.key === 'Escape') {
+                            handleUpdateColumn(column.id, { name: column.name });
+                            setEditingColumnId(null);
+                          }
+                        }}
+                        className="bg-transparent border-b border-blue-500 outline-none uppercase text-xs"
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span 
+                        className="cursor-pointer hover:text-gray-900 dark:hover:text-gray-300"
+                        onClick={() => setEditingColumnId(column.id)}
+                        title="Click to edit column name"
+                      >
+                        {column.name}
+                      </span>
+                    )}
                     <button
                       onClick={() => handleDeleteColumn(column.id)}
                       className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 ml-2"
