@@ -1,8 +1,11 @@
 import { useState, useRef, KeyboardEvent } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import { cn } from '~/utils/cn';
+import { FileReferenceSuggestions } from './FileReferenceSuggestions';
+import { useChatDataFiles } from '~/stores/chat-store-ultimate-fix';
 
 interface ChatInputProps {
+  pageId: string;
   onSendMessage: (message: string) => void;
   disabled?: boolean;
   placeholder?: string;
@@ -10,13 +13,16 @@ interface ChatInputProps {
 }
 
 export function ChatInput({ 
+  pageId,
   onSendMessage, 
   disabled = false, 
   placeholder = "Ask a question...",
   className 
 }: ChatInputProps) {
   const [input, setInput] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { dataFiles } = useChatDataFiles(pageId);
   
   const handleSubmit = () => {
     if (input.trim() && !disabled) {
@@ -37,7 +43,10 @@ export function ChatInput({
   };
   
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
+    const newValue = e.target.value;
+    setInput(newValue);
+    // Show suggestions when user types and has files
+    setShowSuggestions(newValue.length > 0 && dataFiles.length > 0);
     // Auto-resize textarea
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -45,17 +54,39 @@ export function ChatInput({
     }
   };
   
+  const handleSelectSuggestion = (suggestion: string) => {
+    setInput(suggestion);
+    setShowSuggestions(false);
+    textareaRef.current?.focus();
+  };
+  
   return (
     <div className={cn(
-      "border-t border-gray-200 p-4 bg-white",
+      "border-t border-gray-200 p-4 bg-white relative",
       className
     )}>
+      {/* File reference suggestions */}
+      {showSuggestions && (
+        <FileReferenceSuggestions
+          query={input}
+          dataFiles={dataFiles}
+          onSelectFile={(file) => {
+            setInput(`Show data from ${file.filename}`);
+            setShowSuggestions(false);
+            textareaRef.current?.focus();
+          }}
+          onSelectSuggestion={handleSelectSuggestion}
+        />
+      )}
+      
       <div className="flex items-end gap-2">
         <textarea
           ref={textareaRef}
           value={input}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
+          onFocus={() => setShowSuggestions(input.length > 0 && dataFiles.length > 0)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder={placeholder}
           disabled={disabled}
           rows={1}

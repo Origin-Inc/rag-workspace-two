@@ -405,7 +405,7 @@ export default function AppLayout() {
         </header>
 
         {/* Page Content */}
-        <main id="main-content" className="flex-1 overflow-y-auto bg-white" tabIndex={-1}>
+        <main id="main-content" className="flex-1 overflow-y-auto bg-white dark:bg-[rgba(33,33,33,1)]" tabIndex={-1}>
           <Outlet />
         </main>
       </div>

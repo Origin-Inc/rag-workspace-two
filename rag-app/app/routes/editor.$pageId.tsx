@@ -883,7 +883,7 @@ export default function EditorPage() {
       {/* Sidebar with resize and collapse */}
       <aside 
         className={cn(
-          "relative bg-white dark:bg-[rgba(33,33,33,1)] border-r border-gray-200 dark:border-[rgba(33, 33, 33, 1)] transition-all duration-300 ease-in-out",
+          "relative bg-white dark:bg-dark-primary border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out",
           "flex flex-col h-full",
           // Mobile behavior
           sidebarOpen ? "fixed inset-y-0 left-0 z-50 translate-x-0" : "fixed inset-y-0 left-0 z-50 -translate-x-full",
@@ -958,7 +958,7 @@ export default function EditorPage() {
 
             {/* Workspace Dropdown */}
             {workspaceDropdownOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10 dark:bg-[rgba(33,33,33,1)]">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 dark:bg-dark-primary">
                 <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Workspaces
                 </div>
@@ -967,7 +967,7 @@ export default function EditorPage() {
                     key={uw.workspace.id}
                     to={`/app/workspace/${uw.workspace.slug}`}
                     className={`
-                      flex items-center px-3 py-2 text-sm dark:bg-[rgba(33,33,33,1)] dark:hover:bg-gray-50
+                      flex items-center px-3 py-2 text-sm dark:hover:bg-gray-800
                       ${uw.workspace.id === currentWorkspace?.id ? 'bg-blue-50 text-blue-700 dark:text-white' : 'text-gray-700'}
                     `}
                   >
@@ -1137,7 +1137,7 @@ export default function EditorPage() {
         marginRight: isChatSidebarOpen ? `${chatSidebarWidth}px` : '0'
       }}>
         {/* Top Header with mobile menu button */}
-        <header className="flex-shrink-0 bg-white dark:bg-[rgba(33,33,33,1)] dark:border-[rgba(33, 33, 33, 1)]">
+        <header className="flex-shrink-0 bg-white dark:bg-dark-primary">
           <div className="flex items-center justify-between h-12 px-4 lg:px-6">
             {/* Mobile menu button */}
             <button
@@ -1167,7 +1167,7 @@ export default function EditorPage() {
         </header>
 
         {/* Page header */}
-        <div className="bg-white dark:bg-[rgba(33,33,33,1)] shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-1">
+        <div className="bg-white dark:bg-dark-primary shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <h1 className="text-xl font-semibold text-gray-900">
@@ -1211,8 +1211,8 @@ export default function EditorPage() {
         </div>
 
         {/* Editor */}
-        <div className="flex-1 overflow-hidden bg-white dark:bg-[rgba(33,33,33,1)]">
-          <ClientOnly fallback={<div className="h-full bg-white dark:bg-[rgba(33,33,33,1)] animate-pulse" />}>
+        <div className="flex-1 overflow-hidden bg-white dark:bg-dark-primary">
+          <ClientOnly fallback={<div className="h-full bg-white dark:bg-dark-primary animate-pulse" />}>
             <EnhancedBlockEditor
               initialBlocks={blocks}
               onChange={handleChange}
@@ -1229,14 +1229,7 @@ export default function EditorPage() {
       <ClientOnly fallback={null}>
         <ChatSidebar 
           pageId={page.id}
-          onSendMessage={async (message) => {
-            console.log('Chat message:', message);
-            // TODO: Implement chat message handling with SQL generation
-          }}
-          onFileUpload={async (file) => {
-            console.log('File uploaded:', file.name);
-            // TODO: Implement file upload and DuckDB table creation
-          }}
+          workspaceId={page.workspaceId}
         />
       </ClientOnly>
       

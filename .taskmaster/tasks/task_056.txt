@@ -1,0 +1,56 @@
+# Task ID: 56
+# Title: Create Block Generation and Page Integration
+# Status: pending
+# Dependencies: 55
+# Priority: medium
+# Description: Implement functionality to convert chat messages and results into page blocks with proper formatting and editability
+# Details:
+1. Create 'Add to Page' button component for chat messages
+2. Implement block type detection based on content
+3. Build POST /api/blocks/from-chat endpoint
+4. Create block generation logic for text, tables, and charts
+5. Maintain formatting and interactivity when converting
+6. Track chat message to block relationships
+7. Ensure blocks are fully editable after creation
+8. Update Block model to include chatMessageId reference
+
+Block generation logic:
+```
+function createBlockFromMessage(message, pageId) {
+  let blockType, content;
+  
+  if (message.type === 'visualization') {
+    blockType = 'chart';
+    content = {
+      plotlyConfig: message.chartConfig,
+      data: message.data
+    };
+  } else if (message.type === 'query_result') {
+    blockType = 'data_table';
+    content = {
+      columns: message.columns,
+      rows: message.rows
+    };
+  } else {
+    blockType = 'text';
+    content = { text: message.content };
+  }
+  
+  return {
+    pageId,
+    type: blockType,
+    content,
+    position: getNextPosition(pageId),
+    chatMessageId: message.id
+  };
+}
+```
+
+# Test Strategy:
+1. Test block creation from different message types
+2. Verify formatting preservation during conversion
+3. Test block editability after creation
+4. Validate position calculation for new blocks
+5. Test relationship tracking between messages and blocks
+6. Verify chart interactivity in page blocks
+7. Test undo/redo functionality with generated blocks

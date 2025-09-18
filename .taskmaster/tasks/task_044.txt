@@ -3,9 +3,9 @@
 # Status: pending
 # Dependencies: 40
 # Priority: high
-# Description: Implement file upload interface with support for PPTX, CSV, DOCX, and XLSX formats
+# Description: Implement file upload interface in chat sidebar with support for CSV and Excel formats for data analysis
 # Details:
-Create FileUploadDropzone component with drag-and-drop support. Implement file type validation and size limits. Add upload progress indicators. Build DocumentProcessingService for file handling. Store uploaded files in database. Display file processing status in UI.
+Create FileUploadDropzone component integrated into the chat sidebar with drag-and-drop support. Focus on CSV and Excel files only (remove PPTX/DOCX support for MVP). Implement file type validation for .csv, .xls, and .xlsx with 50MB size limit. Use PapaParse library for CSV parsing. Load parsed data directly into DuckDB WASM tables for in-browser SQL analytics. Display data preview in chat interface after successful upload. Add upload progress indicators. Skip server-side storage for MVP - keep data in browser memory/DuckDB.
 
 # Test Strategy:
-Test file upload with various formats. Verify file validation. Test upload progress. Check error handling for invalid files.
+Test file upload with various CSV and Excel formats. Verify PapaParse CSV parsing accuracy. Test DuckDB table creation from uploaded data. Verify 50MB file size limit enforcement. Test data preview rendering in chat. Check error handling for invalid files and oversized uploads.

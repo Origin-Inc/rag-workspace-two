@@ -1,0 +1,88 @@
+# Task ID: 52
+# Title: Setup DuckDB WASM and Chat Infrastructure
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Initialize DuckDB WASM in the browser environment and create the foundational chat sidebar component with proper state management for the data analytics interface
+# Details:
+1. Install DuckDB WASM package (@duckdb/duckdb-wasm)
+2. Create initialization service for DuckDB instance management
+3. Implement chat sidebar component at 30% width on right side
+4. Setup Zustand/Redux store for chat state management
+5. Create ChatMessage model in Prisma schema with pageId, content, role, timestamp fields
+6. Implement chat persistence API endpoints (GET /api/chat/:pageId, POST /api/chat/message)
+7. Remove existing AI command palette and AI blocks components
+8. Ensure chat state persists with page navigation
+
+Pseudo-code for DuckDB initialization:
+```
+class DuckDBService {
+  async initialize() {
+    const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+    const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+    const worker = await duckdb.createWorker(bundle.mainWorker);
+    const logger = new duckdb.ConsoleLogger();
+    const db = new duckdb.AsyncDuckDB(logger, worker);
+    await db.instantiate(bundle.mainModule);
+    return db;
+  }
+}
+```
+
+# Test Strategy:
+1. Unit test DuckDB initialization and connection
+2. Test chat sidebar responsive behavior at different screen sizes
+3. Verify chat message persistence across page refreshes
+4. Test WebSocket/SSE connection for real-time updates
+5. Validate proper cleanup of DuckDB resources on unmount
+6. Test chat state management with multiple messages
+
+# Subtasks:
+## 1. Install and Configure DuckDB WASM Dependencies [done]
+### Dependencies: None
+### Description: Install the @duckdb/duckdb-wasm package and configure the necessary build settings for WASM module loading in the Remix/Vite environment
+### Details:
+Run npm install @duckdb/duckdb-wasm. Update vite.config.ts to handle WASM file loading by adding appropriate plugins and optimizeDeps exclusions. Configure public directory for serving WASM bundles. Add necessary TypeScript type definitions. Ensure proper CORS headers for WASM module fetching from CDN.
+<info added on 2025-09-11T21:27:19.905Z>
+Package successfully installed with version 1.29.0, adding 6 dependencies. Vite configuration updated with wasm plugin, optimizeDeps exclusions for @duckdb/duckdb-wasm, and proper header settings for WASM file serving. Created comprehensive DuckDBService class at app/services/duckdb/duckdb.service.ts implementing singleton pattern with async initialization, connection management, query execution with proper error handling, CSV/JSON import capabilities, and resource cleanup. Test component created at app/components/duckdb-test.tsx demonstrating successful initialization and basic query functionality. Development server confirmed running on port 3001 with WASM modules loading correctly in browser environment.
+</info added on 2025-09-11T21:27:19.905Z>
+
+## 2. Create DuckDB Initialization Service [done]
+### Dependencies: 52.1
+### Description: Implement a singleton service class that manages DuckDB WASM instance initialization, connection pooling, and lifecycle management in the browser environment
+### Details:
+Create app/services/duckdb/duckdb-service.client.ts implementing the DuckDBService class with initialize(), getConnection(), executeQuery(), and cleanup() methods. Use the provided pseudo-code pattern with JSDELIVR bundles. Implement singleton pattern to ensure single instance across the app. Add error handling for initialization failures. Create helper methods for common operations like table creation and data loading.
+
+## 3. Update Prisma Schema and Generate Migration for Chat Messages [done]
+### Dependencies: None
+### Description: Add ChatMessage model to the Prisma schema with proper relationships and create database migration for chat persistence
+### Details:
+Update prisma/schema.prisma to add ChatMessage model with fields: id (String, @id, @default(cuid())), pageId (String), page (relation to Page model), workspaceId (String), workspace (relation to Workspace model), content (String, @db.Text), role (String - 'user' or 'assistant'), timestamp (DateTime, @default(now())), metadata (Json?). Add appropriate indexes for pageId and workspaceId. Run npx prisma migrate dev to create migration. Update Prisma client generation.
+<info added on 2025-09-11T21:49:42.823Z>
+ChatMessage model implementation completed with proper schema definition including id (cuid), pageId, workspaceId, content (Text), role (user/assistant), timestamp (auto-generated), and optional metadata (Json) fields. DataFile model also added to schema for tracking uploaded files with fields: id, pageId, workspaceId, filename, originalName, fileType, tableName, uploadedAt, and metadata. Migration successfully applied to database using Supabase MCP apply_migration tool. Foreign key constraints established with Page and Workspace models, cascade deletion configured. Performance indexes created on pageId, workspaceId, and createdAt columns for both models. Database tables verified and ready for chat and file upload functionality.
+</info added on 2025-09-11T21:49:42.823Z>
+
+## 4. Implement Chat State Management with Zustand [done]
+### Dependencies: 52.3
+### Description: Create Zustand store for managing chat state including messages, active conversations, and UI state for the chat sidebar
+### Details:
+Create app/stores/chat-store.ts with Zustand store containing: messages array, activePageId, isSidebarOpen boolean, addMessage(), clearMessages(), setActivePageId(), toggleSidebar() actions. Implement message persistence to localStorage for draft messages. Add WebSocket/SSE connection state management. Create hooks like useChatMessages() and useChatSidebar() for component consumption. Include typing indicators and connection status.
+<info added on 2025-09-11T21:52:53.298Z>
+The Zustand store implementation is complete and fully functional. The store architecture uses Maps for efficient page-specific data management, enabling O(1) lookups for messages and data files. State persistence has been configured for both draft messages and sidebar preferences using localStorage with JSON serialization. The connection management system tracks WebSocket/SSE states with IDLE, CONNECTING, CONNECTED, and ERROR statuses. Four specialized hooks provide clean component interfaces: useChatMessages for message operations, useChatDataFiles for data file management, useChatSidebar for UI state, and useChatConnection for monitoring connection status. The test component successfully validated all store functionality including message addition, data file management, sidebar toggling, and connection state transitions. Browser testing confirmed proper state updates, localStorage persistence across refreshes, and correct hook behavior with React DevTools verification.
+</info added on 2025-09-11T21:52:53.298Z>
+
+## 5. Build Chat Sidebar Component with Responsive Layout [done]
+### Dependencies: 52.4
+### Description: Create the chat sidebar React component with 30% width layout, message display, input area, and responsive behavior
+### Details:
+Create app/components/chat/ChatSidebar.tsx with fixed 30% width positioning on the right side. Implement message list with virtualization for performance using react-window. Add ChatInput component with textarea and send button. Style with Tailwind CSS for consistent design. Implement responsive behavior for mobile screens (full width overlay). Add message timestamp formatting and role-based styling (user vs assistant). Include loading states and error boundaries.
+<info added on 2025-09-11T21:57:49.890Z>
+The ChatSidebar implementation is complete with successful integration of all required components. The sidebar maintains its 30% width constraint while providing full-width overlay on mobile devices. The ChatMessage component properly displays messages with expandable metadata sections for viewing raw content and timestamps. The ChatInput component features an auto-resizing textarea that adjusts height based on content, supports Enter to send and Shift+Enter for new lines, and includes a character counter. The FileUploadZone component enables drag-and-drop file uploads for CSV and Excel files with visual feedback during drag operations. The sidebar has been successfully integrated into the editor page at /app/editor/$pageId.tsx with a toggle button for showing/hiding the chat interface. All components are styled with Tailwind CSS classes and include proper dark mode support through the use of dark: prefixed classes. The implementation follows the existing codebase patterns and maintains consistency with the application's design system.
+</info added on 2025-09-11T21:57:49.890Z>
+
+## 6. Create Chat API Endpoints and Remove Legacy AI Components [done]
+### Dependencies: 52.3, 52.5
+### Description: Implement REST API endpoints for chat persistence and remove existing AI command palette and AI blocks components
+### Details:
+Create app/routes/api.chat.$pageId.tsx with GET loader for fetching chat history. Create app/routes/api.chat.message.tsx with POST action for saving messages. Implement proper authentication and workspace validation. Add pagination for message history. Remove app/components/ai-command-palette and related AI blocks components. Update any imports and references to removed components. Ensure proper error handling and response formatting.
+

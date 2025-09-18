@@ -22,6 +22,24 @@ export default {
   ],
   theme: {
     extend: {
+      colors: {
+        // Custom theme colors using CSS variables
+        'theme': {
+          'bg-primary': 'rgba(var(--color-bg-primary), 1)',
+          'bg-secondary': 'rgba(var(--color-bg-secondary), 1)',
+          'border': 'rgba(var(--color-border), 1)',
+          'text-primary': 'rgba(var(--color-text-primary), 1)',
+          'text-secondary': 'rgba(var(--color-text-secondary), 1)',
+        }
+      },
+      backgroundColor: {
+        // Specific dark mode background
+        'dark-primary': 'rgba(33, 33, 33, 1)',
+      },
+      borderColor: {
+        // Specific dark mode border
+        'dark-primary': 'rgba(55, 65, 81, 1)',
+      },
       gridTemplateColumns: {
         // Custom grid columns for dashboard
         '13': 'repeat(13, minmax(0, 1fr))',
