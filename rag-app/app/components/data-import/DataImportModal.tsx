@@ -294,7 +294,7 @@ export function DataImportModal({
                         )}
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white divide-y divide-gray-200 dark:bg-dark-primary">
                       {parsedData.rows.slice(0, 5).map((row, idx) => (
                         <tr key={idx}>
                           {parsedData.columns.slice(0, 5).map((col) => (

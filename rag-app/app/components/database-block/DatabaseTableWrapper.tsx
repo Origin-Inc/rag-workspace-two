@@ -190,15 +190,15 @@ export function DatabaseTableWrapper({
   return (
     <div className={cn("w-full border border-gray-200 rounded-lg overflow-hidden", className)}>
       {/* Simple header */}
-      <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+      <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 dark:bg-dark-primary dark:border-gray-700">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-700">
+          <span className="text-sm font-medium text-gray-700 dark:text-white">
             Database ({rows.length} rows × {columns.length} columns)
           </span>
           <div className="flex gap-2">
             <button
               onClick={handleAddColumn}
-              className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
+              className="px-2 py-1 text-xs bg-blue-500 text-white hover:bg-blue-600 rounded"
             >
               + Column
             </button>
@@ -215,12 +215,12 @@ export function DatabaseTableWrapper({
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-gray-50 border-b border-gray-200 dark:bg-dark-primary">
             <tr>
               {columns.map(column => (
                 <th
                   key={column.id}
-                  className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"
+                  className="px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-white uppercase tracking-wider"
                   style={{ width: column.width }}
                 >
                   <div className="flex items-center justify-between group">
@@ -236,11 +236,11 @@ export function DatabaseTableWrapper({
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white divide-y divide-gray-200 dark:bg-dark-primary">
             {rows.map(row => (
               <tr key={row.id} className="hover:bg-gray-50 group">
                 {columns.map(column => (
-                  <td key={column.id} className="px-4 py-2">
+                  <td key={column.id} className="px-4 py-2 dark:bg-dark-primary">
                     {column.type === 'select' ? (
                       <select
                         value={row.cells?.[column.id] || ''}
@@ -258,7 +258,7 @@ export function DatabaseTableWrapper({
                         type="text"
                         value={row.cells?.[column.id] || ''}
                         onChange={(e) => handleUpdateRow(row.id, { [column.id]: e.target.value })}
-                        className="w-full px-2 py-1 text-sm border border-transparent hover:border-gray-200 focus:border-blue-500 rounded focus:outline-none"
+                        className="w-full px-2 py-1 text-sm font-semibold border border-transparent hover:border-gray-200 focus:border-blue-500 rounded focus:outline-none dark:bg-dark-primary"
                         placeholder={`Enter ${column.name.toLowerCase()}...`}
                       />
                     )}
