@@ -217,10 +217,10 @@ export function DatabaseTableWrapper({
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200 dark:border-dark-primary dark:bg-dark-primary">
             <tr>
-              {columns.map(column => (
+              {columns.map((column, index) => (
                 <th
                   key={column.id}
-                  className="px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-white uppercase tracking-wider"
+                  className={`px-4 py-2 text-left text-xs font-medium text-gray-700 dark:text-white uppercase tracking-wider ${index !== columns.length - 1 ? 'border-r border-gray-200 dark:border-dark-primary' : ''}`}
                   style={{ width: column.width }}
                 >
                   <div className="flex items-center justify-between group">
@@ -236,11 +236,14 @@ export function DatabaseTableWrapper({
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200 dark:bg-dark-primary">
+          <tbody className="bg-white dark:bg-dark-primary">
             {rows.map(row => (
-              <tr key={row.id} className="hover:bg-gray-50 group">
-                {columns.map(column => (
-                  <td key={column.id} className="px-4 py-2 dark:bg-dark-primary">
+              <tr key={row.id} className="hover:bg-gray-50 group border-b border-gray-200 dark:border-dark-primary">
+                {columns.map((column, index) => (
+                  <td
+                    key={column.id}
+                    className={`px-4 py-2 dark:bg-dark-primary ${index !== columns.length - 1 ? 'border-r border-gray-200 dark:border-dark-primary' : ''}`}
+                  >
                     {column.type === 'select' ? (
                       <select
                         value={row.cells?.[column.id] || ''}
