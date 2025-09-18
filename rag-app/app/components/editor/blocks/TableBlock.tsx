@@ -26,7 +26,7 @@ export const TableBlock = ({ block, onChange, isSelected, isEditing }: TableBloc
 
   return (
     <div className={cn(
-      "w-full h-full p-2 bg-white dark:bg-gray-800 rounded-lg overflow-auto",
+      "w-full h-full p-2 bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg overflow-auto",
       isSelected && "ring-2 ring-blue-500"
     )}>
       <table className="w-full border-collapse">
@@ -36,13 +36,13 @@ export const TableBlock = ({ block, onChange, isSelected, isEditing }: TableBloc
               {row.map((cell: string, colIndex: number) => (
                 <td
                   key={colIndex}
-                  className="border border-gray-300 dark:border-gray-600 p-2"
+                  className="border border-gray-300 dark:border-gray-700 p-2"
                 >
                   <input
                     type="text"
                     value={cell}
                     onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
-                    className="w-full bg-transparent focus:outline-none"
+                    className="w-full bg-transparent focus:outline-none text-gray-900 dark:text-gray-100"
                     readOnly={!isEditing}
                   />
                 </td>
