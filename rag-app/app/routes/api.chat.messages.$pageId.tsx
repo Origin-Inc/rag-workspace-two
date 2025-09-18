@@ -39,30 +39,54 @@ export const loader: LoaderFunction = async ({ request, params }) => {
     const limit = parseInt(url.searchParams.get('limit') || '100');
     const offset = parseInt(url.searchParams.get('offset') || '0');
 
-    const messages = await prisma.chatMessage.findMany({
-      where: {
-        pageId,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-      skip: offset,
-      take: limit,
-      select: {
-        id: true,
-        role: true,
-        content: true,
-        metadata: true,
-        createdAt: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    // Check if userId column exists (for backwards compatibility)
+    let messages;
+    try {
+      messages = await prisma.chatMessage.findMany({
+        where: {
+          pageId,
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+        skip: offset,
+        take: limit,
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          metadata: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (error) {
+      // Fallback if user relation doesn't exist
+      logger.trace('Falling back to messages without user relation');
+      messages = await prisma.chatMessage.findMany({
+        where: {
+          pageId,
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+        skip: offset,
+        take: limit,
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          metadata: true,
+          createdAt: true,
+        },
+      });
+    }
 
     logger.trace('Fetched chat messages', { 
       pageId, 
@@ -136,30 +160,53 @@ export const action: ActionFunction = async ({ request, params }) => {
     }
 
     // Create message
-    const message = await prisma.chatMessage.create({
-      data: {
-        pageId: page.id,
-        workspaceId: page.workspaceId,
-        userId: role === 'user' ? user.id : null,
-        role,
-        content,
-        metadata: metadata || null,
-      },
-      select: {
-        id: true,
-        role: true,
-        content: true,
-        metadata: true,
-        createdAt: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    let message;
+    try {
+      // Try with userId field
+      message = await prisma.chatMessage.create({
+        data: {
+          pageId: page.id,
+          workspaceId: page.workspaceId,
+          userId: role === 'user' ? user.id : null,
+          role,
+          content,
+          metadata: metadata || null,
+        },
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          metadata: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (error) {
+      // Fallback without userId if column doesn't exist
+      logger.trace('Creating message without userId field');
+      message = await prisma.chatMessage.create({
+        data: {
+          pageId: page.id,
+          workspaceId: page.workspaceId,
+          role,
+          content,
+          metadata: metadata || null,
+        },
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          metadata: true,
+          createdAt: true,
+        },
+      });
+    }
 
     logger.trace('Created chat message', { 
       messageId: message.id,
