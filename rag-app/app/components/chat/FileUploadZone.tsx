@@ -82,7 +82,7 @@ export function FileUploadZone({ onFileUpload, className, isUploading = false }:
   
   return (
     <div className={cn(
-      "border-t border-gray-200 p-4 bg-gray-50 dark:bg-gray-900 dark:border-gray-700",
+      "border-t border-gray-200 p-4 bg-gray-50 dark:bg-dark-primary dark:border-gray-700",
       className
     )}>
       <input

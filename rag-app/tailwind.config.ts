@@ -35,6 +35,7 @@ export default {
       backgroundColor: {
         // Specific dark mode background
         'dark-primary': 'rgba(33, 33, 33, 1)',
+        'dark-secondary': 'rgba(50, 50, 50, 1)',
       },
       borderColor: {
         // Specific dark mode border
