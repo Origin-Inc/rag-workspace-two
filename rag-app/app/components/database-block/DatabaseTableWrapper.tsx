@@ -242,13 +242,13 @@ export function DatabaseTableWrapper({
                 {columns.map((column, index) => (
                   <td
                     key={column.id}
-                    className={`px-4 py-2 dark:bg-dark-primary ${index !== columns.length - 1 ? 'border-r border-gray-200 dark:border-dark-primary' : ''}`}
+                    className={`px-2 py-2 dark:bg-dark-primary ${index !== columns.length - 1 ? 'border-r border-gray-200 dark:border-dark-primary' : ''}`}
                   >
                     {column.type === 'select' ? (
                       <select
                         value={row.cells?.[column.id] || ''}
                         onChange={(e) => handleUpdateRow(row.id, { [column.id]: e.target.value })}
-                        className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         {column.options?.map(option => (
                           <option key={option.id} value={option.id}>
@@ -262,7 +262,7 @@ export function DatabaseTableWrapper({
                         value={row.cells?.[column.id] || ''}
                         onChange={(e) => handleUpdateRow(row.id, { [column.id]: e.target.value })}
                         className="w-full px-2 py-1 text-sm font-semibold rounded focus:outline-none dark:bg-dark-primary cursor-pointer"
-                        placeholder={`Enter ${column.name.toLowerCase()}...`}
+                        /*placeholder={`Enter ${column.name.toLowerCase()}...`}*/
                       />
                     )}
                   </td>
