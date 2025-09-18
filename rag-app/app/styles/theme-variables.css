@@ -11,8 +11,8 @@
 .dark {
   /* Dark mode colors - using your preferred dark background */
   --color-bg-primary: 33, 33, 33; /* rgba(33,33,33,1) */
-  --color-bg-secondary: 33, 33, 33; /* same as primary for consistency */
-  --color-border: 55, 65, 81; /* gray-700 */
+  --color-bg-secondary: 50, 50, 50; /* for secondary*/
+  --color-border: 70, 70, 70; /* gray-700 */
   --color-text-primary: 243, 244, 246; /* gray-100 */
   --color-text-secondary: 156, 163, 175; /* gray-400 */
 }

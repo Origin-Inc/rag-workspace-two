@@ -188,11 +188,11 @@ export function DatabaseTableWrapper({
   }, [columns, rows.length, onDataChange]);
 
   return (
-    <div className={cn("w-full border border-gray-200 rounded-lg overflow-hidden", className)}>
+    <div className={cn("w-full rounded-lg overflow-hidden", className)}>
       {/* Simple header */}
-      <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 dark:bg-dark-primary dark:border-gray-700">
+      <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 dark:bg-dark-primary dark:border-dark-primary">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-700 dark:text-white">
+          <span className="text-xl font-bold text-gray-700 dark:text-white">
             Database ({rows.length} rows × {columns.length} columns)
           </span>
           <div className="flex gap-2">

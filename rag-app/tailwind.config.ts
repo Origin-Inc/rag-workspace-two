@@ -38,7 +38,7 @@ export default {
       },
       borderColor: {
         // Specific dark mode border
-        'dark-primary': 'rgba(55, 65, 81, 1)',
+        'dark-primary': 'rgba(70, 70, 70, 1)',
       },
       gridTemplateColumns: {
         // Custom grid columns for dashboard
