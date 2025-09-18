@@ -215,7 +215,7 @@ export function DatabaseTableWrapper({
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200 dark:bg-dark-primary">
+          <thead className="bg-gray-50 border-b border-gray-200 dark:border-dark-primary dark:bg-dark-primary">
             <tr>
               {columns.map(column => (
                 <th
@@ -258,7 +258,7 @@ export function DatabaseTableWrapper({
                         type="text"
                         value={row.cells?.[column.id] || ''}
                         onChange={(e) => handleUpdateRow(row.id, { [column.id]: e.target.value })}
-                        className="w-full px-2 py-1 text-sm font-semibold border border-transparent hover:border-gray-200 focus:border-blue-500 rounded focus:outline-none dark:bg-dark-primary"
+                        className="w-full px-2 py-1 text-sm font-semibold rounded focus:outline-none dark:bg-dark-primary cursor-pointer"
                         placeholder={`Enter ${column.name.toLowerCase()}...`}
                       />
                     )}

@@ -35,7 +35,7 @@ export function ChartBlock({ id, content, onUpdate, onDelete }: ChartBlockProps)
   
   if (!content?.config?.data) {
     return (
-      <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
+      <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
         <p className="text-gray-500 dark:text-gray-400">No chart data available</p>
       </div>
     );
@@ -48,7 +48,7 @@ export function ChartBlock({ id, content, onUpdate, onDelete }: ChartBlockProps)
   if (!data || !data.labels || !Array.isArray(data.labels)) {
     console.error('[ChartBlock] Invalid data structure:', data);
     return (
-      <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
+      <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
         <p className="text-gray-500 dark:text-gray-400">Invalid chart data structure</p>
       </div>
     );
@@ -177,7 +177,7 @@ export function ChartBlock({ id, content, onUpdate, onDelete }: ChartBlockProps)
   };
 
   return (
-    <div className="my-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[rgba(33,33,33,1)]">
+    <div className="my-4 p-4 rounded-lg bg-white dark:bg-dark-primary">
       {title && (
         <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{title}</h3>
       )}
