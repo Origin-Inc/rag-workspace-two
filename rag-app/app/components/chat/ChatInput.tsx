@@ -62,7 +62,7 @@ export function ChatInput({
   
   return (
     <div className={cn(
-      "border-t border-gray-200 p-4 bg-white relative",
+      "border-t border-gray-200 dark:border-gray-700 p-4 bg-white relative dark:bg-dark-secondary",
       className
     )}>
       {/* File reference suggestions */}
@@ -91,9 +91,12 @@ export function ChatInput({
           disabled={disabled}
           rows={1}
           className={cn(
-            "flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2",
+            "flex-1 resize-none rounded-lg px-3 py-2 dark:bg-dark-secondary",
+            "bg-white dark:bg-dark-secondary",
+            "text-gray-900 dark:text-gray-100",
+            "border border-gray-200 dark:border-gray-700",
             "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-            "disabled:bg-gray-100 disabled:text-gray-500",
+            "disabled:bg-gray-100 disabled:text-gray-500 dark:disabled:bg-gray-800",
             "min-h-[40px] max-h-[120px]"
           )}
           style={{ height: '40px' }}
