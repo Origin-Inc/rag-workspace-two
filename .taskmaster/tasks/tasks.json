@@ -2365,7 +2365,7 @@
         "id": 53,
         "title": "Implement File Upload and Data Processing",
         "description": "Create drag-and-drop file upload functionality for CSV/Excel/PDF files with automatic parsing, text extraction, OCR capabilities, table detection, and loading into DuckDB tables for natural language querying",
-        "status": "pending",
+        "status": "in-progress",
         "dependencies": [
           52
         ],
@@ -2564,6 +2564,42 @@
             "details": "Modify upload endpoint to accept multiple files in a single request. Implement batch processing with progress tracking for each file. Add relationship detection by analyzing column names and data patterns (look for common ID fields, foreign key patterns). Create a relationships metadata table in Prisma to store detected or user-defined relationships. Update the UI to show upload progress for multiple files with individual status indicators. Implement a relationship viewer component that shows connections between uploaded tables.",
             "status": "done",
             "testStrategy": "Test batch uploads with related datasets, verify relationship detection accuracy, test UI with concurrent file processing"
+          },
+          {
+            "id": 18,
+            "title": "Create SQL Generation Service for Natural Language Queries",
+            "description": "Build a service that converts natural language queries to SQL using OpenAI, specifically for DuckDB tables",
+            "details": "Create a DuckDBQueryService (client-side) that:\n\n1. **Natural Language to SQL Conversion**:\n   - Use OpenAI API to generate DuckDB-compatible SQL from user queries\n   - Include table schemas and sample data in prompt context\n   - Handle common query patterns (summarize, calculate, filter, join)\n   - Support aggregations, grouping, and sorting\n\n2. **Prompt Engineering**:\n   ```typescript\n   const generateSQL = async (query: string, tables: DataFile[]) => {\n     const prompt = `\n       Given these DuckDB tables:\n       ${tables.map(t => `Table: ${t.tableName}\\nSchema: ${JSON.stringify(t.schema)}`).join('\\n')}\n       \n       Convert this natural language query to SQL:\n       \"${query}\"\n       \n       Return only valid DuckDB SQL.\n     `;\n     \n     return await openai.chat.completions.create({\n       model: 'gpt-4',\n       messages: [{ role: 'user', content: prompt }]\n     });\n   };\n   ```\n\n3. **Query Execution**:\n   - Execute generated SQL against browser DuckDB instance\n   - Handle query errors gracefully with user-friendly messages\n   - Return formatted results with proper data types\n   - Track execution time and row count\n\n4. **Result Formatting**:\n   - Convert query results to displayable format\n   - Generate appropriate visualizations (tables, charts)\n   - Handle large result sets with pagination\n   - Include query metadata (SQL used, tables accessed)",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 53
+          },
+          {
+            "id": 19,
+            "title": "Create Chat Query API Endpoint",
+            "description": "Build API endpoint to process chat queries, generate SQL, and return execution instructions",
+            "details": "Create app/routes/api.chat-query.tsx that:\n\n1. **Request Handling**:\n   - Accept POST requests with query text and page/workspace context\n   - Validate user authentication and permissions\n   - Rate limit to prevent abuse\n\n2. **SQL Generation**:\n   - Call OpenAI to generate SQL from natural language\n   - Include available table schemas in context\n   - Validate generated SQL for safety (no DROP, DELETE, etc.)\n   - Return SQL along with confidence score\n\n3. **Response Structure**:\n   ```typescript\n   interface ChatQueryResponse {\n     sql: string;\n     tables: string[];\n     explanation: string;\n     confidence: number;\n     suggestedVisualization?: 'table' | 'chart' | 'number';\n     metadata: {\n       tokensUsed: number;\n       model: string;\n     };\n   }\n   ```\n\n4. **Error Handling**:\n   - Handle OpenAI API errors\n   - Provide fallback for missing context\n   - Return helpful error messages for invalid queries\n   - Log queries for debugging",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 53
+          },
+          {
+            "id": 20,
+            "title": "Add Chat Message Persistence to Database",
+            "description": "Implement database persistence for chat messages to maintain history across sessions",
+            "details": "Update the system to persist chat messages:\n\n1. **Prisma Schema Update**:\n   ```prisma\n   model ChatMessage {\n     id          String   @id @default(cuid())\n     pageId      String\n     workspaceId String\n     userId      String\n     role        String   // 'user' | 'assistant' | 'system'\n     content     String   @db.Text\n     metadata    Json?    // SQL, charts, errors, citations\n     createdAt   DateTime @default(now())\n     \n     page        Page     @relation(fields: [pageId], references: [id])\n     workspace   Workspace @relation(fields: [workspaceId], references: [id])\n     user        User     @relation(fields: [userId], references: [id])\n   }\n   ```\n\n2. **Migration**:\n   - Create migration: npx prisma migrate dev --name add_chat_messages\n   - Add indexes for pageId and createdAt for efficient queries\n\n3. **API Endpoints**:\n   - GET /api/chat/messages/:pageId - Fetch chat history\n   - POST /api/chat/messages - Save new message\n   - DELETE /api/chat/messages/:messageId - Delete message\n   - PATCH /api/chat/messages/:messageId - Update message\n\n4. **Chat Store Integration**:\n   - Modify ChatSidebar to load messages on mount\n   - Save messages to database after adding to store\n   - Implement optimistic updates with rollback on error\n   - Add pagination for long chat histories",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 53
+          },
+          {
+            "id": 21,
+            "title": "Connect ChatSidebar to Query Processing Pipeline",
+            "description": "Wire up the ChatSidebar component to execute queries through the complete pipeline",
+            "details": "Integrate all components in ChatSidebar:\n\n1. **Update handleSendMessage** in ChatSidebar.tsx:\n   ```typescript\n   const handleSendMessage = async (content: string) => {\n     // Add user message\n     addMessage({ role: 'user', content });\n     \n     // Call API to generate SQL\n     const response = await fetch('/api/chat-query', {\n       method: 'POST',\n       body: JSON.stringify({ \n         query: content, \n         pageId, \n         workspaceId,\n         tables: dataFiles.map(f => ({ name: f.tableName, schema: f.schema }))\n       })\n     });\n     \n     const { sql, explanation } = await response.json();\n     \n     // Execute SQL locally in DuckDB\n     const duckdb = getDuckDB();\n     const results = await duckdb.executeQuery(sql);\n     \n     // Add assistant response with results\n     addMessage({\n       role: 'assistant',\n       content: explanation,\n       metadata: { sql, results, tables: dataFiles.map(f => f.filename) }\n     });\n     \n     // Save to database\n     await saveMessageToDatabase(...);\n   };\n   ```\n\n2. **Update editor.$pageId.tsx Integration**:\n   - Remove TODO comment in onSendMessage prop\n   - Pass through to actual query handler\n   - Include workspace context\n\n3. **Add Loading States**:\n   - Show typing indicator while generating SQL\n   - Display progress for query execution\n   - Handle timeouts for long-running queries\n\n4. **Error Handling**:\n   - Catch and display SQL generation errors\n   - Handle DuckDB execution errors\n   - Provide retry mechanism\n   - Show helpful error messages",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 53
           }
         ]
       },
@@ -2678,7 +2714,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-09-17T05:57:15.779Z",
+      "updated": "2025-09-18T05:28:55.800Z",
       "description": "Tasks for master context"
     }
   }

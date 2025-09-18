@@ -36,6 +36,7 @@ model User {
   auditLogs         AuditLog[]
   invitations       Invitation[]
   userFiles         UserFile[]
+  chatMessages      ChatMessage[]
 
   @@index([email])
   @@index([emailVerificationToken])
@@ -552,7 +553,8 @@ model ChatMessage {
   id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   pageId      String      @map("page_id") @db.Uuid
   workspaceId String      @map("workspace_id") @db.Uuid
-  role        String      @db.VarChar(20) // 'user' or 'assistant'
+  userId      String?     @map("user_id") @db.Uuid
+  role        String      @db.VarChar(20) // 'user' or 'assistant' or 'system'
   content     String      @db.Text
   metadata    Json?       @db.JsonB // For storing block generation data, SQL queries, etc.
   createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -560,6 +562,7 @@ model ChatMessage {
   // Relations
   page        Page        @relation(fields: [pageId], references: [id], onDelete: Cascade)
   workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   
   @@index([pageId])
   @@index([workspaceId])
