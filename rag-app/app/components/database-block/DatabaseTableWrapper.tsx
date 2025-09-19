@@ -207,7 +207,7 @@ export function DatabaseTableWrapper({
   return (
     <div className={cn("w-full rounded-lg overflow-hidden", className)}>
       {/* Simple header */}
-      <div className="bg-gray-50 px-4 py-2 dark:bg-dark-primary">
+      <div className="bg-gray-50 px-2 py-2 dark:bg-dark-primary">
         <div className="flex items-center justify-between">
           {isEditingName ? (
             <input
