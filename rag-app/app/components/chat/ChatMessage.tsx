@@ -56,8 +56,8 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                   <div className="chat-table-wrapper my-4">
                     <div className="chat-table-scroll">
                       <div className="inline-block min-w-full align-middle">
-                        <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 dark:ring-gray-700 rounded-lg">
-                          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <div className="overflow-hidden">
+                          <table className="min-w-full divide-y divide-theme-border-secondary">
                             {children}
                           </table>
                         </div>
@@ -69,7 +69,7 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                   <thead className="bg-transparent">{children}</thead>
                 ),
                 tbody: ({children}) => (
-                  <tbody className="bg-transparent divide-y divide-gray-200 dark:divide-gray-600">{children}</tbody>
+                  <tbody className="bg-transparent divide-y divide-theme-border-secondary">{children}</tbody>
                 ),
                 th: ({children}) => (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">

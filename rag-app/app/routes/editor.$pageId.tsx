@@ -1167,7 +1167,7 @@ export default function EditorPage() {
         </header>
 
         {/* Page header */}
-        <div className="bg-theme-bg-primary shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-1">
+        <div className="bg-theme-bg-primary shadow-sm border-b border-theme-border-primary px-6 py-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <h1 className="text-3xl font-semibold text-gray-900 dark:text-white">
