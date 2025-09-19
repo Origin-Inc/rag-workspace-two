@@ -30,11 +30,12 @@ export default {
         'theme': {
           'bg-primary': 'rgba(var(--color-bg-primary), 1)',
           'bg-secondary': 'rgba(var(--color-bg-secondary), 1)',
-          'border': 'rgba(var(--color-border), 1)',
+          'border-primary': 'rgba(var(--color-border-primary), 1)',
+          'border-secondary': 'rgba(var(--color-border-secondary), 1)',
           'text-primary': 'rgba(var(--color-text-primary), 1)',
           'text-secondary': 'rgba(var(--color-text-secondary), 1)',
           'text-code': 'rgba(var(--color-text-code), 1)',
-        }
+          'text-highlight': 'rgba(var(--color-text-highlight), 1)',
       },
       backgroundColor: {
         // Specific dark mode background
