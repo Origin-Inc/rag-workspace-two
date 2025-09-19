@@ -177,7 +177,7 @@ export function ChartBlock({ id, content, onUpdate, onDelete }: ChartBlockProps)
   };
 
   return (
-    <div className="my-4 p-4 rounded-lg bg-white dark:bg-dark-primary">
+    <div className="my-4 p-4 rounded-lg bg-theme-bg-primary">
       {title && (
         <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{title}</h3>
       )}

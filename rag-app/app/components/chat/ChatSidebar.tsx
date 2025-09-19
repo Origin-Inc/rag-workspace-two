@@ -460,13 +460,13 @@ export function ChatSidebar({
       
       {/* Sidebar content */}
       <div 
-        className="flex-1 flex flex-col dark:bg-dark-primary overflow-hidden w-full"
+        className="flex-1 flex flex-col bg-theme-bg-primary overflow-hidden w-full"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-primary dark:bg-dark-primary">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-primary bg-theme-bg-primary">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Data Chat</h2>
         </div>
@@ -534,7 +534,7 @@ export function ChatSidebar({
       )}
       
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-white dark:bg-dark-primary">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-theme-bg-primary">
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
             <Upload className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />

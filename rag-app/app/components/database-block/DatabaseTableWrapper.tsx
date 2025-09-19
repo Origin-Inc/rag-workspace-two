@@ -207,7 +207,7 @@ export function DatabaseTableWrapper({
   return (
     <div className={cn("w-full rounded-lg overflow-hidden", className)}>
       {/* Simple header */}
-      <div className="bg-gray-50 px-2 py-2 dark:bg-dark-primary">
+      <div className="bg-gray-50 px-2 py-2 bg-theme-bg-primary">
         <div className="flex items-center justify-between">
           {isEditingName ? (
             <input
@@ -260,7 +260,7 @@ export function DatabaseTableWrapper({
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200 dark:border-dark-primary dark:bg-dark-primary">
+          <thead className="border-b border-gray-200 dark:border-dark-primary bg-theme-bg-primary">
             <tr>
               {columns.map((column) => (
                 <th
@@ -312,13 +312,13 @@ export function DatabaseTableWrapper({
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-dark-primary">
+          <tbody className="bg-theme-bg-primary">
             {rows.map(row => (
               <tr key={row.id} className="hover:bg-gray-50 group border-b border-gray-200 dark:border-dark-primary">
                 {columns.map((column, index) => (
                   <td
                     key={column.id}
-                    className={`px-2 py-2 dark:bg-dark-primary ${index !== columns.length - 1 ? 'border-r border-gray-200 dark:border-dark-primary' : ''}`}
+                    className={`px-2 py-2 bg-theme-bg-primary ${index !== columns.length - 1 ? 'border-r border-gray-200 dark:border-dark-primary' : ''}`}
                   >
                     {column.type === 'select' ? (
                       <select
@@ -337,13 +337,13 @@ export function DatabaseTableWrapper({
                         type="text"
                         value={row.cells?.[column.id] || ''}
                         onChange={(e) => handleUpdateRow(row.id, { [column.id]: e.target.value })}
-                        className="w-full px-2 py-1 text-sm font-semibold rounded focus:outline-none dark:bg-dark-primary cursor-pointer"
+                        className="w-full px-2 py-1 text-sm font-semibold rounded focus:outline-none bg-theme-bg-primary cursor-pointer"
                         /*placeholder={`Enter ${column.name.toLowerCase()}...`}*/
                       />
                     )}
                   </td>
                 ))}
-                <td className="px-2 dark:bg-dark-primary">
+                <td className="px-2 bg-theme-bg-primary">
                   <button
                     onClick={() => handleDeleteRow(row.id)}
                     className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 text-sm"
