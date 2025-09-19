@@ -444,7 +444,7 @@ export function ChatSidebar({
   return (
     <div 
       className={cn(
-        "fixed right-0 top-0 h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 shadow-xl flex",
+        "fixed right-0 top-0 h-full bg-theme-bg-primary border-l border-theme-border-primary shadow-xl flex",
         "transition-transform duration-300 ease-in-out",
         isChatSidebarOpen ? "translate-x-0" : "translate-x-full",
         className

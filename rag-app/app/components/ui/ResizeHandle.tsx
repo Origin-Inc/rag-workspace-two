@@ -64,7 +64,7 @@ export function ResizeHandle({
       className={cn(
         "group relative",
         orientation === 'vertical' 
-          ? "w-1 h-full cursor-col-resize" 
+          ? "h-full cursor-col-resize" 
           : "h-1 w-full cursor-row-resize",
         "hover:bg-blue-500 hover:opacity-50 transition-all",
         isDragging && "bg-blue-500 opacity-50",
@@ -76,7 +76,7 @@ export function ResizeHandle({
       <div className={cn(
         "absolute",
         orientation === 'vertical' 
-          ? "inset-y-0 left-1/2 -translate-x-1/2 w-1" 
+          ? "inset-y-0 left-1/2 -translate-x-1/2" 
           : "inset-x-0 top-1/2 -translate-y-1/2 h-1",
         "bg-gray-300 dark:bg-gray-600",
         "group-hover:bg-blue-500 transition-colors",

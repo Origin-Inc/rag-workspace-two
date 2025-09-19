@@ -883,7 +883,7 @@ export default function EditorPage() {
       {/* Sidebar with resize and collapse */}
       <aside 
         className={cn(
-          "relative bg-theme-bg-secondary border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out",
+          "relative bg-theme-bg-secondary border-r border-theme-border-primary transition-all duration-300 ease-in-out",
           "flex flex-col h-full",
           // Mobile behavior
           sidebarOpen ? "fixed inset-y-0 left-0 z-50 translate-x-0" : "fixed inset-y-0 left-0 z-50 -translate-x-full",
@@ -908,7 +908,7 @@ export default function EditorPage() {
         {/* Collapse/Expand Button for Desktop */}
         <button
           onClick={() => setMenuCollapsed(!isMenuCollapsed)}
-          className="absolute -right-3 top-1/2 -translate-y-1/2 hidden lg:flex w-6 h-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 z-20 transition-colors"
+          className="absolute -right-3 top-1/2 -translate-y-1/2 hidden lg:flex w-6 h-6 bg-theme-text-highlight border border-gray-200 dark:border-gray-700 rounded-full items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 z-20 transition-colors"
           aria-label={isMenuCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isMenuCollapsed ? (
@@ -930,7 +930,7 @@ export default function EditorPage() {
                 "w-full flex items-center rounded-lg transition-colors",
                 isMenuCollapsed 
                   ? "justify-center p-2 hover:bg-gray-100 dark:hover:bg-gray-800" 
-                  : "justify-between px-3 py-0.7 text-sm font-medium text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                  : "justify-between px-3 py-0.7 text-sm font-medium text-theme-text-primary bg-theme-bg-secondary hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
               )}
               aria-label="Switch workspace"
               aria-expanded={workspaceDropdownOpen}
@@ -967,8 +967,8 @@ export default function EditorPage() {
                     key={uw.workspace.id}
                     to={`/app/workspace/${uw.workspace.slug}`}
                     className={`
-                      flex items-center px-3 py-2 text-sm dark:hover:bg-gray-800
-                      ${uw.workspace.id === currentWorkspace?.id ? 'bg-blue-50 text-blue-700 dark:text-white' : 'text-gray-700'}
+                      flex items-center px-3 py-2 text-sm hover:bg-theme-text-highlight
+                      ${uw.workspace.id === currentWorkspace?.id ? 'text-blue-700 dark:text-white' : 'text-gray-700'}
                     `}
                   >
                     <div className="flex-shrink-0 w-6 h-6 bg-gradient-to-br from-gray-400 to-gray-500 rounded flex items-center justify-center text-white text-xs font-semibold">
@@ -1137,7 +1137,7 @@ export default function EditorPage() {
         marginRight: isChatSidebarOpen ? `${chatSidebarWidth}px` : '0'
       }}>
         {/* Top Header with mobile menu button */}
-        <header className="flex-shrink-0 bg-theme-b-primary">
+        <header className="flex-shrink-0 bg-theme-bg-primary">
           <div className="flex items-center justify-between h-12 px-4 lg:px-6">
             {/* Mobile menu button */}
             <button
