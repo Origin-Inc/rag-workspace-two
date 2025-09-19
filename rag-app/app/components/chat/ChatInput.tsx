@@ -79,7 +79,7 @@ export function ChatInput({
         />
       )}
       
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-2 w-full">
         <textarea
           ref={textareaRef}
           value={input}
@@ -105,7 +105,7 @@ export function ChatInput({
           onClick={handleSubmit}
           disabled={disabled || !input.trim()}
           className={cn(
-            "p-2 rounded-lg transition-colors",
+            "p-2 rounded-lg transition-colors flex-shrink-0",
             "bg-blue-500 text-white hover:bg-blue-600",
             "disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed",
             "flex items-center justify-center"

@@ -460,7 +460,7 @@ export function ChatSidebar({
       
       {/* Sidebar content */}
       <div 
-        className="flex-1 flex flex-col dark:bg-dark-primary"
+        className="flex-1 flex flex-col dark:bg-dark-primary overflow-hidden w-full"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

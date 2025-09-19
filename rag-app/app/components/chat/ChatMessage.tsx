@@ -55,7 +55,7 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
           "rounded-lg px-4 py-2 max-w-full break-words",
           isUser ? "bg-blue-500 text-white max-w-[85%]" : 
           isSystem ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800 text-sm text-center w-full" :
-          "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+          "bg-transparent dark:bg-transparent text-gray-900 dark:text-gray-100"
         )}>
           {isUser || isSystem ? (
             <p className="whitespace-pre-wrap break-words">{message.content}</p>
