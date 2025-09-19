@@ -36,6 +36,7 @@ export default {
           'text-secondary': 'rgba(var(--color-text-secondary), 1)',
           'text-code': 'rgba(var(--color-text-code), 1)',
           'text-highlight': 'rgba(var(--color-text-highlight), 1)',
+        }
       },
       backgroundColor: {
         // Specific dark mode background
