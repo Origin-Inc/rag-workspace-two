@@ -106,7 +106,7 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                     <code className="block p-2 bg-gray-900 dark:bg-gray-800 text-gray-100 rounded text-xs overflow-x-auto" {...props}>{children}</code>
                 ),
                 pre: ({children}) => (
-                  <pre className="bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto my-2">{children}</pre>
+                  <pre className="bg-theme-bg-secondary text-gray-100 p-3 rounded overflow-x-auto my-2">{children}</pre>
                 ),
               }}
             >
