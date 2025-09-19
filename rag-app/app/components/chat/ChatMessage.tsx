@@ -40,9 +40,9 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
         {/* Message Bubble */}
         <div className={cn(
           "rounded-lg px-4 py-2 break-words",
-          isUser ? "bg-blue-500 text-white max-w-[85%]" : 
+          isUser ? "bg-theme-text-highlight text-theme-text-primary max-w-[85%]" : 
           isSystem ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800 text-sm text-center w-full" :
-          "bg-transparent dark:bg-transparent text-gray-900 dark:text-gray-100 max-w-full overflow-hidden"
+          "bg-theme-bg-primary text-gray-900 dark:text-gray-100 max-w-full overflow-hidden"
         )}>
           {isUser || isSystem ? (
             <p className="whitespace-pre-wrap break-words">{message.content}</p>
@@ -66,10 +66,10 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                   </div>
                 ),
                 thead: ({children}) => (
-                  <thead className="bg-gray-50 dark:bg-gray-700">{children}</thead>
+                  <thead className="bg-transparent">{children}</thead>
                 ),
                 tbody: ({children}) => (
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">{children}</tbody>
+                  <tbody className="bg-transparent divide-y divide-gray-200 dark:divide-gray-600">{children}</tbody>
                 ),
                 th: ({children}) => (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -96,13 +96,13 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                 code: ({children, ...props}: React.HTMLAttributes<HTMLElement> & {className?: string}) => {
                   const inline = !props.className?.includes('language-');
                   return inline ? 
-                    <code className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs break-words" {...props}>{children}</code> :
-                    <code className="block p-2 bg-gray-900 dark:bg-gray-800 text-gray-100 rounded text-xs overflow-x-auto max-w-full" {...props}>{children}</code>
+                    <code className="px-1 py-0.5 bg-theme-text-code rounded text-xs break-words" {...props}>{children}</code> :
+                    <code className="block p-2 bg-theme-text-code text-gray-100 rounded text-xs overflow-x-auto max-w-full" {...props}>{children}</code>
                 },
                 pre: ({children}) => (
                   <div className="chat-table-wrapper my-2">
                     <div className="chat-table-scroll">
-                      <pre className="bg-gray-900 dark:bg-gray-800 text-gray-100 p-3 rounded inline-block min-w-0">{children}</pre>
+                      <pre className="bg-theme-text-code text-gray-100 p-3 rounded inline-block min-w-0">{children}</pre>
                     </div>
                   </div>
                 ),

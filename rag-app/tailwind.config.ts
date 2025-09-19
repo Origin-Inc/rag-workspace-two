@@ -33,6 +33,7 @@ export default {
           'border': 'rgba(var(--color-border), 1)',
           'text-primary': 'rgba(var(--color-text-primary), 1)',
           'text-secondary': 'rgba(var(--color-text-secondary), 1)',
+          'text-code': 'rgba(var(--color-text-code), 1)',
         }
       },
       backgroundColor: {

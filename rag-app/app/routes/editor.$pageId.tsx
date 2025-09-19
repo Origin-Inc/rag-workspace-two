@@ -883,7 +883,7 @@ export default function EditorPage() {
       {/* Sidebar with resize and collapse */}
       <aside 
         className={cn(
-          "relative bg-white dark:bg-dark-primary border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out",
+          "relative bg-theme-bg-secondary border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out",
           "flex flex-col h-full",
           // Mobile behavior
           sidebarOpen ? "fixed inset-y-0 left-0 z-50 translate-x-0" : "fixed inset-y-0 left-0 z-50 -translate-x-full",
@@ -958,7 +958,7 @@ export default function EditorPage() {
 
             {/* Workspace Dropdown */}
             {workspaceDropdownOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 dark:bg-dark-primary">
+              <div className="absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 bg-theme-bg-primary">
                 <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Workspaces
                 </div>
@@ -1137,7 +1137,7 @@ export default function EditorPage() {
         marginRight: isChatSidebarOpen ? `${chatSidebarWidth}px` : '0'
       }}>
         {/* Top Header with mobile menu button */}
-        <header className="flex-shrink-0 bg-white dark:bg-dark-primary">
+        <header className="flex-shrink-0 bg-theme-b-primary">
           <div className="flex items-center justify-between h-12 px-4 lg:px-6">
             {/* Mobile menu button */}
             <button
@@ -1167,7 +1167,7 @@ export default function EditorPage() {
         </header>
 
         {/* Page header */}
-        <div className="bg-white dark:bg-dark-primary shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-1">
+        <div className="bg-theme-bg-primary shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <h1 className="text-3xl font-semibold text-gray-900 dark:text-white">
@@ -1211,8 +1211,8 @@ export default function EditorPage() {
         </div>
 
         {/* Editor */}
-        <div className="flex-1 overflow-hidden bg-white dark:bg-dark-primary">
-          <ClientOnly fallback={<div className="h-full bg-white dark:bg-dark-primary animate-pulse" />}>
+        <div className="flex-1 overflow-hidden bg-theme-bg-primary">
+          <ClientOnly fallback={<div className="h-full bg-theme-bg-primary animate-pulse" />}>
             <EnhancedBlockEditor
               initialBlocks={blocks}
               onChange={handleChange}
