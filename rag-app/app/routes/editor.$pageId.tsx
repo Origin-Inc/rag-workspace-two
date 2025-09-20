@@ -2,8 +2,8 @@ import { json, LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useFetcher, Link, NavLink, useLocation } from "@remix-run/react";
 import { EnhancedBlockEditor } from "~/components/editor/EnhancedBlockEditor";
 import { ClientOnly } from "~/components/ClientOnly";
-// Original ChatSidebar with all features (Zustand, drag-drop, resizing)
-import { ChatSidebar } from "~/components/chat/ChatSidebar";
+// Using stable version until Zustand hooks are fixed
+import { ChatSidebarStable as ChatSidebar } from "~/components/chat/ChatSidebarStable";
 import { ChatErrorBoundary } from "~/components/error/ChatErrorBoundary";
 import { useLayoutStore, LAYOUT_CONSTANTS } from "~/stores/layout-store";
 import { ResizeHandle } from "~/components/ui/ResizeHandle";
