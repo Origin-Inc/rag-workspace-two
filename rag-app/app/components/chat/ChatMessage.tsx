@@ -33,16 +33,17 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
       
       {/* Message Content */}
       <div className={cn(
-        "flex-1 space-y-1",
+        "space-y-1 min-w-0 w-full",
         isUser && "flex flex-col items-end",
-        isSystem && "max-w-full"
+        isSystem && "max-w-full",
+        !isUser && !isSystem && "max-w-full"
       )}>
         {/* Message Bubble */}
         <div className={cn(
-          "rounded-lg px-4 py-2 break-words",
+          "rounded-lg px-4 py-2 break-words overflow-hidden",
           isUser ? "bg-theme-text-highlight text-theme-text-primary max-w-[85%]" : 
           isSystem ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800 text-sm text-center w-full" :
-          "bg-theme-bg-primary text-gray-900 dark:text-gray-100 max-w-full overflow-hidden"
+          "bg-theme-bg-primary text-gray-900 dark:text-gray-100 w-full"
         )}>
           {isUser || isSystem ? (
             <p className="whitespace-pre-wrap break-words">{message.content}</p>
@@ -54,14 +55,10 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                 // Custom renderers for better styling
                 table: ({children}) => (
                   <div className="chat-table-wrapper my-4">
-                    <div className="chat-table-scroll">
-                      <div className="inline-block min-w-full align-middle">
-                        <div className="overflow-hidden">
-                          <table className="min-w-full divide-y divide-theme-border-secondary">
-                            {children}
-                          </table>
-                        </div>
-                      </div>
+                    <div className="chat-table-scroll rounded-lg border border-theme-border-secondary">
+                      <table className="min-w-full divide-y divide-theme-border-secondary">
+                        {children}
+                      </table>
                     </div>
                   </div>
                 ),
@@ -100,10 +97,8 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                     <code className="block p-2 bg-theme-text-code text-theme-text-primary rounded text-xs overflow-x-auto max-w-full" {...props}>{children}</code>
                 },
                 pre: ({children}) => (
-                  <div className="chat-table-wrapper my-2">
-                    <div className="chat-table-scroll">
-                      <pre className="bg-theme-text-code text-theme-text-primary p-3 rounded inline-block min-w-0">{children}</pre>
-                    </div>
+                  <div className="my-2 w-full overflow-x-auto rounded-lg">
+                    <pre className="bg-theme-text-code text-theme-text-primary p-3 inline-block min-w-full">{children}</pre>
                   </div>
                 ),
               }}
