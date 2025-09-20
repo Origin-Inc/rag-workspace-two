@@ -73,9 +73,18 @@ export class DuckDBPersistenceService {
 
       const conn = await duckdb.getConnection();
       
-      // Export table data as JSON
+      // Export table data as JSON - convert to plain objects
       const result = await conn.query(`SELECT * FROM ${tableName}`);
-      const data = result.toArray();
+      const rows = result.toArray();
+      
+      // Convert Row objects to plain JavaScript objects
+      const data = rows.map(row => {
+        const plainObj: any = {};
+        for (const key in row) {
+          plainObj[key] = row[key];
+        }
+        return plainObj;
+      });
       
       // Store in IndexedDB with page context
       const db = await this.initDB();
