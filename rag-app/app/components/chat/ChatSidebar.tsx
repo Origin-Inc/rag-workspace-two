@@ -15,7 +15,6 @@ interface ChatSidebarProps {
   className?: string;
   skipFileLoad?: boolean; // Debug: skip file loading
   delayFileLoad?: number; // Debug: delay file loading by ms
-  onRender?: () => void; // Debug: track renders
 }
 
 interface UploadProgress {
@@ -30,15 +29,9 @@ export function ChatSidebar({
   workspaceId,
   className,
   skipFileLoad = false,
-  delayFileLoad = 0,
-  onRender
+  delayFileLoad = 0
 }: ChatSidebarProps) {
   console.log('[ChatSidebar] Component rendering:', { pageId, workspaceId, skipFileLoad, delayFileLoad });
-  
-  // Call debug render callback
-  useEffect(() => {
-    onRender?.();
-  });
   
   const { messages, addMessage, clearMessages } = useChatMessages(pageId);
   const { dataFiles, addDataFile, removeDataFile } = useChatDataFiles(pageId);
