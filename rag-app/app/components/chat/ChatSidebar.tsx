@@ -13,6 +13,9 @@ interface ChatSidebarProps {
   pageId: string;
   workspaceId?: string;
   className?: string;
+  skipFileLoad?: boolean; // Debug: skip file loading
+  delayFileLoad?: number; // Debug: delay file loading by ms
+  onRender?: () => void; // Debug: track renders
 }
 
 interface UploadProgress {
@@ -25,9 +28,17 @@ interface UploadProgress {
 export function ChatSidebar({ 
   pageId, 
   workspaceId,
-  className 
+  className,
+  skipFileLoad = false,
+  delayFileLoad = 0,
+  onRender
 }: ChatSidebarProps) {
-  console.log('[ChatSidebar] Component rendering:', { pageId, workspaceId });
+  console.log('[ChatSidebar] Component rendering:', { pageId, workspaceId, skipFileLoad, delayFileLoad });
+  
+  // Call debug render callback
+  useEffect(() => {
+    onRender?.();
+  });
   
   const { messages, addMessage, clearMessages } = useChatMessages(pageId);
   const { dataFiles, addDataFile, removeDataFile } = useChatDataFiles(pageId);
@@ -96,7 +107,10 @@ export function ChatSidebar({
   
   // Load data files SEPARATELY with flag to prevent re-runs
   useEffect(() => {
-    if (!pageId || !workspaceId) return;
+    if (!pageId || !workspaceId || skipFileLoad) {
+      console.log('[ChatSidebar] Skipping file load:', { skipFileLoad, noPageId: !pageId, noWorkspaceId: !workspaceId });
+      return;
+    }
     
     // Use ref to track if we've already loaded files for this pageId
     const hasLoadedRef = { current: false };
@@ -140,8 +154,10 @@ export function ChatSidebar({
       }
     };
     
-    // Delay file loading to prevent race conditions
-    const timeoutId = setTimeout(loadDataFiles, 100);
+    // Delay file loading to prevent race conditions (or use debug delay)
+    const delay = delayFileLoad || 100;
+    console.log('[ChatSidebar] Scheduling file load with delay:', delay);
+    const timeoutId = setTimeout(loadDataFiles, delay);
     
     return () => {
       clearTimeout(timeoutId);
