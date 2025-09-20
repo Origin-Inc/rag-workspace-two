@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/shallow';
-import { useCallback } from 'react';
 
 export interface ChatMessage {
   id: string;
@@ -175,114 +174,64 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
 // Hooks for specific state slices
 export const useChatMessages = (pageId: string) => {
-  // Get messages directly - this is stable
-  const messages = useChatStore((state) => state.messages.get(pageId) || []);
-  
-  // Get store actions separately - these are stable references
-  const addMessage = useChatStore((state) => state.addMessage);
-  const updateMessage = useChatStore((state) => state.updateMessage);
-  const deleteMessage = useChatStore((state) => state.deleteMessage);
-  const clearMessages = useChatStore((state) => state.clearMessages);
-  
-  // Memoize the wrapped functions with stable dependencies
-  const memoizedAddMessage = useCallback(
-    (message: Omit<ChatMessage, 'id' | 'timestamp' | 'pageId'>) => {
-      addMessage(pageId, message);
-    },
-    [pageId, addMessage]
+  // Use useShallow to get a stable object reference
+  return useChatStore(
+    useShallow((state) => {
+      const messages = state.messages.get(pageId) || [];
+      
+      return {
+        messages,
+        addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp' | 'pageId'>) => 
+          state.addMessage(pageId, message),
+        updateMessage: (messageId: string, updates: Partial<ChatMessage>) => 
+          state.updateMessage(pageId, messageId, updates),
+        deleteMessage: (messageId: string) => 
+          state.deleteMessage(pageId, messageId),
+        clearMessages: () => 
+          state.clearMessages(pageId),
+      };
+    })
   );
-  
-  const memoizedUpdateMessage = useCallback(
-    (messageId: string, updates: Partial<ChatMessage>) => {
-      updateMessage(pageId, messageId, updates);
-    },
-    [pageId, updateMessage]
-  );
-  
-  const memoizedDeleteMessage = useCallback(
-    (messageId: string) => {
-      deleteMessage(pageId, messageId);
-    },
-    [pageId, deleteMessage]
-  );
-  
-  const memoizedClearMessages = useCallback(
-    () => {
-      clearMessages(pageId);
-    },
-    [pageId, clearMessages]
-  );
-  
-  return {
-    messages,
-    addMessage: memoizedAddMessage,
-    updateMessage: memoizedUpdateMessage,
-    deleteMessage: memoizedDeleteMessage,
-    clearMessages: memoizedClearMessages,
-  };
 };
 
 export const useChatDataFiles = (pageId: string) => {
-  // Get data directly - this is stable
-  const dataFiles = useChatStore((state) => state.dataFiles.get(pageId) || []);
-  
-  // Get store actions separately - these are stable references
-  const addDataFile = useChatStore((state) => state.addDataFile);
-  const removeDataFile = useChatStore((state) => state.removeDataFile);
-  const clearDataFiles = useChatStore((state) => state.clearDataFiles);
-  
-  // Memoize the wrapped functions with stable dependencies
-  const memoizedAddDataFile = useCallback(
-    (file: Omit<DataFile, 'id' | 'uploadedAt' | 'pageId'>) => {
-      addDataFile(pageId, file);
-    },
-    [pageId, addDataFile]
+  // Use useShallow to get a stable object reference
+  return useChatStore(
+    useShallow((state) => {
+      const dataFiles = state.dataFiles.get(pageId) || [];
+      
+      return {
+        dataFiles,
+        addDataFile: (file: Omit<DataFile, 'id' | 'uploadedAt' | 'pageId'>) => 
+          state.addDataFile(pageId, file),
+        removeDataFile: (fileId: string) => 
+          state.removeDataFile(pageId, fileId),
+        clearDataFiles: () => 
+          state.clearDataFiles(pageId),
+      };
+    })
   );
-  
-  const memoizedRemoveDataFile = useCallback(
-    (fileId: string) => {
-      removeDataFile(pageId, fileId);
-    },
-    [pageId, removeDataFile]
-  );
-  
-  const memoizedClearDataFiles = useCallback(
-    () => {
-      clearDataFiles(pageId);
-    },
-    [pageId, clearDataFiles]
-  );
-  
-  return {
-    dataFiles,
-    addDataFile: memoizedAddDataFile,
-    removeDataFile: memoizedRemoveDataFile,
-    clearDataFiles: memoizedClearDataFiles,
-  };
 };
 
 export const useChatSidebar = () => {
-  const isSidebarOpen = useChatStore((state) => state.isSidebarOpen);
-  const toggleSidebar = useChatStore((state) => state.toggleSidebar);
-  const setSidebarOpen = useChatStore((state) => state.setSidebarOpen);
-  
-  return {
-    isSidebarOpen,
-    toggleSidebar,
-    setSidebarOpen,
-  };
+  // Use useShallow for stable object reference
+  return useChatStore(
+    useShallow((state) => ({
+      isSidebarOpen: state.isSidebarOpen,
+      toggleSidebar: state.toggleSidebar,
+      setSidebarOpen: state.setSidebarOpen,
+    }))
+  );
 };
 
 export const useChatConnection = () => {
-  const connectionStatus = useChatStore((state) => state.connectionStatus);
-  const setConnectionStatus = useChatStore((state) => state.setConnectionStatus);
-  const isLoading = useChatStore((state) => state.isLoading);
-  const setLoading = useChatStore((state) => state.setLoading);
-  
-  return {
-    connectionStatus,
-    setConnectionStatus,
-    isLoading,
-    setLoading,
-  };
+  // Use useShallow for stable object reference
+  return useChatStore(
+    useShallow((state) => ({
+      connectionStatus: state.connectionStatus,
+      setConnectionStatus: state.setConnectionStatus,
+      isLoading: state.isLoading,
+      setLoading: state.setLoading,
+    }))
+  );
 };
