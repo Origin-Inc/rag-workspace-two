@@ -27,6 +27,8 @@ export function ChatSidebar({
   workspaceId,
   className 
 }: ChatSidebarProps) {
+  console.log('[ChatSidebar] Component rendering:', { pageId, workspaceId });
+  
   const { messages, addMessage, clearMessages } = useChatMessages(pageId);
   const { dataFiles, addDataFile, removeDataFile } = useChatDataFiles(pageId);
   const { isLoading, setLoading } = useChatConnection();
@@ -37,9 +39,24 @@ export function ChatSidebar({
     setChatSidebarWidth 
   } = useLayoutStore();
   
+  // Track render count
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+  console.log('[ChatSidebar] Render count:', renderCountRef.current);
+  
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isMountedRef = useRef(true);
+  
+  // Track if component is mounted
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      console.log('[ChatSidebar] Component unmounting');
+      isMountedRef.current = false;
+    };
+  }, []);
   
   // Load chat history and data files on mount
   useEffect(() => {
@@ -312,7 +329,9 @@ export function ChatSidebar({
       fileSize: file.size,
       mimeType: file.type,
       workspaceId,
-      pageId
+      pageId,
+      currentDataFilesCount: dataFiles.length,
+      currentMessagesCount: messages.length
     });
 
     // Start upload progress tracking
@@ -453,13 +472,30 @@ export function ChatSidebar({
         }));
         
         // Add the file to local store
-        addDataFile({
+        console.log('[ChatSidebar] About to add file to local store:', {
           filename: file.name,
           tableName: processed.tableName,
-          schema: schemaForStore,
+          schemaLength: schemaForStore.length,
           rowCount: processed.data.length,
-          sizeBytes: file.size,
         });
+        
+        if (!isMountedRef.current) {
+          console.warn('[ChatSidebar] Component unmounted, skipping addDataFile');
+          return;
+        }
+        
+        try {
+          addDataFile({
+            filename: file.name,
+            tableName: processed.tableName,
+            schema: schemaForStore,
+            rowCount: processed.data.length,
+            sizeBytes: file.size,
+          });
+          console.log('[ChatSidebar] File added to local store successfully');
+        } catch (error) {
+          console.error('[ChatSidebar] Error adding file to local store:', error);
+        }
         
         // Save file metadata to database if we have a workspace
         if (workspaceId && pageId) {
@@ -488,14 +524,33 @@ export function ChatSidebar({
           }
         }
         
-        addMessage({
-          role: 'system',
-          content: `File "${file.name}" loaded with ${processed.data.length} rows. Ready for querying!`,
-        });
+        if (!isMountedRef.current) {
+          console.warn('[ChatSidebar] Component unmounted, skipping addMessage');
+          return;
+        }
+        
+        console.log('[ChatSidebar] About to add system message for file load');
+        try {
+          addMessage({
+            role: 'system',
+            content: `File "${file.name}" loaded with ${processed.data.length} rows. Ready for querying!`,
+          });
+          console.log('[ChatSidebar] System message added successfully');
+        } catch (error) {
+          console.error('[ChatSidebar] Error adding system message:', error);
+        }
       }
       
       // Clear upload progress after a delay
-      setTimeout(() => setUploadProgress(null), 2000);
+      console.log('[ChatSidebar] Setting timeout to clear upload progress');
+      setTimeout(() => {
+        if (!isMountedRef.current) {
+          console.warn('[ChatSidebar] Component unmounted, skipping setUploadProgress');
+          return;
+        }
+        console.log('[ChatSidebar] Clearing upload progress from timeout');
+        setUploadProgress(null);
+      }, 2000);
       
     } catch (error) {
       console.error('Error processing file:', error);
