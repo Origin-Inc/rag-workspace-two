@@ -610,14 +610,6 @@ export function ChatSidebar({
       {dataFiles.length > 0 && (
         <FileContextDisplay 
           pageId={pageId}
-          onFileClick={(fileId) => {
-            // Handle file click - could open preview modal or show details
-            console.log('File clicked:', fileId);
-            addMessage({
-              role: 'system',
-              content: `Selected file: ${dataFiles.find(f => f.id === fileId)?.filename || fileId}`,
-            });
-          }}
           onFileRemove={async (fileId) => {
             const file = dataFiles.find(f => f.id === fileId);
             if (file) {
