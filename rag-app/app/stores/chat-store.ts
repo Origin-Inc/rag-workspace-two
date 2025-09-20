@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { shallow } from 'zustand/shallow';
+import { useShallow } from 'zustand/shallow';
 import { useCallback } from 'react';
 
 export interface ChatMessage {
@@ -175,36 +175,41 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
 // Hooks for specific state slices
 export const useChatMessages = (pageId: string) => {
-  // Use shallow comparison to prevent re-renders from new array references
-  const { messages, addMessage, updateMessage, deleteMessage, clearMessages } = useChatStore(
-    (state) => ({
-      messages: state.messages.get(pageId) || [],
-      addMessage: state.addMessage,
-      updateMessage: state.updateMessage,
-      deleteMessage: state.deleteMessage,
-      clearMessages: state.clearMessages,
-    }),
-    shallow
-  );
+  // Get messages directly - this is stable
+  const messages = useChatStore((state) => state.messages.get(pageId) || []);
   
-  // Memoize the wrapped functions to prevent recreation on every render
+  // Get store actions separately - these are stable references
+  const addMessage = useChatStore((state) => state.addMessage);
+  const updateMessage = useChatStore((state) => state.updateMessage);
+  const deleteMessage = useChatStore((state) => state.deleteMessage);
+  const clearMessages = useChatStore((state) => state.clearMessages);
+  
+  // Memoize the wrapped functions with stable dependencies
   const memoizedAddMessage = useCallback(
-    (message: Omit<ChatMessage, 'id' | 'timestamp' | 'pageId'>) => addMessage(pageId, message),
+    (message: Omit<ChatMessage, 'id' | 'timestamp' | 'pageId'>) => {
+      addMessage(pageId, message);
+    },
     [pageId, addMessage]
   );
   
   const memoizedUpdateMessage = useCallback(
-    (messageId: string, updates: Partial<ChatMessage>) => updateMessage(pageId, messageId, updates),
+    (messageId: string, updates: Partial<ChatMessage>) => {
+      updateMessage(pageId, messageId, updates);
+    },
     [pageId, updateMessage]
   );
   
   const memoizedDeleteMessage = useCallback(
-    (messageId: string) => deleteMessage(pageId, messageId),
+    (messageId: string) => {
+      deleteMessage(pageId, messageId);
+    },
     [pageId, deleteMessage]
   );
   
   const memoizedClearMessages = useCallback(
-    () => clearMessages(pageId),
+    () => {
+      clearMessages(pageId);
+    },
     [pageId, clearMessages]
   );
   
@@ -218,30 +223,33 @@ export const useChatMessages = (pageId: string) => {
 };
 
 export const useChatDataFiles = (pageId: string) => {
-  // Use shallow comparison to prevent re-renders from new array references
-  const { dataFiles, addDataFile, removeDataFile, clearDataFiles } = useChatStore(
-    (state) => ({
-      dataFiles: state.dataFiles.get(pageId) || [],
-      addDataFile: state.addDataFile,
-      removeDataFile: state.removeDataFile,
-      clearDataFiles: state.clearDataFiles,
-    }),
-    shallow
-  );
+  // Get data directly - this is stable
+  const dataFiles = useChatStore((state) => state.dataFiles.get(pageId) || []);
   
-  // Memoize the wrapped functions to prevent recreation on every render
+  // Get store actions separately - these are stable references
+  const addDataFile = useChatStore((state) => state.addDataFile);
+  const removeDataFile = useChatStore((state) => state.removeDataFile);
+  const clearDataFiles = useChatStore((state) => state.clearDataFiles);
+  
+  // Memoize the wrapped functions with stable dependencies
   const memoizedAddDataFile = useCallback(
-    (file: Omit<DataFile, 'id' | 'uploadedAt' | 'pageId'>) => addDataFile(pageId, file),
+    (file: Omit<DataFile, 'id' | 'uploadedAt' | 'pageId'>) => {
+      addDataFile(pageId, file);
+    },
     [pageId, addDataFile]
   );
   
   const memoizedRemoveDataFile = useCallback(
-    (fileId: string) => removeDataFile(pageId, fileId),
+    (fileId: string) => {
+      removeDataFile(pageId, fileId);
+    },
     [pageId, removeDataFile]
   );
   
   const memoizedClearDataFiles = useCallback(
-    () => clearDataFiles(pageId),
+    () => {
+      clearDataFiles(pageId);
+    },
     [pageId, clearDataFiles]
   );
   
