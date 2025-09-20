@@ -55,7 +55,7 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                 // Custom renderers for better styling
                 table: ({children}) => (
                   <div className="chat-table-wrapper my-4">
-                    <div className="chat-table-scroll rounded-lg border border-theme-border-secondary">
+                    <div className="chat-table-scroll rounded-lg">
                       <table className="min-w-full divide-y divide-theme-border-secondary">
                         {children}
                       </table>

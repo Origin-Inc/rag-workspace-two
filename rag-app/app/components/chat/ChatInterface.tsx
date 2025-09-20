@@ -98,14 +98,14 @@ export function ChatInterface({ workspaceId, initialMessages = [] }: ChatInterfa
         {messages.length === 0 ? (
           <div className="text-center py-12">
             <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            <h3 className="text-lg font-medium text-theme-text-primary mb-2">
               Start a conversation
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+            <p className="text-theme-text-primary max-w-md mx-auto">
               Ask questions about your documents, request summaries, or perform actions on your workspace.
             </p>
             <div className="mt-6 space-y-2">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Try asking:</p>
+              <p className="text-sm text-theme-text-primary">Try asking:</p>
               <div className="flex flex-wrap gap-2 justify-center">
                 {[
                   "Summarize my workspace",
@@ -212,7 +212,7 @@ export function ChatInterface({ workspaceId, initialMessages = [] }: ChatInterfa
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask a question or type a command..."
-            className="flex-1 min-h-[44px] max-h-32 px-4 py-2 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 resize-none"
+            className="flex-1 min-h-[44px] max-h-32 px-4 py-2 rounded-lg bg-theme-text-highlight text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 resize-none"
             disabled={isLoading}
             rows={1}
           />
