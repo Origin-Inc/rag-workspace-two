@@ -41,9 +41,10 @@ export function ChatSidebar({
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  // Load chat history on mount
+  // Load chat history and data files on mount
   useEffect(() => {
-    const loadChatHistory = async () => {
+    const loadChatData = async () => {
+      // Load chat messages
       try {
         const response = await fetch(`/api/chat/messages/${pageId}`);
         if (response.ok) {
@@ -63,10 +64,104 @@ export function ChatSidebar({
       } catch (error) {
         console.error('Failed to load chat history:', error);
       }
+
+      // Load data files
+      try {
+        const filesResponse = await fetch(`/api/data/files/${pageId}`);
+        if (filesResponse.ok) {
+          const filesData = await filesResponse.json();
+          if (filesData.dataFiles && filesData.dataFiles.length > 0) {
+            console.log('[ChatSidebar] Loading persisted files:', filesData.dataFiles);
+            
+            // Initialize DuckDB if needed
+            const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
+            const duckdb = getDuckDB();
+            
+            if (!duckdb.isReady()) {
+              await duckdb.initialize();
+            }
+            
+            // Add files to local store and attempt to restore DuckDB tables
+            const restoredTables: string[] = [];
+            const failedTables: string[] = [];
+            
+            for (const file of filesData.dataFiles) {
+              // Add to local store
+              addDataFile({
+                filename: file.filename,
+                tableName: file.tableName,
+                schema: file.schema,
+                rowCount: file.rowCount,
+                sizeBytes: file.sizeBytes,
+              });
+              
+              // Attempt to restore DuckDB table if we have a storage URL
+              if (file.storageUrl && workspaceId) {
+                try {
+                  console.log(`[ChatSidebar] Attempting to restore table ${file.tableName} from storage`);
+                  
+                  // Download file from Supabase storage
+                  const response = await fetch(file.storageUrl);
+                  if (response.ok) {
+                    const blob = await response.blob();
+                    const restoredFile = new File([blob], file.filename, { type: blob.type });
+                    
+                    // Process and load into DuckDB
+                    const { FileProcessingService } = await import('~/services/file-processing.client');
+                    const processed = await FileProcessingService.processFile(restoredFile);
+                    
+                    if (processed.data && processed.data.length > 0) {
+                      await duckdb.createTableFromData(
+                        file.tableName,
+                        processed.data,
+                        processed.schema
+                      );
+                      restoredTables.push(file.filename);
+                      console.log(`[ChatSidebar] Successfully restored table ${file.tableName}`);
+                    }
+                  } else {
+                    console.warn(`[ChatSidebar] Failed to download file from storage: ${file.filename}`);
+                    failedTables.push(file.filename);
+                  }
+                } catch (error) {
+                  console.error(`[ChatSidebar] Error restoring table ${file.tableName}:`, error);
+                  failedTables.push(file.filename);
+                }
+              } else {
+                console.log(`[ChatSidebar] File ${file.filename} metadata loaded (table: ${file.tableName}) - no storage URL for restoration`);
+              }
+            }
+            
+            // Notify user about loaded files
+            if (filesData.dataFiles.length > 0) {
+              let message = `Loaded ${filesData.dataFiles.length} file(s) from previous session.`;
+              
+              if (restoredTables.length > 0) {
+                message += ` Successfully restored: ${restoredTables.join(', ')}.`;
+              }
+              
+              if (failedTables.length > 0) {
+                message += ` Failed to restore: ${failedTables.join(', ')}. Please re-upload these files.`;
+              }
+              
+              if (restoredTables.length === 0 && failedTables.length === 0) {
+                message += ` Files need to be re-uploaded to query them.`;
+              }
+              
+              addMessage({
+                role: 'system',
+                content: message,
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load data files:', error);
+      }
     };
 
     if (pageId) {
-      loadChatHistory();
+      loadChatData();
     }
   }, [pageId]);
 
@@ -155,11 +250,7 @@ export function ChatSidebar({
           content: responseContent,
           metadata: {
             sql: result.sqlGeneration.sql,
-            results: result.queryResult.data,
-            tables: result.sqlGeneration.tables,
             error: result.queryResult.error,
-            confidence: result.sqlGeneration.confidence,
-            visualization: result.sqlGeneration.suggestedVisualization,
           },
         });
 
@@ -220,6 +311,8 @@ export function ChatSidebar({
 
     // Process file client-side for immediate use
     setLoading(true);
+    let uploadResult: { url?: string; path?: string; error?: string } | undefined;
+    
     try {
       // If workspaceId provided, upload to server for persistence
       if (workspaceId) {
@@ -254,7 +347,7 @@ export function ChatSidebar({
         setUploadProgress(prev => prev ? { ...prev, status: 'uploading', progress: 10 } : null);
         
         // Step 2: Upload directly to Supabase
-        const uploadResult = await supabaseUpload.uploadFile(file, storagePath, {
+        uploadResult = await supabaseUpload.uploadFile(file, storagePath, {
           bucket: 'user-uploads',
           onProgress: (progress) => {
             console.log(`[ChatSidebar] Upload progress: ${progress}%`);
@@ -339,16 +432,48 @@ export function ChatSidebar({
           processed.schema
         );
         
+        // Convert FileSchema to the format expected by DataFile
+        const schemaForStore = processed.schema.columns.map(col => ({
+          name: col.name,
+          type: col.type,
+          sampleData: processed.schema.sampleData.slice(0, 3).map(row => row[col.name])
+        }));
+        
         // Add the file to local store
         addDataFile({
-          id: processed.tableName,
           filename: file.name,
           tableName: processed.tableName,
-          schema: processed.schema,
+          schema: schemaForStore,
           rowCount: processed.data.length,
           sizeBytes: file.size,
-          uploadedAt: new Date(),
         });
+        
+        // Save file metadata to database if we have a workspace
+        if (workspaceId && pageId) {
+          try {
+            const storageUrl = uploadResult?.url || null;
+            const response = await fetch(`/api/data/files/${pageId}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                filename: file.name,
+                tableName: processed.tableName,
+                schema: schemaForStore,
+                rowCount: processed.data.length,
+                sizeBytes: file.size,
+                storageUrl,
+              }),
+            });
+            
+            if (!response.ok) {
+              console.error('[ChatSidebar] Failed to save file metadata to database');
+            } else {
+              console.log('[ChatSidebar] File metadata saved to database');
+            }
+          } catch (error) {
+            console.error('[ChatSidebar] Error saving file metadata:', error);
+          }
+        }
         
         addMessage({
           role: 'system',
@@ -469,10 +594,40 @@ export function ChatSidebar({
               content: `Selected file: ${dataFiles.find(f => f.id === fileId)?.filename || fileId}`,
             });
           }}
-          onFileRemove={(fileId) => {
+          onFileRemove={async (fileId) => {
             const file = dataFiles.find(f => f.id === fileId);
             if (file) {
+              // Remove from local store
               removeDataFile(fileId);
+              
+              // Remove from database if we have a workspace
+              if (workspaceId && pageId) {
+                try {
+                  const response = await fetch(`/api/data/files/${pageId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fileId }),
+                  });
+                  
+                  if (!response.ok) {
+                    console.error('[ChatSidebar] Failed to delete file from database');
+                  }
+                } catch (error) {
+                  console.error('[ChatSidebar] Error deleting file:', error);
+                }
+              }
+              
+              // Remove from DuckDB
+              try {
+                const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
+                const duckdb = getDuckDB();
+                if (duckdb.isReady()) {
+                  await duckdb.dropTable(file.tableName);
+                }
+              } catch (error) {
+                console.error('[ChatSidebar] Error removing table from DuckDB:', error);
+              }
+              
               addMessage({
                 role: 'system',
                 content: `Removed file: ${file.filename}`,
