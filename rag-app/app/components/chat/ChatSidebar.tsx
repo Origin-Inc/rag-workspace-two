@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Upload, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useChatMessages, useChatDataFiles, useChatConnection } from '~/stores/chat-store-ultimate-fix';
+import { useChatMessages, useChatDataFiles, useChatConnection } from '~/stores/chat-store';
 import { useLayoutStore } from '~/stores/layout-store';
 import { ResizeHandle } from '~/components/ui/ResizeHandle';
 import { ChatMessage } from './ChatMessage';
