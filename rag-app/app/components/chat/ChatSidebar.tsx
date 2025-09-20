@@ -91,7 +91,8 @@ export function ChatSidebar({
     return () => {
       isMounted = false;
     };
-  }, [pageId]); // Minimal dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageId]); // Intentionally omit functions - they're stable
   
   // Load data files SEPARATELY with flag to prevent re-runs
   useEffect(() => {
@@ -145,7 +146,8 @@ export function ChatSidebar({
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [pageId, workspaceId]); // Stable minimal dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageId, workspaceId]); // Intentionally omit functions - they're stable
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {

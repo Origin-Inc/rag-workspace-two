@@ -4,6 +4,7 @@ import { EnhancedBlockEditor } from "~/components/editor/EnhancedBlockEditor";
 import { ClientOnly } from "~/components/ClientOnly";
 // Fixed version with stable empty array references
 import { ChatSidebar } from "~/components/chat/ChatSidebar";
+import { ChatErrorBoundary } from "~/components/error/ChatErrorBoundary";
 import { useLayoutStore, LAYOUT_CONSTANTS } from "~/stores/layout-store";
 import { ResizeHandle } from "~/components/ui/ResizeHandle";
 import { cn } from "~/utils/cn";
@@ -1273,10 +1274,12 @@ export default function EditorPage() {
       
       {/* Chat Sidebar - Fixed with stable empty array references */}
       <ClientOnly fallback={null}>
-        <ChatSidebar 
-          pageId={page.id}
-          workspaceId={page.workspaceId}
-        />
+        <ChatErrorBoundary>
+          <ChatSidebar 
+            pageId={page.id}
+            workspaceId={page.workspaceId}
+          />
+        </ChatErrorBoundary>
       </ClientOnly>
       
       {/* Command Palette - rendered as modal */}
