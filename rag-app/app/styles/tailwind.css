@@ -91,11 +91,8 @@
   }
 
   .chat-table-scroll {
-    @apply overflow-x-auto;
-    margin-left: -1rem;
-    margin-right: -1rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
+    @apply overflow-x-auto w-full;
+    max-width: 100%;
   }
 
   .chat-table-scroll::-webkit-scrollbar {

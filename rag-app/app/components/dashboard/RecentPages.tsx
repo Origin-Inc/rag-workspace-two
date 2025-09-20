@@ -85,14 +85,14 @@ export function RecentPages({ pages = [] }: RecentPagesProps) {
   const displayPages = mockPages;
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg shadow-sm">
+    <div className="flex flex-col h-full bg-theme-bg-primary rounded-lg shadow-sm">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-3xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-          <Clock className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+      <div className="px-6 py-4 border-b border-theme-border-primary">
+        <h2 className="text-3xl font-semibold text-theme-text-primary flex items-center gap-2">
+          <Clock className="w-5 h-5 text-theme-text-primary" />
           Recent Pages
         </h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+        <p className="text-sm text-theme-text-primary mt-1">
           Your recently accessed documents
         </p>
       </div>
@@ -102,15 +102,15 @@ export function RecentPages({ pages = [] }: RecentPagesProps) {
         {displayPages.length === 0 ? (
           <div className="p-6 text-center">
             <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-theme-text-primary">
               No recent pages yet
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+            <p className="text-sm text-theme-text-primary mt-1">
               Pages you visit will appear here
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="divide-y divide-theme-border-primary">
             {displayPages.map((page) => (
               <Link
                 key={page.id}
@@ -118,26 +118,26 @@ export function RecentPages({ pages = [] }: RecentPagesProps) {
                 className="block px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group"
               >
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 mt-1 text-gray-500 dark:text-gray-400">
+                  <div className="flex-shrink-0 mt-1 text-theme-text-primary">
                     {getPageIcon(page.type)}
                   </div>
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                      <h3 className="text-sm font-medium text-theme-text-primary truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
                         {page.title}
                       </h3>
                       <ChevronRight className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                     </div>
                     
                     {page.preview && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                      <p className="text-sm text-theme-text-primary mt-1 line-clamp-2">
                         {page.preview}
                       </p>
                     )}
                     
                     <div className="flex items-center gap-3 mt-2">
-                      <span className="text-xs text-gray-500 dark:text-gray-500">
+                      <span className="text-xs text-theme-text-primary">
                         {formatTimeAgo(page.lastVisited)}
                       </span>
                       <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
