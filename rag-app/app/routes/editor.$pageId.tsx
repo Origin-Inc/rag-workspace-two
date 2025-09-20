@@ -689,8 +689,37 @@ export default function EditorPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [tempTitle, setTempTitle] = useState(page.title || '');
   const maxRetries = 3;
   const retryTimeoutRef = useRef<NodeJS.Timeout>();
+
+  const handleSaveTitle = async () => {
+    if (!tempTitle.trim() || tempTitle === page.title) {
+      setEditingTitle(false);
+      setTempTitle(page.title || '');
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('title', tempTitle.trim());
+      
+      const response = await fetch(`/api/pages/${page.id}`, {
+        method: 'PATCH',
+        body: formData
+      });
+      
+      if (response.ok) {
+        // Update will be reflected on page reload
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Failed to update page title:', error);
+    }
+    
+    setEditingTitle(false);
+  };
 
   // Main navigation items
   const navigation: NavigationItem[] = [
@@ -978,10 +1007,10 @@ export default function EditorPage() {
                     <span className="ml-auto text-xs text-gray-500">{uw.role.name}</span>
                   </Link>
                 ))}
-                <div className="border-t border-gray-200 mt-1 pt-1">
+                <div className="border-t border-theme-border-secondary mt-1 pt-1">
                   <Link
                     to="/app/workspace/new"
-                    className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-theme-text-highlight"
                   >
                     <PlusIcon className="h-4 w-4 mr-3 text-gray-400" />
                     Create workspace
@@ -1154,9 +1183,34 @@ export default function EditorPage() {
                 )}
               </button>
               
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white truncate">
-                {page.title || "Untitled Page"}
-              </h1>
+              {editingTitle ? (
+                <input
+                  type="text"
+                  value={tempTitle}
+                  onChange={(e) => setTempTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveTitle();
+                    if (e.key === 'Escape') {
+                      setEditingTitle(false);
+                      setTempTitle(page.title || '');
+                    }
+                  }}
+                  onBlur={handleSaveTitle}
+                  className="text-xl font-semibold bg-transparent border-b-2 border-blue-500 outline-none text-gray-900 dark:text-white"
+                  autoFocus
+                />
+              ) : (
+                <h1 
+                  className="text-xl font-semibold text-gray-900 dark:text-white truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                  onClick={() => {
+                    setEditingTitle(true);
+                    setTempTitle(page.title || 'Untitled Page');
+                  }}
+                  title="Click to rename"
+                >
+                  {page.title || "Untitled Page"}
+                </h1>
+              )}
               
               <EmbeddingStatusIndicator 
                 pageId={page.id}

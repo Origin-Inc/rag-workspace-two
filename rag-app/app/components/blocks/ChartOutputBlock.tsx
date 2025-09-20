@@ -162,7 +162,14 @@ export const ChartOutputBlock: React.FC<ChartOutputBlockProps> = ({
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editableTitle, setEditableTitle] = useState(title || 'Untitled Chart');
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  
+  const handleSaveTitle = () => {
+    setIsEditingTitle(false);
+    // The title is saved in the local state and will be included if onInsert is called
+  };
   
   const formattedData = useMemo(() => formatDataForRecharts(data, type), [data, type]);
   
@@ -378,9 +385,29 @@ export const ChartOutputBlock: React.FC<ChartOutputBlockProps> = ({
       {/* Header */}
       <div className="flex items-start justify-between p-4 border-b dark:border-gray-800">
         <div className="flex-1">
-          {title && (
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {title}
+          {isEditingTitle ? (
+            <input
+              type="text"
+              value={editableTitle}
+              onChange={(e) => setEditableTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveTitle();
+                if (e.key === 'Escape') {
+                  setEditableTitle(title || 'Untitled Chart');
+                  setIsEditingTitle(false);
+                }
+              }}
+              onBlur={handleSaveTitle}
+              className="text-lg font-semibold bg-transparent border-b-2 border-blue-500 outline-none text-gray-900 dark:text-gray-100 w-full"
+              autoFocus
+            />
+          ) : (
+            <h3 
+              className="text-lg font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+              onClick={() => setIsEditingTitle(true)}
+              title="Click to rename chart"
+            >
+              {editableTitle}
             </h3>
           )}
           {description && (
@@ -459,7 +486,7 @@ export const ChartOutputBlock: React.FC<ChartOutputBlockProps> = ({
       {onInsert && (
         <div className="px-4 py-3 border-t dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 rounded-b-xl">
           <button
-            onClick={() => onInsert({ type: 'chart', data, chartType: type, title, description })}
+            onClick={() => onInsert({ type: 'chart', data, chartType: type, title: editableTitle, description })}
             className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
           >
             <Sparkles className="w-4 h-4" />

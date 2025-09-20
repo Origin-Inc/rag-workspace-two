@@ -28,6 +28,7 @@ interface PageTreeNavigationProps {
   onCreatePage?: (parentId?: string) => void;
   onMovePage?: (pageId: string, newParentId: string | null) => void;
   onDeletePage?: (pageId: string) => void;
+  onRenamePage?: (pageId: string, newTitle: string) => void;
 }
 
 export function PageTreeNavigation({
@@ -36,7 +37,8 @@ export function PageTreeNavigation({
   currentPageId,
   onCreatePage,
   onMovePage,
-  onDeletePage
+  onDeletePage,
+  onRenamePage
 }: PageTreeNavigationProps) {
   const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
 
@@ -92,6 +94,7 @@ export function PageTreeNavigation({
           onCreatePage={onCreatePage}
           onMovePage={onMovePage}
           onDeletePage={onDeletePage}
+          onRenamePage={onRenamePage}
           level={0}
           expandedPages={expandedPages}
           toggleExpanded={toggleExpanded}
@@ -110,6 +113,7 @@ interface PageTreeNodeProps {
   onCreatePage?: (parentId?: string) => void;
   onMovePage?: (pageId: string, newParentId: string | null) => void;
   onDeletePage?: (pageId: string) => void;
+  onRenamePage?: (pageId: string, newTitle: string) => void;
   level: number;
   expandedPages: Set<string>;
   toggleExpanded: (pageId: string) => void;
@@ -124,6 +128,7 @@ function PageTreeNode({
   onCreatePage,
   onMovePage,
   onDeletePage,
+  onRenamePage,
   level,
   expandedPages,
   toggleExpanded
@@ -131,6 +136,20 @@ function PageTreeNode({
   const hasChildren = page.children && page.children.length > 0;
   const isCurrentPage = page.id === currentPageId;
   const navigate = useNavigate();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(page.title);
+
+  const handleSaveRename = () => {
+    if (editTitle.trim() && editTitle !== page.title && onRenamePage) {
+      onRenamePage(page.id, editTitle.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancelRename = () => {
+    setEditTitle(page.title);
+    setIsEditing(false);
+  };
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('pageId', page.id);
@@ -211,7 +230,23 @@ function PageTreeNode({
           </span>
           
           {/* Title */}
-          <span className="truncate">{page.title}</span>
+          {isEditing ? (
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveRename();
+                if (e.key === 'Escape') handleCancelRename();
+              }}
+              onBlur={handleSaveRename}
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 px-2 py-1 text-sm bg-theme-bg-primary border border-theme-border-primary rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoFocus
+            />
+          ) : (
+            <span className="truncate">{page.title}</span>
+          )}
         </Link>
 
         {/* Page Actions Menu */}
@@ -261,6 +296,25 @@ function PageTreeNode({
                   )}
                 </Menu.Item>
                 
+                {onRenamePage && (
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={() => {
+                          setIsEditing(true);
+                          setEditTitle(page.title);
+                        }}
+                        className={`
+                          ${active ? 'bg-gray-100 dark:bg-gray-700' : ''}
+                          block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300
+                        `}
+                      >
+                        Rename
+                      </button>
+                    )}
+                  </Menu.Item>
+                )}
+                
                 {onDeletePage && (
                   <Menu.Item>
                     {({ active }) => (
@@ -300,6 +354,7 @@ function PageTreeNode({
               onCreatePage={onCreatePage}
               onMovePage={onMovePage}
               onDeletePage={onDeletePage}
+              onRenamePage={onRenamePage}
               level={level + 1}
               expandedPages={expandedPages}
               toggleExpanded={toggleExpanded}
