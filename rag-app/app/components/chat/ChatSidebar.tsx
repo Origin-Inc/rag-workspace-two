@@ -98,65 +98,16 @@ export function ChatSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageId]); // Intentionally omit functions - they're stable
   
-  // Load data files SEPARATELY with flag to prevent re-runs
+  // DISABLED: File metadata loading
+  // We don't restore actual data to DuckDB on page refresh, so showing metadata 
+  // without data creates a confusing UX where files appear available but queries fail.
+  // Users must re-upload files after page refresh for now.
+  // TODO: Implement proper file restoration from Supabase storage
+  /*
   useEffect(() => {
-    if (!pageId || !workspaceId || skipFileLoad) {
-      console.log('[ChatSidebar] Skipping file load:', { skipFileLoad, noPageId: !pageId, noWorkspaceId: !workspaceId });
-      return;
-    }
-    
-    // Use ref to track if we've already loaded files for this pageId
-    const hasLoadedRef = { current: false };
-    
-    const loadDataFiles = async () => {
-      // Prevent duplicate loads
-      if (hasLoadedRef.current) {
-        console.log('[ChatSidebar] Files already loaded for this page, skipping');
-        return;
-      }
-      
-      hasLoadedRef.current = true;
-      
-      try {
-        const response = await fetch(`/api/data/files/${pageId}`);
-        if (!response.ok) return;
-        
-        const { dataFiles } = await response.json();
-        if (!dataFiles || dataFiles.length === 0) return;
-        
-        console.log('[ChatSidebar] Loading file metadata only (not restoring):', dataFiles.length);
-        
-        // Only load metadata, don't restore files to prevent errors
-        dataFiles.forEach((file: any) => {
-          addDataFile({
-            filename: file.filename,
-            tableName: file.tableName,
-            schema: file.schema,
-            rowCount: file.rowCount,
-            sizeBytes: file.sizeBytes,
-          });
-        });
-        
-        // Simple notification without attempting restoration
-        addMessage({
-          role: 'system',
-          content: `Found ${dataFiles.length} file(s) from previous session. Please re-upload files to enable querying.`,
-        });
-      } catch (error) {
-        console.error('[ChatSidebar] Error loading file metadata:', error);
-      }
-    };
-    
-    // Delay file loading to prevent race conditions (or use debug delay)
-    const delay = delayFileLoad || 100;
-    console.log('[ChatSidebar] Scheduling file load with delay:', delay);
-    const timeoutId = setTimeout(loadDataFiles, delay);
-    
-    return () => {
-      clearTimeout(timeoutId);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageId, workspaceId]); // Intentionally omit functions - they're stable
+    // Commented out - see above
+  }, [pageId, workspaceId]);
+  */
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {

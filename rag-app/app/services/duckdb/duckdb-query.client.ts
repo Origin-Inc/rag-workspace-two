@@ -66,7 +66,15 @@ export class DuckDBQueryService {
       return await response.json();
     } catch (error) {
       console.error('Failed to generate SQL:', error);
-      throw error;
+      
+      // Return a fallback response with explanation
+      return {
+        sql: '',
+        explanation: '⚠️ Unable to understand your query. Please try rephrasing or be more specific about what data you want to see.',
+        tables: [],
+        confidence: 0,
+        error: error instanceof Error ? error.message : 'Failed to generate SQL'
+      };
     }
   }
 
@@ -105,9 +113,25 @@ export class DuckDBQueryService {
       };
     } catch (error) {
       console.error('Query execution failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Query execution failed';
+      
+      // Check if it's a "table does not exist" error
+      if (errorMessage.includes('does not exist') && errorMessage.includes('Table with name')) {
+        // Extract table name from error
+        const tableMatch = errorMessage.match(/Table with name (\S+) does not exist/);
+        const tableName = tableMatch ? tableMatch[1] : 'the requested table';
+        
+        return {
+          success: false,
+          error: `❌ Table "${tableName}" not found in database. Please re-upload the file to query it.`,
+          sql,
+          executionTime: performance.now() - startTime,
+        };
+      }
+      
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Query execution failed',
+        error: errorMessage,
         sql,
         executionTime: performance.now() - startTime,
       };
@@ -129,8 +153,19 @@ export class DuckDBQueryService {
     // Step 1: Generate SQL from natural language
     const sqlGeneration = await this.generateSQL(query, tables, pageId, workspaceId);
     
-    // Step 2: Execute the generated SQL
-    const queryResult = await this.executeQuery(sqlGeneration.sql);
+    // Step 2: Execute the generated SQL (only if SQL was generated)
+    let queryResult: QueryResult;
+    
+    if (!sqlGeneration.sql) {
+      queryResult = {
+        success: false,
+        error: sqlGeneration.error || 'No SQL query could be generated',
+        sql: '',
+        executionTime: 0,
+      };
+    } else {
+      queryResult = await this.executeQuery(sqlGeneration.sql);
+    }
     
     return {
       sqlGeneration,

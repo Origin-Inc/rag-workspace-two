@@ -2,8 +2,8 @@ import { json, LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useFetcher, Link, NavLink, useLocation } from "@remix-run/react";
 import { EnhancedBlockEditor } from "~/components/editor/EnhancedBlockEditor";
 import { ClientOnly } from "~/components/ClientOnly";
-// Using stable version without Zustand to fix infinite loop issue
-import { ChatSidebarStable } from "~/components/chat/ChatSidebarStable";
+// Original ChatSidebar with all features (Zustand, drag-drop, resizing)
+import { ChatSidebar } from "~/components/chat/ChatSidebar";
 import { ChatErrorBoundary } from "~/components/error/ChatErrorBoundary";
 import { useLayoutStore, LAYOUT_CONSTANTS } from "~/stores/layout-store";
 import { ResizeHandle } from "~/components/ui/ResizeHandle";
@@ -1272,10 +1272,10 @@ export default function EditorPage() {
         </div>
       </div>
       
-      {/* Chat Sidebar - Using stable version without Zustand */}
+      {/* Chat Sidebar - Original with all features */}
       <ClientOnly fallback={null}>
         <ChatErrorBoundary>
-          <ChatSidebarStable 
+          <ChatSidebar 
             pageId={page.id}
             workspaceId={page.workspaceId}
           />
