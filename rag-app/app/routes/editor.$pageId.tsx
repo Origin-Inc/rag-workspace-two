@@ -1136,43 +1136,28 @@ export default function EditorPage() {
       style={{
         marginRight: isChatSidebarOpen ? `${chatSidebarWidth}px` : '0'
       }}>
-        {/* Top Header with mobile menu button */}
-        <header className="flex-shrink-0 bg-theme-bg-primary">
-          <div className="flex items-center justify-between h-12 px-4 lg:px-6">
-            {/* Mobile menu button */}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              aria-label={sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
-              aria-expanded={sidebarOpen}
-            >
-              {sidebarOpen ? (
-                <XMarkIcon className="h-6 w-6" />
-              ) : (
-                <Bars3Icon className="h-6 w-6" />
-              )}
-            </button>
-
-            {/* Spacer */}
-            <div className="flex-1"></div>
-
-            {/* Right side buttons */}
-            <div className="flex items-center space-x-3">
-              <ThemeToggle />
-              <button className="p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
-                <BellIcon className="h-5 w-5" />
+        {/* Consolidated Header */}
+        <header className="flex-shrink-0 bg-theme-bg-primary border-b border-theme-border-primary">
+          <div className="flex items-center justify-between h-14 px-4 lg:px-6">
+            {/* Left side: Menu button, Page title, and Embedding status */}
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0"
+                aria-label={sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                aria-expanded={sidebarOpen}
+              >
+                {sidebarOpen ? (
+                  <XMarkIcon className="h-6 w-6" />
+                ) : (
+                  <Bars3Icon className="h-6 w-6" />
+                )}
               </button>
-            </div>
-          </div>
-        </header>
-
-        {/* Page header */}
-        <div className="bg-theme-bg-primary shadow-sm border-b border-theme-border-primary px-6 py-1">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-3xl font-semibold text-gray-900 dark:text-white">
+              
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white truncate">
                 {page.title || "Untitled Page"}
               </h1>
+              
               <EmbeddingStatusIndicator 
                 pageId={page.id}
                 showDetails={true}
@@ -1187,17 +1172,19 @@ export default function EditorPage() {
                 }}
               />
             </div>
-            <div className="flex items-center gap-4">
+
+            {/* Right side: Save status and buttons */}
+            <div className="flex items-center gap-3 flex-shrink-0">
               {isSaving && (
-                <span className="text-xs text-gray-500">Saving...</span>
+                <span className="text-xs text-gray-500 hidden sm:inline">Saving...</span>
               )}
               {!isSaving && lastSaved && !saveError && (
-                <span className="text-xs text-green-600">
-                  Saved at {lastSaved.toLocaleTimeString()}
+                <span className="text-xs text-green-600 hidden sm:inline">
+                  Saved {lastSaved.toLocaleTimeString()}
                 </span>
               )}
               {saveError && (
-                <span className="text-xs text-red-600">
+                <span className="text-xs text-red-600 hidden sm:inline">
                   {saveError}
                 </span>
               )}
@@ -1206,9 +1193,14 @@ export default function EditorPage() {
                   Public
                 </span>
               )}
+              
+              <ThemeToggle />
+              <button className="p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+                <BellIcon className="h-5 w-5" />
+              </button>
             </div>
           </div>
-        </div>
+        </header>
 
         {/* Editor */}
         <div className="flex-1 overflow-hidden bg-theme-bg-primary">

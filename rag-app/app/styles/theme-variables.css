@@ -2,7 +2,7 @@
 :root {
   /* Light mode colors */
   --color-bg-primary: 255, 255, 255; /* white */
-  --color-bg-secondary: 220, 220, 220; /* gray-50 */
+  --color-bg-secondary: 240, 240, 240; /* gray-50 */
   --color-border-primary: 237, 237, 237; /* gray-200 */
   --color-border-secondary: 243, 243, 243;
   --color-text-primary: 17, 24, 39; /* gray-900 */

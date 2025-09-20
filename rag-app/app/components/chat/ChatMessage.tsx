@@ -88,7 +88,7 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                   <p className="mb-2 break-words">{children}</p>
                 ),
                 em: ({children}) => (
-                  <em className="text-gray-600 dark:text-gray-400 text-sm">{children}</em>
+                  <em className="text-theme-text-primary text-sm">{children}</em>
                 ),
                 strong: ({children}) => (
                   <strong className="font-semibold">{children}</strong>
@@ -97,12 +97,12 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                   const inline = !props.className?.includes('language-');
                   return inline ? 
                     <code className="px-1 py-0.5 bg-theme-text-code rounded text-xs break-words" {...props}>{children}</code> :
-                    <code className="block p-2 bg-theme-text-code text-gray-100 rounded text-xs overflow-x-auto max-w-full" {...props}>{children}</code>
+                    <code className="block p-2 bg-theme-text-code text-theme-text-primary rounded text-xs overflow-x-auto max-w-full" {...props}>{children}</code>
                 },
                 pre: ({children}) => (
                   <div className="chat-table-wrapper my-2">
                     <div className="chat-table-scroll">
-                      <pre className="bg-theme-text-code text-gray-100 p-3 rounded inline-block min-w-0">{children}</pre>
+                      <pre className="bg-theme-text-code text-theme-text-primary p-3 rounded inline-block min-w-0">{children}</pre>
                     </div>
                   </div>
                 ),
