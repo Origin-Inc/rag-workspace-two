@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/shallow';
+import * as React from 'react';
 
 export interface ChatMessage {
   id: string;
@@ -174,64 +175,83 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
 // Hooks for specific state slices
 export const useChatMessages = (pageId: string) => {
-  // Use useShallow to get a stable object reference
-  return useChatStore(
-    useShallow((state) => {
-      const messages = state.messages.get(pageId) || [];
-      
-      return {
-        messages,
-        addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp' | 'pageId'>) => 
-          state.addMessage(pageId, message),
-        updateMessage: (messageId: string, updates: Partial<ChatMessage>) => 
-          state.updateMessage(pageId, messageId, updates),
-        deleteMessage: (messageId: string) => 
-          state.deleteMessage(pageId, messageId),
-        clearMessages: () => 
-          state.clearMessages(pageId),
-      };
-    })
+  // Get messages with shallow comparison
+  const messages = useChatStore(
+    useShallow((state) => state.messages.get(pageId) || [])
+  );
+  
+  // Get actions separately - these are stable
+  const addMessage = useChatStore((state) => state.addMessage);
+  const updateMessage = useChatStore((state) => state.updateMessage);
+  const deleteMessage = useChatStore((state) => state.deleteMessage);
+  const clearMessages = useChatStore((state) => state.clearMessages);
+  
+  // Return stable object with memoized callbacks
+  return React.useMemo(
+    () => ({
+      messages,
+      addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp' | 'pageId'>) => 
+        addMessage(pageId, message),
+      updateMessage: (messageId: string, updates: Partial<ChatMessage>) => 
+        updateMessage(pageId, messageId, updates),
+      deleteMessage: (messageId: string) => 
+        deleteMessage(pageId, messageId),
+      clearMessages: () => 
+        clearMessages(pageId),
+    }),
+    [messages, pageId, addMessage, updateMessage, deleteMessage, clearMessages]
   );
 };
 
 export const useChatDataFiles = (pageId: string) => {
-  // Use useShallow to get a stable object reference
-  return useChatStore(
-    useShallow((state) => {
-      const dataFiles = state.dataFiles.get(pageId) || [];
-      
-      return {
-        dataFiles,
-        addDataFile: (file: Omit<DataFile, 'id' | 'uploadedAt' | 'pageId'>) => 
-          state.addDataFile(pageId, file),
-        removeDataFile: (fileId: string) => 
-          state.removeDataFile(pageId, fileId),
-        clearDataFiles: () => 
-          state.clearDataFiles(pageId),
-      };
-    })
+  // Get data files with shallow comparison
+  const dataFiles = useChatStore(
+    useShallow((state) => state.dataFiles.get(pageId) || [])
+  );
+  
+  // Get actions separately - these are stable
+  const addDataFile = useChatStore((state) => state.addDataFile);
+  const removeDataFile = useChatStore((state) => state.removeDataFile);
+  const clearDataFiles = useChatStore((state) => state.clearDataFiles);
+  
+  // Return stable object with memoized callbacks
+  return React.useMemo(
+    () => ({
+      dataFiles,
+      addDataFile: (file: Omit<DataFile, 'id' | 'uploadedAt' | 'pageId'>) => 
+        addDataFile(pageId, file),
+      removeDataFile: (fileId: string) => 
+        removeDataFile(pageId, fileId),
+      clearDataFiles: () => 
+        clearDataFiles(pageId),
+    }),
+    [dataFiles, pageId, addDataFile, removeDataFile, clearDataFiles]
   );
 };
 
 export const useChatSidebar = () => {
-  // Use useShallow for stable object reference
-  return useChatStore(
-    useShallow((state) => ({
-      isSidebarOpen: state.isSidebarOpen,
-      toggleSidebar: state.toggleSidebar,
-      setSidebarOpen: state.setSidebarOpen,
-    }))
+  // Get individual values
+  const isSidebarOpen = useChatStore((state) => state.isSidebarOpen);
+  const toggleSidebar = useChatStore((state) => state.toggleSidebar);
+  const setSidebarOpen = useChatStore((state) => state.setSidebarOpen);
+  
+  // Return stable object
+  return React.useMemo(
+    () => ({ isSidebarOpen, toggleSidebar, setSidebarOpen }),
+    [isSidebarOpen, toggleSidebar, setSidebarOpen]
   );
 };
 
 export const useChatConnection = () => {
-  // Use useShallow for stable object reference
-  return useChatStore(
-    useShallow((state) => ({
-      connectionStatus: state.connectionStatus,
-      setConnectionStatus: state.setConnectionStatus,
-      isLoading: state.isLoading,
-      setLoading: state.setLoading,
-    }))
+  // Get individual values
+  const connectionStatus = useChatStore((state) => state.connectionStatus);
+  const setConnectionStatus = useChatStore((state) => state.setConnectionStatus);
+  const isLoading = useChatStore((state) => state.isLoading);
+  const setLoading = useChatStore((state) => state.setLoading);
+  
+  // Return stable object
+  return React.useMemo(
+    () => ({ connectionStatus, setConnectionStatus, isLoading, setLoading }),
+    [connectionStatus, setConnectionStatus, isLoading, setLoading]
   );
 };
