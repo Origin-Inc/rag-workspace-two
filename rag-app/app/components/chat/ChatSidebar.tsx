@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Send, Upload, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { useFetcher } from '@remix-run/react';
+import { Upload, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useChatMessages, useChatDataFiles, useChatConnection } from '~/stores/chat-store-ultimate-fix';
 import { useLayoutStore } from '~/stores/layout-store';
 import { ResizeHandle } from '~/components/ui/ResizeHandle';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
-import { FileUploadZone } from './FileUploadZone';
 import { FileContextDisplay } from './FileContextDisplay';
 import { cn } from '~/utils/cn';
 import { duckDBQuery } from '~/services/duckdb/duckdb-query.client';
@@ -14,8 +12,6 @@ import { duckDBQuery } from '~/services/duckdb/duckdb-query.client';
 interface ChatSidebarProps {
   pageId: string;
   workspaceId?: string;
-  onSendMessage?: (message: string) => Promise<void>;
-  onFileUpload?: (file: File) => Promise<void>;
   className?: string;
 }
 
@@ -29,20 +25,17 @@ interface UploadProgress {
 export function ChatSidebar({ 
   pageId, 
   workspaceId,
-  onSendMessage,
-  onFileUpload,
   className 
 }: ChatSidebarProps) {
   const { messages, addMessage, clearMessages } = useChatMessages(pageId);
   const { dataFiles, addDataFile, removeDataFile } = useChatDataFiles(pageId);
-  const { isLoading, setLoading, connectionStatus } = useChatConnection();
+  const { isLoading, setLoading } = useChatConnection();
   const { 
     isChatSidebarOpen, 
     setChatSidebarOpen, 
     chatSidebarWidth, 
     setChatSidebarWidth 
   } = useLayoutStore();
-  const fetcher = useFetcher();
   
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
@@ -200,23 +193,8 @@ export function ChatSidebar({
       } finally {
         setLoading(false);
       }
-    } else if (onSendMessage) {
-      // Fall back to parent handler if no data files
-      setLoading(true);
-      try {
-        await onSendMessage(content);
-      } catch (error) {
-        console.error('Error sending message:', error);
-        addMessage({
-          role: 'assistant',
-          content: 'Sorry, I encountered an error processing your request.',
-          metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
-        });
-      } finally {
-        setLoading(false);
-      }
     } else {
-      // No data files and no parent handler
+      // No data files available
       addMessage({
         role: 'assistant',
         content: 'Please upload some data files first to start querying.',
@@ -539,7 +517,7 @@ export function ChatSidebar({
           <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
             <Upload className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
             <p className="text-sm">Upload CSV or Excel files to start analyzing</p>
-            <p className="text-xs mt-2">Drag and drop or use the upload button below</p>
+            <p className="text-xs mt-2">Click the + button or drag and drop files here</p>
           </div>
         ) : (
           messages.map((message) => (
@@ -551,22 +529,20 @@ export function ChatSidebar({
       
       {/* Drag Overlay */}
       {isDragging && (
-        <div className="absolute inset-0 bg-blue-50 bg-opacity-90 flex items-center justify-center z-60">
+        <div className="absolute inset-0 bg-blue-50 dark:bg-blue-900/20 bg-opacity-90 flex items-center justify-center z-60">
           <div className="text-center">
             <Upload className="w-16 h-16 mx-auto mb-4 text-blue-500" />
-            <p className="text-lg font-medium text-blue-700">Drop files here</p>
-            <p className="text-sm text-blue-600 mt-1">CSV and Excel files supported</p>
+            <p className="text-lg font-medium text-blue-700 dark:text-blue-300">Drop files here</p>
+            <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">CSV and Excel files supported</p>
           </div>
         </div>
       )}
       
-        {/* File Upload Zone */}
-        <FileUploadZone onFileUpload={handleFileUpload} />
-      
-        {/* Input */}
+        {/* Input with integrated file upload */}
         <ChatInput 
           pageId={pageId}
           onSendMessage={handleSendMessage}
+          onFileUpload={handleFileUpload}
           disabled={isLoading || uploadProgress !== null}
           placeholder={dataFiles.length === 0 ? "Upload data first..." : "Ask a question about your data..."}
         />

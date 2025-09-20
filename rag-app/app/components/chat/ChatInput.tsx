@@ -1,5 +1,5 @@
 import { useState, useRef, KeyboardEvent } from 'react';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, Plus } from 'lucide-react';
 import { cn } from '~/utils/cn';
 import { FileReferenceSuggestions } from './FileReferenceSuggestions';
 import { useChatDataFiles } from '~/stores/chat-store-ultimate-fix';
@@ -7,6 +7,7 @@ import { useChatDataFiles } from '~/stores/chat-store-ultimate-fix';
 interface ChatInputProps {
   pageId: string;
   onSendMessage: (message: string) => void;
+  onFileUpload?: (file: File) => Promise<void>;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
@@ -14,7 +15,8 @@ interface ChatInputProps {
 
 export function ChatInput({ 
   pageId,
-  onSendMessage, 
+  onSendMessage,
+  onFileUpload,
   disabled = false, 
   placeholder = "Ask a question...",
   className 
@@ -22,6 +24,7 @@ export function ChatInput({
   const [input, setInput] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { dataFiles } = useChatDataFiles(pageId);
   
   const handleSubmit = () => {
@@ -80,6 +83,24 @@ export function ChatInput({
       )}
       
       <div className="flex items-end gap-2 w-full">
+        {onFileUpload && (
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled}
+            className={cn(
+              "p-2 rounded-lg transition-colors flex-shrink-0",
+              "text-gray-500 hover:text-gray-700 hover:bg-gray-100",
+              "dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800",
+              "disabled:opacity-50 disabled:cursor-not-allowed",
+              "flex items-center justify-center"
+            )}
+            aria-label="Upload file"
+            title="Upload CSV or Excel file"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        )}
+        
         <textarea
           ref={textareaRef}
           value={input}
@@ -119,6 +140,26 @@ export function ChatInput({
           )}
         </button>
       </div>
+      
+      {/* Hidden file input */}
+      {onFileUpload && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          className="hidden"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              await onFileUpload(file);
+              // Reset the input so the same file can be selected again
+              if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+              }
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
