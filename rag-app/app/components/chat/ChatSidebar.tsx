@@ -289,6 +289,17 @@ export function ChatSidebar({
       currentMessagesCount: messages.length
     });
 
+    // Check file size limit (100MB for Supabase free tier)
+    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    if (file.size > MAX_FILE_SIZE) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      addMessage({
+        role: 'system',
+        content: `⚠️ File too large (${sizeMB}MB). Maximum file size is 100MB. Please use a smaller file or split it into multiple files.`,
+      });
+      return;
+    }
+
     // Start upload progress tracking
     setUploadProgress({
       filename: file.name,
