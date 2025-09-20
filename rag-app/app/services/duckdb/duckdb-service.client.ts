@@ -242,7 +242,10 @@ export class DuckDBService {
       
       // Generate CREATE TABLE statement if schema is provided
       if (schema && schema.columns.length > 0) {
-        const columnDefs = schema.columns.map(col => {
+        // Filter out columns with empty names and sanitize column names
+        const validColumns = schema.columns.filter(col => col.name && col.name.trim() !== '');
+        
+        const columnDefs = validColumns.map(col => {
           let duckdbType = 'VARCHAR';
           switch (col.type.toLowerCase()) {
             case 'number':
@@ -260,14 +263,17 @@ export class DuckDBService {
             default:
               duckdbType = 'VARCHAR';
           }
-          return `"${col.name}" ${duckdbType}`;
-        }).join(', ');
+          // Sanitize column name - if empty, skip this column
+          const columnName = col.name.trim();
+          if (!columnName) return null;
+          return `"${columnName}" ${duckdbType}`;
+        }).filter(def => def !== null).join(', ');
         
         await conn.query(`CREATE TABLE ${tableName} (${columnDefs})`);
         
-        // Prepare data for insertion
+        // Prepare data for insertion using only valid columns
         const values = data.map(row => {
-          const vals = schema.columns.map(col => {
+          const vals = validColumns.map(col => {
             const val = row[col.name];
             if (val === null || val === undefined) return 'NULL';
             if (col.type === 'string' || col.type === 'date' || col.type === 'datetime') {
