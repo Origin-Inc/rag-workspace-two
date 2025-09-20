@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { shallow } from 'zustand/shallow';
+import { useCallback } from 'react';
 
 export interface ChatMessage {
   id: string;
@@ -186,14 +187,33 @@ export const useChatMessages = (pageId: string) => {
     shallow
   );
   
+  // Memoize the wrapped functions to prevent recreation on every render
+  const memoizedAddMessage = useCallback(
+    (message: Omit<ChatMessage, 'id' | 'timestamp' | 'pageId'>) => addMessage(pageId, message),
+    [pageId, addMessage]
+  );
+  
+  const memoizedUpdateMessage = useCallback(
+    (messageId: string, updates: Partial<ChatMessage>) => updateMessage(pageId, messageId, updates),
+    [pageId, updateMessage]
+  );
+  
+  const memoizedDeleteMessage = useCallback(
+    (messageId: string) => deleteMessage(pageId, messageId),
+    [pageId, deleteMessage]
+  );
+  
+  const memoizedClearMessages = useCallback(
+    () => clearMessages(pageId),
+    [pageId, clearMessages]
+  );
+  
   return {
     messages,
-    addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp' | 'pageId'>) => 
-      addMessage(pageId, message),
-    updateMessage: (messageId: string, updates: Partial<ChatMessage>) => 
-      updateMessage(pageId, messageId, updates),
-    deleteMessage: (messageId: string) => deleteMessage(pageId, messageId),
-    clearMessages: () => clearMessages(pageId),
+    addMessage: memoizedAddMessage,
+    updateMessage: memoizedUpdateMessage,
+    deleteMessage: memoizedDeleteMessage,
+    clearMessages: memoizedClearMessages,
   };
 };
 
@@ -209,12 +229,27 @@ export const useChatDataFiles = (pageId: string) => {
     shallow
   );
   
+  // Memoize the wrapped functions to prevent recreation on every render
+  const memoizedAddDataFile = useCallback(
+    (file: Omit<DataFile, 'id' | 'uploadedAt' | 'pageId'>) => addDataFile(pageId, file),
+    [pageId, addDataFile]
+  );
+  
+  const memoizedRemoveDataFile = useCallback(
+    (fileId: string) => removeDataFile(pageId, fileId),
+    [pageId, removeDataFile]
+  );
+  
+  const memoizedClearDataFiles = useCallback(
+    () => clearDataFiles(pageId),
+    [pageId, clearDataFiles]
+  );
+  
   return {
     dataFiles,
-    addDataFile: (file: Omit<DataFile, 'id' | 'uploadedAt' | 'pageId'>) => 
-      addDataFile(pageId, file),
-    removeDataFile: (fileId: string) => removeDataFile(pageId, fileId),
-    clearDataFiles: () => clearDataFiles(pageId),
+    addDataFile: memoizedAddDataFile,
+    removeDataFile: memoizedRemoveDataFile,
+    clearDataFiles: memoizedClearDataFiles,
   };
 };
 
