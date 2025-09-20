@@ -98,16 +98,57 @@ export function ChatSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageId]); // Intentionally omit functions - they're stable
   
-  // DISABLED: File metadata loading
-  // We don't restore actual data to DuckDB on page refresh, so showing metadata 
-  // without data creates a confusing UX where files appear available but queries fail.
-  // Users must re-upload files after page refresh for now.
-  // TODO: Implement proper file restoration from Supabase storage
-  /*
+  // Restore persisted tables from IndexedDB on mount
   useEffect(() => {
-    // Commented out - see above
-  }, [pageId, workspaceId]);
-  */
+    if (!pageId || skipFileLoad) return;
+    
+    let isMounted = true;
+    
+    const restoreTables = async () => {
+      try {
+        // Initialize DuckDB if needed
+        const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
+        const duckdb = getDuckDB();
+        
+        if (!duckdb.isReady()) {
+          await duckdb.initialize();
+        }
+        
+        // Wait for optional delay (for debugging)
+        if (delayFileLoad > 0) {
+          await new Promise(resolve => setTimeout(resolve, delayFileLoad));
+        }
+        
+        if (!isMounted) return;
+        
+        // Restore tables from IndexedDB
+        const restoredFiles = await duckdb.restoreTablesForPage(pageId);
+        
+        // Add restored files to the store
+        if (restoredFiles.length > 0 && isMounted) {
+          console.log(`[ChatSidebar] Restored ${restoredFiles.length} tables from IndexedDB`);
+          restoredFiles.forEach((file: any) => {
+            addDataFile({
+              filename: file.filename,
+              tableName: file.tableName,
+              schema: file.schema,
+              rowCount: file.rowCount,
+              sizeBytes: file.sizeBytes,
+            });
+          });
+        }
+      } catch (error) {
+        console.error('[ChatSidebar] Failed to restore tables:', error);
+      }
+    };
+    
+    restoreTables();
+    
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageId, skipFileLoad, delayFileLoad]); // Intentionally omit functions
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -375,7 +416,8 @@ export function ChatSidebar({
         await duckdb.createTableFromData(
           processed.tableName,
           processed.data,
-          processed.schema
+          processed.schema,
+          pageId  // Add pageId for persistence
         );
         
         // Convert FileSchema to the format expected by DataFile

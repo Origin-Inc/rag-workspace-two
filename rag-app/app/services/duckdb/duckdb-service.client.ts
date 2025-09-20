@@ -1,5 +1,6 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
+import { duckDBPersistence } from './duckdb-persistence.client';
 
 export class DuckDBService {
   private static instance: DuckDBService | null = null;
@@ -86,18 +87,11 @@ export class DuckDBService {
     return this.connection;
   }
 
-  public async executeQuery(query: string): Promise<any[]> {
-    try {
-      const conn = await this.getConnection();
-      const result = await conn.query(query);
-      return result.toArray();
-    } catch (error) {
-      console.error('Query execution failed:', error);
-      return [];
-    }
+  public getDB(): AsyncDuckDB | null {
+    return this.db;
   }
 
-  public async createTableFromCSV(tableName: string, csvData: string): Promise<void> {
+  public async createTableFromCSV(tableName: string, csvData: string, pageId?: string): Promise<void> {
     try {
       const conn = await this.getConnection();
       
@@ -111,13 +105,20 @@ export class DuckDBService {
       `);
       
       console.log(`Table ${tableName} created successfully`);
+      
+      // Persist to IndexedDB if pageId is provided
+      if (pageId) {
+        const rowCount = await this.getTableRowCount(tableName);
+        const schema = await this.getTableSchema(tableName);
+        await duckDBPersistence.persistTable(tableName, pageId, schema, rowCount);
+      }
     } catch (error) {
       console.error('Failed to create table from CSV:', error);
       throw error;
     }
   }
 
-  public async createTableFromJSON(tableName: string, jsonData: any[]): Promise<void> {
+  public async createTableFromJSON(tableName: string, jsonData: any[], pageId?: string): Promise<void> {
     try {
       const conn = await this.getConnection();
       
@@ -137,6 +138,13 @@ export class DuckDBService {
       `);
       
       console.log(`Table ${tableName} created from JSON successfully`);
+      
+      // Persist to IndexedDB if pageId is provided
+      if (pageId) {
+        const rowCount = await this.getTableRowCount(tableName);
+        const schema = await this.getTableSchema(tableName);
+        await duckDBPersistence.persistTable(tableName, pageId, schema, rowCount);
+      }
     } catch (error) {
       console.error('Failed to create table from JSON:', error);
       throw error;
@@ -219,7 +227,8 @@ export class DuckDBService {
   public async createTableFromData(
     tableName: string, 
     data: any[], 
-    schema?: { columns: Array<{ name: string; type: string }> }
+    schema?: { columns: Array<{ name: string; type: string }> },
+    pageId?: string
   ): Promise<void> {
     if (!data || data.length === 0) {
       throw new Error('Cannot create table from empty data');
@@ -287,6 +296,11 @@ export class DuckDBService {
       }
       
       console.log(`Table ${tableName} created with ${data.length} rows`);
+      
+      // Persist to IndexedDB if pageId is provided
+      if (pageId) {
+        await duckDBPersistence.persistTable(tableName, pageId, schema, data.length);
+      }
     } catch (error) {
       console.error('Failed to create table from data:', error);
       throw error;
@@ -322,6 +336,37 @@ export class DuckDBService {
     } catch (error) {
       console.error('Failed to execute query:', error);
       throw error;
+    }
+  }
+  
+  /**
+   * Restore persisted tables for a page from IndexedDB
+   */
+  public async restoreTablesForPage(pageId: string): Promise<any[]> {
+    try {
+      // Make sure DuckDB is initialized first
+      if (!this.isReady()) {
+        await this.initialize();
+      }
+      
+      // Restore tables from IndexedDB
+      const restoredFiles = await duckDBPersistence.restoreTables(pageId);
+      console.log(`Restored ${restoredFiles.length} tables for page ${pageId}`);
+      return restoredFiles;
+    } catch (error) {
+      console.error('Failed to restore tables:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Clear persisted tables for a page
+   */
+  public async clearPageTables(pageId: string): Promise<void> {
+    try {
+      await duckDBPersistence.clearPageTables(pageId);
+    } catch (error) {
+      console.error('Failed to clear page tables:', error);
     }
   }
 }
