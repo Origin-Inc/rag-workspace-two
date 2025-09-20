@@ -2,7 +2,7 @@
 :root {
   /* Light mode colors */
   --color-bg-primary: 255, 255, 255; /* white */
-  --color-bg-secondary: 240, 240, 240; /* gray-50 */
+  --color-bg-secondary: 245, 245, 245; /* gray-50 */
   --color-border-primary: 237, 237, 237; /* gray-200 */
   --color-border-secondary: 243, 243, 243;
   --color-text-primary: 17, 24, 39; /* gray-900 */
@@ -13,12 +13,12 @@
 
 .dark {
   /* Dark mode colors - using your preferred dark background */
-  --color-bg-primary: 33, 33, 33; /* rgba(33,33,33,1) */
-  --color-bg-secondary: 23, 23, 23; /* for secondary*/
+  --color-bg-primary: 37, 37, 37; /* rgba(33,33,33,1) */
+  --color-bg-secondary: 42, 42, 42; /* for secondary*/
   --color-border-primary: 36, 36, 36; /* gray-700 */
   --color-border-secondary: 66, 66, 66;
   --color-text-primary: 243, 244, 246; /* gray-100 */
   --color-text-secondary: 156, 163, 175; /* gray-400 */
-  --color-text-code: 21, 21, 21;
+  --color-text-code: 23, 23, 23;
   --color-text-highlight: 48, 48, 48;
 }

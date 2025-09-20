@@ -15,7 +15,7 @@ import { ResizeHandle } from '~/components/ui/ResizeHandle';
 import { useLayoutStore } from '~/stores/layout-store';
 import { PageTreeNavigation } from '~/components/navigation/PageTreeNavigation';
 import { UserMenu } from '~/components/navigation/UserMenu';
-import type { AuthUser } from '~/services/auth/types';
+import type { AuthUser } from '~/services/auth/auth.server';
 import type { PageTreeNode } from '~/components/navigation/PageTreeNavigation';
 
 interface NavigationItem {
@@ -68,7 +68,7 @@ export function AppSidebar({
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
   const {
     isMenuCollapsed,
-    setIsMenuCollapsed: setMenuCollapsed,
+    setMenuCollapsed,
     menuSidebarWidth,
     setMenuSidebarWidth,
   } = useLayoutStore();
@@ -170,7 +170,7 @@ export function AppSidebar({
 
           {/* Workspace Dropdown */}
           {workspaceDropdownOpen && (
-            <div className="absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 bg-theme-bg-primary">
+            <div className="absolute top-full left-0 right-0 mt-1 rounded-lg shadow-lg border border-theme-border-primary py-1 z-10 bg-theme-bg-primary">
               <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 Workspaces
               </div>
@@ -190,10 +190,10 @@ export function AppSidebar({
                   <span className="ml-auto text-xs text-gray-500">{uw.role.name}</span>
                 </Link>
               ))}
-              <div className="border-t border-gray-200 mt-1 pt-1">
+              <div className="border-t border-theme-border-secondary mt-1 pt-1">
                 <Link
                   to="/app/workspace/new"
-                  className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-theme-bg-text-highlight"
                 >
                   <PlusIcon className="h-4 w-4 mr-3 text-gray-400" />
                   Create workspace
@@ -308,6 +308,22 @@ export function AppSidebar({
                     window.location.reload();
                   } else {
                     console.error('Failed to delete page');
+                  }
+                }}
+                onRenamePage={async (pageId, newTitle) => {
+                  // Call API to rename page
+                  const formData = new FormData();
+                  formData.append('title', newTitle);
+                  
+                  const response = await fetch(`/api/pages/${pageId}`, {
+                    method: 'PATCH',
+                    body: formData
+                  });
+                  
+                  if (response.ok) {
+                    window.location.reload();
+                  } else {
+                    console.error('Failed to rename page');
                   }
                 }}
               />
