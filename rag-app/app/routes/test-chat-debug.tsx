@@ -184,14 +184,10 @@ export default function TestChatDebug() {
       {/* Render the selected chat implementation */}
       {showChat && (
         <ClientOnly fallback={null}>
-          <div 
-            key={selectedImpl} 
-            onAnimationIteration={() => setRenderCount(c => c + 1)}
-          >
+          <div key={selectedImpl}>
             <ChatComponent
               pageId={page.id}
               workspaceId={page.workspaceId}
-              onRender={() => setRenderCount(c => c + 1)}
             />
           </div>
         </ClientOnly>
