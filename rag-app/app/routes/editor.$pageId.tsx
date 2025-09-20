@@ -908,7 +908,7 @@ export default function EditorPage() {
         {/* Collapse/Expand Button for Desktop */}
         <button
           onClick={() => setMenuCollapsed(!isMenuCollapsed)}
-          className="absolute -right-3 top-1/2 -translate-y-1/2 hidden lg:flex w-6 h-6 bg-theme-text-highlight border border-gray-200 dark:border-gray-700 rounded-full items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 z-20 transition-colors"
+          className="absolute -right-3 top-1/2 -translate-y-1/2 hidden lg:flex w-6 h-6 bg-theme-text-highlight border border-theme-border-primary rounded-full items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 z-20 transition-colors"
           aria-label={isMenuCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isMenuCollapsed ? (
@@ -1106,7 +1106,7 @@ export default function EditorPage() {
 
         {/* User Profile at Bottom */}
         <div className={cn(
-          "flex-shrink-0 border-t border-gray-200 dark:border-gray-700",
+          "flex-shrink-0 border-t border-theme-border-primary",
           isMenuCollapsed ? "p-2" : "p-4"
         )}>
           {isMenuCollapsed ? (
