@@ -122,9 +122,9 @@ export function CommandPalette({ open: externalOpen, onClose }: CommandPalettePr
         
         {/* Dialog Container */}
         <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl">
-          <div className="bg-white rounded-lg shadow-2xl overflow-hidden">
+          <div className="bg-theme-bg-secondary rounded-lg shadow-2xl overflow-hidden">
             {/* Search Input */}
-            <div className="flex items-center border-b border-gray-200 px-4">
+            <div className="flex items-center border-b border-theme-secondary px-4">
               <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
               <Command.Input
                 value={search}
@@ -136,13 +136,13 @@ export function CommandPalette({ open: externalOpen, onClose }: CommandPalettePr
 
             {/* Results */}
             <Command.List className="max-h-96 overflow-y-auto p-2">
-              <Command.Empty className="py-8 text-center text-sm text-gray-500">
+              <Command.Empty className="py-8 text-center text-sm text-theme-text-primary">
                 No results found.
               </Command.Empty>
 
               {/* Navigation Group */}
               <Command.Group heading="Navigation" className="mb-2">
-                <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <div className="px-2 py-1.5 text-xs font-semibold text-theme-text-primar uppercase tracking-wider">
                   Navigation
                 </div>
                 {navigationItems.map((item) => (
@@ -152,16 +152,16 @@ export function CommandPalette({ open: externalOpen, onClose }: CommandPalettePr
                     onSelect={item.action}
                     className="flex items-center px-3 py-2 text-sm rounded-lg cursor-pointer hover:bg-gray-100 data-[selected]:bg-gray-100"
                   >
-                    <item.icon className="h-4 w-4 mr-3 text-gray-400" />
+                    <item.icon className="h-4 w-4 mr-3 text-theme-text-primar" />
                     <span>{item.name}</span>
-                    <ArrowRightIcon className="h-3 w-3 ml-auto text-gray-400" />
+                    <ArrowRightIcon className="h-3 w-3 ml-auto text-theme-text-primar" />
                   </Command.Item>
                 ))}
               </Command.Group>
 
               {/* Actions Group */}
               <Command.Group heading="Actions" className="mb-2">
-                <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <div className="px-2 py-1.5 text-xs font-semibold text-theme-text-primar uppercase tracking-wider">
                   Actions
                 </div>
                 {actionItems.map((item) => (
@@ -171,7 +171,7 @@ export function CommandPalette({ open: externalOpen, onClose }: CommandPalettePr
                     onSelect={item.action}
                     className="flex items-center px-3 py-2 text-sm rounded-lg cursor-pointer hover:bg-gray-100 data-[selected]:bg-gray-100"
                   >
-                    <item.icon className="h-4 w-4 mr-3 text-gray-400" />
+                    <item.icon className="h-4 w-4 mr-3 text-theme-text-primar" />
                     <span>{item.name}</span>
                   </Command.Item>
                 ))}
@@ -179,17 +179,17 @@ export function CommandPalette({ open: externalOpen, onClose }: CommandPalettePr
 
               {/* Recent Pages Group (placeholder for now) */}
               <Command.Group heading="Recent Pages">
-                <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <div className="px-2 py-1.5 text-xs font-semibold text-theme-text-primar uppercase tracking-wider">
                   Recent Pages
                 </div>
-                <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                <div className="px-3 py-4 text-sm text-theme-text-primar text-center">
                   No recent pages
                 </div>
               </Command.Group>
             </Command.List>
 
             {/* Footer */}
-            <div className="border-t border-gray-200 px-4 py-2 flex items-center justify-between text-xs text-gray-500">
+            <div className="border-t border-gray-200 px-4 py-2 flex items-center justify-between text-xs text-theme-text-primar">
               <div className="flex items-center space-x-4">
                 <span className="flex items-center">
                   <kbd className="px-1.5 py-0.5 bg-gray-100 rounded">↑↓</kbd>
