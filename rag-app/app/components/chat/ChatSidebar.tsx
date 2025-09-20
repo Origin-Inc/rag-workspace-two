@@ -43,7 +43,10 @@ export function ChatSidebar({
   
   // Load chat history and data files on mount
   useEffect(() => {
+    let isMounted = true;
+    
     const loadChatData = async () => {
+      if (!isMounted) return;
       // Load chat messages
       try {
         const response = await fetch(`/api/chat/messages/${pageId}`);
@@ -51,14 +54,18 @@ export function ChatSidebar({
           const data = await response.json();
           if (data.messages && data.messages.length > 0) {
             // Clear existing messages and load from database
-            clearMessages();
-            data.messages.forEach((msg: any) => {
-              addMessage({
-                role: msg.role,
-                content: msg.content,
-                metadata: msg.metadata,
+            if (isMounted) {
+              clearMessages();
+              data.messages.forEach((msg: any) => {
+                if (isMounted) {
+                  addMessage({
+                    role: msg.role,
+                    content: msg.content,
+                    metadata: msg.metadata,
+                  });
+                }
               });
-            });
+            }
           }
         }
       } catch (error) {
@@ -86,6 +93,8 @@ export function ChatSidebar({
             const failedTables: string[] = [];
             
             for (const file of filesData.dataFiles) {
+              if (!isMounted) break;
+              
               // Add to local store
               addDataFile({
                 filename: file.filename,
@@ -163,7 +172,11 @@ export function ChatSidebar({
     if (pageId) {
       loadChatData();
     }
-  }, [pageId]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [pageId, workspaceId]); // Only include stable dependencies
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
