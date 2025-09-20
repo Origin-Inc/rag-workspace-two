@@ -19,6 +19,11 @@ interface DataFile {
   filename: string;
   tableName: string;
   rowCount: number;
+  schema?: Array<{
+    name: string;
+    type: string;
+    sampleData?: any[];
+  }>;
 }
 
 // STABLE VERSION - No Zustand, no complex state management
@@ -63,7 +68,8 @@ export function ChatSidebarStable({
               id: f.id,
               filename: f.filename,
               tableName: f.tableName,
-              rowCount: f.rowCount
+              rowCount: f.rowCount,
+              schema: f.schema
             })));
             
             // Add info message about files
@@ -122,7 +128,7 @@ export function ChatSidebarStable({
         const filesForQuery = dataFiles.map(f => ({
           ...f,
           pageId,
-          schema: [],
+          schema: f.schema || [],
           sizeBytes: 0,
           uploadedAt: new Date()
         }));
@@ -209,12 +215,20 @@ export function ChatSidebarStable({
         processed.schema
       );
       
+      // Convert schema to the format expected
+      const schemaForStore = processed.schema.columns.map((col: any) => ({
+        name: col.name,
+        type: col.type,
+        sampleData: processed.data.slice(0, 3).map((row: any) => row[col.name])
+      }));
+      
       // Add to our simple files list
       const newFile: DataFile = {
         id: `file_${Date.now()}`,
         filename: file.name,
         tableName: processed.tableName,
-        rowCount: processed.data.length
+        rowCount: processed.data.length,
+        schema: schemaForStore
       };
       setDataFiles(prev => [...prev, newFile]);
       
@@ -227,10 +241,7 @@ export function ChatSidebarStable({
             body: JSON.stringify({
               filename: file.name,
               tableName: processed.tableName,
-              schema: processed.schema.columns.map((col: any) => ({
-                name: col.name,
-                type: col.type
-              })),
+              schema: schemaForStore,
               rowCount: processed.data.length,
               sizeBytes: file.size,
               storageUrl: null,

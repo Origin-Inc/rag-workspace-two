@@ -18,7 +18,7 @@ const fileMetadataSchema = z.object({
   })),
   rowCount: z.number(),
   sizeBytes: z.number(),
-  storageUrl: z.string().optional(),
+  storageUrl: z.string().nullable().optional(),
 });
 
 // GET /api/data/files/:pageId - Fetch data files for a page
