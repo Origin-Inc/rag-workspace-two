@@ -13,7 +13,7 @@
 
 .dark {
   /* Dark mode colors - using your preferred dark background */
-  --color-bg-primary: 35, 35, 35; /* rgba(33,33,33,1) */
+  --color-bg-primary: 33, 33, 33; /* rgba(33,33,33,1) */
   --color-bg-secondary: 23, 23, 23; /* for secondary*/
   --color-border-primary: 36, 36, 36; /* gray-700 */
   --color-border-secondary: 66, 66, 66;
