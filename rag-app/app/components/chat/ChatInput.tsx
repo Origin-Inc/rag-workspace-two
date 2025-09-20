@@ -115,7 +115,6 @@ export function ChatInput({
             "flex-1 resize-none rounded-lg px-3 py-2 bg-theme-text-highlight",
             "bg-theme-text-highlight",
             "text-theme-text-primary",
-            "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
             "disabled:bg-gray-100 disabled:text-gray-500 dark:disabled:bg-gray-800",
             "min-h-[40px] max-h-[120px]"
           )}

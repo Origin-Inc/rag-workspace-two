@@ -444,7 +444,7 @@ export function ChatSidebar({
         onDrop={handleDrop}
       >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-theme-primary bg-theme-bg-primary">
+      <div className="flex items-center justify-between p-4 border-b border-theme-border-primary bg-theme-bg-primary">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Data Chat</h2>
         </div>
