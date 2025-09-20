@@ -58,142 +58,94 @@ export function ChatSidebar({
     };
   }, []);
   
-  // Load chat history and data files on mount
+  // Load chat history ONLY - separate from file loading
   useEffect(() => {
+    if (!pageId) return;
+    
     let isMounted = true;
     
-    const loadChatData = async () => {
-      if (!isMounted) return;
-      // Load chat messages
+    const loadChatMessages = async () => {
       try {
         const response = await fetch(`/api/chat/messages/${pageId}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.messages && data.messages.length > 0) {
-            // Clear existing messages and load from database
-            if (isMounted) {
-              clearMessages();
-              data.messages.forEach((msg: any) => {
-                if (isMounted) {
-                  addMessage({
-                    role: msg.role,
-                    content: msg.content,
-                    metadata: msg.metadata,
-                  });
-                }
-              });
-            }
-          }
+        if (!response.ok || !isMounted) return;
+        
+        const data = await response.json();
+        if (data.messages && data.messages.length > 0 && isMounted) {
+          // Batch update to prevent multiple renders
+          clearMessages();
+          data.messages.forEach((msg: any) => {
+            addMessage({
+              role: msg.role,
+              content: msg.content,
+              metadata: msg.metadata,
+            });
+          });
         }
       } catch (error) {
-        console.error('Failed to load chat history:', error);
-      }
-
-      // Load data files
-      try {
-        const filesResponse = await fetch(`/api/data/files/${pageId}`);
-        if (filesResponse.ok) {
-          const filesData = await filesResponse.json();
-          if (filesData.dataFiles && filesData.dataFiles.length > 0) {
-            console.log('[ChatSidebar] Loading persisted files:', filesData.dataFiles);
-            
-            // Initialize DuckDB if needed
-            const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
-            const duckdb = getDuckDB();
-            
-            if (!duckdb.isReady()) {
-              await duckdb.initialize();
-            }
-            
-            // Add files to local store and attempt to restore DuckDB tables
-            const restoredTables: string[] = [];
-            const failedTables: string[] = [];
-            
-            for (const file of filesData.dataFiles) {
-              if (!isMounted) break;
-              
-              // Add to local store
-              addDataFile({
-                filename: file.filename,
-                tableName: file.tableName,
-                schema: file.schema,
-                rowCount: file.rowCount,
-                sizeBytes: file.sizeBytes,
-              });
-              
-              // Attempt to restore DuckDB table if we have a storage URL
-              if (file.storageUrl && workspaceId) {
-                try {
-                  console.log(`[ChatSidebar] Attempting to restore table ${file.tableName} from storage`);
-                  
-                  // Download file from Supabase storage
-                  const response = await fetch(file.storageUrl);
-                  if (response.ok) {
-                    const blob = await response.blob();
-                    const restoredFile = new File([blob], file.filename, { type: blob.type });
-                    
-                    // Process and load into DuckDB
-                    const { FileProcessingService } = await import('~/services/file-processing.client');
-                    const processed = await FileProcessingService.processFile(restoredFile);
-                    
-                    if (processed.data && processed.data.length > 0) {
-                      await duckdb.createTableFromData(
-                        file.tableName,
-                        processed.data,
-                        processed.schema
-                      );
-                      restoredTables.push(file.filename);
-                      console.log(`[ChatSidebar] Successfully restored table ${file.tableName}`);
-                    }
-                  } else {
-                    console.warn(`[ChatSidebar] Failed to download file from storage: ${file.filename}`);
-                    failedTables.push(file.filename);
-                  }
-                } catch (error) {
-                  console.error(`[ChatSidebar] Error restoring table ${file.tableName}:`, error);
-                  failedTables.push(file.filename);
-                }
-              } else {
-                console.log(`[ChatSidebar] File ${file.filename} metadata loaded (table: ${file.tableName}) - no storage URL for restoration`);
-              }
-            }
-            
-            // Notify user about loaded files
-            if (filesData.dataFiles.length > 0) {
-              let message = `Loaded ${filesData.dataFiles.length} file(s) from previous session.`;
-              
-              if (restoredTables.length > 0) {
-                message += ` Successfully restored: ${restoredTables.join(', ')}.`;
-              }
-              
-              if (failedTables.length > 0) {
-                message += ` Failed to restore: ${failedTables.join(', ')}. Please re-upload these files.`;
-              }
-              
-              if (restoredTables.length === 0 && failedTables.length === 0) {
-                message += ` Files need to be re-uploaded to query them.`;
-              }
-              
-              addMessage({
-                role: 'system',
-                content: message,
-              });
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load data files:', error);
+        console.error('[ChatSidebar] Failed to load chat messages:', error);
       }
     };
-
-    if (pageId) {
-      loadChatData();
-    }
+    
+    loadChatMessages();
     
     return () => {
       isMounted = false;
     };
-  }, [pageId, workspaceId]); // Only include stable dependencies
+  }, [pageId]); // Minimal dependencies
+  
+  // Load data files SEPARATELY with flag to prevent re-runs
+  useEffect(() => {
+    if (!pageId || !workspaceId) return;
+    
+    // Use ref to track if we've already loaded files for this pageId
+    const hasLoadedRef = { current: false };
+    
+    const loadDataFiles = async () => {
+      // Prevent duplicate loads
+      if (hasLoadedRef.current) {
+        console.log('[ChatSidebar] Files already loaded for this page, skipping');
+        return;
+      }
+      
+      hasLoadedRef.current = true;
+      
+      try {
+        const response = await fetch(`/api/data/files/${pageId}`);
+        if (!response.ok) return;
+        
+        const { dataFiles } = await response.json();
+        if (!dataFiles || dataFiles.length === 0) return;
+        
+        console.log('[ChatSidebar] Loading file metadata only (not restoring):', dataFiles.length);
+        
+        // Only load metadata, don't restore files to prevent errors
+        dataFiles.forEach((file: any) => {
+          addDataFile({
+            filename: file.filename,
+            tableName: file.tableName,
+            schema: file.schema,
+            rowCount: file.rowCount,
+            sizeBytes: file.sizeBytes,
+          });
+        });
+        
+        // Simple notification without attempting restoration
+        addMessage({
+          role: 'system',
+          content: `Found ${dataFiles.length} file(s) from previous session. Please re-upload files to enable querying.`,
+        });
+      } catch (error) {
+        console.error('[ChatSidebar] Error loading file metadata:', error);
+      }
+    };
+    
+    // Delay file loading to prevent race conditions
+    const timeoutId = setTimeout(loadDataFiles, 100);
+    
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [pageId, workspaceId]); // Stable minimal dependencies
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
