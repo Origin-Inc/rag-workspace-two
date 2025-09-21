@@ -65,7 +65,9 @@ export const loader: LoaderFunction = async ({ request, params }) => {
         rowCount: true,
         sizeBytes: true,
         storageUrl: true,
+        parquetUrl: true,
         createdAt: true,
+        updatedAt: true,
       },
     });
 
@@ -75,7 +77,7 @@ export const loader: LoaderFunction = async ({ request, params }) => {
       userId: user.id 
     });
 
-    return json({ dataFiles });
+    return json({ files: dataFiles });
   } catch (error) {
     logger.error('Failed to fetch data files:', error);
     return json(
