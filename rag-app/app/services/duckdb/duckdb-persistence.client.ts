@@ -163,8 +163,27 @@ export class DuckDBPersistenceService {
               }))
             } : table.schema;
             
+            // Convert Unix timestamp values to date strings for date/datetime columns
+            const processedData = table.data.map((row: any) => {
+              const processedRow = { ...row };
+              if (table.schema && table.schema.columns) {
+                table.schema.columns.forEach((col: any) => {
+                  if ((col.type === 'date' || col.type === 'datetime') && processedRow[col.name]) {
+                    const val = processedRow[col.name];
+                    // Check if it's a Unix timestamp (number or numeric string)
+                    if (typeof val === 'number' || /^\d+$/.test(val)) {
+                      const timestamp = typeof val === 'string' ? parseInt(val) : val;
+                      // Convert to ISO date string
+                      processedRow[col.name] = new Date(timestamp).toISOString();
+                    }
+                  }
+                });
+              }
+              return processedRow;
+            });
+            
             // Use the DuckDB service method to create table from data
-            await duckdb.createTableFromData(originalTableName, table.data, restorationSchema);
+            await duckdb.createTableFromData(originalTableName, processedData, restorationSchema);
             
             // Create DataFile metadata
             restoredFiles.push({
