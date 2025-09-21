@@ -30,53 +30,43 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
         isSystem && "justify-center"
       )}
     >
-      {/* Avatar */}
-      {!isSystem && (
-        <div className={cn(
-          "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
-          isUser ? "bg-blue-500" : "bg-gray-700"
-        )}>
-          {isUser ? (
-            <User className="w-4 h-4 text-white" />
-          ) : (
-            <Bot className="w-4 h-4 text-white" />
-          )}
-        </div>
-      )}
       
       {/* Message Content */}
       <div className={cn(
-        "flex-1 space-y-1",
+        "space-y-1 min-w-0 w-full",
         isUser && "flex flex-col items-end",
-        isSystem && "max-w-full"
+        isSystem && "max-w-full",
+        !isUser && !isSystem && "max-w-full"
       )}>
         {/* Message Bubble */}
         <div className={cn(
-          "rounded-lg px-4 py-2 max-w-full break-words",
-          isUser ? "bg-blue-500 text-white max-w-[85%]" : 
+          "rounded-lg px-4 py-2 break-words overflow-hidden",
+          isUser ? "bg-theme-text-highlight text-theme-text-primary max-w-[85%]" : 
           isSystem ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800 text-sm text-center w-full" :
-          "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+          "bg-theme-bg-primary text-gray-900 dark:text-gray-100 w-full"
         )}>
           {isUser || isSystem ? (
             <p className="whitespace-pre-wrap break-words">{message.content}</p>
           ) : (
+            <div className="prose prose-sm max-w-none dark:prose-invert overflow-hidden">
             <ReactMarkdown 
               remarkPlugins={[remarkGfm]}
-              className="prose prose-sm max-w-none dark:prose-invert"
               components={{
                 // Custom renderers for better styling
                 table: ({children}) => (
-                  <div className="overflow-x-auto my-2">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      {children}
-                    </table>
+                  <div className="chat-table-wrapper my-4">
+                    <div className="chat-table-scroll rounded-lg">
+                      <table className="min-w-full divide-y divide-theme-border-secondary">
+                        {children}
+                      </table>
+                    </div>
                   </div>
                 ),
                 thead: ({children}) => (
-                  <thead className="bg-gray-50 dark:bg-gray-700">{children}</thead>
+                  <thead className="bg-transparent">{children}</thead>
                 ),
                 tbody: ({children}) => (
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">{children}</tbody>
+                  <tbody className="bg-transparent divide-y divide-theme-border-secondary">{children}</tbody>
                 ),
                 th: ({children}) => (
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -92,26 +82,30 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                   <h3 className="text-sm font-semibold mt-3 mb-2">{children}</h3>
                 ),
                 p: ({children}) => (
-                  <p className="mb-2">{children}</p>
+                  <p className="mb-2 break-words">{children}</p>
                 ),
                 em: ({children}) => (
-                  <em className="text-gray-600 dark:text-gray-400 text-sm">{children}</em>
+                  <em className="text-theme-text-primary text-sm">{children}</em>
                 ),
                 strong: ({children}) => (
                   <strong className="font-semibold">{children}</strong>
                 ),
-                code: ({inline, children, ...props}) => (
-                  inline ? 
-                    <code className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs" {...props}>{children}</code> :
-                    <code className="block p-2 bg-gray-900 dark:bg-gray-800 text-gray-100 rounded text-xs overflow-x-auto" {...props}>{children}</code>
-                ),
+                code: ({children, ...props}: React.HTMLAttributes<HTMLElement> & {className?: string}) => {
+                  const inline = !props.className?.includes('language-');
+                  return inline ? 
+                    <code className="px-1 py-0.5 bg-theme-text-code rounded text-xs break-words" {...props}>{children}</code> :
+                    <code className="block p-2 bg-theme-text-code text-theme-text-primary rounded text-xs overflow-x-auto max-w-full" {...props}>{children}</code>
+                },
                 pre: ({children}) => (
-                  <pre className="bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto my-2">{children}</pre>
+                  <div className="my-2 w-full overflow-x-auto rounded-lg">
+                    <pre className="bg-theme-text-code text-theme-text-primary p-3 inline-block min-w-full">{children}</pre>
+                  </div>
                 ),
               }}
             >
               {message.content}
             </ReactMarkdown>
+            </div>
           )}
           
           {/* Metadata */}

@@ -80,7 +80,7 @@ export const DatabaseBlock = memo(function DatabaseBlock({
 
   return (
     <DragAndDropProvider>
-      <div className={cn("flex flex-col h-full bg-white rounded-lg shadow-sm", className)}>
+      <div className={cn("flex flex-col h-full bg- rounded-lg shadow-sm", className)}>
         {/* Toolbar with view switcher */}
         <DatabaseToolbar
         databaseBlock={databaseBlock}

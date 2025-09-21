@@ -88,7 +88,7 @@ export function AnalyticsQueryInterface({
             onFocus={() => setShowSuggestions(true)}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
             placeholder="Ask a question about your data..."
-            className="w-full pl-10 pr-24 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            className="w-full pl-10 pr-24 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-[rgba(33,33,33,1)] text-gray-900 dark:text-white"
             disabled={isLoading}
           />
           <button
@@ -109,7 +109,7 @@ export function AnalyticsQueryInterface({
 
         {/* Suggestions Dropdown */}
         {showSuggestions && (query.length === 0 || query.length > 2) && (
-          <div className="absolute z-10 w-full mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-64 overflow-y-auto">
+          <div className="absolute z-10 w-full mt-2 bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-64 overflow-y-auto">
             {/* Smart Suggestions */}
             {suggestions.length > 0 && (
               <div className="p-2">
@@ -121,7 +121,7 @@ export function AnalyticsQueryInterface({
                     key={idx}
                     type="button"
                     onClick={() => handleSuggestionClick(suggestion.text)}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors flex items-center gap-2"
                   >
                     {suggestion.icon}
                     <span className="text-sm text-gray-700 dark:text-gray-300">
@@ -143,7 +143,7 @@ export function AnalyticsQueryInterface({
                     key={idx}
                     type="button"
                     onClick={() => handleSuggestionClick(q)}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                    className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                   >
                     <span className="text-sm text-gray-700 dark:text-gray-300">{q}</span>
                   </button>
@@ -156,7 +156,7 @@ export function AnalyticsQueryInterface({
 
       {/* Query Result */}
       {queryResult && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <div className="bg-white dark:bg-[rgba(33,33,33,1)] rounded-lg border border-gray-200 dark:border-gray-700 p-4">
           {queryResult.success ? (
             <>
               {/* Result Header */}

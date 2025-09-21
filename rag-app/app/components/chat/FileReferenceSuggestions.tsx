@@ -115,13 +115,13 @@ export function FileReferenceSuggestions({
   
   return (
     <div className={cn(
-      "absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-gray-800",
-      "border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg",
+      "absolute bottom-full left-0 right-0 mb-2 bg-theme-text-highlight",
+      "border border-theme-border-primary rounded-lg shadow-lg",
       "max-h-60 overflow-y-auto",
       className
     )}>
       <div className="p-2">
-        <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1 font-medium">
+        <div className="text-xs text-theme-text-primary px-2 py-1 font-medium">
           Suggestions
         </div>
         <div className="space-y-1">

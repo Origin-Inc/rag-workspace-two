@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Send, Upload, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { useFetcher } from '@remix-run/react';
-import { useChatMessages, useChatDataFiles, useChatConnection } from '~/stores/chat-store-ultimate-fix';
+import { Upload, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useChatMessages, useChatDataFiles, useChatConnection } from '~/stores/chat-store';
 import { useLayoutStore } from '~/stores/layout-store';
 import { ResizeHandle } from '~/components/ui/ResizeHandle';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
-import { FileUploadZone } from './FileUploadZone';
 import { FileContextDisplay } from './FileContextDisplay';
 import { cn } from '~/utils/cn';
 import { duckDBQuery } from '~/services/duckdb/duckdb-query.client';
@@ -14,9 +12,9 @@ import { duckDBQuery } from '~/services/duckdb/duckdb-query.client';
 interface ChatSidebarProps {
   pageId: string;
   workspaceId?: string;
-  onSendMessage?: (message: string) => Promise<void>;
-  onFileUpload?: (file: File) => Promise<void>;
   className?: string;
+  skipFileLoad?: boolean; // Debug: skip file loading
+  delayFileLoad?: number; // Debug: delay file loading by ms
 }
 
 interface UploadProgress {
@@ -29,53 +27,128 @@ interface UploadProgress {
 export function ChatSidebar({ 
   pageId, 
   workspaceId,
-  onSendMessage,
-  onFileUpload,
-  className 
+  className,
+  skipFileLoad = false,
+  delayFileLoad = 0
 }: ChatSidebarProps) {
+  console.log('[ChatSidebar] Component rendering:', { pageId, workspaceId, skipFileLoad, delayFileLoad });
+  
   const { messages, addMessage, clearMessages } = useChatMessages(pageId);
   const { dataFiles, addDataFile, removeDataFile } = useChatDataFiles(pageId);
-  const { isLoading, setLoading, connectionStatus } = useChatConnection();
+  const { isLoading, setLoading } = useChatConnection();
   const { 
     isChatSidebarOpen, 
     setChatSidebarOpen, 
     chatSidebarWidth, 
     setChatSidebarWidth 
   } = useLayoutStore();
-  const fetcher = useFetcher();
+  
+  // Track render count
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+  console.log('[ChatSidebar] Render count:', renderCountRef.current);
   
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isMountedRef = useRef(true);
   
-  // Load chat history on mount
+  // Track if component is mounted
   useEffect(() => {
-    const loadChatHistory = async () => {
+    isMountedRef.current = true;
+    return () => {
+      console.log('[ChatSidebar] Component unmounting');
+      isMountedRef.current = false;
+    };
+  }, []);
+  
+  // Load chat history ONLY - separate from file loading
+  useEffect(() => {
+    if (!pageId) return;
+    
+    let isMounted = true;
+    
+    const loadChatMessages = async () => {
       try {
         const response = await fetch(`/api/chat/messages/${pageId}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.messages && data.messages.length > 0) {
-            // Clear existing messages and load from database
-            clearMessages();
-            data.messages.forEach((msg: any) => {
-              addMessage({
-                role: msg.role,
-                content: msg.content,
-                metadata: msg.metadata,
-              });
+        if (!response.ok || !isMounted) return;
+        
+        const data = await response.json();
+        if (data.messages && data.messages.length > 0 && isMounted) {
+          // Batch update to prevent multiple renders
+          clearMessages();
+          data.messages.forEach((msg: any) => {
+            addMessage({
+              role: msg.role,
+              content: msg.content,
+              metadata: msg.metadata,
             });
-          }
+          });
         }
       } catch (error) {
-        console.error('Failed to load chat history:', error);
+        console.error('[ChatSidebar] Failed to load chat messages:', error);
       }
     };
-
-    if (pageId) {
-      loadChatHistory();
-    }
-  }, [pageId]);
+    
+    loadChatMessages();
+    
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageId]); // Intentionally omit functions - they're stable
+  
+  // Restore persisted tables from IndexedDB on mount
+  useEffect(() => {
+    if (!pageId || skipFileLoad) return;
+    
+    let isMounted = true;
+    
+    const restoreTables = async () => {
+      try {
+        // Initialize DuckDB if needed
+        const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
+        const duckdb = getDuckDB();
+        
+        if (!duckdb.isReady()) {
+          await duckdb.initialize();
+        }
+        
+        // Wait for optional delay (for debugging)
+        if (delayFileLoad > 0) {
+          await new Promise(resolve => setTimeout(resolve, delayFileLoad));
+        }
+        
+        if (!isMounted) return;
+        
+        // Restore tables from IndexedDB
+        const restoredFiles = await duckdb.restoreTablesForPage(pageId);
+        
+        // Add restored files to the store
+        if (restoredFiles.length > 0 && isMounted) {
+          console.log(`[ChatSidebar] Restored ${restoredFiles.length} tables from IndexedDB`);
+          restoredFiles.forEach((file: any) => {
+            addDataFile({
+              filename: file.filename,
+              tableName: file.tableName,
+              schema: file.schema,
+              rowCount: file.rowCount,
+              sizeBytes: file.sizeBytes,
+            });
+          });
+        }
+      } catch (error) {
+        console.error('[ChatSidebar] Failed to restore tables:', error);
+      }
+    };
+    
+    restoreTables();
+    
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageId, skipFileLoad, delayFileLoad]); // Intentionally omit functions
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -162,11 +235,7 @@ export function ChatSidebar({
           content: responseContent,
           metadata: {
             sql: result.sqlGeneration.sql,
-            results: result.queryResult.data,
-            tables: result.sqlGeneration.tables,
             error: result.queryResult.error,
-            confidence: result.sqlGeneration.confidence,
-            visualization: result.sqlGeneration.suggestedVisualization,
           },
         });
 
@@ -200,23 +269,8 @@ export function ChatSidebar({
       } finally {
         setLoading(false);
       }
-    } else if (onSendMessage) {
-      // Fall back to parent handler if no data files
-      setLoading(true);
-      try {
-        await onSendMessage(content);
-      } catch (error) {
-        console.error('Error sending message:', error);
-        addMessage({
-          role: 'assistant',
-          content: 'Sorry, I encountered an error processing your request.',
-          metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
-        });
-      } finally {
-        setLoading(false);
-      }
     } else {
-      // No data files and no parent handler
+      // No data files available
       addMessage({
         role: 'assistant',
         content: 'Please upload some data files first to start querying.',
@@ -230,8 +284,21 @@ export function ChatSidebar({
       fileSize: file.size,
       mimeType: file.type,
       workspaceId,
-      pageId
+      pageId,
+      currentDataFilesCount: dataFiles.length,
+      currentMessagesCount: messages.length
     });
+
+    // Check file size limit (100MB for Supabase free tier)
+    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    if (file.size > MAX_FILE_SIZE) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      addMessage({
+        role: 'system',
+        content: `⚠️ File too large (${sizeMB}MB). Maximum file size is 100MB. Please use a smaller file or split it into multiple files.`,
+      });
+      return;
+    }
 
     // Start upload progress tracking
     setUploadProgress({
@@ -242,6 +309,8 @@ export function ChatSidebar({
 
     // Process file client-side for immediate use
     setLoading(true);
+    let uploadResult: { url?: string; path?: string; error?: string } | undefined;
+    
     try {
       // If workspaceId provided, upload to server for persistence
       if (workspaceId) {
@@ -276,7 +345,7 @@ export function ChatSidebar({
         setUploadProgress(prev => prev ? { ...prev, status: 'uploading', progress: 10 } : null);
         
         // Step 2: Upload directly to Supabase
-        const uploadResult = await supabaseUpload.uploadFile(file, storagePath, {
+        uploadResult = await supabaseUpload.uploadFile(file, storagePath, {
           bucket: 'user-uploads',
           onProgress: (progress) => {
             console.log(`[ChatSidebar] Upload progress: ${progress}%`);
@@ -358,28 +427,97 @@ export function ChatSidebar({
         await duckdb.createTableFromData(
           processed.tableName,
           processed.data,
-          processed.schema
+          processed.schema,
+          pageId  // Add pageId for persistence
         );
         
+        // Convert FileSchema to the format expected by DataFile
+        const schemaForStore = processed.schema.columns.map(col => ({
+          name: col.name,
+          type: col.type,
+          sampleData: processed.schema.sampleData.slice(0, 3).map(row => row[col.name])
+        }));
+        
         // Add the file to local store
-        addDataFile({
-          id: processed.tableName,
+        console.log('[ChatSidebar] About to add file to local store:', {
           filename: file.name,
           tableName: processed.tableName,
-          schema: processed.schema,
+          schemaLength: schemaForStore.length,
           rowCount: processed.data.length,
-          sizeBytes: file.size,
-          uploadedAt: new Date(),
         });
         
-        addMessage({
-          role: 'system',
-          content: `File "${file.name}" loaded with ${processed.data.length} rows. Ready for querying!`,
-        });
+        if (!isMountedRef.current) {
+          console.warn('[ChatSidebar] Component unmounted, skipping addDataFile');
+          return;
+        }
+        
+        try {
+          addDataFile({
+            filename: file.name,
+            tableName: processed.tableName,
+            schema: schemaForStore,
+            rowCount: processed.data.length,
+            sizeBytes: file.size,
+          });
+          console.log('[ChatSidebar] File added to local store successfully');
+        } catch (error) {
+          console.error('[ChatSidebar] Error adding file to local store:', error);
+        }
+        
+        // Save file metadata to database if we have a workspace
+        if (workspaceId && pageId) {
+          try {
+            const storageUrl = uploadResult?.url || null;
+            const response = await fetch(`/api/data/files/${pageId}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                filename: file.name,
+                tableName: processed.tableName,
+                schema: schemaForStore,
+                rowCount: processed.data.length,
+                sizeBytes: file.size,
+                storageUrl,
+              }),
+            });
+            
+            if (!response.ok) {
+              console.error('[ChatSidebar] Failed to save file metadata to database');
+            } else {
+              console.log('[ChatSidebar] File metadata saved to database');
+            }
+          } catch (error) {
+            console.error('[ChatSidebar] Error saving file metadata:', error);
+          }
+        }
+        
+        if (!isMountedRef.current) {
+          console.warn('[ChatSidebar] Component unmounted, skipping addMessage');
+          return;
+        }
+        
+        console.log('[ChatSidebar] About to add system message for file load');
+        try {
+          addMessage({
+            role: 'system',
+            content: `File "${file.name}" loaded with ${processed.data.length} rows. Ready for querying!`,
+          });
+          console.log('[ChatSidebar] System message added successfully');
+        } catch (error) {
+          console.error('[ChatSidebar] Error adding system message:', error);
+        }
       }
       
       // Clear upload progress after a delay
-      setTimeout(() => setUploadProgress(null), 2000);
+      console.log('[ChatSidebar] Setting timeout to clear upload progress');
+      setTimeout(() => {
+        if (!isMountedRef.current) {
+          console.warn('[ChatSidebar] Component unmounted, skipping setUploadProgress');
+          return;
+        }
+        console.log('[ChatSidebar] Clearing upload progress from timeout');
+        setUploadProgress(null);
+      }, 2000);
       
     } catch (error) {
       console.error('Error processing file:', error);
@@ -444,7 +582,7 @@ export function ChatSidebar({
   return (
     <div 
       className={cn(
-        "fixed right-0 top-0 h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 shadow-xl flex",
+        "fixed right-0 top-0 h-full bg-theme-bg-primary border-l border-theme-border-primary flex",
         "transition-transform duration-300 ease-in-out",
         isChatSidebarOpen ? "translate-x-0" : "translate-x-full",
         className
@@ -460,15 +598,15 @@ export function ChatSidebar({
       
       {/* Sidebar content */}
       <div 
-        className="flex-1 flex flex-col"
+        className="flex-1 flex flex-col bg-theme-bg-primary overflow-hidden w-full"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between p-4 border-b border-theme-border-primary bg-theme-bg-primary">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Data Chat</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Data Chat</h2>
         </div>
         <button
           onClick={() => setChatSidebarOpen(false)}
@@ -483,18 +621,40 @@ export function ChatSidebar({
       {dataFiles.length > 0 && (
         <FileContextDisplay 
           pageId={pageId}
-          onFileClick={(fileId) => {
-            // Handle file click - could open preview modal or show details
-            console.log('File clicked:', fileId);
-            addMessage({
-              role: 'system',
-              content: `Selected file: ${dataFiles.find(f => f.id === fileId)?.filename || fileId}`,
-            });
-          }}
-          onFileRemove={(fileId) => {
+          onFileRemove={async (fileId) => {
             const file = dataFiles.find(f => f.id === fileId);
             if (file) {
+              // Remove from local store
               removeDataFile(fileId);
+              
+              // Remove from database if we have a workspace
+              if (workspaceId && pageId) {
+                try {
+                  const response = await fetch(`/api/data/files/${pageId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fileId }),
+                  });
+                  
+                  if (!response.ok) {
+                    console.error('[ChatSidebar] Failed to delete file from database');
+                  }
+                } catch (error) {
+                  console.error('[ChatSidebar] Error deleting file:', error);
+                }
+              }
+              
+              // Remove from DuckDB
+              try {
+                const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
+                const duckdb = getDuckDB();
+                if (duckdb.isReady()) {
+                  await duckdb.dropTable(file.tableName);
+                }
+              } catch (error) {
+                console.error('[ChatSidebar] Error removing table from DuckDB:', error);
+              }
+              
               addMessage({
                 role: 'system',
                 content: `Removed file: ${file.filename}`,
@@ -534,12 +694,12 @@ export function ChatSidebar({
       )}
       
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-white dark:bg-gray-900">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-theme-bg-primary">
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
             <Upload className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
             <p className="text-sm">Upload CSV or Excel files to start analyzing</p>
-            <p className="text-xs mt-2">Drag and drop or use the upload button below</p>
+            <p className="text-xs mt-2">Click the + button or drag and drop files here</p>
           </div>
         ) : (
           messages.map((message) => (
@@ -551,22 +711,20 @@ export function ChatSidebar({
       
       {/* Drag Overlay */}
       {isDragging && (
-        <div className="absolute inset-0 bg-blue-50 bg-opacity-90 flex items-center justify-center z-60">
+        <div className="absolute inset-0 bg-blue-50 dark:bg-blue-900/20 bg-opacity-90 flex items-center justify-center z-60">
           <div className="text-center">
             <Upload className="w-16 h-16 mx-auto mb-4 text-blue-500" />
-            <p className="text-lg font-medium text-blue-700">Drop files here</p>
-            <p className="text-sm text-blue-600 mt-1">CSV and Excel files supported</p>
+            <p className="text-lg font-medium text-blue-700 dark:text-blue-300">Drop files here</p>
+            <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">CSV and Excel files supported</p>
           </div>
         </div>
       )}
       
-        {/* File Upload Zone */}
-        <FileUploadZone onFileUpload={handleFileUpload} />
-      
-        {/* Input */}
+        {/* Input with integrated file upload */}
         <ChatInput 
           pageId={pageId}
           onSendMessage={handleSendMessage}
+          onFileUpload={handleFileUpload}
           disabled={isLoading || uploadProgress !== null}
           placeholder={dataFiles.length === 0 ? "Upload data first..." : "Ask a question about your data..."}
         />

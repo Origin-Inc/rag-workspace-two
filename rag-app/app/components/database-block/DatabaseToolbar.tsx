@@ -88,7 +88,7 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
   ];
 
   return (
-    <div className="border-b border-gray-200 bg-white">
+    <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-[rgba(33,33,33,1)]">
       {/* Main toolbar */}
       <div className="flex items-center justify-between px-4 py-2">
         <div className="flex items-center space-x-3">
@@ -103,7 +103,7 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
             onViewChange={onViewChange}
           />
           
-          <div className="h-6 w-px bg-gray-300" />
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
           
           {/* Row count */}
           <span className="text-sm text-gray-500">
@@ -141,7 +141,7 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
               'px-3 py-1 text-sm rounded flex items-center space-x-1',
               filters.length > 0
                 ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
             )}
           >
             <span>🎯</span>
@@ -160,7 +160,7 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
               'px-3 py-1 text-sm rounded flex items-center space-x-1',
               sorts.length > 0
                 ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
             )}
           >
             <span>↕</span>
@@ -184,7 +184,7 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
           {/* Add column button */}
           <button
             onClick={() => setShowAddColumn(!showAddColumn)}
-            className="px-3 py-1 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded"
+            className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
           >
             + Column
           </button>
@@ -212,7 +212,7 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
 
       {/* Filter builder */}
       {showFilters && (
-        <div className="border-t border-gray-200 px-4 py-3 bg-gray-50">
+        <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3 bg-gray-50 dark:bg-gray-800">
           <FilterBuilder
             columns={columns}
             filters={filters}
@@ -228,7 +228,7 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
 
       {/* Sort builder */}
       {showSorts && (
-        <div className="border-t border-gray-200 px-4 py-3 bg-gray-50">
+        <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3 bg-gray-50 dark:bg-gray-800">
           <SortBuilder
             columns={columns}
             sorts={sorts}
@@ -243,7 +243,7 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
 
       {/* Add column form */}
       {showAddColumn && (
-        <div className="border-t border-gray-200 px-4 py-3 bg-gray-50">
+        <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3 bg-gray-50 dark:bg-gray-800">
           <div className="flex items-end space-x-2">
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -290,7 +290,7 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
                 setNewColumnName('');
                 setNewColumnType('text');
               }}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+              className="px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               Cancel
             </button>

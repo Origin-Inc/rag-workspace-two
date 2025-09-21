@@ -228,7 +228,7 @@ export const ColumnHeader = memo(function ColumnHeader({
         ref={resizeRef}
         onMouseDown={handleMouseDown}
         className={cn(
-          'absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500',
+          'absolute right-0 top-0 h-full cursor-col-resize hover:bg-blue-500',
           isResizing && 'bg-blue-500'
         )}
       />

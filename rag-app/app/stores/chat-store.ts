@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { shallow } from 'zustand/shallow';
+import { useShallow } from 'zustand/shallow';
+import * as React from 'react';
 
 export interface ChatMessage {
   id: string;
@@ -174,72 +175,83 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
 // Hooks for specific state slices
 export const useChatMessages = (pageId: string) => {
-  // Use shallow comparison to prevent re-renders from new array references
-  const { messages, addMessage, updateMessage, deleteMessage, clearMessages } = useChatStore(
-    (state) => ({
-      messages: state.messages.get(pageId) || [],
-      addMessage: state.addMessage,
-      updateMessage: state.updateMessage,
-      deleteMessage: state.deleteMessage,
-      clearMessages: state.clearMessages,
-    }),
-    shallow
+  // Get messages with shallow comparison
+  const messages = useChatStore(
+    useShallow((state) => state.messages.get(pageId) || [])
   );
   
-  return {
-    messages,
-    addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp' | 'pageId'>) => 
-      addMessage(pageId, message),
-    updateMessage: (messageId: string, updates: Partial<ChatMessage>) => 
-      updateMessage(pageId, messageId, updates),
-    deleteMessage: (messageId: string) => deleteMessage(pageId, messageId),
-    clearMessages: () => clearMessages(pageId),
-  };
+  // Get actions separately - these are stable
+  const addMessage = useChatStore((state) => state.addMessage);
+  const updateMessage = useChatStore((state) => state.updateMessage);
+  const deleteMessage = useChatStore((state) => state.deleteMessage);
+  const clearMessages = useChatStore((state) => state.clearMessages);
+  
+  // Return stable object with memoized callbacks
+  return React.useMemo(
+    () => ({
+      messages,
+      addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp' | 'pageId'>) => 
+        addMessage(pageId, message),
+      updateMessage: (messageId: string, updates: Partial<ChatMessage>) => 
+        updateMessage(pageId, messageId, updates),
+      deleteMessage: (messageId: string) => 
+        deleteMessage(pageId, messageId),
+      clearMessages: () => 
+        clearMessages(pageId),
+    }),
+    [messages, pageId, addMessage, updateMessage, deleteMessage, clearMessages]
+  );
 };
 
 export const useChatDataFiles = (pageId: string) => {
-  // Use shallow comparison to prevent re-renders from new array references
-  const { dataFiles, addDataFile, removeDataFile, clearDataFiles } = useChatStore(
-    (state) => ({
-      dataFiles: state.dataFiles.get(pageId) || [],
-      addDataFile: state.addDataFile,
-      removeDataFile: state.removeDataFile,
-      clearDataFiles: state.clearDataFiles,
-    }),
-    shallow
+  // Get data files with shallow comparison
+  const dataFiles = useChatStore(
+    useShallow((state) => state.dataFiles.get(pageId) || [])
   );
   
-  return {
-    dataFiles,
-    addDataFile: (file: Omit<DataFile, 'id' | 'uploadedAt' | 'pageId'>) => 
-      addDataFile(pageId, file),
-    removeDataFile: (fileId: string) => removeDataFile(pageId, fileId),
-    clearDataFiles: () => clearDataFiles(pageId),
-  };
+  // Get actions separately - these are stable
+  const addDataFile = useChatStore((state) => state.addDataFile);
+  const removeDataFile = useChatStore((state) => state.removeDataFile);
+  const clearDataFiles = useChatStore((state) => state.clearDataFiles);
+  
+  // Return stable object with memoized callbacks
+  return React.useMemo(
+    () => ({
+      dataFiles,
+      addDataFile: (file: Omit<DataFile, 'id' | 'uploadedAt' | 'pageId'>) => 
+        addDataFile(pageId, file),
+      removeDataFile: (fileId: string) => 
+        removeDataFile(pageId, fileId),
+      clearDataFiles: () => 
+        clearDataFiles(pageId),
+    }),
+    [dataFiles, pageId, addDataFile, removeDataFile, clearDataFiles]
+  );
 };
 
 export const useChatSidebar = () => {
+  // Get individual values
   const isSidebarOpen = useChatStore((state) => state.isSidebarOpen);
   const toggleSidebar = useChatStore((state) => state.toggleSidebar);
   const setSidebarOpen = useChatStore((state) => state.setSidebarOpen);
   
-  return {
-    isSidebarOpen,
-    toggleSidebar,
-    setSidebarOpen,
-  };
+  // Return stable object
+  return React.useMemo(
+    () => ({ isSidebarOpen, toggleSidebar, setSidebarOpen }),
+    [isSidebarOpen, toggleSidebar, setSidebarOpen]
+  );
 };
 
 export const useChatConnection = () => {
+  // Get individual values
   const connectionStatus = useChatStore((state) => state.connectionStatus);
   const setConnectionStatus = useChatStore((state) => state.setConnectionStatus);
   const isLoading = useChatStore((state) => state.isLoading);
   const setLoading = useChatStore((state) => state.setLoading);
   
-  return {
-    connectionStatus,
-    setConnectionStatus,
-    isLoading,
-    setLoading,
-  };
+  // Return stable object
+  return React.useMemo(
+    () => ({ connectionStatus, setConnectionStatus, isLoading, setLoading }),
+    [connectionStatus, setConnectionStatus, isLoading, setLoading]
+  );
 };

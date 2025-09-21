@@ -1,7 +1,17 @@
 import { useState, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { DatabaseColumn, DatabaseRow } from '~/types/database-block';
+import type { DatabaseColumn } from '~/types/database-block';
 import { cn } from '~/utils/cn';
+
+// Local type for simplified row structure used in this wrapper
+interface SimpleRow {
+  id: string;
+  blockId: string;
+  cells: Record<string, any>;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface DatabaseTableWrapperProps {
   initialData?: any;
@@ -18,6 +28,13 @@ export function DatabaseTableWrapper({
   onDataChange,
   className
 }: DatabaseTableWrapperProps) {
+  // Initialize database name
+  const [databaseName, setDatabaseName] = useState<string>(
+    initialData?.name || 'Untitled Database'
+  );
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+  
   // Initialize columns and rows from initial data or create defaults
   const [columns, setColumns] = useState<DatabaseColumn[]>(() => {
     if (initialData?.columns) {
@@ -40,7 +57,7 @@ export function DatabaseTableWrapper({
     ];
   });
 
-  const [rows, setRows] = useState<DatabaseRow[]>(() => {
+  const [rows, setRows] = useState<SimpleRow[]>(() => {
     if (initialData?.rows && Array.isArray(initialData.rows)) {
       // Ensure all rows have proper structure with cells property
       return initialData.rows.map((row: any, index: number) => {
@@ -85,8 +102,8 @@ export function DatabaseTableWrapper({
 
   // Update parent when data changes
   const handleDataUpdate = useCallback(() => {
-    onDataChange?.({ columns, rows });
-  }, [columns, rows, onDataChange]);
+    onDataChange?.({ name: databaseName, columns, rows });
+  }, [databaseName, columns, rows, onDataChange]);
 
   // Column operations
   const handleAddColumn = useCallback(() => {
@@ -142,7 +159,7 @@ export function DatabaseTableWrapper({
 
   // Row operations
   const handleAddRow = useCallback(() => {
-    const newRow: DatabaseRow = {
+    const newRow: SimpleRow = {
       id: `row_${uuidv4()}`,
       blockId: '',
       cells: columns.reduce((acc, col) => ({
@@ -188,17 +205,45 @@ export function DatabaseTableWrapper({
   }, [columns, rows.length, onDataChange]);
 
   return (
-    <div className={cn("w-full border border-gray-200 rounded-lg overflow-hidden", className)}>
+    <div className={cn("w-full rounded-lg overflow-hidden", className)}>
       {/* Simple header */}
-      <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+      <div className="bg-gray-50 px-2 py-2 bg-theme-bg-primary">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-700">
-            Database ({rows.length} rows × {columns.length} columns)
-          </span>
+          {isEditingName ? (
+            <input
+              type="text"
+              value={databaseName}
+              onChange={(e) => setDatabaseName(e.target.value)}
+              onBlur={() => {
+                setIsEditingName(false);
+                handleDataUpdate();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setIsEditingName(false);
+                  handleDataUpdate();
+                }
+                if (e.key === 'Escape') {
+                  setDatabaseName(initialData?.name || 'Untitled Database');
+                  setIsEditingName(false);
+                }
+              }}
+              className="text-xl font-bold bg-transparent border-b-2 border-blue-500 outline-none dark:text-white"
+              autoFocus
+            />
+          ) : (
+            <h2
+              className="text-xl font-bold text-gray-700 dark:text-white cursor-pointer hover:text-gray-900 dark:hover:text-gray-100"
+              onClick={() => setIsEditingName(true)}
+              title="Click to edit database name"
+            >
+              {databaseName}
+            </h2>
+          )}
           <div className="flex gap-2">
             <button
               onClick={handleAddColumn}
-              className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
+              className="px-2 py-1 text-xs bg-blue-500 text-white hover:bg-blue-600 rounded"
             >
               + Column
             </button>
@@ -215,16 +260,47 @@ export function DatabaseTableWrapper({
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="border-b border-gray-200 dark:border-dark-primary bg-theme-bg-primary">
             <tr>
-              {columns.map(column => (
+              {columns.map((column) => (
                 <th
                   key={column.id}
-                  className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"
+                  className="px-2 py-2 text-left text-xs font-medium text-gray-700 dark:text-white tracking-wider"
                   style={{ width: column.width }}
                 >
                   <div className="flex items-center justify-between group">
-                    <span>{column.name}</span>
+                    {editingColumnId === column.id ? (
+                      <input
+                        type="text"
+                        value={column.name}
+                        onChange={(e) => handleUpdateColumn(column.id, { name: e.target.value })}
+                        onBlur={() => {
+                          setEditingColumnId(null);
+                          handleDataUpdate();
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setEditingColumnId(null);
+                            handleDataUpdate();
+                          }
+                          if (e.key === 'Escape') {
+                            handleUpdateColumn(column.id, { name: column.name });
+                            setEditingColumnId(null);
+                          }
+                        }}
+                        className="bg-transparent border-b border-blue-500 outline-none uppercase text-xs"
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span 
+                        className="cursor-pointer hover:text-gray-900 dark:hover:text-gray-300"
+                        onClick={() => setEditingColumnId(column.id)}
+                        title="Click to edit column name"
+                      >
+                        {column.name}
+                      </span>
+                    )}
                     <button
                       onClick={() => handleDeleteColumn(column.id)}
                       className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 ml-2"
@@ -236,16 +312,19 @@ export function DatabaseTableWrapper({
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-theme-bg-primary">
             {rows.map(row => (
-              <tr key={row.id} className="hover:bg-gray-50 group">
-                {columns.map(column => (
-                  <td key={column.id} className="px-4 py-2">
+              <tr key={row.id} className="hover:bg-gray-50 group border-b border-gray-200 dark:border-dark-primary">
+                {columns.map((column, index) => (
+                  <td
+                    key={column.id}
+                    className={`px-2 py-2 bg-theme-bg-primary ${index !== columns.length - 1 ? 'border-r border-gray-200 dark:border-dark-primary' : ''}`}
+                  >
                     {column.type === 'select' ? (
                       <select
                         value={row.cells?.[column.id] || ''}
                         onChange={(e) => handleUpdateRow(row.id, { [column.id]: e.target.value })}
-                        className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         {column.options?.map(option => (
                           <option key={option.id} value={option.id}>
@@ -258,13 +337,13 @@ export function DatabaseTableWrapper({
                         type="text"
                         value={row.cells?.[column.id] || ''}
                         onChange={(e) => handleUpdateRow(row.id, { [column.id]: e.target.value })}
-                        className="w-full px-2 py-1 text-sm border border-transparent hover:border-gray-200 focus:border-blue-500 rounded focus:outline-none"
-                        placeholder={`Enter ${column.name.toLowerCase()}...`}
+                        className="w-full px-2 py-1 text-sm font-semibold rounded focus:outline-none bg-theme-bg-primary cursor-pointer"
+                        /*placeholder={`Enter ${column.name.toLowerCase()}...`}*/
                       />
                     )}
                   </td>
                 ))}
-                <td className="px-2">
+                <td className="px-2 bg-theme-bg-primary">
                   <button
                     onClick={() => handleDeleteRow(row.id)}
                     className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 text-sm"

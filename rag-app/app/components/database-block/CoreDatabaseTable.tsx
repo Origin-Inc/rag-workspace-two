@@ -269,7 +269,7 @@ export function CoreDatabaseTable({
   return (
     <div className={cn('flex flex-col h-full', className)}>
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white border-b">
+      <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-[rgba(33,33,33,1)] border-b dark:border-gray-700">
         <div className="flex items-center space-x-2">
           <h3 className="font-semibold text-lg">{databaseBlock.name}</h3>
           <span className="text-sm text-gray-500">
@@ -305,12 +305,12 @@ export function CoreDatabaseTable({
           
           <button
             onClick={() => setOffset(0)}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-50"
+            className="px-3 py-1 text-sm border dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-900 dark:text-gray-100"
           >
             <Filter className="h-4 w-4" />
           </button>
           
-          <button className="px-3 py-1 text-sm border rounded hover:bg-gray-50">
+          <button className="px-3 py-1 text-sm border dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-900 dark:text-gray-100">
             <Settings className="h-4 w-4" />
           </button>
         </div>
@@ -319,7 +319,7 @@ export function CoreDatabaseTable({
       {/* Table */}
       <div className="flex-1 overflow-auto" ref={tableRef}>
         <table className="w-full border-collapse">
-          <thead className="sticky top-0 bg-gray-50 z-10">
+          <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800 z-10">
             <tr>
               <th className="w-12 px-2 py-2 border-b border-r text-left">
                 <input
@@ -355,7 +355,7 @@ export function CoreDatabaseTable({
               <tr 
                 key={row.id}
                 className={cn(
-                  'hover:bg-gray-50',
+                  'hover:bg-gray-50 dark:hover:bg-gray-800',
                   selectedRows.has(row.id) && 'bg-blue-50'
                 )}
               >
@@ -420,7 +420,7 @@ export function CoreDatabaseTable({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white border-t">
+      <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-[rgba(33,33,33,1)] border-t dark:border-gray-700">
         <div className="text-sm text-gray-600">
           Showing {offset + 1}-{Math.min(offset + limit, totalCount)} of {totalCount}
         </div>
@@ -428,14 +428,14 @@ export function CoreDatabaseTable({
           <button
             onClick={() => setOffset(Math.max(0, offset - limit))}
             disabled={offset === 0}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1 text-sm border dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-gray-100"
           >
             Previous
           </button>
           <button
             onClick={() => setOffset(offset + limit)}
             disabled={offset + limit >= totalCount}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1 text-sm border dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-gray-100"
           >
             Next
           </button>

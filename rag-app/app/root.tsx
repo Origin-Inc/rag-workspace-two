@@ -86,7 +86,7 @@ function Document({
           }}
         />
       </head>
-      <body className="h-full font-sans text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-900">
+      <body className="h-full font-sans text-theme-text-primary bg-theme-bg-primary">
         {children}
         <script
           dangerouslySetInnerHTML={{

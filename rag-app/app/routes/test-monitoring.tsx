@@ -61,7 +61,7 @@ export default function TestMonitoring() {
           Monitoring System Test Page
         </h1>
         
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+        <div className="bg-theme-bg-primary rounded-lg shadow p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">How to Verify Monitoring:</h2>
           
           <ol className="space-y-4 text-gray-700 dark:text-gray-300">
@@ -99,7 +99,7 @@ export default function TestMonitoring() {
           </ol>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="bg-theme-bg-primary rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold mb-4">Test Monitoring Features:</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

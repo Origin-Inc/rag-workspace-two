@@ -5,6 +5,9 @@ export default {
   content: ['./app/**/*.{js,jsx,ts,tsx}'],
   darkMode: 'class',
   safelist: [
+    // Dark mode backgrounds
+    'dark:bg-dark-primary',
+    'dark:bg-dark-secondary',
     // Grid column spans
     'col-span-1', 'col-span-2', 'col-span-3', 'col-span-4', 'col-span-5', 'col-span-6',
     'col-span-7', 'col-span-8', 'col-span-9', 'col-span-10', 'col-span-11', 'col-span-12',
@@ -27,18 +30,22 @@ export default {
         'theme': {
           'bg-primary': 'rgba(var(--color-bg-primary), 1)',
           'bg-secondary': 'rgba(var(--color-bg-secondary), 1)',
-          'border': 'rgba(var(--color-border), 1)',
+          'border-primary': 'rgba(var(--color-border-primary), 1)',
+          'border-secondary': 'rgba(var(--color-border-secondary), 1)',
           'text-primary': 'rgba(var(--color-text-primary), 1)',
           'text-secondary': 'rgba(var(--color-text-secondary), 1)',
+          'text-code': 'rgba(var(--color-text-code), 1)',
+          'text-highlight': 'rgba(var(--color-text-highlight), 1)',
         }
       },
       backgroundColor: {
         // Specific dark mode background
         'dark-primary': 'rgba(33, 33, 33, 1)',
+        'dark-secondary': 'rgba(50, 50, 50, 1)',
       },
       borderColor: {
         // Specific dark mode border
-        'dark-primary': 'rgba(55, 65, 81, 1)',
+        'dark-primary': 'rgba(70, 70, 70, 1)',
       },
       gridTemplateColumns: {
         // Custom grid columns for dashboard

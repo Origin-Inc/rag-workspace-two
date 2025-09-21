@@ -34,7 +34,7 @@ const SQL_GENERATION_PROMPT = `You are a friendly data analyst having a conversa
 IMPORTANT RULES:
 1. Generate valid DuckDB SQL that can be executed
 2. Use the exact table names provided
-3. Be careful with column names - use double quotes if they contain spaces
+3. ALWAYS wrap ALL column names in double quotes (e.g., "column_name") - this handles spaces, numbers, special characters, and SQL keywords
 4. For summaries, include relevant aggregations and GROUP BY clauses
 5. For calculations, use appropriate aggregate functions
 6. Limit results to 1000 rows unless specified otherwise
@@ -101,7 +101,7 @@ export const action: ActionFunction = async ({ request }) => {
     // Build context with table schemas
     const tableContext = tables.map(table => {
       const schemaInfo = table.schema?.columns 
-        ? `Columns: ${table.schema.columns.map((c: any) => `${c.name} (${c.type})`).join(', ')}`
+        ? `Columns: ${table.schema.columns.map((c: any) => `"${c.name}" (${c.type})`).join(', ')}`
         : `Schema: ${JSON.stringify(table.schema)}`;
       
       return `Table: ${table.name}
@@ -118,6 +118,7 @@ Convert this natural language query to SQL:
 
 Remember to:
 - Use exact table names as provided
+- ALWAYS quote ALL column names with double quotes
 - Include LIMIT clause for large results
 - Use appropriate aggregations for summary requests
 - Return only executable DuckDB SQL

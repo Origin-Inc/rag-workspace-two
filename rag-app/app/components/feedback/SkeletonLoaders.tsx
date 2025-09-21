@@ -138,13 +138,13 @@ export const AIResponseSkeleton: React.FC<{
 }> = ({ className = '' }) => {
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg">
+      <div className="flex items-center gap-2 p-3 bg-theme-bg-primary rounded-lg">
         <div className="flex gap-1">
-          <div className="w-2 h-2 bg-purple-600 dark:bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-          <div className="w-2 h-2 bg-purple-600 dark:bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-          <div className="w-2 h-2 bg-purple-600 dark:bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          <div className="w-2 h-2 bg-theme-bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+          <div className="w-2 h-2 bg-theme-bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+          <div className="w-2 h-2 bg-theme-bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
         </div>
-        <span className="text-sm text-gray-600 dark:text-gray-400">AI is thinking...</span>
+        <span className="text-sm text-theme-text-primary">AI is thinking...</span>
       </div>
       <TextSkeleton lines={4} />
     </div>

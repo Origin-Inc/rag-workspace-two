@@ -185,7 +185,7 @@ export const DatabaseCell = memo(function DatabaseCell({
                     'px-2 py-0.5 text-xs rounded',
                     isSelected
                       ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                   )}
                 >
                   {choice.value}
@@ -289,7 +289,7 @@ export const DatabaseCell = memo(function DatabaseCell({
                 );
               }
               return (
-                <span key={v} className="px-2 py-0.5 text-xs rounded bg-gray-100">
+                <span key={v} className="px-2 py-0.5 text-xs rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
                   {v}
                 </span>
               );
@@ -392,7 +392,7 @@ export const DatabaseCell = memo(function DatabaseCell({
         </div>
       )}
       {editingUser && !isEditing && (
-        <div className="absolute -top-6 left-0 bg-yellow-400 text-black text-xs px-2 py-1 rounded">
+        <div className="absolute -top-6 left-0 bg-yellow-400 dark:bg-yellow-600 text-black dark:text-white text-xs px-2 py-1 rounded">
           {editingUser} is editing
         </div>
       )}

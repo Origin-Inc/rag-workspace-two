@@ -579,6 +579,7 @@ model DataFile {
   schema      Json        @db.JsonB // Column info (name, type, sample data)
   rowCount    Int         @map("row_count")
   sizeBytes   Int         @map("size_bytes")
+  storageUrl  String?     @map("storage_url") @db.Text // Supabase storage URL
   createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   
   // Relations
