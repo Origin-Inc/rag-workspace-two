@@ -155,7 +155,7 @@ export function UserMenu({ user, currentWorkspace }: UserMenuProps) {
 
           {/* Logout */}
           <div className="border-t border-gray-200 py-1">
-            <Form method="post" action="/auth/logout">
+            <Form method="post" action="/auth/signout">
               <button
                 type="submit"
                 className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
