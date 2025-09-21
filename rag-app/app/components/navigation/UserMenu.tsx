@@ -159,7 +159,6 @@ export function UserMenu({ user, currentWorkspace }: UserMenuProps) {
               <button
                 type="submit"
                 className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                onClick={() => setIsOpen(false)}
               >
                 <ArrowRightOnRectangleIcon className="h-4 w-4 mr-3 text-gray-400" />
                 Sign out
