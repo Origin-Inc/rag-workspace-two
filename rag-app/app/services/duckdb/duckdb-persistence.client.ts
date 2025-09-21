@@ -153,8 +153,18 @@ export class DuckDBPersistenceService {
           
           // Recreate table from JSON data
           if (table.data && table.data.length > 0) {
+            // Fix schema for restoration - dates are stored as strings in JSON
+            const restorationSchema = table.schema ? {
+              ...table.schema,
+              columns: table.schema.columns?.map((col: any) => ({
+                ...col,
+                // Keep dates as strings to avoid conversion errors
+                type: col.type === 'date' || col.type === 'datetime' ? 'string' : col.type
+              }))
+            } : table.schema;
+            
             // Use the DuckDB service method to create table from data
-            await duckdb.createTableFromData(originalTableName, table.data, table.schema);
+            await duckdb.createTableFromData(originalTableName, table.data, restorationSchema);
             
             // Create DataFile metadata
             restoredFiles.push({
