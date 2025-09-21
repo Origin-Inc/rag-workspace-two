@@ -98,7 +98,7 @@ export function ChatSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageId]); // Intentionally omit functions - they're stable
   
-  // Restore persisted tables from IndexedDB on mount
+  // Restore persisted tables from cloud storage first, then IndexedDB
   useEffect(() => {
     if (!pageId || skipFileLoad) return;
     
@@ -121,7 +121,36 @@ export function ChatSidebar({
         
         if (!isMounted) return;
         
-        // Restore tables from IndexedDB
+        // Try to load from cloud first
+        if (workspaceId) {
+          try {
+            console.log('[ChatSidebar] Attempting to load files from cloud...');
+            const { DuckDBCloudSyncService } = await import('~/services/duckdb/duckdb-cloud-sync.client');
+            const cloudSync = DuckDBCloudSyncService.getInstance();
+            
+            const cloudFiles = await cloudSync.loadFilesFromCloud(pageId, workspaceId);
+            
+            if (cloudFiles.length > 0 && isMounted) {
+              console.log(`[ChatSidebar] Restored ${cloudFiles.length} files from cloud`);
+              cloudFiles.forEach((file) => {
+                addDataFile({
+                  filename: file.filename,
+                  tableName: file.tableName,
+                  schema: file.schema,
+                  rowCount: file.rowCount,
+                  sizeBytes: file.sizeBytes,
+                });
+              });
+              
+              // Cloud load successful, skip IndexedDB restore
+              return;
+            }
+          } catch (error) {
+            console.error('[ChatSidebar] Failed to load from cloud, falling back to IndexedDB:', error);
+          }
+        }
+        
+        // Fall back to IndexedDB if cloud load fails or no workspace
         const restoredFiles = await duckdb.restoreTablesForPage(pageId);
         
         // Add restored files to the store
@@ -148,7 +177,7 @@ export function ChatSidebar({
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageId, skipFileLoad, delayFileLoad]); // Intentionally omit functions
+  }, [pageId, workspaceId, skipFileLoad, delayFileLoad]); // Intentionally omit functions
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
