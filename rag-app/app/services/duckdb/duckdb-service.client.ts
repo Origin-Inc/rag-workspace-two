@@ -242,10 +242,25 @@ export class DuckDBService {
       
       // Generate CREATE TABLE statement if schema is provided
       if (schema && schema.columns.length > 0) {
-        // Filter out columns with empty names and sanitize column names
-        const validColumns = schema.columns.filter(col => col.name && col.name.trim() !== '');
+        // Process columns, giving dummy names to empty ones
+        let unnamedColumnCount = 0;
+        const processedColumns = schema.columns.map(col => {
+          let columnName = col.name ? col.name.trim() : '';
+          
+          // If column name is empty, give it a dummy name
+          if (!columnName) {
+            unnamedColumnCount++;
+            columnName = `column_${unnamedColumnCount}`;
+            console.log(`Warning: Empty column name replaced with "${columnName}"`);
+          }
+          
+          return {
+            ...col,
+            name: columnName
+          };
+        });
         
-        const columnDefs = validColumns.map(col => {
+        const columnDefs = processedColumns.map(col => {
           let duckdbType = 'VARCHAR';
           switch (col.type.toLowerCase()) {
             case 'number':
@@ -263,18 +278,17 @@ export class DuckDBService {
             default:
               duckdbType = 'VARCHAR';
           }
-          // Sanitize column name - if empty, skip this column
-          const columnName = col.name.trim();
-          if (!columnName) return null;
-          return `"${columnName}" ${duckdbType}`;
-        }).filter(def => def !== null).join(', ');
+          return `"${col.name}" ${duckdbType}`;
+        }).join(', ');
         
         await conn.query(`CREATE TABLE ${tableName} (${columnDefs})`);
         
-        // Prepare data for insertion using only valid columns
+        // Prepare data for insertion using processed columns
         const values = data.map(row => {
-          const vals = validColumns.map(col => {
-            const val = row[col.name];
+          const vals = processedColumns.map(col => {
+            // Use original column name from schema for data access, but processed name includes renamed empty columns
+            const originalName = schema.columns[processedColumns.indexOf(col)].name;
+            const val = row[originalName];
             if (val === null || val === undefined) return 'NULL';
             if (col.type === 'string' || col.type === 'date' || col.type === 'datetime') {
               return `'${String(val).replace(/'/g, "''")}'`;
