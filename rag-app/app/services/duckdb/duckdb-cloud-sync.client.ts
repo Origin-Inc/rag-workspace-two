@@ -266,10 +266,33 @@ export class DuckDBCloudSyncService {
         let schemaForTable = undefined;
         if (exportData.schema && Array.isArray(exportData.schema)) {
           schemaForTable = {
-            columns: exportData.schema.map((col: any) => ({
-              name: col.column_name || col.name,
-              type: col.data_type || col.type
-            }))
+            columns: exportData.schema.map((col: any) => {
+              const columnName = col.column_name || col.name;
+              const dataType = col.data_type || col.type;
+              
+              // Normalize DuckDB types to our internal types
+              let normalizedType = 'string';
+              if (dataType) {
+                const upperType = dataType.toUpperCase();
+                if (upperType.includes('INT') || upperType.includes('DOUBLE') || 
+                    upperType.includes('FLOAT') || upperType.includes('DECIMAL') ||
+                    upperType.includes('NUMERIC') || upperType.includes('BIGINT')) {
+                  normalizedType = 'number';
+                } else if (upperType.includes('BOOL')) {
+                  normalizedType = 'boolean';
+                } else if (upperType.includes('DATE') || upperType.includes('TIME')) {
+                  normalizedType = 'date';
+                } else {
+                  // Default to string for VARCHAR, TEXT, etc.
+                  normalizedType = 'string';
+                }
+              }
+              
+              return {
+                name: columnName,
+                type: normalizedType
+              };
+            })
           };
           console.log('[CloudSync] Converted schema:', schemaForTable);
         }

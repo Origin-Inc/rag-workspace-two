@@ -285,14 +285,23 @@ export class DuckDBService {
         
         // Prepare data for insertion using processed columns
         const values = data.map(row => {
-          const vals = processedColumns.map(col => {
-            // Use original column name from schema for data access, but processed name includes renamed empty columns
-            const originalName = schema.columns[processedColumns.indexOf(col)].name;
+          const vals = processedColumns.map((col, index) => {
+            // Use original column name from schema for data access
+            const originalName = schema.columns[index].name;
             const val = row[originalName];
+            
             if (val === null || val === undefined) return 'NULL';
-            if (col.type === 'string' || col.type === 'date' || col.type === 'datetime') {
+            
+            // Handle different data types
+            if (typeof val === 'string' || col.type === 'string' || col.type === 'VARCHAR') {
+              // Properly escape strings for SQL
               return `'${String(val).replace(/'/g, "''")}'`;
+            } else if (col.type === 'date' || col.type === 'datetime') {
+              return `'${String(val).replace(/'/g, "''")}'`;
+            } else if (typeof val === 'boolean') {
+              return val ? 'TRUE' : 'FALSE';
             }
+            
             return val;
           }).join(', ');
           return `(${vals})`;
