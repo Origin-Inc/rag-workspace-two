@@ -188,7 +188,7 @@ export class FuzzyFileMatcher {
   }
   
   /**
-   * Calculate fuzzy match using Levenshtein distance
+   * Calculate fuzzy match using Levenshtein distance and substring matching
    */
   private static calculateFuzzyMatch(
     query: string,
@@ -198,11 +198,27 @@ export class FuzzyFileMatcher {
     const queryTokens = this.tokenize(query);
     const filenameTokens = this.tokenize(file.filename);
     const tableTokens = this.tokenize(file.tableName);
+    const filenameLower = file.filename.toLowerCase();
+    const tableNameLower = file.tableName.toLowerCase();
     
     let bestScore = 0;
     
-    // Compare query tokens with filename tokens
+    // Check for substring matches first (more intuitive for users)
     for (const qToken of queryTokens) {
+      // Skip common words
+      if (['the', 'a', 'an', 'in', 'on', 'at', 'for', 'from', 'data', 'file'].includes(qToken)) {
+        continue;
+      }
+      
+      // Check if query token appears as substring in filename or table name
+      if (filenameLower.includes(qToken) || tableNameLower.includes(qToken)) {
+        matchedTokens.push(qToken);
+        // Give higher score for longer matches (more specific)
+        const weight = Math.min(1, qToken.length / 10);
+        bestScore = Math.max(bestScore, 0.5 + weight * 0.3);
+      }
+      
+      // Also check Levenshtein distance for close matches
       for (const fToken of filenameTokens) {
         const distance = this.levenshteinDistance(qToken, fToken);
         const maxLen = Math.max(qToken.length, fToken.length);
