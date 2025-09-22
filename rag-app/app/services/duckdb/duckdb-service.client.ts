@@ -296,7 +296,15 @@ export class DuckDBService {
             if (typeof val === 'string' || col.type === 'string' || col.type === 'VARCHAR') {
               // Properly escape strings for SQL
               return `'${String(val).replace(/'/g, "''")}'`;
-            } else if (col.type === 'date' || col.type === 'datetime') {
+            } else if (col.type === 'date' || col.type === 'datetime' || col.type === 'DATE') {
+              // Handle date values - could be timestamp or string
+              if (typeof val === 'number') {
+                // Unix timestamp - convert to ISO string
+                const date = new Date(val);
+                if (!isNaN(date.getTime())) {
+                  return `'${date.toISOString().split('T')[0]}'`;
+                }
+              }
               return `'${String(val).replace(/'/g, "''")}'`;
             } else if (typeof val === 'boolean') {
               return val ? 'TRUE' : 'FALSE';
