@@ -1,5 +1,7 @@
 import { get_encoding, encoding_for_model, type TiktokenModel } from 'tiktoken';
 import type { FileSchema } from '~/services/file-processing.server';
+import { FuzzyFileMatcher } from './fuzzy-file-matcher.server';
+import type { DataFile } from '~/stores/chat-store';
 
 export interface ContextItem {
   type: 'system' | 'schema' | 'data' | 'message' | 'query';
@@ -362,35 +364,63 @@ ${JSON.stringify(sample, null, 2)}`;
   }
   
   /**
-   * Identify files mentioned in a query for prioritization
+   * Identify files mentioned in a query for prioritization using fuzzy matching
    */
   static identifyMentionedFiles(
     query: string,
-    dataFiles: Array<{ id: string; filename: string }>
+    dataFiles: Array<{ id: string; filename: string; tableName?: string }>
   ): string[] {
+    // First try the legacy exact matching for backwards compatibility
     const lowerQuery = query.toLowerCase();
-    const mentionedIds: string[] = [];
+    const exactMatches: string[] = [];
     
     for (const file of dataFiles) {
       const filename = file.filename.toLowerCase();
       const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
-      const tableName = filename.replace(/\.(csv|json|xlsx|txt)$/i, '');
+      const tableName = file.tableName?.toLowerCase() || filename.replace(/\.(csv|json|xlsx|txt)$/i, '');
       
-      // Check various ways the file might be mentioned
+      // Check for exact matches first
       if (
         lowerQuery.includes(filename) ||
         lowerQuery.includes(nameWithoutExt) ||
-        lowerQuery.includes(tableName) ||
-        // Check for partial matches (e.g., "sales" matches "sales_data.csv")
-        tableName.split(/[_-]/).some(part => 
-          part.length > 3 && lowerQuery.includes(part)
-        )
+        lowerQuery.includes(tableName)
       ) {
-        mentionedIds.push(file.id);
+        exactMatches.push(file.id);
       }
     }
     
-    return mentionedIds;
+    // If we have exact matches, return them
+    if (exactMatches.length > 0) {
+      return exactMatches;
+    }
+    
+    // Otherwise, use fuzzy matching
+    // Convert to DataFile format for fuzzy matcher
+    const dataFilesForMatching = dataFiles.map(f => ({
+      id: f.id,
+      filename: f.filename,
+      tableName: f.tableName || f.filename.replace(/\.[^/.]+$/, ''),
+      schema: [], // Simplified for this context
+      rowCount: 0,
+      sizeBytes: 0,
+      uploadedAt: new Date(),
+      pageId: '',
+      databaseId: ''
+    } as DataFile));
+    
+    const fuzzyMatches = FuzzyFileMatcher.matchFiles(
+      query, 
+      dataFilesForMatching,
+      { 
+        confidenceThreshold: 0.4,
+        maxResults: 5,
+        includeSemanticMatch: true,
+        includeTemporalMatch: true
+      }
+    );
+    
+    // Return file IDs sorted by confidence
+    return fuzzyMatches.map(match => match.file.id);
   }
   
   /**

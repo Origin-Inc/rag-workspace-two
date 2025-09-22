@@ -9,6 +9,9 @@ import { FileContextDisplay } from './FileContextDisplay';
 import { cn } from '~/utils/cn';
 import { duckDBQuery } from '~/services/duckdb/duckdb-query.client';
 import { tokenMonitor } from '~/services/token-usage-monitor.client';
+import { FuzzyFileMatcherClient } from '~/services/fuzzy-file-matcher.client';
+import { FileDisambiguationDialog } from './FileDisambiguationDialog';
+import type { FileMatchResult } from '~/services/fuzzy-file-matcher.client';
 
 interface ChatSidebarProps {
   pageId: string;
@@ -51,6 +54,11 @@ export function ChatSidebar({
   
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [disambiguationState, setDisambiguationState] = useState<{
+    matches: FileMatchResult[];
+    query: string;
+    pendingMessage: string;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef(true);
   
@@ -211,6 +219,35 @@ export function ChatSidebar({
     
     // Check if we have data files to query
     if (dataFiles.length > 0) {
+      // Use fuzzy matching to identify which files are being referenced
+      const matches = FuzzyFileMatcherClient.matchFiles(
+        content,
+        dataFiles,
+        {
+          confidenceThreshold: 0.3,
+          maxResults: 5,
+          includeSemanticMatch: true,
+          includeTemporalMatch: true
+        }
+      );
+      
+      // If multiple files match with similar confidence, show disambiguation dialog
+      if (matches.length > 1 && 
+          matches[0].confidence < 0.8 && 
+          matches[0].confidence - matches[1].confidence < 0.2) {
+        setDisambiguationState({
+          matches,
+          query: content,
+          pendingMessage: content
+        });
+        return;
+      }
+      
+      // Otherwise, use all files or the best match
+      const filesToQuery = matches.length > 0 && matches[0].confidence > 0.5
+        ? [matches[0].file]
+        : dataFiles;
+      
       setLoading(true);
       try {
         // Get recent conversation for context (last 5 exchanges)
@@ -222,7 +259,7 @@ export function ChatSidebar({
         // Process natural language query with conversation context
         const result = await duckDBQuery.processNaturalLanguageQuery(
           content,
-          dataFiles,
+          filesToQuery,
           pageId,
           workspaceId,
           conversationHistory
@@ -914,6 +951,101 @@ export function ChatSidebar({
           placeholder={dataFiles.length === 0 ? "Upload data first..." : "Ask a question about your data..."}
         />
       </div>
+      
+      {/* File Disambiguation Dialog */}
+      {disambiguationState && (
+        <FileDisambiguationDialog
+          matches={disambiguationState.matches}
+          query={disambiguationState.query}
+          onSelect={async (match) => {
+            // Use the selected file and continue processing
+            const selectedFile = match.file;
+            setDisambiguationState(null);
+            setLoading(true);
+            
+            try {
+              const conversationHistory = messages.slice(-10).map(msg => ({
+                role: msg.role,
+                content: msg.content
+              }));
+              
+              const result = await duckDBQuery.processNaturalLanguageQuery(
+                disambiguationState.pendingMessage,
+                [selectedFile],
+                pageId,
+                workspaceId,
+                conversationHistory
+              );
+              
+              // Process the result as normal
+              if ((result.sqlGeneration as any).metadata) {
+                const metadata = (result.sqlGeneration as any).metadata;
+                tokenMonitor.recordUsage({
+                  query: disambiguationState.pendingMessage,
+                  model: metadata.model || 'gpt-4-turbo-preview',
+                  contextTokens: metadata.contextTokens || 0,
+                  responseTokens: metadata.tokensUsed || 0,
+                  totalTokens: metadata.tokensUsed || 0,
+                  truncated: false,
+                  samplingStrategy: 'smart',
+                });
+              }
+              
+              // Build response content
+              let responseContent = '';
+              if ((result.sqlGeneration as any).dataContext) {
+                responseContent += (result.sqlGeneration as any).dataContext + '\n\n';
+              }
+              responseContent += result.sqlGeneration.explanation;
+              if ((result.sqlGeneration as any).insights) {
+                responseContent += '\n\n' + (result.sqlGeneration as any).insights;
+              }
+              
+              if (result.queryResult.success) {
+                if (result.queryResult.data && result.queryResult.data.length > 0) {
+                  responseContent += '\n\n### Results\n';
+                  const formattedResults = duckDBQuery.formatResults(result.queryResult);
+                  responseContent += formattedResults;
+                  if (result.queryResult.executionTime) {
+                    responseContent += `\n\n*Query executed in ${result.queryResult.executionTime.toFixed(2)}ms*`;
+                  }
+                } else {
+                  responseContent += '\n\nNo results found for this query.';
+                }
+              } else {
+                responseContent += '\n\n⚠️ **Error:** ' + result.queryResult.error;
+              }
+              
+              // Add assistant response
+              addMessage({
+                role: 'assistant',
+                content: responseContent,
+                metadata: {
+                  sql: result.sqlGeneration.sql,
+                  error: result.queryResult.error,
+                  dataFiles: result.sqlGeneration.tables,
+                  usedTables: result.sqlGeneration.usedTables,
+                },
+              });
+              
+            } catch (error) {
+              console.error('Error processing query:', error);
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              addMessage({
+                role: 'assistant',
+                content: `Sorry, I encountered an error processing your query: ${errorMessage}`,
+                metadata: { error: errorMessage },
+              });
+            } finally {
+              setLoading(false);
+            }
+          }}
+          onCancel={() => {
+            setDisambiguationState(null);
+            setLoading(false);
+          }}
+        />
+      )}
     </div>
   );
 }

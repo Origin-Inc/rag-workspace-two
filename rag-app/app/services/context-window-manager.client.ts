@@ -1,4 +1,6 @@
 import type { FileSchema } from '~/services/file-processing.client';
+import { FuzzyFileMatcherClient } from './fuzzy-file-matcher.client';
+import type { DataFile } from '~/stores/chat-store';
 
 export interface ContextItem {
   type: 'system' | 'schema' | 'data' | 'message' | 'query';
@@ -147,7 +149,9 @@ export class ContextWindowManagerClient {
     dataFiles: Array<{ id: string; filename: string; schema: FileSchema }>
   ): Array<{ id: string; filename: string; schema: FileSchema }> {
     const lowerQuery = query.toLowerCase();
-    return dataFiles.filter(file => {
+    
+    // First try exact matching for backwards compatibility
+    const exactMatches = dataFiles.filter(file => {
       const filename = file.filename.toLowerCase();
       const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
       
@@ -155,6 +159,38 @@ export class ContextWindowManagerClient {
              lowerQuery.includes(nameWithoutExt) ||
              lowerQuery.includes(file.schema.columns[0]?.name?.toLowerCase());
     });
+    
+    // If we have exact matches, return them
+    if (exactMatches.length > 0) {
+      return exactMatches;
+    }
+    
+    // Otherwise, use fuzzy matching
+    const dataFilesForMatching = dataFiles.map(f => ({
+      id: f.id,
+      filename: f.filename,
+      tableName: f.filename.replace(/\.[^/.]+$/, ''),
+      schema: f.schema.columns.map(c => ({ name: c.name, type: c.type })),
+      rowCount: f.schema.rowCount,
+      sizeBytes: 0,
+      uploadedAt: new Date(),
+      pageId: '',
+    } as DataFile));
+    
+    const fuzzyMatches = FuzzyFileMatcherClient.matchFiles(
+      query,
+      dataFilesForMatching,
+      {
+        confidenceThreshold: 0.4,
+        maxResults: 5,
+        includeSemanticMatch: true,
+        includeTemporalMatch: true
+      }
+    );
+    
+    // Return the original file objects for matched IDs
+    const matchedIds = new Set(fuzzyMatches.map(m => m.file.id));
+    return dataFiles.filter(f => matchedIds.has(f.id));
   }
   
   /**
