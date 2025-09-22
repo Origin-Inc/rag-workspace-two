@@ -498,12 +498,16 @@ export function ChatSidebar({
           try {
             const storageUrl = uploadResult?.url || null;
             
-            // Export table to Parquet and upload to storage
+            // Export table to storage (this is what makes it persist!)
             let parquetUrl = null;
             const supabaseUrl = window.ENV?.SUPABASE_URL;
             const supabaseAnonKey = window.ENV?.SUPABASE_ANON_KEY;
-            if (storageUrl && supabaseUrl && supabaseAnonKey) {
+            
+            // Check for Supabase credentials, NOT storageUrl
+            // We want to upload the DuckDB table regardless of user-uploads success
+            if (supabaseUrl && supabaseAnonKey) {
               try {
+                console.log('[ChatSidebar] Attempting to export table to cloud storage...');
                 const { DuckDBExportService } = await import('~/services/duckdb/duckdb-export.client');
                 const exportService = DuckDBExportService.getInstance();
                 parquetUrl = await exportService.exportAndUploadToStorage(
@@ -512,10 +516,12 @@ export function ChatSidebar({
                   supabaseUrl,
                   supabaseAnonKey
                 );
-                console.log('[ChatSidebar] Parquet exported and uploaded:', parquetUrl);
+                console.log('[ChatSidebar] Table exported and uploaded:', parquetUrl);
               } catch (error) {
-                console.error('[ChatSidebar] Failed to export/upload Parquet:', error);
+                console.error('[ChatSidebar] Failed to export/upload table:', error);
               }
+            } else {
+              console.warn('[ChatSidebar] Missing Supabase credentials for table export');
             }
             
             const response = await fetch(`/api/data/files/${pageId}`, {
