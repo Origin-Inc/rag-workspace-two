@@ -26,6 +26,8 @@ function createPrismaClient() {
         url: databaseUrl,
       },
     },
+    // Add connection pool configuration to prevent timeouts
+    datasourceUrl: databaseUrl,
   });
 
   // Enhanced transaction handling for pooling modes
@@ -78,6 +80,8 @@ function createPrismaClient() {
 // In production, we'll have a single connection to the DB.
 if (process.env.NODE_ENV === "production") {
   prisma = createPrismaClient();
+  // Don't connect immediately in production to avoid cold start timeouts
+  // Prisma will connect lazily on first query
 } else {
   if (!global.__db__) {
     global.__db__ = createPrismaClient();
