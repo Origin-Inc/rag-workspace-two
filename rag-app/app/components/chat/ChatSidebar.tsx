@@ -497,6 +497,27 @@ export function ChatSidebar({
         if (workspaceId && pageId) {
           try {
             const storageUrl = uploadResult?.url || null;
+            
+            // Export table to Parquet and upload to storage
+            let parquetUrl = null;
+            const supabaseUrl = window.ENV?.SUPABASE_URL;
+            const supabaseAnonKey = window.ENV?.SUPABASE_ANON_KEY;
+            if (storageUrl && supabaseUrl && supabaseAnonKey) {
+              try {
+                const { DuckDBExportService } = await import('~/services/duckdb/duckdb-export.client');
+                const exportService = DuckDBExportService.getInstance();
+                parquetUrl = await exportService.exportAndUploadToStorage(
+                  processed.tableName,
+                  workspaceId,
+                  supabaseUrl,
+                  supabaseAnonKey
+                );
+                console.log('[ChatSidebar] Parquet exported and uploaded:', parquetUrl);
+              } catch (error) {
+                console.error('[ChatSidebar] Failed to export/upload Parquet:', error);
+              }
+            }
+            
             const response = await fetch(`/api/data/files/${pageId}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -507,6 +528,7 @@ export function ChatSidebar({
                 rowCount: processed.data.length,
                 sizeBytes: file.size,
                 storageUrl,
+                parquetUrl,
               }),
             });
             

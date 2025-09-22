@@ -110,29 +110,38 @@ export class DuckDBCloudSyncService {
    */
   private async restoreTableFromParquet(tableName: string, parquetUrl: string): Promise<void> {
     try {
-      // Download Parquet file
+      // Download table data (JSON format for now, Parquet later)
       const response = await fetch(parquetUrl);
       if (!response.ok) {
-        throw new Error(`Failed to download Parquet file: ${response.statusText}`);
+        throw new Error(`Failed to download table data: ${response.statusText}`);
       }
       
-      const arrayBuffer = await response.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
+      const exportData = await response.json();
+      
+      // Validate the export data
+      if (!exportData.data || !Array.isArray(exportData.data)) {
+        throw new Error('Invalid export data format');
+      }
       
       // Load into DuckDB
       const duckdb = getDuckDB();
       const conn = await duckdb.getConnection();
       
-      // Register the buffer as a file
-      await duckdb.registerFileBuffer(`${tableName}.parquet`, uint8Array);
+      // Create table and insert data
+      if (exportData.data.length > 0) {
+        // Use createTableFromData if available
+        const rowCount = await duckdb.createTableFromData(
+          tableName,
+          exportData.data,
+          tableName // Use tableName as pageId
+        );
+        
+        console.log(`[CloudSync] Table ${tableName} created with ${rowCount} rows`);
+      } else {
+        console.warn(`[CloudSync] No data found for table ${tableName}`);
+      }
       
-      // Create table from Parquet
-      await conn.query(`
-        CREATE TABLE ${tableName} AS 
-        SELECT * FROM read_parquet('${tableName}.parquet')
-      `);
-      
-      console.log(`[CloudSync] Table ${tableName} created from Parquet`);
+      console.log(`[CloudSync] Table ${tableName} restored from cloud`);
       
       // Also persist to IndexedDB for offline access
       const { DuckDBPersistenceService } = await import('./duckdb-persistence.client');
