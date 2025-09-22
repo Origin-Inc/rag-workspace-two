@@ -42,8 +42,8 @@ export function getPoolingConfig(): PoolingConfig {
     // Using IPv4 pooler (aws-*.pooler.supabase.com) to fix Vercel compatibility
     return {
       connectionLimit: 1, // Minimal to avoid hitting free tier limit
-      poolTimeout: 0, // No timeout to avoid connection drops
-      connectTimeout: 300, // Extended timeout for IPv4 pooler
+      poolTimeout: 10, // 10 seconds to prevent Vercel timeout
+      connectTimeout: 5, // 5 seconds connect timeout to fail fast
       statementCacheSize: 0, // No statement caching in transaction mode
       pgbouncer: true,
       port: 6543, // Transaction pooler port
@@ -55,8 +55,8 @@ export function getPoolingConfig(): PoolingConfig {
     
     return {
       connectionLimit: 1, // Force minimal connections on free tier
-      poolTimeout: 0, // No timeout to avoid drops
-      connectTimeout: 300, // Extended timeout for compatibility
+      poolTimeout: 10, // 10 seconds to prevent Vercel timeout
+      connectTimeout: 5, // 5 seconds connect timeout to fail fast
       statementCacheSize: 0, // Minimal caching in pooler mode
       pgbouncer: true,
       port: 5432, // Session pooler uses standard port
