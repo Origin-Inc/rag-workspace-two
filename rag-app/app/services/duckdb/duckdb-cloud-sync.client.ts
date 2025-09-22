@@ -55,11 +55,23 @@ export class DuckDBCloudSyncService {
       
       // Fetch file metadata from API
       const response = await fetch(`/api/data/files/${pageId}`);
+      console.log('[CloudSync] API Response status:', response.status, response.ok);
+      
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[CloudSync] API Error:', errorText);
         throw new Error('Failed to fetch files from cloud');
       }
       
-      const { files } = await response.json();
+      const responseData = await response.json();
+      console.log('[CloudSync] API Response data:', {
+        hasFiles: !!responseData.files,
+        filesLength: responseData.files?.length,
+        keys: Object.keys(responseData),
+        firstFile: responseData.files?.[0]
+      });
+      
+      const { files } = responseData;
       if (!files || files.length === 0) {
         console.log('[CloudSync] No cloud files found');
         return [];
