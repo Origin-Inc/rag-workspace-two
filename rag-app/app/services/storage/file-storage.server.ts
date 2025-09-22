@@ -1,15 +1,11 @@
-import { createServerClient } from '@supabase/auth-helpers-remix';
+import { createSupabaseServerClient } from '~/utils/supabase.server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export class FileStorageService {
   private supabase: SupabaseClient;
   
   constructor(request: Request, response: Response) {
-    this.supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_ANON_KEY!,
-      { request, response }
-    );
+    this.supabase = createSupabaseServerClient(request, response);
   }
   
   /**
