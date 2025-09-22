@@ -1,11 +1,11 @@
-import { DuckDBService } from './duckdb-service.client';
+import { getDuckDB } from './duckdb-service.client';
 
 export class DuckDBExportService {
   private static instance: DuckDBExportService;
-  private duckdb: DuckDBService;
+  private duckdb: ReturnType<typeof getDuckDB>;
   
   private constructor() {
-    this.duckdb = DuckDBService.getInstance();
+    this.duckdb = getDuckDB();
   }
   
   static getInstance(): DuckDBExportService {
@@ -23,10 +23,10 @@ export class DuckDBExportService {
       console.log('[DuckDBExport] Exporting table as JSON:', tableName);
       
       // Get table data
-      const data = await this.duckdb.query(`SELECT * FROM ${tableName}`);
+      const data = await this.duckdb.executeQuery(`SELECT * FROM ${tableName}`);
       
       // Get table schema
-      const schemaResult = await this.duckdb.query(`
+      const schemaResult = await this.duckdb.executeQuery(`
         SELECT column_name, data_type 
         FROM information_schema.columns 
         WHERE table_name = '${tableName}'
