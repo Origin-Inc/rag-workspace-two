@@ -564,6 +564,14 @@ export function ChatSidebar({
               sizeBytes: file.size
             });
             
+            console.log('[ChatSidebar] 📤 Sending metadata to API:', {
+              pageId,
+              filename: file.name,
+              tableName: processed.tableName,
+              hasSchema: !!schemaForStore,
+              hasParquetUrl: !!parquetUrl,
+            });
+            
             const response = await fetch(`/api/data/files/${pageId}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -578,20 +586,31 @@ export function ChatSidebar({
               }),
             });
             
+            const responseText = await response.text();
+            console.log('[ChatSidebar] 📥 API Response:', {
+              status: response.status,
+              ok: response.ok,
+              responsePreview: responseText.substring(0, 200)
+            });
+            
             if (!response.ok) {
-              const errorText = await response.text();
               console.error('[ChatSidebar] ❌ FAILED TO SAVE METADATA:', {
                 status: response.status,
                 statusText: response.statusText,
-                errorBody: errorText
+                errorBody: responseText
               });
             } else {
-              const savedData = await response.json();
-              console.log('[ChatSidebar] ✅ METADATA SAVED SUCCESSFULLY:', {
-                fileId: savedData.file?.id,
-                hasCloudUrl: !!savedData.file?.parquetUrl,
-                response: savedData
-              });
+              try {
+                const savedData = JSON.parse(responseText);
+                console.log('[ChatSidebar] ✅ METADATA SAVED SUCCESSFULLY:', {
+                  fileId: savedData.dataFile?.id,
+                  hasCloudUrl: !!savedData.dataFile?.parquetUrl,
+                  tableName: savedData.dataFile?.tableName,
+                  response: savedData
+                });
+              } catch (parseError) {
+                console.error('[ChatSidebar] Failed to parse success response:', parseError);
+              }
             }
           } catch (error) {
             console.error('[ChatSidebar] Error saving file metadata:', error);
