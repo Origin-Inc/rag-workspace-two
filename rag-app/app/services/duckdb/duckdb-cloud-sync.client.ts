@@ -110,16 +110,50 @@ export class DuckDBCloudSyncService {
    */
   private async restoreTableFromParquet(tableName: string, parquetUrl: string): Promise<void> {
     try {
+      console.log(`[CloudSync] Fetching table data from: ${parquetUrl}`);
+      
       // Download table data (JSON format for now, Parquet later)
       const response = await fetch(parquetUrl);
+      
+      console.log(`[CloudSync] Fetch response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: {
+          contentType: response.headers.get('content-type'),
+          contentLength: response.headers.get('content-length')
+        }
+      });
+      
       if (!response.ok) {
-        throw new Error(`Failed to download table data: ${response.statusText}`);
+        const errorBody = await response.text();
+        console.error(`[CloudSync] Failed to fetch from storage:`, {
+          url: parquetUrl,
+          status: response.status,
+          body: errorBody
+        });
+        throw new Error(`Failed to download table data: ${response.status} ${response.statusText}`);
       }
       
-      const exportData = await response.json();
+      const responseText = await response.text();
+      console.log(`[CloudSync] Response preview:`, responseText.substring(0, 200));
+      
+      let exportData;
+      try {
+        exportData = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('[CloudSync] Failed to parse JSON:', parseError);
+        console.error('[CloudSync] Raw response:', responseText);
+        throw new Error('Response is not valid JSON');
+      }
       
       // Validate the export data
       if (!exportData.data || !Array.isArray(exportData.data)) {
+        console.error('[CloudSync] Invalid export data structure:', {
+          hasData: !!exportData.data,
+          isArray: Array.isArray(exportData.data),
+          keys: Object.keys(exportData)
+        });
         throw new Error('Invalid export data format');
       }
       
