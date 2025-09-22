@@ -195,10 +195,27 @@ export class FuzzyFileMatcherClient {
       ...this.tokenize(file.filename),
       ...this.tokenize(file.tableName),
     ];
+    const filenameLower = file.filename.toLowerCase();
+    const tableNameLower = file.tableName.toLowerCase();
     
     let bestScore = 0;
     
+    // Check for substring matches first (more intuitive)
     for (const qToken of queryTokens) {
+      // Skip common words
+      if (['the', 'a', 'an', 'in', 'on', 'at', 'for', 'from', 'data', 'file'].includes(qToken)) {
+        continue;
+      }
+      
+      // Check if query token appears as substring in filename or table name
+      if (filenameLower.includes(qToken) || tableNameLower.includes(qToken)) {
+        matchedTokens.push(qToken);
+        // Give higher score for longer matches (more specific)
+        const weight = Math.min(1, qToken.length / 10);
+        bestScore = Math.max(bestScore, 0.5 + weight * 0.3);
+      }
+      
+      // Also check character overlap for close matches
       for (const fToken of fileTokens) {
         // Simple character overlap check instead of full Levenshtein
         const commonChars = this.countCommonCharacters(qToken, fToken);

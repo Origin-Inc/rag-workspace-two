@@ -243,10 +243,23 @@ export function ChatSidebar({
         return;
       }
       
-      // Otherwise, use all files or the best match
-      const filesToQuery = matches.length > 0 && matches[0].confidence > 0.5
-        ? [matches[0].file]
-        : dataFiles;
+      // Determine which files to query
+      let filesToQuery: DataFile[];
+      
+      if (matches.length > 0) {
+        // Use the best match even if confidence is low
+        filesToQuery = [matches[0].file];
+        console.log('[ChatSidebar] Using fuzzy match:', {
+          file: matches[0].file.filename,
+          confidence: matches[0].confidence,
+          matchType: matches[0].matchType
+        });
+      } else {
+        // No specific file mentioned - use context window manager to be smart
+        // For now, use all files but add a warning
+        filesToQuery = dataFiles;
+        console.log('[ChatSidebar] No specific file match found, using all files');
+      }
       
       setLoading(true);
       try {
