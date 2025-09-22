@@ -59,19 +59,31 @@ export class DuckDBExportService {
     supabaseUrl: string,
     supabaseKey: string
   ): Promise<string | null> {
+    console.log('[DuckDBExport] 🚀 START exportAndUploadToStorage:', {
+      tableName,
+      workspaceId,
+      supabaseUrl,
+      hasKey: !!supabaseKey,
+      keyPreview: supabaseKey ? `${supabaseKey.substring(0, 20)}...` : 'NO KEY'
+    });
+    
     try {
-      // Export table as JSON (Parquet export from browser not supported)
+      // Step 1: Export table as JSON
+      console.log('[DuckDBExport] 📦 STEP 1: Exporting table as JSON...');
       const tableBlob = await this.exportTableAsJSON(tableName);
+      console.log('[DuckDBExport] ✅ Table exported to blob:', {
+        size: tableBlob.size,
+        type: tableBlob.type
+      });
       
-      // Upload to Supabase Storage
+      // Step 2: Prepare upload path
       const timestamp = Date.now();
       const randomSuffix = Math.random().toString(36).substring(7);
       const tablePath = `tables/${workspaceId}/${timestamp}_${tableName}_${randomSuffix}.json`;
+      console.log('[DuckDBExport] 📝 STEP 2: Upload path prepared:', tablePath);
       
-      console.log('[DuckDBExport] Uploading to path:', tablePath);
-      console.log('[DuckDBExport] Blob size:', tableBlob.size, 'bytes');
-      
-      // Import Supabase client dynamically
+      // Step 3: Create Supabase client
+      console.log('[DuckDBExport] 🔌 STEP 3: Creating Supabase client...');
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(supabaseUrl, supabaseKey, {
         auth: {
@@ -79,11 +91,20 @@ export class DuckDBExportService {
           autoRefreshToken: true
         }
       });
+      console.log('[DuckDBExport] ✅ Supabase client created');
       
-      // Check if we have a session
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('[DuckDBExport] Auth session exists:', !!session);
+      // Step 4: Check auth session
+      console.log('[DuckDBExport] 🔐 STEP 4: Checking auth session...');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('[DuckDBExport] Auth session check:', {
+        hasSession: !!session,
+        sessionError: sessionError?.message || null,
+        userId: session?.user?.id || 'NO USER',
+        role: session?.user?.role || 'NO ROLE'
+      });
       
+      // Step 5: Upload to storage
+      console.log('[DuckDBExport] ⬆️ STEP 5: Uploading to storage bucket "duckdb-tables"...');
       const { data, error } = await supabase.storage
         .from('duckdb-tables')
         .upload(tablePath, tableBlob, {
@@ -93,35 +114,53 @@ export class DuckDBExportService {
         });
       
       if (error) {
-        console.error('[DuckDBExport] Failed to upload to storage:', {
-          error: error.message,
-          statusCode: error.statusCode || 'unknown',
-          details: error
+        console.error('[DuckDBExport] ❌ UPLOAD FAILED:', {
+          errorMessage: error.message,
+          errorName: error.name,
+          statusCode: error.statusCode || 'NO_STATUS',
+          hint: error.hint || 'NO_HINT',
+          details: JSON.stringify(error, null, 2)
         });
         
-        // Try to provide more specific error info
+        // Provide specific error diagnostics
         if (error.message?.includes('row-level security')) {
-          console.error('[DuckDBExport] RLS policy violation - user may not be authenticated');
+          console.error('[DuckDBExport] 🔒 DIAGNOSIS: RLS policy blocking upload - user not authenticated properly');
         } else if (error.message?.includes('Bucket not found')) {
-          console.error('[DuckDBExport] Storage bucket "duckdb-tables" does not exist');
+          console.error('[DuckDBExport] 🪣 DIAGNOSIS: Storage bucket "duckdb-tables" does not exist');
+        } else if (error.message?.includes('Invalid JWT')) {
+          console.error('[DuckDBExport] 🔑 DIAGNOSIS: Invalid or expired authentication token');
+        } else if (error.statusCode === 403) {
+          console.error('[DuckDBExport] 🚫 DIAGNOSIS: Permission denied - check RLS policies');
         }
         
         return null;
       }
       
-      // Get public URL
+      console.log('[DuckDBExport] ✅ STEP 5 SUCCESS: Upload complete:', {
+        uploadedPath: data?.path,
+        id: data?.id
+      });
+      
+      // Step 6: Get public URL
+      console.log('[DuckDBExport] 🔗 STEP 6: Getting public URL...');
       const { data: urlData } = supabase.storage
         .from('duckdb-tables')
         .getPublicUrl(tablePath);
       
-      console.log('[DuckDBExport] Table data uploaded successfully:', {
-        path: data?.path,
-        publicUrl: urlData.publicUrl
+      const publicUrl = urlData?.publicUrl;
+      console.log('[DuckDBExport] ✅ FINAL SUCCESS:', {
+        publicUrl,
+        fullPath: tablePath
       });
       
-      return urlData.publicUrl;
+      return publicUrl;
     } catch (error) {
-      console.error('[DuckDBExport] Failed to export and upload:', error);
+      console.error('[DuckDBExport] ❌ EXCEPTION in exportAndUploadToStorage:', {
+        errorType: error?.constructor?.name,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        fullError: JSON.stringify(error, null, 2)
+      });
       return null;
     }
   }

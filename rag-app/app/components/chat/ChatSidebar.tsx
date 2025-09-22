@@ -505,24 +505,64 @@ export function ChatSidebar({
             
             // Check for Supabase credentials, NOT storageUrl
             // We want to upload the DuckDB table regardless of user-uploads success
+            console.log('[ChatSidebar] 📊 STORAGE UPLOAD CHECK:', {
+              hasSupabaseUrl: !!supabaseUrl,
+              supabaseUrl: supabaseUrl || 'MISSING',
+              hasAnonKey: !!supabaseAnonKey,
+              anonKeyPreview: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : 'MISSING',
+              workspaceId,
+              pageId,
+              tableName: processed.tableName
+            });
+            
             if (supabaseUrl && supabaseAnonKey) {
               try {
-                console.log('[ChatSidebar] Attempting to export table to cloud storage...');
+                console.log('[ChatSidebar] ⬆️ STARTING TABLE EXPORT TO CLOUD...');
                 const { DuckDBExportService } = await import('~/services/duckdb/duckdb-export.client');
                 const exportService = DuckDBExportService.getInstance();
+                
+                console.log('[ChatSidebar] 🔧 Export service initialized, calling exportAndUploadToStorage...');
                 parquetUrl = await exportService.exportAndUploadToStorage(
                   processed.tableName,
                   workspaceId,
                   supabaseUrl,
                   supabaseAnonKey
                 );
-                console.log('[ChatSidebar] Table exported and uploaded:', parquetUrl);
+                
+                if (parquetUrl) {
+                  console.log('[ChatSidebar] ✅ TABLE SUCCESSFULLY UPLOADED TO CLOUD:', {
+                    url: parquetUrl,
+                    tableName: processed.tableName
+                  });
+                } else {
+                  console.error('[ChatSidebar] ❌ UPLOAD RETURNED NULL - Check DuckDBExport logs for details');
+                }
               } catch (error) {
-                console.error('[ChatSidebar] Failed to export/upload table:', error);
+                console.error('[ChatSidebar] ❌ EXCEPTION DURING TABLE EXPORT:', {
+                  error,
+                  message: error instanceof Error ? error.message : 'Unknown error',
+                  stack: error instanceof Error ? error.stack : undefined
+                });
               }
             } else {
-              console.warn('[ChatSidebar] Missing Supabase credentials for table export');
+              console.error('[ChatSidebar] ❌ MISSING SUPABASE CREDENTIALS:', {
+                hasUrl: !!supabaseUrl,
+                hasKey: !!supabaseAnonKey,
+                ENV: window.ENV
+              });
             }
+            
+            console.log('[ChatSidebar] 💾 SAVING METADATA TO DATABASE:', {
+              filename: file.name,
+              tableName: processed.tableName,
+              hasStorageUrl: !!storageUrl,
+              storageUrl: storageUrl || 'NONE',
+              hasParquetUrl: !!parquetUrl,
+              parquetUrl: parquetUrl || 'NONE',
+              schemaLength: schemaForStore.length,
+              rowCount: processed.data.length,
+              sizeBytes: file.size
+            });
             
             const response = await fetch(`/api/data/files/${pageId}`, {
               method: 'POST',
@@ -539,9 +579,19 @@ export function ChatSidebar({
             });
             
             if (!response.ok) {
-              console.error('[ChatSidebar] Failed to save file metadata to database');
+              const errorText = await response.text();
+              console.error('[ChatSidebar] ❌ FAILED TO SAVE METADATA:', {
+                status: response.status,
+                statusText: response.statusText,
+                errorBody: errorText
+              });
             } else {
-              console.log('[ChatSidebar] File metadata saved to database');
+              const savedData = await response.json();
+              console.log('[ChatSidebar] ✅ METADATA SAVED SUCCESSFULLY:', {
+                fileId: savedData.file?.id,
+                hasCloudUrl: !!savedData.file?.parquetUrl,
+                response: savedData
+              });
             }
           } catch (error) {
             console.error('[ChatSidebar] Error saving file metadata:', error);
