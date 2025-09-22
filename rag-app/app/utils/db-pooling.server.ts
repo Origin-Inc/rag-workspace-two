@@ -37,23 +37,26 @@ export function getPoolingConfig(): PoolingConfig {
   
   if (isTransactionPooler) {
     // Transaction pooler configuration (port 6543)
-    // Does NOT support PREPARE statements outside transactions
+    // CRITICAL: Supabase free tier ignores connection_limit parameter
+    // The pooler is hard-coded to 3 connections total
+    // Using IPv4 pooler (aws-*.pooler.supabase.com) to fix Vercel compatibility
     return {
-      connectionLimit: 5, // Allow 5 connections for concurrent operations within requests
-      poolTimeout: 20, // 20 seconds timeout for complex operations
-      connectTimeout: 10, // 10 seconds max to connect
+      connectionLimit: 1, // Minimal to avoid hitting free tier limit
+      poolTimeout: 0, // No timeout to avoid connection drops
+      connectTimeout: 300, // Extended timeout for IPv4 pooler
       statementCacheSize: 0, // No statement caching in transaction mode
       pgbouncer: true,
       port: 6543, // Transaction pooler port
     };
   } else if (usePooler || isSessionPooler) {
     // Session pooler configuration (port 5432 on pooler.supabase.com)
+    // CRITICAL: Supabase free tier has hard-coded 3 connection limit
     const connectionLimit = Math.max(1, Math.floor(maxPoolSize / instanceCount));
     
     return {
-      connectionLimit: Math.min(connectionLimit, 3), // Max 3 connections per instance
-      poolTimeout: 10, // 10 seconds timeout
-      connectTimeout: 10, // 10 seconds max to connect
+      connectionLimit: 1, // Force minimal connections on free tier
+      poolTimeout: 0, // No timeout to avoid drops
+      connectTimeout: 300, // Extended timeout for compatibility
       statementCacheSize: 0, // Minimal caching in pooler mode
       pgbouncer: true,
       port: 5432, // Session pooler uses standard port
