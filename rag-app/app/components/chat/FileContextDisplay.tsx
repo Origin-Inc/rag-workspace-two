@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { X, FileText, FileSpreadsheet, File, ChevronRight, Database, Loader2 } from 'lucide-react';
+import { X, FileText, FileSpreadsheet, File, ChevronRight, Database, Loader2, CloudIcon, CheckCircleIcon, CloudOff, CloudUpload } from 'lucide-react';
 import { cn } from '~/utils/cn';
 import { useChatDataFiles } from '~/stores/chat-store';
 import type { FileSchema } from '~/services/file-processing.client';
+import type { SyncStatus } from './CloudSyncIndicator';
 
 interface FileChipProps {
   file: {
@@ -15,6 +16,9 @@ interface FileChipProps {
     fileType?: string;
     pageCount?: number;
     extractionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+    syncStatus?: SyncStatus;
+    storageUrl?: string | null;
+    parquetUrl?: string | null;
   };
   onRemove: () => void;
 }
@@ -59,6 +63,31 @@ function FileChip({
   const isProcessing = file.extractionStatus === 'processing';
   const hasFailed = file.extractionStatus === 'failed';
   
+  // Determine sync status
+  const getSyncStatus = (): SyncStatus => {
+    if (file.syncStatus) return file.syncStatus;
+    if (file.storageUrl || file.parquetUrl) return 'synced';
+    return 'local-only';
+  };
+  
+  const syncStatus = getSyncStatus();
+  
+  // Get sync icon
+  const getSyncIcon = () => {
+    switch (syncStatus) {
+      case 'synced':
+        return <CheckCircleIcon className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />;
+      case 'syncing':
+        return <CloudUpload className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 animate-pulse" />;
+      case 'error':
+        return <CloudOff className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />;
+      case 'local-only':
+        return <CloudOff className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />;
+      default:
+        return <CloudIcon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />;
+    }
+  };
+  
   return (
     <div
       className={cn(
@@ -99,6 +128,11 @@ function FileChip({
           {file.rowCount ? `${file.rowCount.toLocaleString()} rows` : `${file.pageCount} pages`}
         </span>
       )}
+      
+      {/* Sync Status Icon */}
+      <span className="flex-shrink-0" title={syncStatus === 'synced' ? 'Synced to cloud' : syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'error' ? 'Sync error' : 'Local only'}>
+        {getSyncIcon()}
+      </span>
       
       {/* Remove Button */}
       <button

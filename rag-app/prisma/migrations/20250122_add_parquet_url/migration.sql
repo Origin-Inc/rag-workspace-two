@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "data_files" 
+ADD COLUMN "parquet_url" TEXT,
+ADD COLUMN "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP;
