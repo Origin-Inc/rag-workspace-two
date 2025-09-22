@@ -19,7 +19,8 @@ export interface ChatMessage {
 }
 
 export interface DataFile {
-  id: string;
+  id: string;  // Temporary ID for UI tracking
+  databaseId?: string;  // UUID from database (when file is persisted to cloud)
   pageId: string;
   filename: string;
   tableName: string;
@@ -50,7 +51,7 @@ interface ChatState {
   deleteMessage: (pageId: string, messageId: string) => void;
   clearMessages: (pageId: string) => void;
   
-  addDataFile: (pageId: string, file: Omit<DataFile, 'id' | 'uploadedAt'>) => void;
+  addDataFile: (pageId: string, file: Omit<DataFile, 'id' | 'uploadedAt'> & { databaseId?: string }) => void;
   removeDataFile: (pageId: string, fileId: string) => void;
   clearDataFiles: (pageId: string) => void;
   
@@ -124,6 +125,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         const newFile: DataFile = {
           ...file,
           id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          databaseId: file.databaseId,  // Preserve database ID if provided
           pageId,
           uploadedAt: new Date(),
         };

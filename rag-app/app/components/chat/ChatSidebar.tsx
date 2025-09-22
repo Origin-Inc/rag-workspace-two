@@ -139,6 +139,7 @@ export function ChatSidebar({
                   schema: file.schema,
                   rowCount: file.rowCount,
                   sizeBytes: file.sizeBytes,
+                  databaseId: file.id,  // Preserve the database UUID
                 });
               });
               
@@ -468,7 +469,7 @@ export function ChatSidebar({
         }));
         
         // Add the file to local store
-        console.log('[ChatSidebar] About to add file to local store:', {
+        console.log('[ChatSidebar] Preparing file metadata:', {
           filename: file.name,
           tableName: processed.tableName,
           schemaLength: schemaForStore.length,
@@ -476,22 +477,13 @@ export function ChatSidebar({
         });
         
         if (!isMountedRef.current) {
-          console.warn('[ChatSidebar] Component unmounted, skipping addDataFile');
+          console.warn('[ChatSidebar] Component unmounted, skipping file operations');
           return;
         }
         
-        try {
-          addDataFile({
-            filename: file.name,
-            tableName: processed.tableName,
-            schema: schemaForStore,
-            rowCount: processed.data.length,
-            sizeBytes: file.size,
-          });
-          console.log('[ChatSidebar] File added to local store successfully');
-        } catch (error) {
-          console.error('[ChatSidebar] Error adding file to local store:', error);
-        }
+        // We'll add to local store after getting database ID (if saving to cloud)
+        // or immediately if not saving to cloud
+        let databaseId: string | undefined;
         
         // Save file metadata to database if we have a workspace
         if (workspaceId && pageId) {
@@ -627,6 +619,8 @@ export function ChatSidebar({
                   tableName: savedData.dataFile?.tableName,
                   response: savedData
                 });
+                // Save the database ID for the file
+                databaseId = savedData.dataFile?.id;
               } catch (parseError) {
                 console.error('[ChatSidebar] Failed to parse success response:', parseError);
               }
@@ -634,6 +628,25 @@ export function ChatSidebar({
           } catch (error) {
             console.error('[ChatSidebar] Error saving file metadata:', error);
           }
+        }
+        
+        // Now add the file to local store with database ID if available
+        try {
+          addDataFile({
+            filename: file.name,
+            tableName: processed.tableName,
+            schema: schemaForStore,
+            rowCount: processed.data.length,
+            sizeBytes: file.size,
+            databaseId: databaseId,  // Include database ID if we have one
+          });
+          console.log('[ChatSidebar] File added to local store:', {
+            tableName: processed.tableName,
+            hasDatabaseId: !!databaseId,
+            databaseId: databaseId
+          });
+        } catch (error) {
+          console.error('[ChatSidebar] Error adding file to local store:', error);
         }
         
         if (!isMountedRef.current) {
@@ -772,8 +785,8 @@ export function ChatSidebar({
               // Remove from local store
               removeDataFile(fileId);
               
-              // Remove from database if we have a workspace
-              if (workspaceId && pageId) {
+              // Remove from database if we have a workspace and database ID
+              if (workspaceId && pageId && file.databaseId) {
                 try {
                   const response = await fetch(`/api/data/files/${pageId}`, {
                     method: 'DELETE',
@@ -782,7 +795,7 @@ export function ChatSidebar({
                       'X-Requested-With': 'XMLHttpRequest'
                     },
                     credentials: 'include', // Ensure auth cookies are sent
-                    body: JSON.stringify({ fileId }),
+                    body: JSON.stringify({ fileId: file.databaseId }),  // Use database ID for API
                   });
                   
                   if (!response.ok) {
@@ -791,6 +804,8 @@ export function ChatSidebar({
                 } catch (error) {
                   console.error('[ChatSidebar] Error deleting file:', error);
                 }
+              } else if (workspaceId && pageId && !file.databaseId) {
+                console.log('[ChatSidebar] File has no database ID, skipping cloud deletion');
               }
               
               // Remove from DuckDB
