@@ -185,6 +185,15 @@ export const action: ActionFunction = async ({ request, params }) => {
         return json({ error: 'File ID required' }, { status: 400 });
       }
 
+      logger.trace('Delete request received', { fileId, pageId, fileIdType: typeof fileId });
+
+      // Validate that fileId is a valid UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(fileId)) {
+        logger.error('Invalid UUID format', { fileId });
+        return json({ error: 'Invalid file ID format' }, { status: 400 });
+      }
+
       // Verify the file belongs to the page
       const dataFile = await prisma.dataFile.findFirst({
         where: {
