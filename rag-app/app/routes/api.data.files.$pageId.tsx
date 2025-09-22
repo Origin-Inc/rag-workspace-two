@@ -19,6 +19,7 @@ const fileMetadataSchema = z.object({
   rowCount: z.number(),
   sizeBytes: z.number(),
   storageUrl: z.string().nullable().optional(),
+  parquetUrl: z.string().nullable().optional(),
 });
 
 // GET /api/data/files/:pageId - Fetch data files for a page
@@ -143,6 +144,7 @@ export const action: ActionFunction = async ({ request, params }) => {
           rowCount: result.data.rowCount,
           sizeBytes: result.data.sizeBytes,
           storageUrl: result.data.storageUrl,
+          parquetUrl: result.data.parquetUrl,
         },
         select: {
           id: true,
@@ -152,6 +154,7 @@ export const action: ActionFunction = async ({ request, params }) => {
           rowCount: true,
           sizeBytes: true,
           storageUrl: true,
+          parquetUrl: true,
           createdAt: true,
         },
       });
