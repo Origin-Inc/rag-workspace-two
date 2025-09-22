@@ -10,6 +10,7 @@ export interface QueryResult {
   rowCount?: number;
   executionTime?: number;
   columns?: string[];
+  tableUsageStats?: Record<string, { rowsScanned?: number; columnsAccessed?: string[] }>;
 }
 
 export interface SQLGenerationResponse {
@@ -18,6 +19,12 @@ export interface SQLGenerationResponse {
   confidence: number;
   tables: string[];
   suggestedVisualization?: 'table' | 'chart' | 'number';
+  usedTables?: Array<{
+    name: string;
+    filename: string;
+    fileId?: string;
+    columnsUsed?: string[];
+  }>;
 }
 
 export class DuckDBQueryService {
@@ -117,7 +124,7 @@ export class DuckDBQueryService {
   /**
    * Execute SQL query against DuckDB
    */
-  public async executeQuery(sql: string): Promise<QueryResult> {
+  public async executeQuery(sql: string, trackUsage: boolean = false): Promise<QueryResult> {
     const startTime = performance.now();
     
     try {
@@ -138,6 +145,21 @@ export class DuckDBQueryService {
       
       // Get column names
       const columns = result.schema.fields.map(f => f.name);
+      
+      // Track table usage if requested
+      let tableUsageStats;
+      if (trackUsage) {
+        try {
+          // Run EXPLAIN to get query plan for more accurate stats
+          const explainResult = await conn.query(`EXPLAIN ${sql}`);
+          const explainData = explainResult.toArray();
+          
+          // Parse explain output for table scan information
+          tableUsageStats = this.parseExplainForTableUsage(explainData);
+        } catch (err) {
+          console.log('Could not get table usage stats:', err);
+        }
+      }
 
       return {
         success: true,
@@ -146,6 +168,7 @@ export class DuckDBQueryService {
         rowCount: data.length,
         executionTime,
         columns,
+        tableUsageStats,
       };
     } catch (error) {
       console.error('Query execution failed:', error);
@@ -201,7 +224,18 @@ export class DuckDBQueryService {
         executionTime: 0,
       };
     } else {
-      queryResult = await this.executeQuery(sqlGeneration.sql);
+      queryResult = await this.executeQuery(sqlGeneration.sql, true); // Enable usage tracking
+      
+      // Enhance usedTables with actual row counts if available
+      if (sqlGeneration.usedTables && queryResult.tableUsageStats) {
+        sqlGeneration.usedTables = sqlGeneration.usedTables.map(table => {
+          const stats = queryResult.tableUsageStats?.[table.name];
+          if (stats?.rowsScanned) {
+            return { ...table, rowsAccessed: stats.rowsScanned };
+          }
+          return table;
+        });
+      }
     }
     
     return {
@@ -271,6 +305,39 @@ export class DuckDBQueryService {
     return name
       .replace(/_/g, ' ')
       .replace(/\b\w/g, l => l.toUpperCase());
+  }
+  
+  /**
+   * Parse EXPLAIN output to extract table usage information
+   */
+  private parseExplainForTableUsage(explainData: any[]): Record<string, { rowsScanned?: number; columnsAccessed?: string[] }> {
+    const usage: Record<string, { rowsScanned?: number; columnsAccessed?: string[] }> = {};
+    
+    // DuckDB EXPLAIN output is typically a single row with the query plan
+    if (explainData.length > 0 && explainData[0]) {
+      const planText = String(explainData[0]['explain_value'] || explainData[0]['QUERY_PLAN'] || '');
+      
+      // Extract table scan information from the plan
+      // Look for patterns like "SEQ_SCAN(table_name)" or "TABLE_SCAN(table_name)"
+      const scanPattern = /(?:SEQ_SCAN|TABLE_SCAN|INDEX_SCAN)\s*\(([^)]+)\)/gi;
+      const matches = planText.matchAll(scanPattern);
+      
+      for (const match of matches) {
+        const tableName = match[1].trim();
+        if (!usage[tableName]) {
+          usage[tableName] = {};
+        }
+        
+        // Try to extract row count estimates if available
+        const rowPattern = new RegExp(`${tableName}.*?rows[=:]\\s*(\\d+)`, 'i');
+        const rowMatch = planText.match(rowPattern);
+        if (rowMatch) {
+          usage[tableName].rowsScanned = parseInt(rowMatch[1], 10);
+        }
+      }
+    }
+    
+    return usage;
   }
 
   /**

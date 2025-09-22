@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { User, Bot, ChevronDown, ChevronUp, Code, BarChart, Plus } from 'lucide-react';
 import type { ChatMessage as ChatMessageType } from '~/stores/chat-store';
 import { cn } from '~/utils/cn';
+import { ChatCitation } from './ChatCitation';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -141,8 +142,16 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
                 </div>
               )}
               
-              {/* Data Files Used */}
-              {message.metadata.dataFiles && message.metadata.dataFiles.length > 0 && (
+              {/* Data Files Used - Now using ChatCitation component */}
+              {message.metadata.usedTables && message.metadata.usedTables.length > 0 && (
+                <ChatCitation 
+                  citations={message.metadata.usedTables}
+                  className="mt-2"
+                />
+              )}
+              
+              {/* Fallback to old format if usedTables not available */}
+              {!message.metadata.usedTables && message.metadata.dataFiles && message.metadata.dataFiles.length > 0 && (
                 <div className="text-xs opacity-80 mt-1">
                   <span>Files: {message.metadata.dataFiles.join(', ')}</span>
                 </div>

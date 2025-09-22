@@ -28,11 +28,91 @@ export interface ChatQueryResponse {
   explanation: string;
   confidence: number;
   suggestedVisualization?: 'table' | 'chart' | 'number';
+  usedTables?: Array<{
+    name: string;
+    filename: string;
+    fileId?: string;
+    columnsUsed?: string[];
+  }>;
   metadata: {
     tokensUsed: number;
     contextTokens?: number; // Tokens used in context
     model: string;
   };
+}
+
+// Function to parse SQL and extract used tables with their columns
+function parseUsedTables(sql: string, availableTables: ChatQueryRequest['tables']): Array<{
+  name: string;
+  filename: string;
+  fileId?: string;
+  columnsUsed?: string[];
+}> {
+  const usedTables: Array<{
+    name: string;
+    filename: string;
+    fileId?: string;
+    columnsUsed?: string[];
+  }> = [];
+  
+  // Normalize SQL for parsing (remove comments, handle line breaks)
+  const normalizedSql = sql
+    .replace(/--.*$/gm, '') // Remove line comments
+    .replace(/\/\*[\s\S]*?\*\//g, '') // Remove block comments
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .toUpperCase();
+  
+  // Extract table names from FROM and JOIN clauses
+  const tablePattern = /(?:FROM|JOIN)\s+([^\s,()]+)/gi;
+  const matches = normalizedSql.matchAll(tablePattern);
+  
+  const foundTableNames = new Set<string>();
+  for (const match of matches) {
+    const tableName = match[1].replace(/["'`]/g, ''); // Remove quotes
+    foundTableNames.add(tableName.toLowerCase());
+  }
+  
+  // Map found tables to available table metadata
+  for (const tableName of foundTableNames) {
+    const tableInfo = availableTables.find(t => 
+      t.name.toLowerCase() === tableName.toLowerCase()
+    );
+    
+    if (tableInfo) {
+      // Extract columns used for this table
+      const columnsUsed = new Set<string>();
+      
+      // Pattern to find columns (simplified - handles most common cases)
+      // Looks for tablename.column or "column" after SELECT, WHERE, GROUP BY, ORDER BY
+      const columnPattern = new RegExp(
+        `(?:SELECT|WHERE|GROUP\\s+BY|ORDER\\s+BY|ON).*?(?:${tableName}\\.["']?([\\w_]+)["']?|["']([\\w_]+)["'])`,
+        'gi'
+      );
+      
+      const columnMatches = sql.matchAll(columnPattern);
+      for (const colMatch of columnMatches) {
+        const columnName = colMatch[1] || colMatch[2];
+        if (columnName && tableInfo.schema?.columns) {
+          // Verify column exists in schema
+          const exists = tableInfo.schema.columns.some(
+            col => col.name.toLowerCase() === columnName.toLowerCase()
+          );
+          if (exists) {
+            columnsUsed.add(columnName);
+          }
+        }
+      }
+      
+      usedTables.push({
+        name: tableInfo.name,
+        filename: tableInfo.name, // Use the table name as filename for now
+        fileId: tableInfo.id,
+        columnsUsed: columnsUsed.size > 0 ? Array.from(columnsUsed) : undefined,
+      });
+    }
+  }
+  
+  return usedTables;
 }
 
 const SQL_GENERATION_PROMPT = `You are a friendly data analyst having a conversation. Help users understand their data by writing SQL queries and explaining the results in natural, conversational language.
@@ -221,6 +301,9 @@ Remember to:
       }
     }
 
+    // Parse SQL to identify which tables are actually used
+    const usedTables = parseUsedTables(sql, tables);
+    
     // Build response
     const responseData: ChatQueryResponse = {
       sql: sql.trim(),
@@ -228,6 +311,7 @@ Remember to:
       explanation: result.explanation || 'Query generated successfully',
       confidence: result.confidence || 0.8,
       suggestedVisualization: result.suggestedVisualization || 'table',
+      usedTables: usedTables.length > 0 ? usedTables : undefined,
       metadata: {
         tokensUsed: completion.usage?.total_tokens || 0,
         contextTokens: contextWindow.totalTokens,
