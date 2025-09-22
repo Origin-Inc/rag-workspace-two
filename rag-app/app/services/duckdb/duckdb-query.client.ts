@@ -1,5 +1,6 @@
 import { getDuckDB } from './duckdb-service.client';
 import type { DataFile } from '~/stores/chat-store-ultimate-fix';
+import { ContextWindowManagerClient } from '~/services/context-window-manager.client';
 
 export interface QueryResult {
   success: boolean;
@@ -38,9 +39,46 @@ export class DuckDBQueryService {
     query: string,
     tables: DataFile[],
     pageId: string,
-    workspaceId?: string
+    workspaceId?: string,
+    conversationHistory?: Array<{ role: string; content: string }>
   ): Promise<SQLGenerationResponse> {
     try {
+      // Prepare tables with intelligent sampling
+      const tablesWithSamples = await Promise.all(tables.map(async t => {
+        let sampleData: any[] | undefined;
+        
+        // Try to get sample data from DuckDB
+        try {
+          const duckdb = getDuckDB();
+          if (duckdb.isReady()) {
+            const conn = await duckdb.getConnection();
+            const result = await conn.query(`SELECT * FROM ${t.tableName} LIMIT 100`);
+            const allData = result.toArray();
+            
+            // Use intelligent sampling based on query
+            if (allData.length > 0 && t.schema) {
+              const { data: sampledData } = ContextWindowManagerClient.optimizeDataForContext(
+                allData,
+                t.schema,
+                query,
+                2000 // Allocate ~2000 tokens for sample data per table
+              );
+              sampleData = sampledData;
+            }
+          }
+        } catch (error) {
+          console.log(`Could not fetch sample data for ${t.tableName}:`, error);
+        }
+        
+        return {
+          id: t.id,
+          name: t.tableName,
+          schema: t.schema,
+          rowCount: t.rowCount,
+          data: sampleData,
+        };
+      }));
+      
       const response = await fetch('/api/chat-query', {
         method: 'POST',
         headers: {
@@ -50,11 +88,9 @@ export class DuckDBQueryService {
           query,
           pageId,
           workspaceId,
-          tables: tables.map(t => ({
-            name: t.tableName,
-            schema: t.schema,
-            rowCount: t.rowCount,
-          })),
+          tables: tablesWithSamples,
+          conversationHistory,
+          model: 'gpt-4-turbo-preview', // Can be made configurable
         }),
       });
 
@@ -145,13 +181,14 @@ export class DuckDBQueryService {
     query: string,
     tables: DataFile[],
     pageId: string,
-    workspaceId?: string
+    workspaceId?: string,
+    conversationHistory?: Array<{ role: string; content: string }>
   ): Promise<{
     sqlGeneration: SQLGenerationResponse;
     queryResult: QueryResult;
   }> {
-    // Step 1: Generate SQL from natural language
-    const sqlGeneration = await this.generateSQL(query, tables, pageId, workspaceId);
+    // Step 1: Generate SQL from natural language with context
+    const sqlGeneration = await this.generateSQL(query, tables, pageId, workspaceId, conversationHistory);
     
     // Step 2: Execute the generated SQL (only if SQL was generated)
     let queryResult: QueryResult;
