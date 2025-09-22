@@ -60,7 +60,13 @@ export function ChatSidebarStable({
         }
         
         // Load files metadata
-        const fileResponse = await fetch(`/api/data/files/${pageId}`);
+        const fileResponse = await fetch(`/api/data/files/${pageId}`, {
+          method: 'GET',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          credentials: 'include' // Ensure auth cookies are sent
+        });
         if (fileResponse.ok && mounted) {
           const fileData = await fileResponse.json();
           if (fileData.dataFiles) {
@@ -237,7 +243,11 @@ export function ChatSidebarStable({
         try {
           await fetch(`/api/data/files/${pageId}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'include', // Ensure auth cookies are sent
             body: JSON.stringify({
               filename: file.name,
               tableName: processed.tableName,
