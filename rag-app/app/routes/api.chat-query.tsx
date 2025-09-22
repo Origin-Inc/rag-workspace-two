@@ -3,6 +3,7 @@ import { json } from '@remix-run/node';
 import { openai, SYSTEM_PROMPTS } from '~/services/openai.server';
 import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
+import { ContextWindowManager } from '~/services/context-window-manager.server';
 
 const logger = new DebugLogger('api.chat-query');
 
@@ -11,10 +12,14 @@ export interface ChatQueryRequest {
   pageId: string;
   workspaceId?: string;
   tables: Array<{
+    id?: string;
     name: string;
     schema: any;
     rowCount: number;
+    data?: any[]; // Sample data for better context
   }>;
+  conversationHistory?: Array<{ role: string; content: string }>; // Previous messages for context
+  model?: string; // Allow specifying model for token limits
 }
 
 export interface ChatQueryResponse {
@@ -25,6 +30,7 @@ export interface ChatQueryResponse {
   suggestedVisualization?: 'table' | 'chart' | 'number';
   metadata: {
     tokensUsed: number;
+    contextTokens?: number; // Tokens used in context
     model: string;
   };
 }
@@ -79,7 +85,7 @@ export const action: ActionFunction = async ({ request }) => {
 
     // Parse request body
     const body: ChatQueryRequest = await request.json();
-    const { query, pageId, workspaceId, tables } = body;
+    const { query, pageId, workspaceId, tables, conversationHistory, model = 'gpt-4-turbo-preview' } = body;
 
     // Validate input
     if (!query || !pageId || !tables || tables.length === 0) {
@@ -98,16 +104,42 @@ export const action: ActionFunction = async ({ request }) => {
       );
     }
 
-    // Build context with table schemas
-    const tableContext = tables.map(table => {
-      const schemaInfo = table.schema?.columns 
-        ? `Columns: ${table.schema.columns.map((c: any) => `"${c.name}" (${c.type})`).join(', ')}`
-        : `Schema: ${JSON.stringify(table.schema)}`;
-      
-      return `Table: ${table.name}
-${schemaInfo}
-Row count: ${table.rowCount}`;
-    }).join('\n\n');
+    // Convert tables to format expected by ContextWindowManager
+    const dataFiles = tables.map((table, index) => ({
+      id: table.id || `table-${index}`,
+      filename: table.name,
+      schema: {
+        columns: table.schema?.columns || [],
+        rowCount: table.rowCount,
+      },
+      data: table.data, // Include sample data if provided
+    }));
+
+    // Build context window using ContextWindowManager with query-aware prioritization
+    const contextWindow = ContextWindowManager.buildQueryAwareContext(
+      query,
+      conversationHistory || [],
+      dataFiles,
+      {
+        model,
+        maxTokens: model === 'gpt-4' ? 8192 : 128000, // Use model-specific limits
+      }
+    );
+
+    // Extract context from window items
+    const contextItems = contextWindow.items.filter(item => 
+      item.type === 'schema' || item.type === 'data'
+    );
+    
+    const tableContext = contextItems.map(item => item.content).join('\n\n');
+    
+    // Log token usage for monitoring
+    logger.trace('Context window built', {
+      totalTokens: contextWindow.totalTokens,
+      maxTokens: contextWindow.maxTokens,
+      itemCount: contextWindow.items.length,
+      hasMore: contextWindow.hasMore,
+    });
 
     // Generate prompt
     const prompt = `Given these DuckDB tables:
@@ -198,6 +230,7 @@ Remember to:
       suggestedVisualization: result.suggestedVisualization || 'table',
       metadata: {
         tokensUsed: completion.usage?.total_tokens || 0,
+        contextTokens: contextWindow.totalTokens,
         model: completion.model,
       },
     };

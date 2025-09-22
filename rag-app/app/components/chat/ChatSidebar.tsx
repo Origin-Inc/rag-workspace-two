@@ -8,6 +8,7 @@ import { ChatInput } from './ChatInput';
 import { FileContextDisplay } from './FileContextDisplay';
 import { cn } from '~/utils/cn';
 import { duckDBQuery } from '~/services/duckdb/duckdb-query.client';
+import { tokenMonitor } from '~/services/token-usage-monitor.client';
 
 interface ChatSidebarProps {
   pageId: string;
@@ -212,13 +213,34 @@ export function ChatSidebar({
     if (dataFiles.length > 0) {
       setLoading(true);
       try {
-        // Process natural language query
+        // Get recent conversation for context (last 5 exchanges)
+        const conversationHistory = messages.slice(-10).map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }));
+        
+        // Process natural language query with conversation context
         const result = await duckDBQuery.processNaturalLanguageQuery(
           content,
           dataFiles,
           pageId,
-          workspaceId
+          workspaceId,
+          conversationHistory
         );
+        
+        // Track token usage if metadata is available
+        if ((result.sqlGeneration as any).metadata) {
+          const metadata = (result.sqlGeneration as any).metadata;
+          tokenMonitor.recordUsage({
+            query: content,
+            model: metadata.model || 'gpt-4-turbo-preview',
+            contextTokens: metadata.contextTokens || 0,
+            responseTokens: metadata.tokensUsed || 0,
+            totalTokens: metadata.tokensUsed || 0,
+            truncated: false,
+            samplingStrategy: 'smart',
+          });
+        }
 
         // Build a comprehensive response
         let responseContent = '';

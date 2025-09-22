@@ -1,4 +1,4 @@
-import { encoding_for_model, type TiktokenModel } from 'tiktoken';
+import { get_encoding, encoding_for_model, type TiktokenModel } from 'tiktoken';
 import type { FileSchema } from '~/services/file-processing.server';
 
 export interface ContextItem {
@@ -359,6 +359,67 @@ ${JSON.stringify(sample, null, 2)}`;
     }
     
     return filtered.join('\n');
+  }
+  
+  /**
+   * Identify files mentioned in a query for prioritization
+   */
+  static identifyMentionedFiles(
+    query: string,
+    dataFiles: Array<{ id: string; filename: string }>
+  ): string[] {
+    const lowerQuery = query.toLowerCase();
+    const mentionedIds: string[] = [];
+    
+    for (const file of dataFiles) {
+      const filename = file.filename.toLowerCase();
+      const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
+      const tableName = filename.replace(/\.(csv|json|xlsx|txt)$/i, '');
+      
+      // Check various ways the file might be mentioned
+      if (
+        lowerQuery.includes(filename) ||
+        lowerQuery.includes(nameWithoutExt) ||
+        lowerQuery.includes(tableName) ||
+        // Check for partial matches (e.g., "sales" matches "sales_data.csv")
+        tableName.split(/[_-]/).some(part => 
+          part.length > 3 && lowerQuery.includes(part)
+        )
+      ) {
+        mentionedIds.push(file.id);
+      }
+    }
+    
+    return mentionedIds;
+  }
+  
+  /**
+   * Build context with query-aware prioritization
+   */
+  static buildQueryAwareContext(
+    query: string,
+    messages: Array<{ role: string; content: string }>,
+    dataFiles: Array<{
+      id: string;
+      filename: string;
+      schema: FileSchema;
+      data?: any[];
+    }>,
+    options: {
+      model?: string;
+      maxTokens?: number;
+    } = {}
+  ): ContextWindow {
+    // Identify files mentioned in the query
+    const mentionedFileIds = this.identifyMentionedFiles(query, dataFiles);
+    
+    // Build context with prioritized files
+    return this.buildContextWindow(messages, dataFiles, {
+      ...options,
+      priorityFileIds: mentionedFileIds,
+      includeFullSchema: true,
+      includeDataSample: true,
+    });
   }
   
   /**

@@ -20,15 +20,19 @@ export interface ContextWindow {
 }
 
 export class ContextWindowManagerClient {
-  // Token limits for different models
+  // Token limits for different models (updated for latest models)
   private static readonly MODEL_LIMITS = {
+    'gpt-4-turbo-preview': 128000,
     'gpt-4-turbo': 128000,
     'gpt-4': 8192,
     'gpt-3.5-turbo': 16384,
-    'claude-3': 200000,
+    'claude-3-opus': 200000,
+    'claude-3-sonnet': 200000,
+    'claude-3-haiku': 200000,
   };
   
   private static readonly RESPONSE_RESERVE = 4000;
+  private static readonly TOKENS_PER_ROW_ESTIMATE = 50;
   
   /**
    * Estimate token count (client-side approximation)
@@ -297,5 +301,162 @@ ${JSON.stringify(sample, null, 2)}`;
     const limit = this.MODEL_LIMITS[model as keyof typeof this.MODEL_LIMITS] || 100000;
     const estimate = this.estimateTokens(context);
     return estimate < (limit - this.RESPONSE_RESERVE);
+  }
+  
+  /**
+   * Intelligently sample data based on column patterns
+   */
+  static smartColumnSample(
+    data: any[],
+    schema: FileSchema,
+    query: string,
+    maxRows: number = 10
+  ): { sample: any[]; strategy: string } {
+    if (data.length <= maxRows) {
+      return { sample: data, strategy: 'complete' };
+    }
+    
+    const lowerQuery = query.toLowerCase();
+    
+    // Check for aggregation keywords
+    if (/\b(sum|avg|average|mean|count|total|min|max|group)\b/.test(lowerQuery)) {
+      // For aggregations, sample diverse values
+      return {
+        sample: this.getDiverseSample(data, schema, maxRows),
+        strategy: 'diverse',
+      };
+    }
+    
+    // Check for specific value mentions
+    const valueMatches = this.findValueMatches(data, query, maxRows);
+    if (valueMatches.length > 0) {
+      return {
+        sample: valueMatches,
+        strategy: 'value-match',
+      };
+    }
+    
+    // Check for time-based queries
+    if (/\b(recent|latest|last|newest|oldest|first)\b/.test(lowerQuery)) {
+      const dateColumns = schema.columns.filter(c => 
+        c.type === 'date' || c.type === 'datetime' || c.name.toLowerCase().includes('date')
+      );
+      
+      if (dateColumns.length > 0) {
+        return {
+          sample: this.getTimeSample(data, dateColumns[0].name, lowerQuery.includes('oldest') || lowerQuery.includes('first'), maxRows),
+          strategy: 'time-based',
+        };
+      }
+    }
+    
+    // Default: stratified sampling
+    return {
+      sample: this.getStratifiedSample(data, maxRows),
+      strategy: 'stratified',
+    };
+  }
+  
+  /**
+   * Get diverse sample covering value ranges
+   */
+  private static getDiverseSample(data: any[], schema: FileSchema, maxRows: number): any[] {
+    const numericColumns = schema.columns.filter(c => c.type === 'number');
+    if (numericColumns.length === 0) {
+      return this.getStratifiedSample(data, maxRows);
+    }
+    
+    // Sort by first numeric column and take evenly spaced samples
+    const sortColumn = numericColumns[0].name;
+    const sorted = [...data].sort((a, b) => {
+      const aVal = Number(a[sortColumn]) || 0;
+      const bVal = Number(b[sortColumn]) || 0;
+      return aVal - bVal;
+    });
+    
+    const step = Math.floor(sorted.length / maxRows);
+    const sample: any[] = [];
+    
+    for (let i = 0; i < sorted.length && sample.length < maxRows; i += step) {
+      sample.push(sorted[i]);
+    }
+    
+    return sample;
+  }
+  
+  /**
+   * Find rows matching specific values in query
+   */
+  private static findValueMatches(data: any[], query: string, maxRows: number): any[] {
+    const matches: any[] = [];
+    const lowerQuery = query.toLowerCase();
+    
+    for (const row of data) {
+      const rowStr = JSON.stringify(row).toLowerCase();
+      
+      // Check if row contains query terms
+      const queryTokens = lowerQuery.split(/\s+/).filter(t => t.length > 2);
+      const hasMatch = queryTokens.some(token => rowStr.includes(token));
+      
+      if (hasMatch) {
+        matches.push(row);
+        if (matches.length >= maxRows) break;
+      }
+    }
+    
+    return matches;
+  }
+  
+  /**
+   * Get time-based sample
+   */
+  private static getTimeSample(data: any[], dateColumn: string, oldest: boolean, maxRows: number): any[] {
+    const sorted = [...data].sort((a, b) => {
+      const aDate = new Date(a[dateColumn]).getTime() || 0;
+      const bDate = new Date(b[dateColumn]).getTime() || 0;
+      return oldest ? aDate - bDate : bDate - aDate;
+    });
+    
+    return sorted.slice(0, maxRows);
+  }
+  
+  /**
+   * Get stratified sample (evenly distributed)
+   */
+  private static getStratifiedSample(data: any[], maxRows: number): any[] {
+    const step = Math.ceil(data.length / maxRows);
+    const sample: any[] = [];
+    
+    for (let i = 0; i < data.length && sample.length < maxRows; i += step) {
+      sample.push(data[i]);
+    }
+    
+    return sample;
+  }
+  
+  /**
+   * Optimize data for context based on query intent
+   */
+  static optimizeDataForContext(
+    data: any[],
+    schema: FileSchema,
+    query: string,
+    availableTokens: number
+  ): { data: any[]; metadata: any } {
+    const tokensPerRow = this.TOKENS_PER_ROW_ESTIMATE;
+    const maxRows = Math.floor(availableTokens / tokensPerRow);
+    
+    // Use smart sampling
+    const { sample, strategy } = this.smartColumnSample(data, schema, query, maxRows);
+    
+    // Generate metadata about the sampling
+    const metadata = {
+      totalRows: data.length,
+      sampledRows: sample.length,
+      samplingStrategy: strategy,
+      estimatedTokens: sample.length * tokensPerRow,
+    };
+    
+    return { data: sample, metadata };
   }
 }

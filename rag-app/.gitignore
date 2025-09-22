@@ -48,6 +48,10 @@ pids
 
 # Docker volumes
 postgres_data/
+
+# Task Master and Cursor directories (should be in project root, not here)
+.taskmaster/
+.cursor/
 redis_data/
 
 # Temporary files
