@@ -65,21 +65,47 @@ export class DuckDBExportService {
       
       // Upload to Supabase Storage
       const timestamp = Date.now();
-      const tablePath = `tables/${workspaceId}/${timestamp}_${tableName}.json`;
+      const randomSuffix = Math.random().toString(36).substring(7);
+      const tablePath = `tables/${workspaceId}/${timestamp}_${tableName}_${randomSuffix}.json`;
+      
+      console.log('[DuckDBExport] Uploading to path:', tablePath);
+      console.log('[DuckDBExport] Blob size:', tableBlob.size, 'bytes');
       
       // Import Supabase client dynamically
       const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(supabaseUrl, supabaseKey);
+      const supabase = createClient(supabaseUrl, supabaseKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true
+        }
+      });
+      
+      // Check if we have a session
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('[DuckDBExport] Auth session exists:', !!session);
       
       const { data, error } = await supabase.storage
         .from('duckdb-tables')
         .upload(tablePath, tableBlob, {
           contentType: 'application/json',
           upsert: true,
+          cacheControl: '3600'
         });
       
       if (error) {
-        console.error('[DuckDBExport] Failed to upload Parquet to storage:', error);
+        console.error('[DuckDBExport] Failed to upload to storage:', {
+          error: error.message,
+          statusCode: error.statusCode || 'unknown',
+          details: error
+        });
+        
+        // Try to provide more specific error info
+        if (error.message?.includes('row-level security')) {
+          console.error('[DuckDBExport] RLS policy violation - user may not be authenticated');
+        } else if (error.message?.includes('Bucket not found')) {
+          console.error('[DuckDBExport] Storage bucket "duckdb-tables" does not exist');
+        }
+        
         return null;
       }
       
@@ -88,7 +114,11 @@ export class DuckDBExportService {
         .from('duckdb-tables')
         .getPublicUrl(tablePath);
       
-      console.log('[DuckDBExport] Table data uploaded successfully:', urlData.publicUrl);
+      console.log('[DuckDBExport] Table data uploaded successfully:', {
+        path: data?.path,
+        publicUrl: urlData.publicUrl
+      });
+      
       return urlData.publicUrl;
     } catch (error) {
       console.error('[DuckDBExport] Failed to export and upload:', error);
