@@ -26,8 +26,6 @@ function createPrismaClient() {
         url: databaseUrl,
       },
     },
-    // Add connection pool configuration to prevent timeouts
-    datasourceUrl: databaseUrl,
   });
 
   // Enhanced transaction handling for pooling modes
