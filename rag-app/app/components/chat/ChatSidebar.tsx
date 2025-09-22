@@ -536,6 +536,11 @@ export function ChatSidebar({
                   });
                 } else {
                   console.error('[ChatSidebar] ❌ UPLOAD RETURNED NULL - Check DuckDBExport logs for details');
+                  // Check if in incognito mode or missing auth
+                  if (!document.cookie.includes('auth-token') && !document.cookie.includes('sb-')) {
+                    console.warn('[ChatSidebar] 💡 You may be in incognito mode or not logged in.');
+                    console.warn('[ChatSidebar] Files will be available locally during this session but won\'t persist to cloud.');
+                  }
                 }
               } catch (error) {
                 console.error('[ChatSidebar] ❌ EXCEPTION DURING TABLE EXPORT:', {

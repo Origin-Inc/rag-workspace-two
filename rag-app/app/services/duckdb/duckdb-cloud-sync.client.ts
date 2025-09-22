@@ -72,6 +72,8 @@ export class DuckDBCloudSyncService {
         
         if (response.status === 401 || response.status === 403) {
           console.warn('[CloudSync] Authentication required to load cloud files');
+          console.info('[CloudSync] 💡 Files uploaded in this session will be available locally.');
+          console.info('[CloudSync] To persist files across sessions, please use a regular browser window and log in.');
           // Return empty array instead of throwing for auth issues
           // This allows local-only usage in incognito
           return [];
