@@ -104,7 +104,7 @@ export class DuckDBCloudSyncService {
             console.log(`[CloudSync] Restoring table ${file.tableName} from cloud`);
             
             // Download and restore Parquet file
-            await this.restoreTableFromParquet(file.tableName, file.parquetUrl);
+            await this.restoreTableFromParquet(file.tableName, file.parquetUrl, pageId);
             
             console.log(`[CloudSync] Table ${file.tableName} restored successfully`);
             
@@ -182,7 +182,7 @@ export class DuckDBCloudSyncService {
   /**
    * Restore a table from Parquet URL
    */
-  private async restoreTableFromParquet(tableName: string, parquetUrl: string): Promise<void> {
+  private async restoreTableFromParquet(tableName: string, parquetUrl: string, pageId: string): Promise<void> {
     try {
       console.log(`[CloudSync] Fetching table data from: ${parquetUrl}`);
       
@@ -262,46 +262,34 @@ export class DuckDBCloudSyncService {
         console.log(`[CloudSync] Creating table ${tableName} with ${dataToImport.length} rows`);
         console.log('[CloudSync] Sample data row:', dataToImport[0]);
         
-        // Use createTableFromData if available
-        const rowCount = await duckdb.createTableFromData(
+        // Convert schema format from export to what createTableFromData expects
+        let schemaForTable = undefined;
+        if (exportData.schema && Array.isArray(exportData.schema)) {
+          schemaForTable = {
+            columns: exportData.schema.map((col: any) => ({
+              name: col.column_name || col.name,
+              type: col.data_type || col.type
+            }))
+          };
+          console.log('[CloudSync] Converted schema:', schemaForTable);
+        }
+        
+        // Use createTableFromData with correct parameters
+        await duckdb.createTableFromData(
           tableName,
           dataToImport,
-          tableName // Use tableName as pageId
+          schemaForTable,  // Pass the schema (optional)
+          pageId          // Pass the pageId for persistence
         );
         
-        console.log(`[CloudSync] Table ${tableName} created with ${rowCount} rows`);
+        console.log(`[CloudSync] Table ${tableName} created with ${dataToImport.length} rows`);
       } else {
         console.warn(`[CloudSync] No data found for table ${tableName}`);
       }
       
       console.log(`[CloudSync] Table ${tableName} restored from cloud`);
       
-      // Also persist to IndexedDB for offline access
-      const { DuckDBPersistenceService } = await import('./duckdb-persistence.client');
-      const persistenceService = DuckDBPersistenceService.getInstance();
-      
-      // Get row count for persistence
-      const countResult = await conn.query(`SELECT COUNT(*) as count FROM ${tableName}`);
-      const rows = countResult.toArray();
-      const rowCount = rows[0]?.count || 0;
-      
-      // Get schema (simplified)
-      const schemaResult = await conn.query(`SELECT * FROM ${tableName} LIMIT 1`);
-      const schemaRow = schemaResult.toArray()[0];
-      const schema = {
-        columns: schemaRow ? Object.keys(schemaRow).map(name => ({
-          name,
-          type: typeof schemaRow[name]
-        })) : []
-      };
-      
-      // Persist to IndexedDB
-      await persistenceService.persistTable(
-        tableName,
-        tableName, // Use tableName as pageId for now
-        schema,
-        rowCount
-      );
+      // Persistence is handled by createTableFromData when pageId is provided
       
     } catch (error) {
       console.error(`[CloudSync] Failed to restore from Parquet:`, error);
