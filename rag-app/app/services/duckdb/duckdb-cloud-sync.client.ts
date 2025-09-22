@@ -53,13 +53,30 @@ export class DuckDBCloudSyncService {
     try {
       console.log(`[CloudSync] Loading files for page ${pageId}`);
       
-      // Fetch file metadata from API
-      const response = await fetch(`/api/data/files/${pageId}`);
+      // Fetch file metadata from API with credentials
+      const response = await fetch(`/api/data/files/${pageId}`, {
+        method: 'GET',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'include' // Ensure auth cookies are sent
+      });
       console.log('[CloudSync] API Response status:', response.status, response.ok);
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('[CloudSync] API Error:', errorText);
+        console.error('[CloudSync] API Error:', {
+          status: response.status,
+          error: errorText
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+          console.warn('[CloudSync] Authentication required to load cloud files');
+          // Return empty array instead of throwing for auth issues
+          // This allows local-only usage in incognito
+          return [];
+        }
+        
         throw new Error('Failed to fetch files from cloud');
       }
       
@@ -361,7 +378,13 @@ export class DuckDBCloudSyncService {
     
     try {
       // Get all files from cloud
-      const response = await fetch(`/api/data/files/${pageId}`);
+      const response = await fetch(`/api/data/files/${pageId}`, {
+        method: 'GET',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'include' // Ensure auth cookies are sent
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch files');
       }

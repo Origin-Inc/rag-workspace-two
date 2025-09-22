@@ -574,7 +574,12 @@ export function ChatSidebar({
             
             const response = await fetch(`/api/data/files/${pageId}`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                'Content-Type': 'application/json',
+                // Include credentials to ensure auth cookies are sent
+                'X-Requested-With': 'XMLHttpRequest'
+              },
+              credentials: 'include', // Ensure cookies are sent
               body: JSON.stringify({
                 filename: file.name,
                 tableName: processed.tableName,
@@ -599,6 +604,15 @@ export function ChatSidebar({
                 statusText: response.statusText,
                 errorBody: responseText
               });
+              
+              // Show user-friendly error for auth issues
+              if (response.status === 401 || response.status === 403) {
+                console.error('[ChatSidebar] ⚠️ Authentication required - Please ensure you are logged in');
+                addSystemMessage(
+                  '⚠️ File uploaded to storage but metadata could not be saved. Please ensure you are logged in to persist files across sessions.',
+                  'error'
+                );
+              }
             } else {
               try {
                 const savedData = JSON.parse(responseText);
@@ -758,7 +772,11 @@ export function ChatSidebar({
                 try {
                   const response = await fetch(`/api/data/files/${pageId}`, {
                     method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                      'Content-Type': 'application/json',
+                      'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'include', // Ensure auth cookies are sent
                     body: JSON.stringify({ fileId }),
                   });
                   
