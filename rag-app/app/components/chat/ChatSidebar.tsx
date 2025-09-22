@@ -281,13 +281,15 @@ export function ChatSidebar({
           responseContent += '\n\n<details>\n<summary>View SQL Query</summary>\n\n```sql\n' + result.sqlGeneration.sql + '\n```\n</details>';
         }
 
-        // Add assistant response
+        // Add assistant response with citations
         addMessage({
           role: 'assistant',
           content: responseContent,
           metadata: {
             sql: result.sqlGeneration.sql,
             error: result.queryResult.error,
+            dataFiles: result.sqlGeneration.tables, // Keep for backwards compatibility
+            usedTables: result.sqlGeneration.usedTables, // New citation data
           },
         });
 
@@ -303,6 +305,7 @@ export function ChatSidebar({
                 sql: result.sqlGeneration.sql,
                 tables: result.sqlGeneration.tables,
                 confidence: result.sqlGeneration.confidence,
+                usedTables: result.sqlGeneration.usedTables,
               },
             }),
           });

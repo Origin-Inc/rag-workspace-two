@@ -13,6 +13,13 @@ export interface ChatMessage {
     blockId?: string;
     error?: string;
     dataFiles?: string[];
+    usedTables?: Array<{
+      name: string;
+      filename: string;
+      fileId?: string;
+      columnsUsed?: string[];
+      rowsAccessed?: number;
+    }>;
   };
   timestamp: Date;
   isStreaming?: boolean;
