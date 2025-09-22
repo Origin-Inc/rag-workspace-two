@@ -275,13 +275,9 @@ export function ChatSidebar({
         } else {
           responseContent += '\n\n⚠️ **Error:** ' + result.queryResult.error;
         }
-        
-        // Add SQL details in a collapsible section
-        if (result.sqlGeneration.sql) {
-          responseContent += '\n\n<details>\n<summary>View SQL Query</summary>\n\n```sql\n' + result.sqlGeneration.sql + '\n```\n</details>';
-        }
 
         // Add assistant response with citations
+        // SQL is already shown in the metadata dropdown, no need to duplicate it
         addMessage({
           role: 'assistant',
           content: responseContent,
