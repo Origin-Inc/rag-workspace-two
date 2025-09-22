@@ -79,11 +79,20 @@ export const loader: LoaderFunction = async ({ request, params }) => {
     });
 
     return json({ files: dataFiles });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Failed to fetch data files:', error);
+    
+    // Provide more detailed error for debugging
+    const errorMessage = error?.message || 'Failed to fetch data files';
+    const isAuthError = errorMessage.includes('auth') || errorMessage.includes('user') || errorMessage.includes('session');
+    
     return json(
-      { error: 'Failed to fetch data files' },
-      { status: 500 }
+      { 
+        error: 'Failed to fetch data files',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+        type: isAuthError ? 'auth' : 'unknown'
+      },
+      { status: isAuthError ? 401 : 500 }
     );
   }
 };
@@ -205,11 +214,20 @@ export const action: ActionFunction = async ({ request, params }) => {
     }
 
     return json({ error: 'Method not allowed' }, { status: 405 });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Failed to process data file action:', error);
+    
+    // Provide more detailed error for debugging
+    const errorMessage = error?.message || 'Failed to process data file action';
+    const isAuthError = errorMessage.includes('auth') || errorMessage.includes('user') || errorMessage.includes('session');
+    
     return json(
-      { error: 'Failed to process data file action' },
-      { status: 500 }
+      { 
+        error: 'Failed to process data file action',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+        type: isAuthError ? 'auth' : 'unknown'
+      },
+      { status: isAuthError ? 401 : 500 }
     );
   }
 };
