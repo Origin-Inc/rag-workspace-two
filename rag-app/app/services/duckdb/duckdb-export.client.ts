@@ -22,27 +22,51 @@ export class DuckDBExportService {
     try {
       console.log('[DuckDBExport] Exporting table as JSON:', tableName);
       
-      // Get table data
-      const data = await this.duckdb.executeQuery(`SELECT * FROM ${tableName}`);
+      // Get connection
+      const conn = await this.duckdb.getConnection();
+      
+      // Get table data as arrow, then convert to JSON
+      const arrowResult = await conn.query(`SELECT * FROM ${tableName}`);
+      
+      // Convert Arrow result to plain JSON array
+      const data = arrowResult.toArray().map((row: any) => {
+        const obj: any = {};
+        for (const key of Object.keys(row)) {
+          obj[key] = row[key];
+        }
+        return obj;
+      });
+      
+      console.log('[DuckDBExport] Converted to JSON:', {
+        rowCount: data.length,
+        sampleRow: data[0]
+      });
       
       // Get table schema
-      const schemaResult = await this.duckdb.executeQuery(`
+      const schemaResult = await conn.query(`
         SELECT column_name, data_type 
         FROM information_schema.columns 
         WHERE table_name = '${tableName}'
         ORDER BY ordinal_position
       `);
       
-      // Create export object with data and schema
+      const schema = schemaResult.toArray().map((row: any) => ({
+        column_name: row.column_name,
+        data_type: row.data_type
+      }));
+      
+      // Create export object with plain data
       const exportData = {
         tableName,
-        schema: schemaResult,
+        schema: schema,
         data: data,
         rowCount: data.length,
         exportedAt: new Date().toISOString(),
       };
       
       const jsonString = JSON.stringify(exportData);
+      console.log('[DuckDBExport] Export size:', jsonString.length, 'bytes');
+      
       return new Blob([jsonString], { type: 'application/json' });
     } catch (error) {
       console.error('[DuckDBExport] Failed to export table:', error);
