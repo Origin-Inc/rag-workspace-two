@@ -5,16 +5,22 @@ import { User, Bot, ChevronDown, ChevronUp, Code, BarChart, Plus } from 'lucide-
 import type { ChatMessage as ChatMessageType } from '~/stores/chat-store';
 import { cn } from '~/utils/cn';
 import { ChatCitation } from './ChatCitation';
+import { FileClarificationPrompt } from './FileClarificationPrompt';
+import { FileNotFoundPrompt } from './FileNotFoundPrompt';
 
 interface ChatMessageProps {
   message: ChatMessageType;
   onAddToPage?: (message: ChatMessageType) => void;
+  onClarificationResponse?: (action: 'confirm' | 'reject' | 'browse' | 'use-all', data?: any) => void;
+  onFileSelect?: (file: any) => void;
 }
 
-export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
+export function ChatMessage({ message, onAddToPage, onClarificationResponse, onFileSelect }: ChatMessageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
+  const isClarification = message.role === 'clarification';
+  const isNotFound = message.role === 'not-found';
   
   const formatTime = (date: Date) => {
     return new Date(date).toLocaleTimeString('en-US', {
@@ -23,6 +29,39 @@ export function ChatMessage({ message, onAddToPage }: ChatMessageProps) {
     });
   };
   
+  // Handle special message types
+  if (isClarification && message.metadata?.clarificationData) {
+    const { match, query } = message.metadata.clarificationData;
+    return (
+      <div className="w-full my-2">
+        <FileClarificationPrompt
+          match={match}
+          query={query}
+          onConfirm={() => onClarificationResponse?.('confirm', match)}
+          onReject={() => onClarificationResponse?.('reject')}
+          onBrowseFiles={() => onClarificationResponse?.('browse')}
+        />
+      </div>
+    );
+  }
+
+  if (isNotFound && message.metadata?.notFoundData) {
+    const { query, availableFiles, suggestions } = message.metadata.notFoundData;
+    return (
+      <div className="w-full my-2">
+        <FileNotFoundPrompt
+          query={query}
+          availableFiles={availableFiles}
+          suggestions={suggestions}
+          onSelectFile={(file) => onFileSelect?.(file)}
+          onBrowseFiles={() => onClarificationResponse?.('browse')}
+          onUploadNew={() => onClarificationResponse?.('upload')}
+          onUseAllFiles={() => onClarificationResponse?.('use-all')}
+        />
+      </div>
+    );
+  }
+
   return (
     <div 
       className={cn(
