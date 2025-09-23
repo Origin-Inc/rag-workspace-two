@@ -175,7 +175,7 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
         
         console.log(`[Upload] File uploaded to storage: ${originalPath}`);
         
-        // 2. Process the file (parse CSV/Excel)
+        // 2. Process the file (parse CSV/Excel/PDF)
         const processedData = await FileProcessingService.processFile(file);
         
         // 3. Serialize to Parquet
@@ -224,7 +224,17 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
             rowCount: processedData.schema.rowCount,
             sizeBytes: file.size,
             storageUrl,
-            parquetUrl
+            parquetUrl,
+            // Store PDF-specific metadata if available
+            metadata: processedData.extractedContent ? {
+              type: 'pdf',
+              totalPages: processedData.extractedContent.metadata?.totalPages,
+              tablesFound: processedData.extractedContent.tables?.length || 0,
+              imagesFound: processedData.extractedContent.images?.length || 0,
+              author: processedData.extractedContent.metadata?.author,
+              title: processedData.extractedContent.metadata?.title,
+              creationDate: processedData.extractedContent.metadata?.creationDate
+            } : undefined
           }
         });
         
@@ -238,6 +248,14 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
           storageUrl,
           parquetUrl,
           data: processedData.data.slice(0, 10), // Preview data
+          // Include PDF metadata if available
+          ...(processedData.extractedContent && {
+            pdfMetadata: {
+              totalPages: processedData.extractedContent.metadata?.totalPages,
+              tablesExtracted: processedData.extractedContent.tables?.length || 0,
+              imagesExtracted: processedData.extractedContent.images?.length || 0
+            }
+          })
         });
         
         // Update existing tables for next iteration

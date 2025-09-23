@@ -2388,7 +2388,7 @@
             "id": 10,
             "title": "Implement Natural Language File Reference Parser",
             "description": "Create a system to detect and parse file references in natural language queries",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               8
             ],
@@ -2421,7 +2421,7 @@
             "id": 13,
             "title": "Create File Citation and Attribution System",
             "description": "Build a system to track and display which files were used to generate each response",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               11,
               12
@@ -2714,7 +2714,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-09-22T18:22:07.188Z",
+      "updated": "2025-09-23T20:55:27.496Z",
       "description": "Tasks for master context"
     }
   }
