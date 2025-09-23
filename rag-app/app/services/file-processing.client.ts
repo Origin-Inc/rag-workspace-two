@@ -234,6 +234,18 @@ export class FileProcessingService {
       result = await this.parseCSV(file);
     } else if (file.name.toLowerCase().match(/\.(xlsx?|xls)$/)) {
       result = await this.parseExcel(file);
+    } else if (file.name.toLowerCase().endsWith('.pdf')) {
+      // PDFs need server-side processing - return a placeholder
+      result = {
+        data: [],
+        schema: {
+          columns: [],
+          rowCount: 0,
+          sampleData: []
+        },
+        requiresServerProcessing: true,
+        fileType: 'pdf'
+      };
     } else {
       throw new Error(`Unsupported file type: ${file.name}`);
     }

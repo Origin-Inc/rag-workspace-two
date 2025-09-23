@@ -753,7 +753,67 @@ Just upload a CSV or Excel file and ask me anything about it!`,
       const { FileProcessingService } = await import('~/services/file-processing.client');
       const processed = await FileProcessingService.processFile(file);
       
-      // Load data into DuckDB for immediate querying
+      // Check if file needs server-side processing (PDFs)
+      if (processed.requiresServerProcessing) {
+        console.log('[ChatSidebar] File requires server-side processing:', file.name);
+        
+        // For PDFs, we need to use the server endpoint for processing
+        // The file has already been uploaded to Supabase, so we'll process it server-side
+        if (workspaceId && pageId && uploadResult?.url) {
+          try {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const response = await fetch(`/api/data/upload/v2?pageId=${pageId}&workspaceId=${workspaceId}`, {
+              method: 'POST',
+              body: formData,
+            });
+            
+            if (!response.ok) {
+              throw new Error('Failed to process PDF on server');
+            }
+            
+            const result = await response.json();
+            if (result.success && result.files?.[0]) {
+              const processedFile = result.files[0];
+              
+              // Add to local store
+              addDataFile({
+                databaseId: processedFile.id,
+                filename: processedFile.filename,
+                tableName: processedFile.tableName,
+                schema: processedFile.schema,
+                rowCount: processedFile.rowCount || 0,
+                sizeBytes: file.size,
+              });
+              
+              // Show success message with PDF metadata if available
+              if (processedFile.pdfMetadata) {
+                addMessage({
+                  role: 'system',
+                  content: `PDF file "${file.name}" uploaded successfully!\n` +
+                          `• Pages: ${processedFile.pdfMetadata.totalPages || 'unknown'}\n` +
+                          `• Tables extracted: ${processedFile.pdfMetadata.tablesExtracted || 0}\n` +
+                          `• Images found: ${processedFile.pdfMetadata.imagesExtracted || 0}`,
+                });
+              } else {
+                addMessage({
+                  role: 'system',
+                  content: `PDF file "${file.name}" uploaded and processed successfully!`,
+                });
+              }
+            }
+          } catch (error) {
+            console.error('[ChatSidebar] Error processing PDF:', error);
+            throw error;
+          }
+        } else {
+          throw new Error('PDF processing requires workspace and page IDs');
+        }
+        return; // Exit early for PDFs
+      }
+      
+      // Load data into DuckDB for immediate querying (CSV/Excel files)
       if (duckdb.isReady() && processed.data && processed.data.length > 0) {
         await duckdb.createTableFromData(
           processed.tableName,
