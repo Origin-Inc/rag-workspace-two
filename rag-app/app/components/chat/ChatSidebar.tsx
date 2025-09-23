@@ -12,6 +12,15 @@ import { tokenMonitor } from '~/services/token-usage-monitor.client';
 import { FuzzyFileMatcherClient } from '~/services/fuzzy-file-matcher.client';
 import { FileDisambiguationDialog } from './FileDisambiguationDialog';
 import type { FileMatchResult } from '~/services/fuzzy-file-matcher.client';
+import type { DataFile } from '~/stores/chat-store';
+
+// Confidence thresholds for file matching
+const CONFIDENCE_THRESHOLDS = {
+  HIGH: 0.8,      // Auto-select with high confidence
+  MEDIUM: 0.5,    // Use file but mention uncertainty
+  LOW: 0.3,       // Require clarification
+  NONE: 0.0       // No match found
+};
 
 interface ChatSidebarProps {
   pageId: string;
@@ -56,6 +65,13 @@ export function ChatSidebar({
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [disambiguationState, setDisambiguationState] = useState<{
     matches: FileMatchResult[];
+    query: string;
+    pendingMessage: string;
+  } | null>(null);
+  const [clarificationState, setClarificationState] = useState<{
+    type: 'clarification' | 'not-found';
+    match?: FileMatchResult;
+    suggestions?: FileMatchResult[];
     query: string;
     pendingMessage: string;
   } | null>(null);
@@ -194,6 +210,189 @@ export function ChatSidebar({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
   
+  const handleClarificationResponse = async (action: string, data?: any) => {
+    if (!clarificationState) return;
+    
+    console.log('[ChatSidebar] Handling clarification response:', { action, data });
+    
+    // Clear clarification state
+    const pendingMessage = clarificationState.pendingMessage;
+    const query = clarificationState.query;
+    setClarificationState(null);
+    
+    switch (action) {
+      case 'confirm':
+        // User confirmed the suggested file
+        if (clarificationState.match) {
+          await processQueryWithFile(pendingMessage, [clarificationState.match.file]);
+        }
+        break;
+        
+      case 'reject':
+        // User rejected the suggestion - show file browser
+        setDisambiguationState({
+          matches: dataFiles.map(file => ({
+            file,
+            score: 0,
+            confidence: 0,
+            matchType: 'partial' as const,
+            matchedTokens: [],
+            reason: 'Manual selection'
+          })),
+          query,
+          pendingMessage
+        });
+        break;
+        
+      case 'browse':
+        // Show all files for selection
+        setDisambiguationState({
+          matches: dataFiles.map(file => ({
+            file,
+            score: 0,
+            confidence: 0,
+            matchType: 'partial' as const,
+            matchedTokens: [],
+            reason: 'Manual selection'
+          })),
+          query,
+          pendingMessage
+        });
+        break;
+        
+      case 'use-all':
+        // Query all available files
+        await processQueryWithFile(pendingMessage, dataFiles);
+        break;
+        
+      case 'upload':
+        // Trigger file upload (will need to implement file input trigger)
+        console.log('[ChatSidebar] Upload requested from clarification');
+        break;
+    }
+  };
+  
+  const handleFileSelect = async (file: DataFile) => {
+    if (!clarificationState) return;
+    
+    console.log('[ChatSidebar] File selected from clarification:', file.filename);
+    const pendingMessage = clarificationState.pendingMessage;
+    setClarificationState(null);
+    
+    await processQueryWithFile(pendingMessage, [file]);
+  };
+  
+  const processQueryWithFile = async (content: string, filesToQuery: DataFile[]) => {
+    setLoading(true);
+    try {
+      // Get recent conversation for context
+      const conversationHistory = messages.slice(-10).map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+      
+      // Process natural language query with conversation context
+      const result = await duckDBQuery.processNaturalLanguageQuery(
+        content,
+        filesToQuery,
+        pageId,
+        workspaceId,
+        conversationHistory
+      );
+      
+      // Track token usage if metadata is available
+      if ((result.sqlGeneration as any).metadata) {
+        const metadata = (result.sqlGeneration as any).metadata;
+        tokenMonitor.recordUsage({
+          query: content,
+          model: metadata.model || 'gpt-4-turbo-preview',
+          contextTokens: metadata.contextTokens || 0,
+          responseTokens: metadata.tokensUsed || 0,
+          totalTokens: metadata.tokensUsed || 0,
+          truncated: false,
+          samplingStrategy: 'smart',
+        });
+      }
+
+      // Build a comprehensive response
+      let responseContent = '';
+      
+      // Add data context if available
+      if ((result.sqlGeneration as any).dataContext) {
+        responseContent += (result.sqlGeneration as any).dataContext + '\n\n';
+      }
+      
+      // Add the main explanation
+      responseContent += result.sqlGeneration.explanation;
+      
+      // Add insights if available
+      if ((result.sqlGeneration as any).insights) {
+        responseContent += '\n\n' + (result.sqlGeneration as any).insights;
+      }
+      
+      if (result.queryResult.success) {
+        if (result.queryResult.data && result.queryResult.data.length > 0) {
+          // Add formatted results
+          responseContent += '\n\n### Results\n';
+          const formattedResults = duckDBQuery.formatResults(result.queryResult);
+          responseContent += formattedResults;
+          
+          // Add execution details in a subtle way
+          if (result.queryResult.executionTime) {
+            responseContent += `\n\n*Query executed in ${result.queryResult.executionTime.toFixed(2)}ms*`;
+          }
+        } else {
+          responseContent += '\n\nNo results found for this query.';
+        }
+      } else {
+        responseContent += '\n\n⚠️ **Error:** ' + result.queryResult.error;
+      }
+
+      // Add assistant response with citations
+      addMessage({
+        role: 'assistant',
+        content: responseContent,
+        metadata: {
+          sql: result.sqlGeneration.sql,
+          error: result.queryResult.error,
+          dataFiles: result.sqlGeneration.tables,
+          usedTables: result.sqlGeneration.usedTables,
+        },
+      });
+
+      // Save assistant message to database
+      try {
+        await fetch(`/api/chat/messages/${pageId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            role: 'assistant',
+            content: responseContent,
+            metadata: {
+              sql: result.sqlGeneration.sql,
+              tables: result.sqlGeneration.tables,
+              confidence: result.sqlGeneration.confidence,
+              usedTables: result.sqlGeneration.usedTables,
+            },
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to save assistant message:', error);
+      }
+    } catch (error) {
+      console.error('Error processing query:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      addMessage({
+        role: 'assistant',
+        content: `Sorry, I encountered an error processing your query: ${errorMessage}`,
+        metadata: { error: errorMessage },
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSendMessage = async (content: string) => {
     if (!content.trim()) return;
     
@@ -224,16 +423,76 @@ export function ChatSidebar({
         content,
         dataFiles,
         {
-          confidenceThreshold: 0.3,
+          confidenceThreshold: CONFIDENCE_THRESHOLDS.NONE, // Get all matches
           maxResults: 5,
           includeSemanticMatch: true,
           includeTemporalMatch: true
         }
       );
       
+      console.log('[ChatSidebar] File matching results:', {
+        query: content,
+        matchCount: matches.length,
+        topMatch: matches[0] ? {
+          file: matches[0].file.filename,
+          confidence: matches[0].confidence,
+          type: matches[0].matchType
+        } : null
+      });
+      
+      // Handle different confidence scenarios
+      if (matches.length === 0 || (matches[0] && matches[0].confidence < CONFIDENCE_THRESHOLDS.LOW)) {
+        // No match or very low confidence - show not-found prompt
+        console.log('[ChatSidebar] No suitable file match found, showing not-found prompt');
+        
+        addMessage({
+          role: 'not-found',
+          content: '',
+          metadata: {
+            notFoundData: {
+              query: content,
+              availableFiles: dataFiles,
+              suggestions: matches.filter(m => m.confidence > CONFIDENCE_THRESHOLDS.NONE)
+            }
+          }
+        });
+        
+        setClarificationState({
+          type: 'not-found',
+          suggestions: matches,
+          query: content,
+          pendingMessage: content
+        });
+        return;
+      }
+      
+      // Check for low confidence match that needs clarification
+      if (matches[0].confidence < CONFIDENCE_THRESHOLDS.MEDIUM) {
+        console.log('[ChatSidebar] Low confidence match, requesting clarification');
+        
+        addMessage({
+          role: 'clarification',
+          content: '',
+          metadata: {
+            clarificationData: {
+              match: matches[0],
+              query: content
+            }
+          }
+        });
+        
+        setClarificationState({
+          type: 'clarification',
+          match: matches[0],
+          query: content,
+          pendingMessage: content
+        });
+        return;
+      }
+      
       // If multiple files match with similar confidence, show disambiguation dialog
       if (matches.length > 1 && 
-          matches[0].confidence < 0.8 && 
+          matches[0].confidence < CONFIDENCE_THRESHOLDS.HIGH && 
           matches[0].confidence - matches[1].confidence < 0.2) {
         setDisambiguationState({
           matches,
@@ -261,115 +520,8 @@ export function ChatSidebar({
         console.log('[ChatSidebar] No specific file match found, using all files');
       }
       
-      setLoading(true);
-      try {
-        // Get recent conversation for context (last 5 exchanges)
-        const conversationHistory = messages.slice(-10).map(msg => ({
-          role: msg.role,
-          content: msg.content
-        }));
-        
-        // Process natural language query with conversation context
-        const result = await duckDBQuery.processNaturalLanguageQuery(
-          content,
-          filesToQuery,
-          pageId,
-          workspaceId,
-          conversationHistory
-        );
-        
-        // Track token usage if metadata is available
-        if ((result.sqlGeneration as any).metadata) {
-          const metadata = (result.sqlGeneration as any).metadata;
-          tokenMonitor.recordUsage({
-            query: content,
-            model: metadata.model || 'gpt-4-turbo-preview',
-            contextTokens: metadata.contextTokens || 0,
-            responseTokens: metadata.tokensUsed || 0,
-            totalTokens: metadata.tokensUsed || 0,
-            truncated: false,
-            samplingStrategy: 'smart',
-          });
-        }
-
-        // Build a comprehensive response
-        let responseContent = '';
-        
-        // Add data context if available
-        if ((result.sqlGeneration as any).dataContext) {
-          responseContent += (result.sqlGeneration as any).dataContext + '\n\n';
-        }
-        
-        // Add the main explanation
-        responseContent += result.sqlGeneration.explanation;
-        
-        // Add insights if available
-        if ((result.sqlGeneration as any).insights) {
-          responseContent += '\n\n' + (result.sqlGeneration as any).insights;
-        }
-        
-        if (result.queryResult.success) {
-          if (result.queryResult.data && result.queryResult.data.length > 0) {
-            // Add formatted results
-            responseContent += '\n\n### Results\n';
-            const formattedResults = duckDBQuery.formatResults(result.queryResult);
-            responseContent += formattedResults;
-            
-            // Add execution details in a subtle way
-            if (result.queryResult.executionTime) {
-              responseContent += `\n\n*Query executed in ${result.queryResult.executionTime.toFixed(2)}ms*`;
-            }
-          } else {
-            responseContent += '\n\nNo results found for this query.';
-          }
-        } else {
-          responseContent += '\n\n⚠️ **Error:** ' + result.queryResult.error;
-        }
-
-        // Add assistant response with citations
-        // SQL is already shown in the metadata dropdown, no need to duplicate it
-        addMessage({
-          role: 'assistant',
-          content: responseContent,
-          metadata: {
-            sql: result.sqlGeneration.sql,
-            error: result.queryResult.error,
-            dataFiles: result.sqlGeneration.tables, // Keep for backwards compatibility
-            usedTables: result.sqlGeneration.usedTables, // New citation data
-          },
-        });
-
-        // Save assistant message to database
-        try {
-          await fetch(`/api/chat/messages/${pageId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              role: 'assistant',
-              content: responseContent,
-              metadata: {
-                sql: result.sqlGeneration.sql,
-                tables: result.sqlGeneration.tables,
-                confidence: result.sqlGeneration.confidence,
-                usedTables: result.sqlGeneration.usedTables,
-              },
-            }),
-          });
-        } catch (error) {
-          console.error('Failed to save assistant message:', error);
-        }
-      } catch (error) {
-        console.error('Error processing query:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        
-        addMessage({
-          role: 'assistant',
-          content: `Sorry, I encountered an error processing your query: ${errorMessage}`,
-          metadata: { error: errorMessage },
-        });
-      } finally {
-        setLoading(false);
-      }
+      // Process the query with the selected files
+      await processQueryWithFile(content, filesToQuery);
     } else {
       // No data files available
       addMessage({
@@ -938,7 +1090,12 @@ export function ChatSidebar({
           </div>
         ) : (
           messages.map((message) => (
-            <ChatMessage key={message.id} message={message} />
+            <ChatMessage 
+              key={message.id} 
+              message={message}
+              onClarificationResponse={handleClarificationResponse}
+              onFileSelect={handleFileSelect}
+            />
           ))
         )}
         <div ref={messagesEndRef} />

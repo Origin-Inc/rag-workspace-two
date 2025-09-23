@@ -5,7 +5,7 @@ import * as React from 'react';
 export interface ChatMessage {
   id: string;
   pageId: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'clarification' | 'not-found';
   content: string;
   metadata?: {
     sql?: string;
@@ -20,6 +20,18 @@ export interface ChatMessage {
       columnsUsed?: string[];
       rowsAccessed?: number;
     }>;
+    // For clarification messages
+    clarificationData?: {
+      match: any; // FileMatchResult
+      query: string;
+      pendingMessage?: string;
+    };
+    // For not-found messages  
+    notFoundData?: {
+      query: string;
+      availableFiles: DataFile[];
+      suggestions?: any[]; // FileMatchResult[]
+    };
   };
   timestamp: Date;
   isStreaming?: boolean;
