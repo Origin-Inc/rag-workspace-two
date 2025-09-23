@@ -7,6 +7,7 @@ import { cn } from '~/utils/cn';
 import { ChatCitation } from './ChatCitation';
 import { FileClarificationPrompt } from './FileClarificationPrompt';
 import { FileNotFoundPrompt } from './FileNotFoundPrompt';
+import { SmartClarificationPrompt } from './SmartClarificationPrompt';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -32,17 +33,37 @@ export function ChatMessage({ message, onAddToPage, onClarificationResponse, onF
   // Handle special message types
   if (isClarification && message.metadata?.clarificationData) {
     const { match, query } = message.metadata.clarificationData;
-    return (
-      <div className="w-full my-2">
-        <FileClarificationPrompt
-          match={match}
-          query={query}
-          onConfirm={() => onClarificationResponse?.('confirm', match)}
-          onReject={() => onClarificationResponse?.('reject')}
-          onBrowseFiles={() => onClarificationResponse?.('browse')}
-        />
-      </div>
-    );
+    
+    // Check if this is a smart clarification (not file-specific)
+    if (message.metadata.smartClarification) {
+      const { message: clarificationMessage, suggestions } = message.metadata.smartClarification;
+      return (
+        <div className="w-full my-2">
+          <SmartClarificationPrompt
+            query={query}
+            clarificationMessage={clarificationMessage}
+            suggestions={suggestions}
+            onRespond={(response) => onClarificationResponse?.('respond', response)}
+            onCancel={() => onClarificationResponse?.('cancel')}
+          />
+        </div>
+      );
+    }
+    
+    // File-specific clarification (old behavior)
+    if (match) {
+      return (
+        <div className="w-full my-2">
+          <FileClarificationPrompt
+            match={match}
+            query={query}
+            onConfirm={() => onClarificationResponse?.('confirm', match)}
+            onReject={() => onClarificationResponse?.('reject')}
+            onBrowseFiles={() => onClarificationResponse?.('browse')}
+          />
+        </div>
+      );
+    }
   }
 
   if (isNotFound && message.metadata?.notFoundData) {

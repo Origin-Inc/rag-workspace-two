@@ -22,9 +22,14 @@ export interface ChatMessage {
     }>;
     // For clarification messages
     clarificationData?: {
-      match: any; // FileMatchResult
+      match?: any; // FileMatchResult - optional for smart clarifications
       query: string;
       pendingMessage?: string;
+    };
+    // For smart clarifications (non-file specific)
+    smartClarification?: {
+      message: string;
+      suggestions?: string[];
     };
     // For not-found messages  
     notFoundData?: {

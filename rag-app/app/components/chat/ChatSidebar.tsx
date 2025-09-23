@@ -11,8 +11,10 @@ import { duckDBQuery } from '~/services/duckdb/duckdb-query.client';
 import { tokenMonitor } from '~/services/token-usage-monitor.client';
 import { FuzzyFileMatcherClient } from '~/services/fuzzy-file-matcher.client';
 import { FileDisambiguationDialog } from './FileDisambiguationDialog';
+import { SmartClarificationPrompt } from './SmartClarificationPrompt';
 import type { FileMatchResult } from '~/services/fuzzy-file-matcher.client';
 import type { DataFile } from '~/stores/chat-store';
+import { QueryAnalyzer } from '~/services/query-analyzer.client';
 
 // Confidence thresholds for file matching
 const CONFIDENCE_THRESHOLDS = {
@@ -221,6 +223,16 @@ export function ChatSidebar({
     setClarificationState(null);
     
     switch (action) {
+      case 'respond':
+        // User selected a suggestion or provided clarification
+        await handleSendMessage(data);
+        break;
+        
+      case 'cancel':
+        // User wants to rephrase
+        // Just clear the clarification, user will type new message
+        break;
+        
       case 'confirm':
         // User confirmed the suggested file
         if (clarificationState.match) {
@@ -416,8 +428,74 @@ export function ChatSidebar({
       console.error('Failed to save user message:', error);
     }
     
-    // Check if we have data files to query
-    if (dataFiles.length > 0) {
+    // Analyze the query to understand user intent
+    const queryAnalysis = QueryAnalyzer.analyzeQuery(content, dataFiles);
+    console.log('[ChatSidebar] Query analysis:', queryAnalysis);
+    
+    // Handle clarification if needed
+    if (queryAnalysis.clarificationNeeded) {
+      const clarification = QueryAnalyzer.generateClarificationPrompt(queryAnalysis);
+      
+      addMessage({
+        role: 'clarification',
+        content: '',
+        metadata: {
+          clarificationData: {
+            match: null,
+            query: content,
+            pendingMessage: content
+          },
+          // Store the smart clarification data
+          smartClarification: {
+            message: clarification.message,
+            suggestions: clarification.suggestions
+          }
+        }
+      });
+      
+      setClarificationState({
+        type: 'clarification',
+        query: content,
+        pendingMessage: content
+      });
+      return;
+    }
+    
+    // Handle different intents
+    switch (queryAnalysis.intent) {
+      case 'greeting':
+        addMessage({
+          role: 'assistant',
+          content: 'Hello! How can I help you today? I can analyze your data files or answer questions.',
+        });
+        return;
+        
+      case 'help-request':
+        addMessage({
+          role: 'assistant',
+          content: `I can help you with:
+• Analyzing and querying your data files
+• Creating summaries and visualizations
+• Calculating statistics and aggregations
+• Answering questions about your data
+
+Just upload a CSV or Excel file and ask me anything about it!`,
+        });
+        return;
+        
+      case 'general-chat':
+        // For now, guide them to data analysis
+        addMessage({
+          role: 'assistant',
+          content: dataFiles.length > 0 
+            ? 'I can help you analyze your data files. Try asking me to summarize your data or calculate statistics!'
+            : 'I specialize in data analysis. Please upload a CSV or Excel file to get started!',
+        });
+        return;
+    }
+    
+    // Check if we have data files to query for data-related intents
+    if (queryAnalysis.intent === 'query-data' && dataFiles.length > 0) {
       // Use fuzzy matching to identify which files are being referenced
       const matches = FuzzyFileMatcherClient.matchFiles(
         content,
