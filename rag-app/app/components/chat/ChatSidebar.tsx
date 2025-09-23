@@ -1015,12 +1015,12 @@ Just upload a CSV or Excel file and ask me anything about it!`,
     
     const files = Array.from(e.dataTransfer.files);
     for (const file of files) {
-      if (file.name.endsWith('.csv') || file.name.endsWith('.xlsx')) {
+      if (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.pdf')) {
         await handleFileUpload(file);
       } else {
         addMessage({
           role: 'system',
-          content: `File "${file.name}" is not supported. Please upload CSV or Excel files.`,
+          content: `File "${file.name}" is not supported. Please upload CSV, Excel, or PDF files.`,
         });
       }
     }

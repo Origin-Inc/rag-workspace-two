@@ -581,6 +581,7 @@ model DataFile {
   sizeBytes   Int         @map("size_bytes")
   storageUrl  String?     @map("storage_url") @db.Text // Original file in Supabase storage
   parquetUrl  String?     @map("parquet_url") @db.Text // Serialized DuckDB table as Parquet
+  metadata    Json?       @db.JsonB // Additional metadata (e.g., PDF info)
   createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
   

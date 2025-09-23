@@ -1,6 +1,7 @@
 import * as Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import type { ParseResult } from 'papaparse';
+import { PDFProcessingService } from './pdf-processing.server';
 
 export interface ColumnSchema {
   name: string;
@@ -221,6 +222,7 @@ export class FileProcessingService {
     schema: FileSchema;
     tableName: string;
     sheets?: string[];
+    extractedContent?: any;
   }> {
     // Validate file size (50MB limit)
     const MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -229,11 +231,19 @@ export class FileProcessingService {
     }
     
     let result;
+    let extractedContent;
     
     if (file.name.toLowerCase().endsWith('.csv')) {
       result = await this.parseCSV(file);
     } else if (file.name.toLowerCase().match(/\.(xlsx?|xls)$/)) {
       result = await this.parseExcel(file);
+    } else if (file.name.toLowerCase().endsWith('.pdf')) {
+      const pdfResult = await PDFProcessingService.processPDF(file);
+      result = {
+        data: pdfResult.data,
+        schema: pdfResult.schema
+      };
+      extractedContent = pdfResult.extractedContent;
     } else {
       throw new Error(`Unsupported file type: ${file.name}`);
     }
@@ -242,7 +252,8 @@ export class FileProcessingService {
     
     return {
       ...result,
-      tableName
+      tableName,
+      extractedContent
     };
   }
 }
