@@ -764,7 +764,14 @@ Just upload a CSV or Excel file and ask me anything about it!`,
             const formData = new FormData();
             formData.append('file', file);
             
-            const response = await fetch(`/api/data/upload/v2?pageId=${pageId}&workspaceId=${workspaceId}`, {
+            // Pass the storage URL so server doesn't try to re-upload
+            const params = new URLSearchParams({
+              pageId,
+              workspaceId,
+              storageUrl: uploadResult.url
+            });
+            
+            const response = await fetch(`/api/data/upload/v2?${params}`, {
               method: 'POST',
               body: formData,
             });
