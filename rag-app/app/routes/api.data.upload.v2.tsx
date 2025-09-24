@@ -162,45 +162,64 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
       try {
         console.log(`[Upload] Processing file: ${file.name}`);
         
-        // 1. Upload original file to Supabase Storage
-        const originalPath = `${workspaceId}/${pageId}/${Date.now()}_${file.name}`;
-        const uploadResult = await storageService.uploadFile(
-          'user-data-files',
-          originalPath,
-          file,
-          file.type
-        );
+        let storageUrl = null;
+        let parquetUrl = null;
         
-        const storageUrl = await storageService.getSignedUrl('user-data-files', originalPath, 86400); // 24 hours
-        
-        console.log(`[Upload] File uploaded to storage: ${originalPath}`);
+        // For PDFs, the file is already uploaded from client - just process it
+        // For CSV/Excel, we need to upload and serialize
+        if (file.name.toLowerCase().endsWith('.pdf')) {
+          // PDF files are already uploaded from client, skip storage upload
+          console.log(`[Upload] Processing PDF file: ${file.name}`);
+          // We'll process the PDF content directly
+          storageUrl = url.searchParams.get('storageUrl') || null;
+        } else {
+          // 1. Upload original file to Supabase Storage (for CSV/Excel)
+          const originalPath = `${workspaceId}/${pageId}/${Date.now()}_${file.name}`;
+          const uploadResult = await storageService.uploadFile(
+            'user-data-files',
+            originalPath,
+            file,
+            file.type
+          );
+          
+          storageUrl = await storageService.getSignedUrl('user-data-files', originalPath, 86400); // 24 hours
+          console.log(`[Upload] File uploaded to storage: ${originalPath}`);
+        }
         
         // 2. Process the file (parse CSV/Excel/PDF)
         const processedData = await FileProcessingService.processFile(file);
         
-        // 3. Serialize to Parquet
-        const serializationService = new DuckDBSerializationService();
-        const parquetBuffer = await serializationService.serializeToParquet(
-          processedData.data,
-          processedData.schema,
-          processedData.tableName
-        );
-        await serializationService.close();
-        
-        console.log(`[Upload] Serialized to Parquet: ${parquetBuffer.length} bytes`);
-        
-        // 4. Upload Parquet to Supabase Storage
-        const parquetPath = `${workspaceId}/${pageId}/${processedData.tableName}.parquet`;
-        await storageService.uploadFile(
-          'duckdb-tables',
-          parquetPath,
-          parquetBuffer,
-          'application/octet-stream'
-        );
-        
-        const parquetUrl = await storageService.getSignedUrl('duckdb-tables', parquetPath, 86400); // 24 hours
-        
-        console.log(`[Upload] Parquet uploaded to storage: ${parquetPath}`);
+        // 3. Serialize to Parquet (skip for PDFs if no tabular data)
+        if (processedData.data && processedData.data.length > 0) {
+          try {
+            const serializationService = new DuckDBSerializationService();
+            const parquetBuffer = await serializationService.serializeToParquet(
+              processedData.data,
+              processedData.schema,
+              processedData.tableName
+            );
+            await serializationService.close();
+            
+            console.log(`[Upload] Serialized to Parquet: ${parquetBuffer.length} bytes`);
+            
+            // 4. Upload Parquet to Supabase Storage (skip if PDF already uploaded)
+            if (!file.name.toLowerCase().endsWith('.pdf')) {
+              const parquetPath = `${workspaceId}/${pageId}/${processedData.tableName}.parquet`;
+              await storageService.uploadFile(
+                'duckdb-tables',
+                parquetPath,
+                parquetBuffer,
+                'application/octet-stream'
+              );
+              
+              parquetUrl = await storageService.getSignedUrl('duckdb-tables', parquetPath, 86400); // 24 hours
+              console.log(`[Upload] Parquet uploaded to storage: ${parquetPath}`);
+            }
+          } catch (parquetError) {
+            console.warn(`[Upload] Could not serialize to Parquet (might be PDF with no tables):`, parquetError);
+            // Continue without parquet for PDFs - they might only have text content
+          }
+        }
         
         // 5. Detect relationships with existing tables
         const relationships = detectRelationships(
