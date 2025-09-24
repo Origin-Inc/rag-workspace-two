@@ -147,7 +147,8 @@ export class PDFProcessingService {
     
     // Extract text from all pages
     console.log(`[PDF] Extracting full text...`);
-    const { text: fullText } = await extractText(pdf, { mergePages: true });
+    const fullTextResult = await extractText(pdf, { mergePages: true });
+    const fullText = fullTextResult.text || '';
     console.log(`[PDF] Full text extracted: ${fullText?.length || 0} characters`);
     
     // Process each page
@@ -155,12 +156,31 @@ export class PDFProcessingService {
     const allTables: any[] = [];
     const allImages: PDFImageData[] = [];
     
+    // Extract text for all pages as an array
+    const allPagesResult = await extractText(pdf, { mergePages: false });
+    const allPagesText = allPagesResult.text || [];
+    console.log(`[PDF] Extracted text from ${allPagesText.length} pages`);
+    
     for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
       console.log(`[PDF] Processing page ${pageNum}/${totalPages}...`);
       
-      // Extract text for this page
-      const { text: pageText } = await extractText(pdf, { mergePages: false });
-      console.log(`[PDF] Page ${pageNum} text: ${pageText?.length || 0} characters`);
+      // Get text for this specific page (0-indexed array)
+      let pageText = '';
+      try {
+        // Pages are 0-indexed in the array but 1-indexed in PDF
+        pageText = allPagesText[pageNum - 1] || '';
+        console.log(`[PDF] Page ${pageNum} text: ${pageText?.length || 0} characters`);
+        console.log(`[PDF] Page ${pageNum} text type: ${typeof pageText}`);
+      } catch (error) {
+        console.error(`[PDF] Failed to get text for page ${pageNum}:`, error);
+        pageText = '';
+      }
+      
+      // Ensure pageText is a string before processing tables
+      if (typeof pageText !== 'string') {
+        console.warn(`[PDF] Page ${pageNum} text is not a string, converting:`, typeof pageText);
+        pageText = String(pageText || '');
+      }
       
       // Extract tables from page text (using coordinate analysis)
       const pageTables = await this.extractTablesFromPage(pdf, pageNum, pageText);
@@ -241,6 +261,14 @@ export class PDFProcessingService {
     pageText: string
   ): Promise<PDFTable[]> {
     const tables: PDFTable[] = [];
+    
+    console.log(`[PDF] Extracting tables from page ${pageNumber}, text length: ${pageText?.length || 0}`);
+    
+    // Ensure pageText is a valid string
+    if (!pageText || typeof pageText !== 'string') {
+      console.warn(`[PDF] Invalid pageText for table extraction on page ${pageNumber}:`, typeof pageText);
+      return tables;
+    }
     
     // Simple heuristic: Look for patterns that suggest tabular data
     // This is a basic implementation that looks for consistent delimiters
