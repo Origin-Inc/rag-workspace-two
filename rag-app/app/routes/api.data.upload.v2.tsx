@@ -86,15 +86,28 @@ function detectRelationships(
 }
 
 export async function action({ request, response }: ActionFunctionArgs & { response: Response }) {
+  console.log(`[Upload] ========== Upload request started ==========`);
+  console.log(`[Upload] URL: ${request.url}`);
+  console.log(`[Upload] Method: ${request.method}`);
+  console.log(`[Upload] Headers:`, {
+    'content-type': request.headers.get('content-type'),
+    'content-length': request.headers.get('content-length')
+  });
+  
   try {
     const user = await requireUser(request);
+    console.log(`[Upload] User authenticated: ${user.id}`);
     
     // Get pageId and workspaceId from form data or URL params
     const url = new URL(request.url);
     const pageId = url.searchParams.get('pageId');
     const workspaceId = url.searchParams.get('workspaceId');
+    const storageUrl = url.searchParams.get('storageUrl');
+    
+    console.log(`[Upload] Parameters:`, { pageId, workspaceId, storageUrl });
     
     if (!pageId || !workspaceId) {
+      console.error(`[Upload] Missing required parameters`);
       return json(
         { error: 'Missing pageId or workspaceId' },
         { status: 400 }
@@ -124,10 +137,12 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
     const storageService = new FileStorageService(request, response);
     
     // Parse multipart form data
+    console.log(`[Upload] Parsing multipart form data...`);
     const formData = await unstable_parseMultipartFormData(
       request,
       uploadHandler
     );
+    console.log(`[Upload] Form data parsed successfully`);
     
     // Handle multiple files
     const files = formData.getAll('files') as File[];
@@ -135,7 +150,13 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
     
     const filesToProcess = files.length > 0 ? files : (singleFile ? [singleFile] : []);
     
+    console.log(`[Upload] Files to process: ${filesToProcess.length}`);
+    filesToProcess.forEach((file, idx) => {
+      console.log(`[Upload]   File ${idx + 1}: ${file.name} (${file.size} bytes, ${file.type})`);
+    });
+    
     if (filesToProcess.length === 0) {
+      console.error(`[Upload] No files found in request`);
       return json(
         { error: 'No files uploaded' },
         { status: 400 }
@@ -187,7 +208,13 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
         }
         
         // 2. Process the file (parse CSV/Excel/PDF)
+        console.log(`[Upload] Processing file with FileProcessingService...`);
         const processedData = await FileProcessingService.processFile(file);
+        console.log(`[Upload] File processed:`);
+        console.log(`[Upload] - Table name: ${processedData.tableName}`);
+        console.log(`[Upload] - Data rows: ${processedData.data?.length || 0}`);
+        console.log(`[Upload] - Schema columns: ${processedData.schema?.columns?.length || 0}`);
+        console.log(`[Upload] - Has extracted content: ${!!processedData.extractedContent}`);
         
         // 3. Serialize to Parquet (skip for PDFs if no tabular data)
         if (processedData.data && processedData.data.length > 0) {

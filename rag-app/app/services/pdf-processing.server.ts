@@ -56,32 +56,77 @@ export class PDFProcessingService {
     schema: FileSchema;
     extractedContent: PDFExtractResult;
   }> {
-    const buffer = await this.fileToBuffer(file);
-    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    console.log(`[PDF] Starting PDF processing for: ${file.name}`);
+    console.log(`[PDF] File size: ${file.size} bytes, Type: ${file.type}`);
+    const startTime = Date.now();
     
-    // Extract all content from PDF
-    const extractedContent = await this.extractAllContent(pdf);
-    
-    // Convert extracted tables to tabular data
-    const { data, schema } = this.convertTablesToData(extractedContent);
-    
-    return {
-      data,
-      schema,
-      extractedContent
-    };
+    try {
+      // Convert file to buffer
+      const buffer = await this.fileToBuffer(file);
+      console.log(`[PDF] Buffer created, creating PDF proxy...`);
+      
+      // Create PDF document proxy
+      const pdf = await getDocumentProxy(new Uint8Array(buffer));
+      console.log(`[PDF] PDF proxy created, pages: ${pdf.numPages}`);
+      
+      // Extract all content from PDF
+      console.log(`[PDF] Starting content extraction...`);
+      const extractedContent = await this.extractAllContent(pdf);
+      console.log(`[PDF] Content extraction complete:`);
+      console.log(`[PDF] - Text length: ${extractedContent.text?.length || 0} characters`);
+      console.log(`[PDF] - Tables found: ${extractedContent.tables?.length || 0}`);
+      console.log(`[PDF] - Images found: ${extractedContent.images?.length || 0}`);
+      console.log(`[PDF] - Pages processed: ${extractedContent.pages?.length || 0}`);
+      
+      // Convert extracted tables to tabular data
+      console.log(`[PDF] Converting tables to data format...`);
+      const { data, schema } = this.convertTablesToData(extractedContent);
+      console.log(`[PDF] Data conversion complete:`);
+      console.log(`[PDF] - Rows: ${data.length}`);
+      console.log(`[PDF] - Columns: ${schema.columns.length}`);
+      
+      const duration = Date.now() - startTime;
+      console.log(`[PDF] Total processing time: ${duration}ms`);
+      
+      return {
+        data,
+        schema,
+        extractedContent
+      };
+    } catch (error) {
+      console.error(`[PDF] Failed to process PDF:`, error);
+      console.error(`[PDF] Error details:`, error instanceof Error ? error.stack : error);
+      throw error;
+    }
   }
 
   /**
    * Convert File to ArrayBuffer
    */
   private static async fileToBuffer(file: File): Promise<ArrayBuffer> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as ArrayBuffer);
-      reader.onerror = reject;
-      reader.readAsArrayBuffer(file);
-    });
+    console.log(`[PDF] Converting file to buffer: ${file.name} (${file.size} bytes)`);
+    console.log(`[PDF] File type: ${file.type}`);
+    console.log(`[PDF] File object methods available:`, Object.getOwnPropertyNames(Object.getPrototypeOf(file)));
+    
+    try {
+      // Check if arrayBuffer method exists
+      if (typeof file.arrayBuffer !== 'function') {
+        console.error(`[PDF] File.arrayBuffer() method not available`);
+        throw new Error('File.arrayBuffer() method not available in this environment');
+      }
+      
+      // Use the File object's built-in arrayBuffer() method (available in Node.js)
+      const startTime = Date.now();
+      const buffer = await file.arrayBuffer();
+      const duration = Date.now() - startTime;
+      
+      console.log(`[PDF] Successfully converted to buffer: ${buffer.byteLength} bytes in ${duration}ms`);
+      return buffer;
+    } catch (error) {
+      console.error(`[PDF] Failed to convert file to buffer:`, error);
+      console.error(`[PDF] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+      throw new Error(`Failed to read PDF file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**
@@ -89,12 +134,21 @@ export class PDFProcessingService {
    */
   private static async extractAllContent(pdf: PDFDocumentProxy): Promise<PDFExtractResult> {
     const totalPages = pdf.numPages;
+    console.log(`[PDF] Extracting content from ${totalPages} pages...`);
     
     // Extract metadata
+    console.log(`[PDF] Extracting metadata...`);
     const metadata = await this.extractMetadata(pdf);
+    console.log(`[PDF] Metadata extracted:`, {
+      title: metadata.title || 'N/A',
+      author: metadata.author || 'N/A',
+      totalPages: metadata.totalPages
+    });
     
     // Extract text from all pages
+    console.log(`[PDF] Extracting full text...`);
     const { text: fullText } = await extractText(pdf, { mergePages: true });
+    console.log(`[PDF] Full text extracted: ${fullText?.length || 0} characters`);
     
     // Process each page
     const pages: PDFPageData[] = [];
@@ -102,16 +156,28 @@ export class PDFProcessingService {
     const allImages: PDFImageData[] = [];
     
     for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      console.log(`[PDF] Processing page ${pageNum}/${totalPages}...`);
+      
       // Extract text for this page
       const { text: pageText } = await extractText(pdf, { mergePages: false });
+      console.log(`[PDF] Page ${pageNum} text: ${pageText?.length || 0} characters`);
       
       // Extract tables from page text (using coordinate analysis)
       const pageTables = await this.extractTablesFromPage(pdf, pageNum, pageText);
+      if (pageTables.length > 0) {
+        console.log(`[PDF] Page ${pageNum} tables found: ${pageTables.length}`);
+        pageTables.forEach((table, idx) => {
+          console.log(`[PDF]   Table ${idx + 1}: ${table.headers.length} columns, ${table.rows.length} rows, confidence: ${table.confidence}`);
+        });
+      }
       allTables.push(...pageTables);
       
       // Extract images from page
       try {
         const pageImages = await this.extractImagesFromPage(pdf, pageNum);
+        if (pageImages.length > 0) {
+          console.log(`[PDF] Page ${pageNum} images found: ${pageImages.length}`);
+        }
         allImages.push(...pageImages);
         
         pages.push({
@@ -121,7 +187,7 @@ export class PDFProcessingService {
           imageCount: pageImages.length
         });
       } catch (error) {
-        console.warn(`Failed to extract images from page ${pageNum}:`, error);
+        console.warn(`[PDF] Failed to extract images from page ${pageNum}:`, error);
         pages.push({
           pageNumber: pageNum,
           text: pageText,
@@ -130,6 +196,11 @@ export class PDFProcessingService {
         });
       }
     }
+    
+    console.log(`[PDF] Content extraction summary:`);
+    console.log(`[PDF] - Total pages: ${pages.length}`);
+    console.log(`[PDF] - Total tables: ${allTables.length}`);
+    console.log(`[PDF] - Total images: ${allImages.length}`);
     
     return {
       text: fullText,
