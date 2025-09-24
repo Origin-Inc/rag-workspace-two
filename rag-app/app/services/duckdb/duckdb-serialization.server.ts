@@ -2,10 +2,22 @@ import { Database } from 'duckdb-async';
 import type { FileStorageService } from '../storage/file-storage.server';
 
 export class DuckDBSerializationService {
-  private db: Database;
+  private db: Database | null = null;
   
-  constructor() {
-    this.db = Database.create(':memory:');
+  /**
+   * Initialize DuckDB connection
+   */
+  private async initializeDB(): Promise<void> {
+    if (!this.db) {
+      console.log('[DuckDBSerializationService] Initializing DuckDB...');
+      try {
+        this.db = await Database.create(':memory:');
+        console.log('[DuckDBSerializationService] DuckDB initialized successfully');
+      } catch (error) {
+        console.error('[DuckDBSerializationService] Failed to initialize DuckDB:', error);
+        throw new Error(`Failed to initialize DuckDB: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
   }
   
   /**
@@ -17,12 +29,23 @@ export class DuckDBSerializationService {
     tableName: string
   ): Promise<Buffer> {
     try {
+      console.log(`[DuckDBSerializationService] Starting serialization for table: ${tableName}`);
+      console.log(`[DuckDBSerializationService] Data rows: ${data.length}, Schema columns: ${schema.columns?.length || 0}`);
+      
+      // Ensure DB is initialized
+      await this.initializeDB();
+      
+      if (!this.db) {
+        throw new Error('DuckDB not initialized');
+      }
+      
       // Create table from data
       await this.createTableFromData(data, schema, tableName);
       
       // Export to Parquet buffer
       const parquetBuffer = await this.exportTableToParquet(tableName);
       
+      console.log(`[DuckDBSerializationService] Serialization complete: ${parquetBuffer.length} bytes`);
       return parquetBuffer;
     } catch (error) {
       console.error('[DuckDBSerializationService] Failed to serialize to Parquet:', error);
@@ -38,6 +61,12 @@ export class DuckDBSerializationService {
     schema: any,
     tableName: string
   ) {
+    if (!this.db) {
+      throw new Error('DuckDB not initialized');
+    }
+    
+    console.log(`[DuckDBSerializationService] Creating table: ${tableName}`);
+    
     // Generate CREATE TABLE statement from schema
     const columns = schema.columns.map((col: any) => {
       const duckdbType = this.mapTypeToDuckDB(col.type);
@@ -45,6 +74,8 @@ export class DuckDBSerializationService {
     }).join(', ');
     
     const createTableSQL = `CREATE TABLE ${tableName} (${columns})`;
+    console.log(`[DuckDBSerializationService] SQL: ${createTableSQL}`);
+    
     await this.db.all(createTableSQL);
     
     // Insert data
@@ -65,8 +96,14 @@ export class DuckDBSerializationService {
    * Export a table to Parquet format
    */
   private async exportTableToParquet(tableName: string): Promise<Buffer> {
+    if (!this.db) {
+      throw new Error('DuckDB not initialized');
+    }
+    
     // Use COPY TO with a temporary file path
     const tempPath = `/tmp/${tableName}_${Date.now()}.parquet`;
+    
+    console.log(`[DuckDBSerializationService] Exporting table to Parquet: ${tempPath}`);
     
     try {
       // Export to Parquet file
@@ -94,6 +131,15 @@ export class DuckDBSerializationService {
     tableName: string
   ): Promise<{ rowCount: number; schema: any }> {
     try {
+      // Ensure DB is initialized
+      await this.initializeDB();
+      
+      if (!this.db) {
+        throw new Error('DuckDB not initialized');
+      }
+      
+      console.log(`[DuckDBSerializationService] Restoring table from Parquet: ${tableName}`);
+      
       // Write buffer to temp file
       const tempPath = `/tmp/${tableName}_restore_${Date.now()}.parquet`;
       const fs = await import('fs/promises');
@@ -130,6 +176,21 @@ export class DuckDBSerializationService {
     } catch (error) {
       console.error('[DuckDBSerializationService] Failed to restore from Parquet:', error);
       throw error;
+    }
+  }
+  
+  /**
+   * Close the database connection
+   */
+  async close(): Promise<void> {
+    if (this.db) {
+      console.log('[DuckDBSerializationService] Closing DuckDB connection');
+      try {
+        await this.db.close();
+        this.db = null;
+      } catch (error) {
+        console.error('[DuckDBSerializationService] Error closing DuckDB:', error);
+      }
     }
   }
   
