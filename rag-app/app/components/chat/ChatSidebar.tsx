@@ -785,11 +785,20 @@ Just upload a CSV or Excel file and ask me anything about it!`,
               const processedFile = result.files[0];
               
               // Add to local store
+              // Transform schema format if it has columns property
+              const schemaForStore = processedFile.schema.columns 
+                ? processedFile.schema.columns.map((col: any) => ({
+                    name: col.name,
+                    type: col.type,
+                    sampleData: col.sampleValues || []
+                  }))
+                : processedFile.schema;
+              
               addDataFile({
                 databaseId: processedFile.id,
                 filename: processedFile.filename,
                 tableName: processedFile.tableName,
-                schema: processedFile.schema,
+                schema: schemaForStore,
                 rowCount: processedFile.rowCount || 0,
                 sizeBytes: file.size,
               });
