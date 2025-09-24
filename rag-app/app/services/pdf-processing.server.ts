@@ -502,7 +502,7 @@ export class PDFProcessingService {
   /**
    * Find which pages a text chunk appears in
    */
-  private static findPageNumbers(chunk: string, pages: PDFPageData[]): string {
+  private static findPageNumbers(chunk: string, pages: PDFPageData[]): string | null {
     const pageNumbers: number[] = [];
     const chunkLower = chunk.toLowerCase();
     
@@ -512,7 +512,8 @@ export class PDFProcessingService {
       }
     }
     
-    return pageNumbers.join(', ');
+    // Return null instead of empty string if no pages found
+    return pageNumbers.length > 0 ? pageNumbers.join(', ') : null;
   }
 
   /**

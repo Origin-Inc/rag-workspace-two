@@ -809,6 +809,14 @@ Just upload a CSV or Excel file and ask me anything about it!`,
                   content: `PDF file "${file.name}" uploaded and processed successfully!`,
                 });
               }
+              
+              // Clear upload progress after successful PDF processing
+              setUploadProgress(prev => prev ? { ...prev, status: 'complete', progress: 100 } : null);
+              setTimeout(() => {
+                if (isMountedRef.current) {
+                  setUploadProgress(null);
+                }
+              }, 2000);
             }
           } catch (error) {
             console.error('[ChatSidebar] Error processing PDF:', error);
@@ -1230,7 +1238,7 @@ Just upload a CSV or Excel file and ask me anything about it!`,
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
             <Upload className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-            <p className="text-sm">Upload CSV or Excel files to start analyzing</p>
+            <p className="text-sm">Upload CSV, Excel, or PDF files to start analyzing</p>
             <p className="text-xs mt-2">Click the + button or drag and drop files here</p>
           </div>
         ) : (

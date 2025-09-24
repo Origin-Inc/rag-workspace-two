@@ -95,7 +95,7 @@ export function ChatInput({
               "flex items-center justify-center"
             )}
             aria-label="Upload file"
-            title="Upload CSV or Excel file"
+            title="Upload CSV, Excel, or PDF file"
           >
             <Plus className="w-5 h-5" />
           </button>
@@ -144,7 +144,7 @@ export function ChatInput({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv,.xlsx,.xls"
+          accept=".csv,.xlsx,.xls,.pdf"
           className="hidden"
           onChange={async (e) => {
             const file = e.target.files?.[0];
