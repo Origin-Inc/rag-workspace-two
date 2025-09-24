@@ -803,6 +803,28 @@ Just upload a CSV or Excel file and ask me anything about it!`,
                 sizeBytes: file.size,
               });
               
+              // Load PDF data into DuckDB if available
+              if (processedFile.data && processedFile.data.length > 0 && duckdb.isReady()) {
+                console.log('[ChatSidebar] Loading PDF data into DuckDB:', {
+                  tableName: processedFile.tableName,
+                  rowCount: processedFile.data.length,
+                  isPreview: true  // Server only sends preview data
+                });
+                
+                try {
+                  // Load the preview data into DuckDB for immediate querying
+                  await duckdb.createTableFromData(
+                    processedFile.tableName,
+                    processedFile.data,
+                    processedFile.schema,
+                    pageId
+                  );
+                  console.log('[ChatSidebar] PDF data loaded into DuckDB successfully');
+                } catch (error) {
+                  console.error('[ChatSidebar] Failed to load PDF data into DuckDB:', error);
+                }
+              }
+              
               // Show success message with PDF metadata if available
               if (processedFile.pdfMetadata) {
                 addMessage({

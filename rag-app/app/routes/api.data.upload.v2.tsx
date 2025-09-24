@@ -293,7 +293,7 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
           sizeBytes: file.size,
           storageUrl,
           parquetUrl,
-          data: processedData.data.slice(0, 10), // Preview data
+          data: processedData.data, // Return all data for client-side DuckDB
           // Include PDF metadata if available
           ...(processedData.extractedContent && {
             pdfMetadata: {
