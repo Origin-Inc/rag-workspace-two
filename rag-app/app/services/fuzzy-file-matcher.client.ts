@@ -293,13 +293,15 @@ export class FuzzyFileMatcherClient {
     // Check semantic mappings
     for (const [concept, keywords] of Object.entries(this.SEMANTIC_MAPPINGS)) {
       if (queryLower.includes(concept)) {
-        for (const column of file.schema) {
-          const columnName = column.name.toLowerCase();
-          for (const keyword of keywords) {
-            if (columnName.includes(keyword)) {
-              score += 0.3;
-              matchedTokens.push(concept);
-              break;
+        if (file.schema && Array.isArray(file.schema)) {
+          for (const column of file.schema) {
+            const columnName = column.name.toLowerCase();
+            for (const keyword of keywords) {
+              if (columnName.includes(keyword)) {
+                score += 0.3;
+                matchedTokens.push(concept);
+                break;
+              }
             }
           }
         }
@@ -307,11 +309,13 @@ export class FuzzyFileMatcherClient {
     }
     
     // Check column names directly
-    for (const column of file.schema) {
-      const columnName = column.name.toLowerCase();
-      if (queryLower.includes(columnName)) {
-        score += 0.2;
-        matchedTokens.push(column.name);
+    if (file.schema && Array.isArray(file.schema)) {
+      for (const column of file.schema) {
+        const columnName = column.name.toLowerCase();
+        if (queryLower.includes(columnName)) {
+          score += 0.2;
+          matchedTokens.push(column.name);
+        }
       }
     }
     
