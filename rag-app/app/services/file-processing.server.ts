@@ -51,37 +51,45 @@ export class FileProcessingService {
   }
 
   static async parseExcel(file: File): Promise<{ data: any[], schema: FileSchema, sheets?: string[] }> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
+    console.log(`[Excel] Starting parse: ${file.name} (${file.size} bytes)`);
+    
+    try {
+      // Check if arrayBuffer method exists
+      if (typeof file.arrayBuffer !== 'function') {
+        console.error(`[Excel] File.arrayBuffer() method not available`);
+        throw new Error('File.arrayBuffer() method not available in this environment');
+      }
       
-      reader.onload = (e) => {
-        try {
-          const data = new Uint8Array(e.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-          
-          // Get all sheet names
-          const sheets = workbook.SheetNames;
-          
-          // Use first sheet by default
-          const worksheet = workbook.Sheets[sheets[0]];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-            raw: false,
-            dateNF: 'yyyy-mm-dd'
-          });
-          
-          const schema = this.inferSchema(jsonData);
-          resolve({ data: jsonData, schema, sheets });
-        } catch (error) {
-          reject(new Error(`Failed to parse Excel: ${error}`));
-        }
-      };
+      // Use the File object's built-in arrayBuffer() method
+      console.log(`[Excel] Converting to buffer...`);
+      const buffer = await file.arrayBuffer();
+      console.log(`[Excel] Buffer created: ${buffer.byteLength} bytes`);
       
-      reader.onerror = () => {
-        reject(new Error('Failed to read file'));
-      };
+      const data = new Uint8Array(buffer);
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
       
-      reader.readAsArrayBuffer(file);
-    });
+      // Get all sheet names
+      const sheets = workbook.SheetNames;
+      console.log(`[Excel] Found ${sheets.length} sheets: ${sheets.join(', ')}`);
+      
+      // Use first sheet by default
+      const worksheet = workbook.Sheets[sheets[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+        raw: false,
+        dateNF: 'yyyy-mm-dd'
+      });
+      
+      console.log(`[Excel] Parsed ${jsonData.length} rows from sheet: ${sheets[0]}`);
+      
+      const schema = this.inferSchema(jsonData);
+      console.log(`[Excel] Schema inferred: ${schema.columns.length} columns`);
+      
+      return { data: jsonData, schema, sheets };
+    } catch (error) {
+      console.error(`[Excel] Parse failed:`, error);
+      console.error(`[Excel] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+      throw new Error(`Failed to parse Excel: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   static inferSchema(data: any[]): FileSchema {
@@ -224,36 +232,53 @@ export class FileProcessingService {
     sheets?: string[];
     extractedContent?: any;
   }> {
+    console.log(`[FileProcessing] Processing file: ${file.name}`);
+    console.log(`[FileProcessing] File size: ${file.size} bytes, Type: ${file.type || 'unknown'}`);
+    
     // Validate file size (50MB limit)
     const MAX_FILE_SIZE = 50 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
+      console.error(`[FileProcessing] File too large: ${file.size} bytes (max: ${MAX_FILE_SIZE})`);
       throw new Error(`File "${file.name}" is too large. Maximum size is 50MB.`);
     }
     
     let result;
     let extractedContent;
     
-    if (file.name.toLowerCase().endsWith('.csv')) {
-      result = await this.parseCSV(file);
-    } else if (file.name.toLowerCase().match(/\.(xlsx?|xls)$/)) {
-      result = await this.parseExcel(file);
-    } else if (file.name.toLowerCase().endsWith('.pdf')) {
-      const pdfResult = await PDFProcessingService.processPDF(file);
-      result = {
-        data: pdfResult.data,
-        schema: pdfResult.schema
+    try {
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        console.log(`[FileProcessing] Detected CSV file, parsing...`);
+        result = await this.parseCSV(file);
+      } else if (file.name.toLowerCase().match(/\.(xlsx?|xls)$/)) {
+        console.log(`[FileProcessing] Detected Excel file, parsing...`);
+        result = await this.parseExcel(file);
+      } else if (file.name.toLowerCase().endsWith('.pdf')) {
+        console.log(`[FileProcessing] Detected PDF file, processing...`);
+        const pdfResult = await PDFProcessingService.processPDF(file);
+        result = {
+          data: pdfResult.data,
+          schema: pdfResult.schema
+        };
+        extractedContent = pdfResult.extractedContent;
+        console.log(`[FileProcessing] PDF processing complete:`)
+        console.log(`[FileProcessing] - Data rows: ${result.data?.length || 0}`);
+        console.log(`[FileProcessing] - Schema columns: ${result.schema?.columns?.length || 0}`);
+      } else {
+        console.error(`[FileProcessing] Unsupported file type: ${file.name}`);
+        throw new Error(`Unsupported file type: ${file.name}`);
+      }
+      
+      const tableName = this.sanitizeTableName(file.name);
+      console.log(`[FileProcessing] Generated table name: ${tableName}`);
+      
+      return {
+        ...result,
+        tableName,
+        extractedContent
       };
-      extractedContent = pdfResult.extractedContent;
-    } else {
-      throw new Error(`Unsupported file type: ${file.name}`);
+    } catch (error) {
+      console.error(`[FileProcessing] Failed to process file:`, error);
+      throw error;
     }
-    
-    const tableName = this.sanitizeTableName(file.name);
-    
-    return {
-      ...result,
-      tableName,
-      extractedContent
-    };
   }
 }
