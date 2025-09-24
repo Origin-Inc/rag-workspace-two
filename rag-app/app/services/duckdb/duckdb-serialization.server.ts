@@ -85,7 +85,21 @@ export class DuckDBSerializationService {
       
       const stmt = await this.db.prepare(insertSQL);
       for (const row of data) {
-        const values = schema.columns.map((col: any) => row[col.name]);
+        const values = schema.columns.map((col: any) => {
+          const value = row[col.name];
+          
+          // Handle null/undefined values
+          if (value === null || value === undefined) {
+            return null;
+          }
+          
+          // Handle empty strings for numeric columns
+          if (value === '' && (col.type === 'number' || col.type === 'integer')) {
+            return null;
+          }
+          
+          return value;
+        });
         await stmt.run(...values);
       }
       await stmt.finalize();
