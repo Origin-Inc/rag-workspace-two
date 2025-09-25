@@ -303,7 +303,78 @@ export function ChatSidebar({
         content: msg.content
       }));
       
-      // Process natural language query with conversation context
+      // Check if we should use unified intelligence for this query
+      const isPdfFile = filesToQuery.some(f => f.filename.toLowerCase().endsWith('.pdf'));
+      const isSemanticQuery = /summarize|explain|describe|what|how|why|tell me/i.test(content);
+      
+      // Use unified intelligence for PDFs or semantic queries
+      if (isPdfFile || isSemanticQuery) {
+        try {
+          // Call the unified intelligence endpoint
+          const response = await fetch('/api/chat-query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: content,
+              files: filesToQuery,
+              pageId,
+              workspaceId,
+              conversationHistory,
+            }),
+          });
+          
+          if (!response.ok) {
+            throw new Error(`API request failed: ${response.status}`);
+          }
+          
+          const result = await response.json();
+          
+          // Track token usage if metadata is available
+          if (result.metadata) {
+            tokenMonitor.recordUsage({
+              query: content,
+              model: result.metadata.model || 'gpt-4-turbo-preview',
+              contextTokens: result.metadata.contextTokens || 0,
+              responseTokens: result.metadata.responseTokens || 0,
+              totalTokens: result.metadata.totalTokens || 0,
+              truncated: false,
+              samplingStrategy: 'unified',
+            });
+          }
+          
+          // Add the unified response
+          addMessage({
+            role: 'assistant',
+            content: result.content,
+            metadata: {
+              ...result.metadata,
+              dataFiles: filesToQuery.map(f => f.filename),
+            },
+          });
+          
+          // Save to database
+          try {
+            await fetch(`/api/chat/messages/${pageId}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                role: 'assistant',
+                content: result.content,
+                metadata: result.metadata,
+              }),
+            });
+          } catch (error) {
+            console.error('Failed to save assistant message:', error);
+          }
+          
+          return; // Exit early for unified intelligence path
+        } catch (error) {
+          console.warn('Unified intelligence failed, falling back to SQL path:', error);
+          // Fall through to SQL path if unified fails
+        }
+      }
+      
+      // Original SQL-based processing for structured data queries
       const result = await duckDBQuery.processNaturalLanguageQuery(
         content,
         filesToQuery,
