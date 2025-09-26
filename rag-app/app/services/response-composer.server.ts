@@ -43,6 +43,24 @@ export class ResponseComposer {
       hasOptions: !!options
     });
     
+    // CRITICAL: Check for generic responses and flag them
+    const isGenericResponse = this.isGenericResponse(analysis);
+    
+    if (isGenericResponse) {
+      logger.warn('[ResponseComposer] GENERIC RESPONSE DETECTED', {
+        summary: analysis?.semantic?.summary,
+        keyThemes: analysis?.semantic?.keyThemes,
+        hasActualContent: this.hasActualContent(analysis)
+      });
+      
+      // Try to enhance the generic response with actual content
+      if (analysis?.semantic?.summary && analysis.semantic.summary.length > 100) {
+        logger.trace('[ResponseComposer] Attempting to use actual content instead of generic summary');
+      } else {
+        logger.error('[ResponseComposer] No content available to replace generic response');
+      }
+    }
+    
     logger.trace('[ResponseComposer] Composing response', {
       queryType: intent?.queryType,
       formatPreference: intent?.formatPreference,
@@ -50,7 +68,8 @@ export class ResponseComposer {
       options,
       analysisKeys: analysis ? Object.keys(analysis) : [],
       hasSemanticSummary: !!analysis?.semantic?.summary,
-      hasPresentation: !!analysis?.presentation
+      hasPresentation: !!analysis?.presentation,
+      isGeneric: isGenericResponse
     });
 
     // Handle explicit format requests
@@ -600,6 +619,66 @@ export class ResponseComposer {
     });
     
     return `**Data Distribution:**\n${descriptions.join('\n')}`;
+  }
+  
+  /**
+   * Check if the response is generic (not based on actual content)
+   */
+  private isGenericResponse(analysis: UnifiedResponse): boolean {
+    if (!analysis?.semantic?.summary) return true;
+    
+    const summary = analysis.semantic.summary.toLowerCase();
+    
+    // Check for common generic patterns
+    const genericPatterns = [
+      'analyzing.*file',
+      'this document contains',
+      'this.*document.*explores',
+      'content analysis unavailable',
+      'unable to extract',
+      'analysis of.*file',
+      'document analysis',
+      'this document is',
+      'the document.*explores'
+    ];
+    
+    const isGeneric = genericPatterns.some(pattern => 
+      new RegExp(pattern).test(summary)
+    );
+    
+    // Also check if themes are empty or generic
+    const hasNoThemes = !analysis.semantic.keyThemes || 
+                       analysis.semantic.keyThemes.length === 0 ||
+                       analysis.semantic.keyThemes.every(theme => 
+                         theme.toLowerCase().includes('document') || 
+                         theme.toLowerCase().includes('analysis')
+                       );
+    
+    return isGeneric || hasNoThemes;
+  }
+  
+  /**
+   * Check if analysis contains actual content
+   */
+  private hasActualContent(analysis: UnifiedResponse): boolean {
+    // Check semantic content
+    const hasMeaningfulSummary = analysis?.semantic?.summary && 
+                                 analysis.semantic.summary.length > 200 &&
+                                 !this.isGenericResponse(analysis);
+    
+    // Check for specific themes
+    const hasSpecificThemes = analysis?.semantic?.keyThemes && 
+                             analysis.semantic.keyThemes.length > 2;
+    
+    // Check for entities
+    const hasEntities = analysis?.semantic?.entities && 
+                       analysis.semantic.entities.length > 0;
+    
+    // Check for statistical data
+    const hasStatistics = analysis?.statistical?.metrics && 
+                         Object.keys(analysis.statistical.metrics).length > 0;
+    
+    return hasMeaningfulSummary || hasSpecificThemes || hasEntities || hasStatistics;
   }
 }
 

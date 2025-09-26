@@ -104,18 +104,39 @@ export const action: ActionFunction = async ({ request }) => {
     // Prepare file data based on type
     logger.trace('[Unified] Preparing file data...');
     const fileData = await prepareFileData(files, pageId);
-    logger.trace('[Unified] File data prepared', {
+    
+    // CRITICAL: Validate that we have actual content, not just metadata
+    const contentValidation = fileData.map(file => ({
+      filename: file.filename,
+      type: file.type,
+      hasContent: !!file.content,
+      contentLength: typeof file.content === 'string' ? file.content.length : 
+                     Array.isArray(file.content) ? file.content.join('').length : 0,
+      hasData: !!file.data,
+      dataLength: Array.isArray(file.data) ? file.data.length : 0,
+      contentSample: typeof file.content === 'string' ? file.content.slice(0, 200) :
+                     Array.isArray(file.content) ? file.content[0]?.slice(0, 200) : 'NO CONTENT'
+    }));
+    
+    logger.trace('[Unified] Content validation results', {
       fileCount: fileData.length,
-      fileTypes: fileData.map(f => f.type),
-      firstFile: fileData[0] ? {
-        filename: fileData[0].filename,
-        type: fileData[0].type,
-        hasContent: !!fileData[0].content,
-        contentLength: typeof fileData[0].content === 'string' ? fileData[0].content.length : 0,
-        hasSample: !!fileData[0].sample,
-        samplePreview: fileData[0].sample?.slice(0, 100) || 'No sample'
-      } : null
+      validation: contentValidation,
+      totalContentLength: contentValidation.reduce((acc, v) => acc + v.contentLength, 0),
+      filesWithContent: contentValidation.filter(v => v.hasContent).length,
+      filesWithData: contentValidation.filter(v => v.hasData).length
     });
+    
+    // Warn if no actual content was extracted
+    if (contentValidation.every(v => v.contentLength === 0)) {
+      logger.error('[Unified] CRITICAL: No content extracted from any file!', {
+        fileData: fileData.map(f => ({ 
+          filename: f.filename, 
+          type: f.type,
+          contentType: typeof f.content,
+          dataType: typeof f.data 
+        }))
+      });
+    }
     
     // Perform unified analysis using the correct method name: process
     logger.trace('[Unified] Starting unified analysis...');
