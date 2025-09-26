@@ -562,6 +562,29 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
   private describeFile(file: FileContext): string {
     const type = file.type === 'pdf' ? 'document' : 'dataset';
     const size = file.rowCount ? `${file.rowCount} rows` : '';
+    
+    // Include actual content for PDFs if available
+    if (file.type === 'pdf' && file.content) {
+      const contentPreview = typeof file.content === 'string' 
+        ? file.content.slice(0, 10000) // Get first 10K chars
+        : Array.isArray(file.content) 
+          ? file.content.slice(0, 20).join('\n\n') // Get first 20 chunks
+          : '';
+      
+      logger.trace('[describeFile] Including PDF content', {
+        filename: file.filename,
+        contentLength: contentPreview.length,
+        hasContent: !!contentPreview
+      });
+      
+      return `${file.filename} (${type}${size ? `, ${size}` : ''})\n\nContent:\n${contentPreview}`;
+    }
+    
+    // Include sample data for CSV/Excel if available
+    if ((file.type === 'csv' || file.type === 'excel') && file.sample) {
+      return `${file.filename} (${type}${size ? `, ${size}` : ''})\n\nSample:\n${file.sample}`;
+    }
+    
     return `${file.filename} (${type}${size ? `, ${size}` : ''})`;
   }
 
