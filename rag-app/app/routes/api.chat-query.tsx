@@ -36,7 +36,15 @@ export const action: ActionFunction = async ({ request }) => {
       fileCount: files?.length || 0,
       pageId,
       workspaceId,
-      hasConversationHistory: !!conversationHistory
+      hasConversationHistory: !!conversationHistory,
+      firstFile: files?.[0] ? {
+        filename: files[0].filename,
+        hasData: !!files[0].data,
+        hasContent: !!files[0].content,
+        dataLength: files[0].data?.length || 0,
+        contentLength: files[0].content?.length || 0,
+        sampleContent: files[0].content?.[0]?.slice(0, 100) || 'No content'
+      } : null
     });
 
     if (!query || !files || files.length === 0) {
@@ -264,20 +272,45 @@ async function prepareFileData(files: any[], pageId: string) {
       };
       
       // If content is provided in the request, use it
-      if (file.content) {
-        fileInfo.content = file.content;
-        fileInfo.sample = Array.isArray(file.content) 
-          ? file.content.slice(0, 5).map((c: any) => c.text || '').join('\n\n')
-          : file.content.slice(0, 2000);
-      } else if (file.data) {
-        // If data is provided (from DuckDB), use it
+      if (file.content && Array.isArray(file.content)) {
+        // Content is an array of text chunks
+        fileInfo.content = file.content.join('\n\n');
+        fileInfo.extractedContent = file.content;
+        fileInfo.sample = file.content.slice(0, 5).join('\n\n').slice(0, 2000);
+        
+        logger.trace('[prepareFileData] PDF content from chunks', {
+          filename: file.filename,
+          chunkCount: file.content.length,
+          totalLength: fileInfo.content.length,
+          sampleLength: fileInfo.sample.length
+        });
+      } else if (file.data && Array.isArray(file.data)) {
+        // If data is provided (from DuckDB), extract text content
+        const textContent = file.data
+          .map((row: any) => row.text || row.content || '')
+          .filter(Boolean);
+        
+        fileInfo.content = textContent.join('\n\n');
         fileInfo.data = file.data;
-        fileInfo.extractedContent = file.data;
+        fileInfo.extractedContent = textContent;
+        fileInfo.sample = textContent.slice(0, 5).join('\n\n').slice(0, 2000);
+        
+        logger.trace('[prepareFileData] PDF content from data rows', {
+          filename: file.filename,
+          rowCount: file.data.length,
+          textChunks: textContent.length,
+          totalLength: fileInfo.content.length
+        });
+      } else if (typeof file.content === 'string') {
+        // Content is already a string
+        fileInfo.content = file.content;
+        fileInfo.sample = file.content.slice(0, 2000);
       }
       
       logger.trace('[prepareFileData] PDF metadata prepared', {
         filename: file.filename,
         hasContent: !!fileInfo.content,
+        contentLength: fileInfo.content?.length || 0,
         hasData: !!fileInfo.data,
         pageCount: fileInfo.documentMetadata.page_count
       });

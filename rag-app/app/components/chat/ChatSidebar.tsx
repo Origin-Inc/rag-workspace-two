@@ -310,13 +310,50 @@ export function ChatSidebar({
       // Use unified intelligence for PDFs or semantic queries
       if (isPdfFile || isSemanticQuery) {
         try {
+          console.log('[ChatSidebar] Preparing to fetch PDF content for unified intelligence');
+          
+          // For PDF files, fetch the actual content from DuckDB
+          const enrichedFiles = await Promise.all(
+            filesToQuery.map(async (file) => {
+              if (file.filename.toLowerCase().endsWith('.pdf')) {
+                console.log('[ChatSidebar] Fetching PDF content for:', file.filename, 'from table:', file.tableName);
+                
+                // Query the actual PDF content from DuckDB
+                const contentQuery = `SELECT * FROM ${file.tableName} LIMIT 500`;
+                try {
+                  const result = await duckDBService.query(contentQuery);
+                  console.log('[ChatSidebar] PDF content fetched:', {
+                    filename: file.filename,
+                    rowCount: result.data?.length || 0,
+                    hasData: !!result.data
+                  });
+                  
+                  return {
+                    ...file,
+                    data: result.data || [],
+                    content: result.data?.map((row: any) => row.text || row.content).filter(Boolean) || []
+                  };
+                } catch (error) {
+                  console.error('[ChatSidebar] Failed to fetch PDF content:', error);
+                  return file;
+                }
+              }
+              return file;
+            })
+          );
+          
+          console.log('[ChatSidebar] Enriched files prepared:', {
+            count: enrichedFiles.length,
+            hasContent: enrichedFiles.some(f => f.content?.length > 0)
+          });
+          
           // Call the unified intelligence endpoint
           const response = await fetch('/api/chat-query', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               query: content,
-              files: filesToQuery,
+              files: enrichedFiles,
               pageId,
               workspaceId,
               conversationHistory,
