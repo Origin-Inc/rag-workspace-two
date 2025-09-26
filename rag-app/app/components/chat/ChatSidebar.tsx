@@ -328,28 +328,31 @@ export function ChatSidebar({
                 try {
                   const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
                   const duckdb = getDuckDB();
-                  const result = await duckdb.query(contentQuery);
+                  const result = await duckdb.executeQuery(contentQuery);
+                  const data = result.toArray();
+                  
                   console.log('[ChatSidebar] Content fetched:', {
                     filename: file.filename,
                     type: isPDF ? 'PDF' : (isCSV ? 'CSV' : 'Excel'),
-                    rowCount: result.data?.length || 0,
-                    hasData: !!result.data
+                    rowCount: data?.length || 0,
+                    hasData: !!data,
+                    sampleRow: data?.[0]
                   });
                   
                   if (isPDF) {
                     // For PDFs, extract text content
                     return {
                       ...file,
-                      data: result.data || [],
-                      content: result.data?.map((row: any) => row.text || row.content).filter(Boolean) || []
+                      data: data || [],
+                      content: data?.map((row: any) => row.text || row.content).filter(Boolean) || []
                     };
                   } else {
                     // For CSV/Excel, include the actual data
                     return {
                       ...file,
-                      data: result.data || [],
-                      sampleData: result.data?.slice(0, 100) || [],
-                      content: result.data || []
+                      data: data || [],
+                      sampleData: data?.slice(0, 100) || [],
+                      content: data || []
                     };
                   }
                 } catch (error) {

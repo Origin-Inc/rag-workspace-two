@@ -34,11 +34,12 @@ export class DuckDBCloudSyncService {
       return false;
     }
     
-    // Valid file should have tableName and parquetUrl at minimum
-    if (!file.tableName || !file.parquetUrl) {
-      console.warn('[CloudSync] Invalid file metadata:', {
+    // Valid file should have tableName at minimum
+    // parquetUrl is optional - files may be stored differently
+    if (!file.tableName) {
+      console.warn('[CloudSync] Invalid file metadata: missing tableName', {
         tableName: file.tableName,
-        hasParquetUrl: !!file.parquetUrl
+        filename: file.filename
       });
       return false;
     }
