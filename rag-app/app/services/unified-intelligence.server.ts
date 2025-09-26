@@ -258,22 +258,26 @@ export class UnifiedIntelligenceService {
       }))
     });
     
+    // CRITICAL FIX: Restructured prompt to avoid "lost in middle" phenomenon
     const prompt = `
-Analyze this content and query to provide semantic understanding:
+You are analyzing a document. Your task is to find and extract SPECIFIC information about: "${query}"
 
-Query: "${query}"
+IMPORTANT: Only use the document content below. Do not use any general knowledge.
 
-Content Overview:
+DOCUMENT CONTENT:
 ${fileDescriptions}
 
-Provide a semantic analysis including:
-1. A natural summary of what this content represents
-2. The context and domain (e.g., "sales data from retail operations")
-3. Key themes or categories present
-4. Important entities mentioned (people, products, locations, etc.)
-5. Relationships between different elements
+END OF DOCUMENT CONTENT
 
-Format as JSON with keys: summary, context, keyThemes, entities, relationships
+Based ONLY on the document above, answer this query: "${query}"
+
+Rules:
+- Quote directly from the document when possible
+- If the query asks about something not in the document, say "This information is not found in the provided document"
+- Focus on extracting specific facts, not generalizing
+- Include page/section references if available
+
+Format as JSON with keys: summary (specific answer to the query), context (where in document this was found), keyThemes (only themes directly related to the query), entities (specific names/terms from document), relationships (how elements connect)
 `;
 
     // CRITICAL DEBUG: Log the exact prompt being sent to OpenAI
@@ -329,7 +333,7 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
           completion = await openai.chat.completions.create({
         model: 'gpt-4-turbo-preview',
         messages: [
-          { role: 'system', content: 'You are a data analyst that understands both documents and datasets. Provide specific, detailed analysis based on the actual content provided.' },
+          { role: 'system', content: 'You are a document analysis system. CRITICAL: Only answer based on the provided document content. Never use general knowledge. If information is not in the document, explicitly state that. Always quote or reference specific parts of the document.' },
           { role: 'user', content: prompt }
         ],
         response_format: { type: 'json_object' },
@@ -787,11 +791,16 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
     
     // Include actual content for PDFs if available
     if (file.type === 'pdf' && file.content) {
-      const contentPreview = typeof file.content === 'string' 
-        ? file.content.slice(0, 50000) // Increased to 50K chars for better context
-        : Array.isArray(file.content) 
-          ? file.content.slice(0, 100).join('\n\n') // Increased to 100 chunks
-          : '';
+      // Optimized for "lost in middle" phenomenon - prioritize relevant chunks
+      let contentPreview = '';
+      if (typeof file.content === 'string') {
+        contentPreview = file.content.slice(0, 30000); // Reduced to avoid context degradation
+      } else if (Array.isArray(file.content)) {
+        // Take first 30 chunks and last 20 chunks to leverage U-shaped performance
+        const firstChunks = file.content.slice(0, 30).join('\n\n');
+        const lastChunks = file.content.slice(-20).join('\n\n');
+        contentPreview = `${firstChunks}\n\n[... middle content ...]\n\n${lastChunks}`;
+      }
       
       logger.trace('[describeFile] Including PDF content', {
         filename: file.filename,
