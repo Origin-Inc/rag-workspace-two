@@ -334,7 +334,7 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
         ],
         response_format: { type: 'json_object' },
         temperature: 0.3,
-        max_tokens: 1000
+        max_tokens: 3000  // Increased for more detailed analysis
           });
           
           // Success - break out of retry loop
@@ -788,9 +788,9 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
     // Include actual content for PDFs if available
     if (file.type === 'pdf' && file.content) {
       const contentPreview = typeof file.content === 'string' 
-        ? file.content.slice(0, 10000) // Get first 10K chars
+        ? file.content.slice(0, 50000) // Increased to 50K chars for better context
         : Array.isArray(file.content) 
-          ? file.content.slice(0, 20).join('\n\n') // Get first 20 chunks
+          ? file.content.slice(0, 100).join('\n\n') // Increased to 100 chunks
           : '';
       
       logger.trace('[describeFile] Including PDF content', {
@@ -829,7 +829,7 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
         
         // Limit content size for API calls
         const preview = typeof dataContent === 'string' 
-          ? dataContent.slice(0, 10000)
+          ? dataContent.slice(0, 50000)  // Increased to match PDF limit
           : '';
         
         return `${file.filename} (${type}${size ? `, ${size}` : ''})\n\nData:\n${preview}`;
@@ -939,7 +939,7 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
             }
           });
           
-          combinedContent += `\n\n[Document: ${file.filename}]\n${pdfContent.slice(0, 5000)}`;
+          combinedContent += `\n\n[Document: ${file.filename}]\n${pdfContent.slice(0, 25000)}`; // Increased for better fallback analysis
           
           // Extract themes from PDF content
           const contentLower = pdfContent.toLowerCase();
