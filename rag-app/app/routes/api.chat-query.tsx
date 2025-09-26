@@ -473,7 +473,7 @@ export const action: ActionFunction = async ({ request }) => {
     });
     
     // Log performance summary for monitoring
-    logger.data('[Unified] Request completed', {
+    logger.trace('[Unified] Request completed', {
       requestId,
       userId: user.id,
       pageId,
