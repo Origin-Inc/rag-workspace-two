@@ -1,0 +1,18 @@
+# Robots.txt for RAG Workspace
+# https://www.robotstxt.org/
+
+User-agent: *
+Allow: /
+
+# Block access to API routes
+Disallow: /api/
+Disallow: /auth/
+Disallow: /app/
+
+# Allow search engines to index public pages
+Allow: /$
+Allow: /auth/signin$
+Allow: /auth/signup$
+
+# Sitemap location (if you add one later)
+# Sitemap: https://www.odeun.io/sitemap.xml
