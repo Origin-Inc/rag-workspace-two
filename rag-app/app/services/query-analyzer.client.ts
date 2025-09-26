@@ -24,7 +24,9 @@ export class QueryAnalyzer {
   private static readonly DATA_QUERY_INDICATORS = [
     'show', 'display', 'analyze', 'summarize', 'query', 'find', 'get',
     'calculate', 'average', 'sum', 'count', 'group', 'filter',
-    'from', 'where', 'select', 'data', 'table', 'file', 'csv'
+    'from', 'where', 'select', 'data', 'table', 'file', 'csv',
+    'what', 'explain', 'describe', 'tell', 'about', 'contain', 'specific',
+    'content', 'information', 'details', 'overview', 'insights', 'pdf'
   ];
   
   // Vague request patterns
@@ -164,12 +166,17 @@ export class QueryAnalyzer {
    */
   private static calculateDataQueryScore(query: string): number {
     let score = 0;
-    const words = query.split(/\s+/);
+    const words = query.toLowerCase().split(/\s+/);
     
     for (const word of words) {
       if (this.DATA_QUERY_INDICATORS.includes(word)) {
         score += 0.2;
       }
+    }
+    
+    // Check for semantic query patterns (questions about content)
+    if (/what.*about|what.*contain|explain.*file|describe.*file|tell.*about/i.test(query)) {
+      score += 0.5;
     }
     
     // Check for SQL-like patterns
@@ -179,6 +186,16 @@ export class QueryAnalyzer {
     
     // Check for aggregation keywords
     if (/sum|average|mean|median|count|total|maximum|minimum/i.test(query)) {
+      score += 0.3;
+    }
+    
+    // Check for document analysis keywords
+    if (/summarize|analyze|overview|insight|understand|review/i.test(query)) {
+      score += 0.4;
+    }
+    
+    // Check if mentions file extensions
+    if (/\.pdf|\.csv|\.xlsx?|\.txt/i.test(query)) {
       score += 0.3;
     }
     

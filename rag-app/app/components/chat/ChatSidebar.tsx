@@ -305,7 +305,7 @@ export function ChatSidebar({
       
       // Check if we should use unified intelligence for this query
       const isPdfFile = filesToQuery.some(f => f.filename.toLowerCase().endsWith('.pdf'));
-      const isSemanticQuery = /summarize|explain|describe|what|how|why|tell me/i.test(content);
+      const isSemanticQuery = /summarize|explain|describe|what|how|why|tell|about|contain|specific|analyze|insight|understand|mean|overview|detail/i.test(content);
       
       // Use unified intelligence for PDFs or semantic queries
       if (isPdfFile || isSemanticQuery) {
@@ -555,7 +555,19 @@ Just upload a CSV or Excel file and ask me anything about it!`,
         return;
         
       case 'general-chat':
-        // For now, guide them to data analysis
+        // Check if we have PDF files and the query might be about them
+        const hasPdfFiles = dataFiles.some(f => f.filename.toLowerCase().endsWith('.pdf'));
+        const isAskingAboutFiles = /what|explain|describe|tell|about|contain|specific/i.test(content.toLowerCase());
+        
+        // If we have PDFs and user is asking about files, route to unified intelligence
+        if (hasPdfFiles && isAskingAboutFiles && dataFiles.length > 0) {
+          // Process as a semantic query with all PDF files
+          const pdfFiles = dataFiles.filter(f => f.filename.toLowerCase().endsWith('.pdf'));
+          await processQueryWithFile(content, pdfFiles.length > 0 ? pdfFiles : dataFiles);
+          return;
+        }
+        
+        // Otherwise, provide helpful guidance
         addMessage({
           role: 'assistant',
           content: dataFiles.length > 0 
