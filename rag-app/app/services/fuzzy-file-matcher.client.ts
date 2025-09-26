@@ -44,6 +44,25 @@ export class FuzzyFileMatcherClient {
     oldest: Infinity,
     last: 7 * 24 * 60 * 60 * 1000,
   };
+  
+  // Demonstrative references that indicate recent/contextual files
+  private static readonly DEMONSTRATIVE_REFERENCES = [
+    'this file',
+    'that file',
+    'the file',
+    'my file',
+    'uploaded file',
+    'current file',
+    'this data',
+    'the data',
+    'this csv',
+    'the csv',
+    'this excel',
+    'the excel',
+    'this pdf',
+    'the pdf',
+    'it', // When referring to a previously mentioned file
+  ];
 
   /**
    * Main entry point for matching files to a natural language query
@@ -63,12 +82,86 @@ export class FuzzyFileMatcherClient {
     const results: FileMatchResult[] = [];
     const normalizedQuery = query.toLowerCase();
     
+    // First check if query contains a specific filename
+    // But skip this check for simple one-word commands
+    const isSimpleCommand = /^(summarize|analyze|explain|describe)$/i.test(normalizedQuery.trim());
+    
+    let hasSpecificFilename = false;
+    if (!isSimpleCommand) {
+      for (const file of availableFiles) {
+        const nameWithoutExt = file.filename.toLowerCase().replace(/\.[^/.]+$/, '');
+        const tableName = file.tableName.toLowerCase();
+        
+        // Check if query contains substantial part of filename
+        const tokens = this.tokenize(normalizedQuery);
+        for (const token of tokens) {
+          if (token.length >= 4 && (nameWithoutExt.includes(token) || tableName.includes(token))) {
+            hasSpecificFilename = true;
+            break;
+          }
+        }
+        if (hasSpecificFilename) break;
+      }
+    }
+    
+    // Check if this is a demonstrative reference (but not if it has specific filename)
+    const isDemonstrativeReference = !hasSpecificFilename && this.checkDemonstrativeReference(normalizedQuery);
+    
+    // Special handling for demonstrative references
+    if (isDemonstrativeReference) {
+      // Handle "the file" when there's only one file
+      if (availableFiles.length === 1) {
+        return [{
+          file: availableFiles[0],
+          score: 1.0,
+          confidence: 1.0,
+          matchType: 'exact',
+          matchedTokens: ['the file'],
+          reason: 'Only file available'
+        }];
+      }
+      
+      // For any demonstrative reference (including simple commands), prefer most recent
+      // Sort by upload date and boost recent files
+      const sortedFiles = [...availableFiles].sort((a, b) => 
+        new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+      );
+      
+      // Give high confidence to the most recent file
+      if (sortedFiles.length > 0) {
+        results.push({
+          file: sortedFiles[0],
+          score: 0.95,
+          confidence: 0.95,
+          matchType: 'temporal',
+          matchedTokens: [normalizedQuery],
+          reason: 'Most recently uploaded file'
+        });
+        
+        // Add other files with lower confidence
+        for (let i = 1; i < Math.min(3, sortedFiles.length); i++) {
+          results.push({
+            file: sortedFiles[i],
+            score: 0.4 - (i * 0.1),
+            confidence: 0.4 - (i * 0.1),
+            matchType: 'temporal',
+            matchedTokens: ['file'],
+            reason: 'Alternative file option'
+          });
+        }
+        
+        return results.slice(0, maxResults);
+      }
+    }
+    
+    // Normal matching logic for non-demonstrative queries
     for (const file of availableFiles) {
       const matchResult = this.calculateFileMatch(
         normalizedQuery,
         file,
         includeSemanticMatch,
-        includeTemporalMatch
+        includeTemporalMatch,
+        isDemonstrativeReference
       );
       
       if (matchResult.confidence >= confidenceThreshold) {
@@ -83,13 +176,59 @@ export class FuzzyFileMatcherClient {
   }
   
   /**
+   * Check if query contains demonstrative references
+   */
+  private static checkDemonstrativeReference(query: string): boolean {
+    const queryLower = query.toLowerCase();
+    
+    // Direct demonstrative references
+    for (const ref of this.DEMONSTRATIVE_REFERENCES) {
+      if (queryLower.includes(ref)) {
+        return true;
+      }
+    }
+    
+    // Check for implicit references like "summarize this", "analyze it"
+    const implicitPatterns = [
+      // Simple one-word commands that imply current context (check first)
+      /^(summarize|analyze|explain|describe)$/i,
+      // Direct commands with demonstrative pronouns
+      /^(summarize|analyze|explain|describe|show|display|query|process|what\s+(is|are)|tell\s+me\s+about)\s+(this|that|it)/i,
+      // Commands with implicit file reference (but not if followed by a filename)
+      /^(summarize|analyze|explain|describe|show|display|query|process)(\s+(the\s+)?(data|content|information|file))?$/i,
+      // Questions about content
+      /^what.*(contain|show|have|include|about)/i,
+      // Actions on demonstrative references
+      /^(get|show|find|calculate|compute).*(from|in|on)\s+(this|that|the|it)/i,
+    ];
+    
+    for (const pattern of implicitPatterns) {
+      if (pattern.test(queryLower.trim())) {
+        return true;
+      }
+    }
+    
+    // Also check for queries that are mostly about "file" without specific names
+    const tokens = this.tokenize(queryLower);
+    const hasFileReference = tokens.includes('file') || tokens.includes('data') || 
+                            tokens.includes('csv') || tokens.includes('excel') || 
+                            tokens.includes('pdf') || tokens.includes('document');
+    const hasSpecificName = tokens.some(t => t.length > 4 && 
+                                       !['file', 'data', 'this', 'that', 'from', 'about', 'summarize', 
+                                         'analyze', 'explain', 'show', 'what', 'tell'].includes(t));
+    
+    return hasFileReference && !hasSpecificName;
+  }
+  
+  /**
    * Calculate comprehensive match score for a single file
    */
   private static calculateFileMatch(
     query: string,
     file: DataFile,
     includeSemanticMatch: boolean,
-    includeTemporalMatch: boolean
+    includeTemporalMatch: boolean,
+    isDemonstrativeReference: boolean = false
   ): FileMatchResult {
     let totalScore = 0;
     let matchType: FileMatchResult['matchType'] = 'partial';
@@ -164,19 +303,34 @@ export class FuzzyFileMatcherClient {
     const filenameNoExt = filename.replace(/\.[^/.]+$/, '');
     const tableName = file.tableName.toLowerCase();
     
+    // Full filename match
     if (query.includes(filename)) {
       matchedTokens.push(filename);
       return 1.0;
     }
     
+    // Filename without extension match
     if (query.includes(filenameNoExt)) {
       matchedTokens.push(filenameNoExt);
       return 0.95;
     }
     
+    // Table name match
     if (query.includes(tableName)) {
       matchedTokens.push(tableName);
       return 0.9;
+    }
+    
+    // Check if filename contains the query as substring (partial match)
+    // This helps with cases like "sales" matching "sales_data_2024.csv"
+    const queryTokens = this.tokenize(query);
+    for (const token of queryTokens) {
+      if (token.length >= 3 && (filename.includes(token) || tableName.includes(token))) {
+        matchedTokens.push(token);
+        // Give higher score for longer matches (more specific)
+        const matchScore = Math.min(0.8, 0.4 + (token.length / 20));
+        return matchScore;
+      }
     }
     
     return 0;
