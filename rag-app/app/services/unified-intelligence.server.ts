@@ -595,8 +595,25 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
     }
     
     // Include sample data for CSV/Excel if available
-    if ((file.type === 'csv' || file.type === 'excel') && file.sample) {
-      return `${file.filename} (${type}${size ? `, ${size}` : ''})\n\nSample:\n${file.sample}`;
+    if ((file.type === 'csv' || file.type === 'excel')) {
+      // Use full content if available, otherwise use sample
+      const dataContent = file.content || file.sample || '';
+      
+      if (dataContent) {
+        logger.trace('[describeFile] Including CSV/Excel content', {
+          filename: file.filename,
+          hasContent: !!file.content,
+          hasSample: !!file.sample,
+          contentLength: dataContent.length
+        });
+        
+        // Limit content size for API calls
+        const preview = typeof dataContent === 'string' 
+          ? dataContent.slice(0, 10000)
+          : '';
+        
+        return `${file.filename} (${type}${size ? `, ${size}` : ''})\n\nData:\n${preview}`;
+      }
     }
     
     return `${file.filename} (${type}${size ? `, ${size}` : ''})`;
