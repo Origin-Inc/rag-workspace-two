@@ -229,12 +229,23 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
 
       const result = JSON.parse(completion.choices[0]?.message?.content || '{}');
       
+      // Ensure arrays are properly formatted
+      const ensureArray = (value: any): string[] => {
+        if (Array.isArray(value)) return value;
+        if (typeof value === 'string') return [value];
+        if (typeof value === 'object' && value !== null) {
+          // If it's an object, try to extract values
+          return Object.values(value).filter(v => typeof v === 'string');
+        }
+        return [];
+      };
+      
       return {
         summary: result.summary || 'Content analysis unavailable',
         context: result.context || this.inferContext(files),
-        keyThemes: result.keyThemes || [],
-        entities: result.entities || [],
-        relationships: result.relationships || []
+        keyThemes: ensureArray(result.keyThemes),
+        entities: ensureArray(result.entities),
+        relationships: ensureArray(result.relationships)
       };
     } catch (error) {
       logger.error('Semantic analysis failed', error);
@@ -460,9 +471,12 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
    * Helper: Narrate themes
    */
   private narrateThemes(themes: string[]): string {
-    if (themes.length === 0) return '';
+    // Ensure themes is an array
+    const themeArray = Array.isArray(themes) ? themes : [];
     
-    return `Key themes include: ${themes.join(', ')}.`;
+    if (themeArray.length === 0) return '';
+    
+    return `Key themes include: ${themeArray.join(', ')}.`;
   }
 
   /**
