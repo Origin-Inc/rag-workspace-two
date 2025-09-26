@@ -202,6 +202,26 @@ export class UnifiedIntelligenceService {
       sampleContent: fileDescriptions.slice(0, 500)
     });
     
+    // CRITICAL DEBUG: Log what's actually being sent to OpenAI
+    logger.trace('[performSemanticAnalysis] CONTENT BEING SENT TO OPENAI:', {
+      totalContentLength: fileDescriptions.length,
+      fileCount: files.length,
+      actualContent: fileDescriptions.slice(0, 2000), // First 2000 chars
+      contentIsEmpty: fileDescriptions.trim().length === 0,
+      containsActualText: /[a-zA-Z]{10,}/.test(fileDescriptions), // Has actual words
+      hasNumbers: /\d+/.test(fileDescriptions),
+      linesCount: fileDescriptions.split('\n').length,
+      files: files.map(f => ({
+        filename: f.filename,
+        type: f.type,
+        hasRawContent: !!f.content,
+        rawContentType: typeof f.content,
+        rawContentLength: typeof f.content === 'string' ? f.content.length : 
+                         Array.isArray(f.content) ? f.content.length : 0,
+        processedByDescribeFile: this.describeFile(f).length
+      }))
+    });
+    
     const prompt = `
 Analyze this content and query to provide semantic understanding:
 
@@ -220,6 +240,16 @@ Provide a semantic analysis including:
 Format as JSON with keys: summary, context, keyThemes, entities, relationships
 `;
 
+    // CRITICAL DEBUG: Log the exact prompt being sent to OpenAI
+    logger.trace('[performSemanticAnalysis] EXACT PROMPT TO OPENAI:', {
+      promptLength: prompt.length,
+      promptPreview: prompt.slice(0, 1000),
+      promptContainsActualContent: prompt.includes(fileDescriptions) && fileDescriptions.trim().length > 0,
+      queryInPrompt: prompt.includes(query),
+      contentSectionLength: fileDescriptions.length,
+      promptWordCount: prompt.split(/\s+/).length
+    });
+
     try {
       if (!openai) {
         logger.warn('[performSemanticAnalysis] OpenAI not configured, using content-based fallback');
@@ -228,7 +258,11 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
 
       logger.trace('[performSemanticAnalysis] Calling OpenAI API', {
         promptLength: prompt.length,
-        model: 'gpt-4-turbo-preview'
+        model: 'gpt-4-turbo-preview',
+        messageCount: 2,
+        systemMessage: 'You are a data analyst that understands both documents and datasets. Provide specific, detailed analysis based on the actual content provided.',
+        userMessageLength: prompt.length,
+        hasActualContent: fileDescriptions.trim().length > 0
       });
 
       const completion = await openai.chat.completions.create({
@@ -242,14 +276,35 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
         max_tokens: 1000
       });
 
-      const result = JSON.parse(completion.choices[0]?.message?.content || '{}');
+      const rawResponse = completion.choices[0]?.message?.content || '{}';
+      const result = JSON.parse(rawResponse);
       
       logger.trace('[performSemanticAnalysis] OpenAI response received', {
         hasResult: !!result,
         hasSummary: !!result.summary,
         summaryLength: result.summary?.length || 0,
         keyThemesCount: result.keyThemes?.length || 0,
-        isGenericSummary: result.summary?.includes('Analyzing') || result.summary?.includes('file(s)')
+        isGenericSummary: result.summary?.includes('Analyzing') || result.summary?.includes('file(s)'),
+        rawResponseLength: rawResponse.length,
+        rawResponsePreview: rawResponse.slice(0, 500),
+        completionTokens: completion.usage?.completion_tokens || 0,
+        promptTokens: completion.usage?.prompt_tokens || 0,
+        totalTokens: completion.usage?.total_tokens || 0,
+        finishReason: completion.choices[0]?.finish_reason
+      });
+      
+      // CRITICAL: Log the actual AI response content
+      logger.trace('[performSemanticAnalysis] AI RESPONSE CONTENT:', {
+        summary: result.summary,
+        context: result.context,
+        keyThemes: result.keyThemes,
+        entities: result.entities,
+        relationships: result.relationships,
+        responseIsEmpty: !result.summary || result.summary.trim().length === 0,
+        responseIsGeneric: result.summary?.includes('file(s)') || result.summary?.includes('Analyzing'),
+        hasSpecificContent: result.summary && result.summary.length > 50 && 
+                           !result.summary.includes('file(s)') && 
+                           !result.summary.includes('Analyzing')
       });
       
       // Ensure arrays are properly formatted
@@ -277,8 +332,28 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
         hasOpenAI: !!openai,
         filesCount: files.length,
         queryLength: query.length,
-        contentLength: fileDescriptions.length
+        contentLength: fileDescriptions.length,
+        errorName: error instanceof Error ? error.name : typeof error,
+        promptLength: prompt?.length || 0,
+        actualContentWasSent: fileDescriptions.trim().length > 0,
+        isNetworkError: error instanceof Error && (error.message.includes('ECONNRESET') || error.message.includes('timeout')),
+        isAPIError: error instanceof Error && error.message.includes('API'),
+        isRateLimitError: error instanceof Error && error.message.includes('rate limit')
       });
+      
+      // IMPORTANT: Use enhanced fallback that extracts actual content
+      logger.warn('[performSemanticAnalysis] Using content-based fallback analysis');
+      const fallbackResult = this.performContentBasedAnalysis(query, files);
+      
+      // Log fallback result quality
+      logger.trace('[performSemanticAnalysis] Fallback analysis result:', {
+        fallbackSummaryLength: fallbackResult.summary.length,
+        fallbackThemesCount: fallbackResult.keyThemes.length,
+        fallbackHasContent: fallbackResult.summary.length > 50,
+        fallbackIsGeneric: fallbackResult.summary.includes('Unable to extract')
+      });
+      
+      return fallbackResult;
       
       // IMPORTANT: Use enhanced fallback that extracts actual content
       logger.warn('[performSemanticAnalysis] Using content-based fallback analysis');
@@ -621,7 +696,19 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
       logger.trace('[describeFile] Including PDF content', {
         filename: file.filename,
         contentLength: contentPreview.length,
-        hasContent: !!contentPreview
+        hasContent: !!contentPreview,
+        contentStartsWith: contentPreview.slice(0, 100),
+        isContentEmpty: contentPreview.trim().length === 0,
+        wordCount: contentPreview.split(/\s+/).length
+      });
+      
+      // CRITICAL DEBUG: Log exactly what content is being included
+      logger.trace('[describeFile] EXACT PDF CONTENT BEING INCLUDED:', {
+        filename: file.filename,
+        fullContentLength: contentPreview.length,
+        actualContentIncluded: contentPreview.slice(0, 1500), // Log more content
+        hasActualText: /[a-zA-Z]{20,}/.test(contentPreview),
+        looksLikeValidContent: contentPreview.includes(' ') && contentPreview.length > 100
       });
       
       return `${file.filename} (${type}${size ? `, ${size}` : ''})\n\nContent:\n${contentPreview}`;
@@ -686,7 +773,8 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
   ): SemanticAnalysis {
     logger.trace('[performContentBasedAnalysis] Extracting content directly', {
       filesCount: files.length,
-      query
+      query,
+      reason: 'OpenAI failed or unavailable - using local content extraction'
     });
 
     let combinedContent = '';
@@ -727,7 +815,25 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
           logger.trace('[performContentBasedAnalysis] PDF content found', {
             filename: file.filename,
             contentLength: pdfContent.length,
-            sample: pdfContent.slice(0, 200)
+            sample: pdfContent.slice(0, 200),
+            wordCount: pdfContent.split(/\s+/).length,
+            hasActualWords: /[a-zA-Z]{10,}/.test(pdfContent),
+            isSubstantialContent: pdfContent.length > 500
+          });
+          
+          // CRITICAL: Log what content is actually being used for fallback analysis
+          logger.trace('[performContentBasedAnalysis] FALLBACK CONTENT BEING ANALYZED:', {
+            filename: file.filename,
+            extractedContentPreview: pdfContent.slice(0, 1000),
+            sourceOfContent: file.content ? 'file.content' : 
+                           file.extractedContent ? 'file.extractedContent' : 
+                           file.data ? 'file.data' : 'unknown',
+            contentQuality: {
+              hasLetters: /[a-zA-Z]/.test(pdfContent),
+              hasWords: /\w+/.test(pdfContent),
+              hasSentences: /\.\s+[A-Z]/.test(pdfContent),
+              isReadableText: pdfContent.length > 100 && /[a-zA-Z]/.test(pdfContent)
+            }
           });
           
           combinedContent += `\n\n[Document: ${file.filename}]\n${pdfContent.slice(0, 5000)}`;
@@ -832,8 +938,27 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
       summaryLength: result.summary.length,
       themesCount: result.keyThemes.length,
       hasActualContent: combinedContent.length > 100,
-      contentLength: combinedContent.length
+      contentLength: combinedContent.length,
+      finalSummary: result.summary,
+      extractedThemes: result.keyThemes,
+      wasContentExtracted: combinedContent.length > 100,
+      summaryMeaningful: result.summary.length > 50 && !result.summary.includes('Unable to extract')
     });
+    
+    // CRITICAL: Final validation that we extracted meaningful content
+    if (combinedContent.length < 100) {
+      logger.error('[performContentBasedAnalysis] FAILED TO EXTRACT MEANINGFUL CONTENT:', {
+        totalContentLength: combinedContent.length,
+        fileCount: files.length,
+        filesProcessed: files.map(f => ({
+          filename: f.filename,
+          type: f.type,
+          hadContent: !!f.content,
+          hadData: !!f.data,
+          hadExtractedContent: !!f.extractedContent
+        }))
+      });
+    }
     
     return result;
   }

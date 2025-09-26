@@ -47,6 +47,31 @@ export const action: ActionFunction = async ({ request }) => {
       } : null
     });
 
+    // CRITICAL DEBUG: Log detailed content for each file
+    if (files && files.length > 0) {
+      logger.trace('[Unified] DETAILED FILE CONTENT DEBUG:', {
+        totalFiles: files.length,
+        files: files.map((file, index) => ({
+          index,
+          filename: file.filename,
+          type: getFileType(file.filename),
+          rawDataKeys: file.data ? Object.keys(file.data[0] || {}) : [],
+          rawDataLength: Array.isArray(file.data) ? file.data.length : 0,
+          rawContentType: typeof file.content,
+          rawContentLength: Array.isArray(file.content) ? file.content.length : 
+                           typeof file.content === 'string' ? file.content.length : 0,
+          rawContentSample: Array.isArray(file.content) ? 
+                           file.content.slice(0, 2).map(chunk => chunk?.slice(0, 200)).join('\n---\n') :
+                           typeof file.content === 'string' ? file.content.slice(0, 500) : 
+                           'NO CONTENT DETECTED',
+          hasSchema: !!file.schema,
+          rowCount: file.rowCount,
+          pageCount: file.pageCount,
+          chunkCount: file.chunkCount
+        }))
+      });
+    }
+
     if (!query || !files || files.length === 0) {
       logger.warn('[Unified] Missing required fields', { query: !!query, files: !!files });
       return json(
@@ -105,6 +130,27 @@ export const action: ActionFunction = async ({ request }) => {
     logger.trace('[Unified] Preparing file data...');
     const fileData = await prepareFileData(files, pageId);
     
+    // CRITICAL DEBUG: Log prepared file data
+    logger.trace('[Unified] PREPARED FILE DATA DEBUG:', {
+      preparedFiles: fileData.map(file => ({
+        filename: file.filename,
+        type: file.type,
+        hasContent: !!file.content,
+        contentType: typeof file.content,
+        contentLength: typeof file.content === 'string' ? file.content.length : 
+                      Array.isArray(file.content) ? file.content.join('').length : 0,
+        contentSample: typeof file.content === 'string' ? file.content.slice(0, 500) :
+                      Array.isArray(file.content) ? file.content.slice(0, 2).join('\n---\n').slice(0, 500) :
+                      'NO PREPARED CONTENT',
+        hasData: !!file.data,
+        dataLength: Array.isArray(file.data) ? file.data.length : 0,
+        hasExtractedContent: !!file.extractedContent,
+        extractedContentLength: Array.isArray(file.extractedContent) ? file.extractedContent.length : 0,
+        hasSample: !!file.sample,
+        sampleLength: file.sample?.length || 0
+      }))
+    });
+    
     // CRITICAL: Validate that we have actual content, not just metadata
     const contentValidation = fileData.map(file => ({
       filename: file.filename,
@@ -143,6 +189,25 @@ export const action: ActionFunction = async ({ request }) => {
     let analysis;
     
     try {
+      // CRITICAL DEBUG: Log what we're sending to the intelligence service
+      logger.trace('[Unified] SENDING TO INTELLIGENCE SERVICE:', {
+        queryLength: query.length,
+        fileDataCount: fileData.length,
+        fileDataSummary: fileData.map(f => ({
+          filename: f.filename,
+          type: f.type,
+          hasContent: !!f.content,
+          contentLength: typeof f.content === 'string' ? f.content.length : 
+                        Array.isArray(f.content) ? f.content.join('').length : 0,
+          actualContentSample: typeof f.content === 'string' ? f.content.slice(0, 300) :
+                              Array.isArray(f.content) ? f.content.slice(0, 2).join('\\n').slice(0, 300) :
+                              'NO CONTENT FOR INTELLIGENCE SERVICE'
+        })),
+        intentType: intent.queryType,
+        intentFormat: intent.formatPreference,
+        hasConversationHistory: conversationHistory && conversationHistory.length > 0
+      });
+      
       analysis = await intelligence.process({
         query,
         files: fileData,
@@ -156,6 +221,19 @@ export const action: ActionFunction = async ({ request }) => {
           formatPreference: intent.formatPreference
         }
       });
+      
+      // CRITICAL DEBUG: Log what came back from the intelligence service
+      logger.trace('[Unified] RECEIVED FROM INTELLIGENCE SERVICE:', {
+        hasAnalysis: !!analysis,
+        analysisKeys: analysis ? Object.keys(analysis) : [],
+        hasSemantic: !!analysis?.semantic,
+        semanticSummaryLength: analysis?.semantic?.summary?.length || 0,
+        semanticSummaryPreview: analysis?.semantic?.summary?.slice(0, 200) || 'No summary',
+        hasPresentation: !!analysis?.presentation,
+        presentationNarrativeLength: analysis?.presentation?.narrative?.length || 0,
+        confidence: analysis?.confidence
+      });
+      
       logger.trace('[Unified] Analysis completed successfully');
     } catch (analysisError) {
       logger.error('[Unified] Analysis failed', {
@@ -179,6 +257,20 @@ export const action: ActionFunction = async ({ request }) => {
     let response;
     
     try {
+      // CRITICAL DEBUG: Log what we're sending to the response composer
+      logger.trace('[Unified] SENDING TO RESPONSE COMPOSER:', {
+        hasAnalysis: !!analysis,
+        analysisSemanticSummary: analysis?.semantic?.summary || 'No semantic summary',
+        analysisPresentationNarrative: analysis?.presentation?.narrative || 'No presentation narrative',
+        intentType: intent.queryType,
+        intentFormat: intent.formatPreference,
+        optionsProvided: {
+          prioritizeNarrative: true,
+          depth: intent.expectedDepth,
+          includeTechnicalDetails: false
+        }
+      });
+      
       // ResponseComposer.compose expects: (intent, analysis, queryResult?, options?)
       response = await composer.compose(
         intent,
@@ -190,6 +282,15 @@ export const action: ActionFunction = async ({ request }) => {
           includeTechnicalDetails: false
         }
       );
+      
+      // CRITICAL DEBUG: Log the composed response
+      logger.trace('[Unified] RESPONSE COMPOSER OUTPUT:', {
+        responseLength: response?.length || 0,
+        responsePreview: response?.slice(0, 500) || 'No response generated',
+        responseIsEmpty: !response || response.trim().length === 0,
+        responseContainsActualContent: response && response.length > 50 && !response.includes('Unable to')
+      });
+      
       logger.trace('[Unified] Response composed successfully', {
         responseLength: response?.length || 0
       });
@@ -316,7 +417,19 @@ async function prepareFileData(files: any[], pageId: string) {
           filename: file.filename,
           chunkCount: file.content.length,
           totalLength: fileInfo.content.length,
-          sampleLength: fileInfo.sample.length
+          sampleLength: fileInfo.sample.length,
+          firstChunkSample: file.content[0]?.slice(0, 300) || 'Empty first chunk',
+          lastChunkSample: file.content[file.content.length - 1]?.slice(0, 300) || 'Empty last chunk'
+        });
+        
+        // CRITICAL: Log actual content being prepared
+        logger.trace('[prepareFileData] ACTUAL PDF CONTENT BEING PREPARED:', {
+          filename: file.filename,
+          fullContentPreview: fileInfo.content.slice(0, 1000),
+          contentStartsWith: fileInfo.content.slice(0, 100),
+          contentEndsWithSample: fileInfo.content.slice(-100),
+          isEmpty: fileInfo.content.trim().length === 0,
+          wordCount: fileInfo.content.split(/\s+/).length
         });
       } else if (file.data && Array.isArray(file.data)) {
         // If data is provided (from DuckDB), extract text content
