@@ -4,7 +4,7 @@ import { prisma } from "~/utils/prisma.server";
 import { queryIntentAnalyzer } from "~/services/query-intent-analyzer.server";
 import { UnifiedIntelligenceService } from "~/services/unified-intelligence.server";
 import { ResponseComposer } from "~/services/response-composer.server";
-import { getDuckDB } from "~/services/duckdb/duckdb-service.server";
+import { DuckDBService } from "~/services/duckdb/duckdb-service.server";
 import { createChatCompletion, isOpenAIConfigured } from "~/services/openai.server";
 import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
@@ -133,7 +133,7 @@ export const action: ActionFunction = async ({ request }) => {
  */
 async function prepareFileData(files: any[], pageId: string) {
   const preparedFiles = [];
-  const duckdb = await getDuckDB();
+  const duckdb = DuckDBService.getInstance();
   
   for (const file of files) {
     const fileInfo: any = {
