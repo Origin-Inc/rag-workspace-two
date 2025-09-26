@@ -232,6 +232,50 @@ export class PDFProcessingService {
   }
 
   /**
+   * Parse date safely from PDF metadata
+   */
+  private static parseDate(dateValue: any): Date | undefined {
+    if (!dateValue) return undefined;
+    
+    try {
+      // PDF dates can be in various formats
+      let date: Date;
+      
+      if (dateValue instanceof Date) {
+        date = dateValue;
+      } else if (typeof dateValue === 'string') {
+        // PDF date format: D:YYYYMMDDHHmmSSOHH'mm
+        if (dateValue.startsWith('D:')) {
+          const cleaned = dateValue.substring(2);
+          const year = cleaned.substring(0, 4);
+          const month = cleaned.substring(4, 6);
+          const day = cleaned.substring(6, 8);
+          const hour = cleaned.substring(8, 10) || '00';
+          const minute = cleaned.substring(10, 12) || '00';
+          const second = cleaned.substring(12, 14) || '00';
+          
+          date = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`);
+        } else {
+          date = new Date(dateValue);
+        }
+      } else {
+        return undefined;
+      }
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.warn('[PDF] Invalid date value:', dateValue);
+        return undefined;
+      }
+      
+      return date;
+    } catch (error) {
+      console.warn('[PDF] Error parsing date:', dateValue, error);
+      return undefined;
+    }
+  }
+
+  /**
    * Extract metadata from PDF
    */
   private static async extractMetadata(pdf: PDFDocumentProxy): Promise<PDFMetadata> {
@@ -245,8 +289,8 @@ export class PDFProcessingService {
       keywords: info?.Keywords,
       creator: info?.Creator,
       producer: info?.Producer,
-      creationDate: info?.CreationDate ? new Date(info.CreationDate) : undefined,
-      modificationDate: info?.ModDate ? new Date(info.ModDate) : undefined,
+      creationDate: info?.CreationDate ? this.parseDate(info.CreationDate) : undefined,
+      modificationDate: info?.ModDate ? this.parseDate(info.ModDate) : undefined,
       totalPages: pdf.numPages
     };
   }

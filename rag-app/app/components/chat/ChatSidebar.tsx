@@ -315,26 +315,43 @@ export function ChatSidebar({
           // For PDF files, fetch the actual content from DuckDB
           const enrichedFiles = await Promise.all(
             filesToQuery.map(async (file) => {
-              if (file.filename.toLowerCase().endsWith('.pdf')) {
-                console.log('[ChatSidebar] Fetching PDF content for:', file.filename, 'from table:', file.tableName);
+              const isPDF = file.filename.toLowerCase().endsWith('.pdf');
+              const isCSV = file.filename.toLowerCase().endsWith('.csv');
+              const isExcel = file.filename.toLowerCase().endsWith('.xlsx') || file.filename.toLowerCase().endsWith('.xls');
+              
+              // Fetch content for files that need it
+              if (isPDF || isCSV || isExcel) {
+                console.log('[ChatSidebar] Fetching content for:', file.filename, 'from table:', file.tableName);
                 
-                // Query the actual PDF content from DuckDB
+                // Query the actual content from DuckDB
                 const contentQuery = `SELECT * FROM ${file.tableName} LIMIT 500`;
                 try {
                   const result = await duckDBService.query(contentQuery);
-                  console.log('[ChatSidebar] PDF content fetched:', {
+                  console.log('[ChatSidebar] Content fetched:', {
                     filename: file.filename,
+                    type: isPDF ? 'PDF' : (isCSV ? 'CSV' : 'Excel'),
                     rowCount: result.data?.length || 0,
                     hasData: !!result.data
                   });
                   
-                  return {
-                    ...file,
-                    data: result.data || [],
-                    content: result.data?.map((row: any) => row.text || row.content).filter(Boolean) || []
-                  };
+                  if (isPDF) {
+                    // For PDFs, extract text content
+                    return {
+                      ...file,
+                      data: result.data || [],
+                      content: result.data?.map((row: any) => row.text || row.content).filter(Boolean) || []
+                    };
+                  } else {
+                    // For CSV/Excel, include the actual data
+                    return {
+                      ...file,
+                      data: result.data || [],
+                      sampleData: result.data?.slice(0, 100) || [],
+                      content: result.data || []
+                    };
+                  }
                 } catch (error) {
-                  console.error('[ChatSidebar] Failed to fetch PDF content:', error);
+                  console.error('[ChatSidebar] Failed to fetch content:', error);
                   return file;
                 }
               }
@@ -906,13 +923,13 @@ Just upload a CSV or Excel file and ask me anything about it!`,
               
               // Add to local store
               // Transform schema format if it has columns property
-              const schemaForStore = processedFile.schema.columns 
+              const schemaForStore = processedFile.schema?.columns 
                 ? processedFile.schema.columns.map((col: any) => ({
                     name: col.name,
                     type: col.type,
                     sampleData: col.sampleValues || []
                   }))
-                : processedFile.schema;
+                : (processedFile.schema || []);
               
               addDataFile({
                 databaseId: processedFile.id,
