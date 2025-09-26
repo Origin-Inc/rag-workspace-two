@@ -36,11 +36,21 @@ export class ResponseComposer {
     queryResult?: QueryResult,
     options: CompositionOptions = {}
   ): Promise<string> {
-    logger.trace('Composing response', {
-      queryType: intent.queryType,
-      formatPreference: intent.formatPreference,
+    logger.trace('[ResponseComposer] compose() called', {
+      hasIntent: !!intent,
+      hasAnalysis: !!analysis,
+      hasQueryResult: !!queryResult,
+      hasOptions: !!options
+    });
+    
+    logger.trace('[ResponseComposer] Composing response', {
+      queryType: intent?.queryType,
+      formatPreference: intent?.formatPreference,
       hasData: !!queryResult?.data,
-      options
+      options,
+      analysisKeys: analysis ? Object.keys(analysis) : [],
+      hasSemanticSummary: !!analysis?.semantic?.summary,
+      hasPresentation: !!analysis?.presentation
     });
 
     // Handle explicit format requests
