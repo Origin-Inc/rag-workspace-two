@@ -1,0 +1,9 @@
+{
+  "version": 3,
+  "sources": ["duckdb-browser-eh.worker.js"],
+  "names": [],
+  "mappings": "",
+  "file": "duckdb-browser-eh.worker.js",
+  "sourcesContent": ["// DuckDB Web Worker - Source map placeholder\n// This file prevents 404 errors in production\n// The actual DuckDB worker is loaded from node_modules"],
+  "sourceRoot": ""
+}
