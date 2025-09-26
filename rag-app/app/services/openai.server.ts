@@ -154,8 +154,38 @@ export async function createChatCompletion(
       params.stream = true;
     }
 
-    return await openai.chat.completions.create(params);
-  });
+    try {
+      const completion = await openai.chat.completions.create(params);
+      
+      // Log successful completion (only for non-stream)
+      if (!stream && (completion as any).usage) {
+        logger.trace('Chat completion successful', {
+          requestId,
+          model,
+          promptTokens: (completion as any).usage?.prompt_tokens,
+          completionTokens: (completion as any).usage?.completion_tokens,
+          totalTokens: (completion as any).usage?.total_tokens,
+          finishReason: (completion as any).choices?.[0]?.finish_reason,
+          functionCalled: (completion as any).choices?.[0]?.message?.function_call?.name
+        });
+      }
+      
+      return completion;
+      
+    } catch (error) {
+      logger.error('OpenAI API call failed', {
+        requestId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        errorType: error instanceof Error ? error.name : typeof error,
+        isRateLimit: error instanceof Error && error.message.toLowerCase().includes('rate'),
+        isTimeout: error instanceof Error && error.message.toLowerCase().includes('timeout'),
+        isAuthError: error instanceof Error && error.message.toLowerCase().includes('api key'),
+        model
+      });
+      
+      throw error;
+    }
+  }, 3, 1000, `createChatCompletion-${requestId}`);
 }
 
 /**

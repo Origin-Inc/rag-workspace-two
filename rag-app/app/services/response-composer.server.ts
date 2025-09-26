@@ -167,7 +167,19 @@ export class ResponseComposer {
     
     // Handle different file types naturally
     if (fileNames.toLowerCase().includes('.pdf')) {
-      return `This ${semantic.context || 'document'} ${semantic.summary}`;
+      // Check if summary already starts with "This", "The", or other complete phrases
+      const summaryLower = semantic.summary?.toLowerCase() || '';
+      if (summaryLower.startsWith('this ') || 
+          summaryLower.startsWith('the ') ||
+          summaryLower.startsWith('based on') ||
+          summaryLower.startsWith('document') ||
+          summaryLower.startsWith('content')) {
+        // Summary already has a proper start, use as-is
+        return semantic.summary;
+      } else {
+        // Add context prefix only if needed
+        return `This ${semantic.context || 'document'}: ${semantic.summary}`;
+      }
     }
     
     const totalRecords = Object.entries(statistical.metrics)
@@ -629,7 +641,7 @@ export class ResponseComposer {
     
     const summary = analysis.semantic.summary.toLowerCase();
     
-    // Check for common generic patterns
+    // Check for common generic patterns including the "This The" bug
     const genericPatterns = [
       'analyzing.*file',
       'this document contains',
@@ -639,7 +651,11 @@ export class ResponseComposer {
       'analysis of.*file',
       'document analysis',
       'this document is',
-      'the document.*explores'
+      'the document.*explores',
+      'this the content',    // Double "This" bug
+      'this the document',   // Another variant
+      'the the ',           // Double "The"
+      'this this '          // Double "This"
     ];
     
     const isGeneric = genericPatterns.some(pattern => 
@@ -662,9 +678,10 @@ export class ResponseComposer {
    */
   private hasActualContent(analysis: UnifiedResponse): boolean {
     // Check semantic content
-    const hasMeaningfulSummary = analysis?.semantic?.summary && 
-                                 analysis.semantic.summary.length > 200 &&
-                                 !this.isGenericResponse(analysis);
+    const summary = analysis?.semantic?.summary || '';
+    const hasMeaningfulSummary = summary.length > 100 && 
+                                 !this.isGenericResponse(analysis) &&
+                                 !summary.toLowerCase().includes('this the');
     
     // Check for specific themes
     const hasSpecificThemes = analysis?.semantic?.keyThemes && 

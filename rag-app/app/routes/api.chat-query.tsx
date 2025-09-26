@@ -12,10 +12,36 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 const logger = new DebugLogger('api.chat-query');
 
 export const action: ActionFunction = async ({ request }) => {
+  const startTime = Date.now();
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
   try {
+    // Monitor request size
+    const contentLength = request.headers.get('content-length');
+    const requestSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
+    
+    logger.trace('[Unified] Request started', { 
+      requestId,
+      userId: 'pending',
+      requestSizeMB: requestSizeMB.toFixed(2),
+      contentLength,
+      isLargePayload: requestSizeMB > 1,
+      isCriticalSize: requestSizeMB > 3.5 // Near Vercel limit
+    });
+    
+    // Warn if approaching Vercel limits
+    if (requestSizeMB > 3.5) {
+      logger.warn('[Unified] LARGE PAYLOAD WARNING', {
+        requestId,
+        sizeMB: requestSizeMB.toFixed(2),
+        vercelLimit: '4.5MB',
+        recommendation: 'Consider implementing compression or chunking'
+      });
+    }
+    
     // Require authentication
     const user = await requireUser(request);
-    logger.trace('[Unified] Request started', { userId: user.id });
+    logger.trace('[Unified] User authenticated', { requestId, userId: user.id });
 
     if (!isOpenAIConfigured()) {
       logger.warn('[Unified] OpenAI not configured');
@@ -30,8 +56,27 @@ export const action: ActionFunction = async ({ request }) => {
 
     const body = await request.json();
     const { query, files, pageId, workspaceId, conversationHistory } = body;
+    
+    // Calculate actual payload size after parsing
+    const payloadSize = JSON.stringify(body).length;
+    const payloadSizeMB = payloadSize / (1024 * 1024);
+    
+    logger.trace('[Unified] Payload size analysis', {
+      requestId,
+      payloadSizeMB: payloadSizeMB.toFixed(2),
+      payloadSizeKB: (payloadSize / 1024).toFixed(2),
+      queryLength: query?.length || 0,
+      filesCount: files?.length || 0,
+      totalContentLength: files?.reduce((sum, f) => {
+        const contentLength = typeof f.content === 'string' ? f.content.length :
+                            Array.isArray(f.content) ? f.content.join('').length : 0;
+        return sum + contentLength;
+      }, 0) || 0,
+      conversationHistoryCount: conversationHistory?.length || 0
+    });
 
     logger.trace('[Unified] Request body parsed', {
+      requestId,
       query,
       fileCount: files?.length || 0,
       pageId,
@@ -43,13 +88,58 @@ export const action: ActionFunction = async ({ request }) => {
         hasContent: !!files[0].content,
         dataLength: files[0].data?.length || 0,
         contentLength: files[0].content?.length || 0,
-        sampleContent: files[0].content?.[0]?.slice(0, 100) || 'No content'
+        contentType: Array.isArray(files[0].content) ? 'array' : typeof files[0].content,
+        sampleContent: Array.isArray(files[0].content) ? 
+                      files[0].content[0]?.slice(0, 100) || 'No content' :
+                      typeof files[0].content === 'string' ?
+                      files[0].content.slice(0, 100) : 'No content',
+        isContentEmpty: Array.isArray(files[0].content) ? 
+                       files[0].content.length === 0 || files[0].content.every(c => !c || c.trim().length === 0) :
+                       !files[0].content || (typeof files[0].content === 'string' && files[0].content.trim().length === 0)
       } : null
     });
 
     // CRITICAL DEBUG: Log detailed content for each file
     if (files && files.length > 0) {
+      const contentValidation = files.map(file => {
+        const contentLength = Array.isArray(file.content) ? 
+          file.content.join('').length : 
+          typeof file.content === 'string' ? file.content.length : 0;
+        
+        const hasActualContent = contentLength > 100 && 
+          (Array.isArray(file.content) ? 
+            file.content.some(c => c && c.trim().length > 50) :
+            typeof file.content === 'string' && file.content.trim().length > 50);
+        
+        return {
+          filename: file.filename,
+          contentLength,
+          hasActualContent,
+          isEmpty: contentLength === 0
+        };
+      });
+      
+      const totalContentSize = contentValidation.reduce((sum, f) => sum + f.contentLength, 0);
+      const filesWithContent = contentValidation.filter(f => f.hasActualContent).length;
+      
+      logger.trace('[Unified] CONTENT VALIDATION SUMMARY:', {
+        requestId,
+        totalContentSizeKB: (totalContentSize / 1024).toFixed(2),
+        filesWithContent,
+        totalFiles: files.length,
+        emptyFiles: contentValidation.filter(f => f.isEmpty).length,
+        validation: contentValidation
+      });
+      
+      if (filesWithContent === 0) {
+        logger.error('[Unified] CRITICAL: NO FILES HAVE ACTUAL CONTENT', {
+          requestId,
+          files: contentValidation
+        });
+      }
+      
       logger.trace('[Unified] DETAILED FILE CONTENT DEBUG:', {
+        requestId,
         totalFiles: files.length,
         files: files.map((file, index) => ({
           index,
@@ -127,11 +217,27 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     // Prepare file data based on type
-    logger.trace('[Unified] Preparing file data...');
-    const fileData = await prepareFileData(files, pageId);
+    logger.trace('[Unified] Preparing file data...', { requestId });
+    const fileDataStart = Date.now();
+    const fileData = await prepareFileData(files, pageId, requestId);
+    const fileDataTime = Date.now() - fileDataStart;
+    
+    logger.trace('[Unified] File data preparation completed', {
+      requestId,
+      preparationTimeMs: fileDataTime,
+      preparedFiles: fileData.length
+    });
     
     // CRITICAL DEBUG: Log prepared file data
+    const preparedContentSize = fileData.reduce((sum, f) => {
+      const size = typeof f.content === 'string' ? f.content.length :
+                   Array.isArray(f.content) ? f.content.join('').length : 0;
+      return sum + size;
+    }, 0);
+    
     logger.trace('[Unified] PREPARED FILE DATA DEBUG:', {
+      requestId,
+      totalPreparedSizeKB: (preparedContentSize / 1024).toFixed(2),
       preparedFiles: fileData.map(file => ({
         filename: file.filename,
         type: file.type,
@@ -185,7 +291,8 @@ export const action: ActionFunction = async ({ request }) => {
     }
     
     // Perform unified analysis using the correct method name: process
-    logger.trace('[Unified] Starting unified analysis...');
+    logger.trace('[Unified] Starting unified analysis...', { requestId });
+    const analysisStart = Date.now();
     let analysis;
     
     try {
@@ -208,7 +315,9 @@ export const action: ActionFunction = async ({ request }) => {
         hasConversationHistory: conversationHistory && conversationHistory.length > 0
       });
       
+      // Add request ID to track through the pipeline
       analysis = await intelligence.process({
+        requestId,
         query,
         files: fileData,
         intent,
@@ -234,7 +343,12 @@ export const action: ActionFunction = async ({ request }) => {
         confidence: analysis?.confidence
       });
       
-      logger.trace('[Unified] Analysis completed successfully');
+      const analysisTime = Date.now() - analysisStart;
+      logger.trace('[Unified] Analysis completed successfully', {
+        requestId,
+        analysisTimeMs: analysisTime,
+        analysisTimeSec: (analysisTime / 1000).toFixed(2)
+      });
     } catch (analysisError) {
       logger.error('[Unified] Analysis failed', {
         error: analysisError,
@@ -302,15 +416,31 @@ export const action: ActionFunction = async ({ request }) => {
       throw new Error(`Response composition failed: ${composeError instanceof Error ? composeError.message : 'Unknown error'}`);
     }
 
-    // Track token usage
+    // Track token usage and performance
+    const totalProcessingTime = Date.now() - startTime;
+    
     const tokenMetadata = {
       model: 'gpt-4-turbo-preview',
       contextTokens: analysis?.metadata?.tokensUsed || 0,
       responseTokens: 0, // Will be set by OpenAI response
       totalTokens: analysis?.metadata?.tokensUsed || 0,
       intent: intent.formatPreference,
-      confidence: intent.confidence
+      confidence: intent.confidence,
+      requestId,
+      processingTimeMs: totalProcessingTime,
+      payloadSizeMB: payloadSizeMB.toFixed(2),
+      preparedContentSizeKB: (preparedContentSize / 1024).toFixed(2)
     };
+    
+    // Critical check: If no tokens were used, OpenAI was not called
+    if (tokenMetadata.totalTokens === 0) {
+      logger.error('[Unified] CRITICAL: OpenAI was not called or failed', {
+        requestId,
+        hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+        analysisHadContent: !!analysis?.semantic?.summary,
+        responseLength: response?.length || 0
+      });
+    }
 
     logger.trace('[Unified] Response ready', {
       contentLength: response?.length || 0,
@@ -332,8 +462,29 @@ export const action: ActionFunction = async ({ request }) => {
     };
 
     logger.trace('[Unified] Sending successful response', {
+      requestId,
       responseLength: finalResponse.content.length,
-      metadataKeys: Object.keys(finalResponse.metadata)
+      metadataKeys: Object.keys(finalResponse.metadata),
+      totalProcessingTimeMs: totalProcessingTime,
+      totalProcessingTimeSec: (totalProcessingTime / 1000).toFixed(2),
+      isGenericResponse: finalResponse.content.includes('This The') || 
+                        finalResponse.content.includes('Analyzing') ||
+                        finalResponse.content.includes('Unable to extract')
+    });
+    
+    // Log performance summary for monitoring
+    logger.data('[Unified] Request completed', {
+      requestId,
+      userId: user.id,
+      pageId,
+      filesCount: files?.length || 0,
+      queryLength: query?.length || 0,
+      requestSizeMB: requestSizeMB.toFixed(2),
+      responseLength: finalResponse.content.length,
+      totalProcessingTimeMs: totalProcessingTime,
+      contextTokens: tokenMetadata.contextTokens,
+      totalTokens: tokenMetadata.totalTokens,
+      success: true
     });
 
     return json(finalResponse);
@@ -366,10 +517,11 @@ export const action: ActionFunction = async ({ request }) => {
  * Prepare file data for analysis based on file type
  * Simplified version without DuckDB dependency for server-side processing
  */
-async function prepareFileData(files: any[], pageId: string) {
+async function prepareFileData(files: any[], pageId: string, requestId?: string) {
   const preparedFiles = [];
   
   logger.trace('[prepareFileData] Starting file preparation', {
+    requestId,
     fileCount: files.length,
     pageId
   });

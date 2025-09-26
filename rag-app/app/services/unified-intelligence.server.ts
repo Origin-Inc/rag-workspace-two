@@ -80,6 +80,7 @@ export class UnifiedIntelligenceService {
    * Process query with unified intelligence
    */
   public async process(params: {
+    requestId?: string;
     query: string;
     files: FileContext[];
     intent: QueryIntent;
@@ -89,13 +90,15 @@ export class UnifiedIntelligenceService {
     const startTime = Date.now();
     
     logger.trace('[UnifiedIntelligence] process() called', {
+      requestId: params?.requestId,
       hasParams: !!params,
       paramsKeys: params ? Object.keys(params) : []
     });
     
-    const { query, files, intent, conversationHistory = [], options = {} } = params;
+    const { requestId, query, files, intent, conversationHistory = [], options = {} } = params;
     
     logger.trace('[UnifiedIntelligence] Processing query with unified intelligence', {
+      requestId,
       query,
       fileCount: files.length,
       fileTypes: files.map(f => f.type),
@@ -103,12 +106,14 @@ export class UnifiedIntelligenceService {
       intent: intent.queryType,
       format: intent.formatPreference,
       hasOptions: !!options,
-      optionKeys: Object.keys(options)
+      optionKeys: Object.keys(options),
+      hasOpenAI: !!openai,
+      openAIConfigured: !!process.env.OPENAI_API_KEY
     });
 
     // Step 1: Perform semantic analysis
-    logger.trace('[UnifiedIntelligence] Starting semantic analysis...');
-    const semantic = await this.performSemanticAnalysis(query, files, intent);
+    logger.trace('[UnifiedIntelligence] Starting semantic analysis...', { requestId });
+    const semantic = await this.performSemanticAnalysis(query, files, intent, requestId);
     logger.trace('[UnifiedIntelligence] Semantic analysis complete', {
       hasSummary: !!semantic.summary,
       keyThemesCount: semantic.keyThemes?.length || 0,
@@ -187,23 +192,28 @@ export class UnifiedIntelligenceService {
   private async performSemanticAnalysis(
     query: string,
     files: FileContext[],
-    intent: QueryIntent
+    intent: QueryIntent,
+    requestId?: string
   ): Promise<SemanticAnalysis> {
     // Build context from files
     const fileDescriptions = files.map(f => this.describeFile(f)).join('\n');
     
     // CRITICAL: Log the actual content being analyzed
     logger.trace('[performSemanticAnalysis] Starting analysis', {
+      requestId,
       query,
       filesCount: files.length,
       contentLength: fileDescriptions.length,
       hasOpenAI: !!openai,
+      openAIKey: process.env.OPENAI_API_KEY ? 'configured' : 'missing',
       firstFile: files[0]?.filename,
-      sampleContent: fileDescriptions.slice(0, 500)
+      sampleContent: fileDescriptions.slice(0, 500),
+      isContentEmpty: fileDescriptions.trim().length === 0
     });
     
     // CRITICAL DEBUG: Log what's actually being sent to OpenAI
     logger.trace('[performSemanticAnalysis] CONTENT BEING SENT TO OPENAI:', {
+      requestId,
       totalContentLength: fileDescriptions.length,
       fileCount: files.length,
       actualContent: fileDescriptions.slice(0, 2000), // First 2000 chars
@@ -242,6 +252,7 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
 
     // CRITICAL DEBUG: Log the exact prompt being sent to OpenAI
     logger.trace('[performSemanticAnalysis] EXACT PROMPT TO OPENAI:', {
+      requestId,
       promptLength: prompt.length,
       promptPreview: prompt.slice(0, 1000),
       promptContainsActualContent: prompt.includes(fileDescriptions) && fileDescriptions.trim().length > 0,
@@ -252,11 +263,26 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
 
     try {
       if (!openai) {
-        logger.warn('[performSemanticAnalysis] OpenAI not configured, using content-based fallback');
-        return this.performContentBasedAnalysis(query, files);
+        logger.warn('[performSemanticAnalysis] OpenAI not configured, using content-based fallback', {
+          requestId,
+          hasApiKey: !!process.env.OPENAI_API_KEY,
+          reason: 'OpenAI client not initialized'
+        });
+        return this.performContentBasedAnalysis(query, files, requestId);
+      }
+      
+      // Verify we have actual content to send
+      if (fileDescriptions.trim().length < 50) {
+        logger.error('[performSemanticAnalysis] No meaningful content to analyze', {
+          requestId,
+          contentLength: fileDescriptions.length,
+          files: files.map(f => ({ filename: f.filename, hasContent: !!f.content }))
+        });
+        return this.performContentBasedAnalysis(query, files, requestId);
       }
 
       logger.trace('[performSemanticAnalysis] Calling OpenAI API', {
+        requestId,
         promptLength: prompt.length,
         model: 'gpt-4-turbo-preview',
         messageCount: 2,
@@ -265,7 +291,14 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
         hasActualContent: fileDescriptions.trim().length > 0
       });
 
-      const completion = await openai.chat.completions.create({
+      // Add retry logic for transient failures
+      let completion;
+      let retryCount = 0;
+      const maxRetries = 2;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          completion = await openai.chat.completions.create({
         model: 'gpt-4-turbo-preview',
         messages: [
           { role: 'system', content: 'You are a data analyst that understands both documents and datasets. Provide specific, detailed analysis based on the actual content provided.' },
@@ -274,12 +307,46 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
         response_format: { type: 'json_object' },
         temperature: 0.3,
         max_tokens: 1000
-      });
+          });
+          
+          // Success - break out of retry loop
+          break;
+          
+        } catch (openAIError) {
+          retryCount++;
+          
+          logger.error('[performSemanticAnalysis] OpenAI API call failed', {
+            requestId,
+            retryCount,
+            maxRetries,
+            error: openAIError instanceof Error ? openAIError.message : 'Unknown error',
+            isRateLimit: openAIError instanceof Error && openAIError.message.includes('rate'),
+            isTimeout: openAIError instanceof Error && openAIError.message.includes('timeout')
+          });
+          
+          if (retryCount > maxRetries) {
+            throw openAIError; // Re-throw after max retries
+          }
+          
+          // Wait before retrying (exponential backoff)
+          const waitTime = Math.min(1000 * Math.pow(2, retryCount - 1), 5000);
+          logger.trace('[performSemanticAnalysis] Waiting before retry', {
+            requestId,
+            waitTimeMs: waitTime
+          });
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
+      
+      if (!completion) {
+        throw new Error('Failed to get completion from OpenAI after retries');
+      }
 
       const rawResponse = completion.choices[0]?.message?.content || '{}';
       const result = JSON.parse(rawResponse);
       
       logger.trace('[performSemanticAnalysis] OpenAI response received', {
+        requestId,
         hasResult: !!result,
         hasSummary: !!result.summary,
         summaryLength: result.summary?.length || 0,
@@ -295,6 +362,7 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
       
       // CRITICAL: Log the actual AI response content
       logger.trace('[performSemanticAnalysis] AI RESPONSE CONTENT:', {
+        requestId,
         summary: result.summary,
         context: result.context,
         keyThemes: result.keyThemes,
@@ -342,8 +410,10 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
       });
       
       // IMPORTANT: Use enhanced fallback that extracts actual content
-      logger.warn('[performSemanticAnalysis] Using content-based fallback analysis');
-      const fallbackResult = this.performContentBasedAnalysis(query, files);
+      logger.warn('[performSemanticAnalysis] Using content-based fallback analysis', {
+        requestId
+      });
+      const fallbackResult = this.performContentBasedAnalysis(query, files, requestId);
       
       // Log fallback result quality
       logger.trace('[performSemanticAnalysis] Fallback analysis result:', {
@@ -356,8 +426,10 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
       return fallbackResult;
       
       // IMPORTANT: Use enhanced fallback that extracts actual content
-      logger.warn('[performSemanticAnalysis] Using content-based fallback analysis');
-      return this.performContentBasedAnalysis(query, files);
+      logger.warn('[performSemanticAnalysis] Using content-based fallback analysis (duplicate)', {
+        requestId
+      });
+      return this.performContentBasedAnalysis(query, files, requestId);
     }
   }
 
@@ -769,9 +841,11 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
    */
   private performContentBasedAnalysis(
     query: string,
-    files: FileContext[]
+    files: FileContext[],
+    requestId?: string
   ): SemanticAnalysis {
     logger.trace('[performContentBasedAnalysis] Extracting content directly', {
+      requestId,
       filesCount: files.length,
       query,
       reason: 'OpenAI failed or unavailable - using local content extraction'
@@ -783,6 +857,7 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
     
     for (const file of files) {
       logger.trace('[performContentBasedAnalysis] Processing file', {
+        requestId,
         filename: file.filename,
         type: file.type,
         hasContent: !!file.content,
@@ -916,9 +991,20 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
       });
       
       if (relevantLines.length > 0) {
-        summary = `Based on the content analysis: ${relevantLines.slice(0, 3).join(' ')}`;
+        // Remove redundant prefixes and clean up the summary
+        const cleanedContent = relevantLines.slice(0, 3).join(' ')
+          .replace(/^\[Document:.*?\]\s*/, '')
+          .replace(/^\[Dataset:.*?\]\s*/, '')
+          .trim();
+        summary = `The content analysis reveals: ${cleanedContent}`;
       } else {
-        summary = `Document Analysis: ${combinedContent.slice(0, 500).replace(/\n+/g, ' ')}`;
+        // Use actual content without generic prefixes
+        const cleanedContent = combinedContent.slice(0, 500)
+          .replace(/\n+/g, ' ')
+          .replace(/^\[Document:.*?\]\s*/, '')
+          .replace(/^\[Dataset:.*?\]\s*/, '')
+          .trim();
+        summary = cleanedContent;
       }
     } else {
       summary = `Unable to extract sufficient content from ${files.map(f => f.filename).join(', ')}. Please ensure the files contain readable text.`;
