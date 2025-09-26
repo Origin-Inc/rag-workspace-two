@@ -87,29 +87,58 @@ export class UnifiedIntelligenceService {
     options?: ProcessOptions;
   }): Promise<UnifiedResponse> {
     const startTime = Date.now();
+    
+    logger.trace('[UnifiedIntelligence] process() called', {
+      hasParams: !!params,
+      paramsKeys: params ? Object.keys(params) : []
+    });
+    
     const { query, files, intent, conversationHistory = [], options = {} } = params;
     
-    logger.trace('Processing query with unified intelligence', {
+    logger.trace('[UnifiedIntelligence] Processing query with unified intelligence', {
       query,
       fileCount: files.length,
+      fileTypes: files.map(f => f.type),
+      fileNames: files.map(f => f.filename),
       intent: intent.queryType,
-      format: intent.formatPreference
+      format: intent.formatPreference,
+      hasOptions: !!options,
+      optionKeys: Object.keys(options)
     });
 
     // Step 1: Perform semantic analysis
+    logger.trace('[UnifiedIntelligence] Starting semantic analysis...');
     const semantic = await this.performSemanticAnalysis(query, files, intent);
+    logger.trace('[UnifiedIntelligence] Semantic analysis complete', {
+      hasSummary: !!semantic.summary,
+      keyThemesCount: semantic.keyThemes?.length || 0,
+      entitiesCount: semantic.entities?.length || 0
+    });
     
     // Step 2: Perform statistical analysis if needed
+    logger.trace('[UnifiedIntelligence] Checking statistical analysis need', {
+      needsDataAccess: intent.needsDataAccess
+    });
     const statistical = intent.needsDataAccess 
       ? await this.performStatisticalAnalysis(query, files, intent)
       : this.getEmptyStatisticalAnalysis();
+    logger.trace('[UnifiedIntelligence] Statistical analysis complete', {
+      hasMetrics: !!statistical.metrics,
+      patternsCount: statistical.patterns?.length || 0
+    });
     
     // Step 3: Generate SQL if requested and applicable
-    const sql = options.includeSQL && this.shouldGenerateSQL(intent, files)
+    const shouldGenSQL = options.includeSQL && this.shouldGenerateSQL(intent, files);
+    logger.trace('[UnifiedIntelligence] SQL generation check', {
+      includeSQL: options.includeSQL,
+      shouldGenerate: shouldGenSQL
+    });
+    const sql = shouldGenSQL
       ? await this.generateContextAwareSQL(query, files, semantic)
       : undefined;
     
     // Step 4: Compose presentation layer
+    logger.trace('[UnifiedIntelligence] Composing presentation layer...');
     const presentation = await this.composePresentationLayer(
       query,
       semantic,
@@ -117,13 +146,18 @@ export class UnifiedIntelligenceService {
       intent,
       files
     );
+    logger.trace('[UnifiedIntelligence] Presentation layer complete', {
+      narrativeLength: presentation.narrative?.length || 0,
+      tablesCount: presentation.tables?.length || 0
+    });
     
     // Step 5: Calculate confidence
     const confidence = this.calculateResponseConfidence(semantic, statistical, intent);
+    logger.trace('[UnifiedIntelligence] Confidence calculated', { confidence });
     
     const processingTime = Date.now() - startTime;
     
-    return {
+    const response = {
       semantic,
       statistical,
       presentation,
@@ -136,6 +170,15 @@ export class UnifiedIntelligenceService {
         filesAnalyzed: files.map(f => f.filename)
       }
     };
+    
+    logger.trace('[UnifiedIntelligence] Response complete', {
+      processingTime,
+      responseType: response.responseType,
+      hasSemanticSummary: !!response.semantic?.summary,
+      hasPresentationNarrative: !!response.presentation?.narrative
+    });
+    
+    return response;
   }
 
   /**
