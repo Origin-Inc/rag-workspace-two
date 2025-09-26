@@ -169,16 +169,23 @@ export class ResponseComposer {
     if (fileNames.toLowerCase().includes('.pdf')) {
       // Check if summary already starts with "This", "The", or other complete phrases
       const summaryLower = semantic.summary?.toLowerCase() || '';
+      
+      // Clean up duplicate "This The document" issue
+      let cleanedSummary = semantic.summary;
+      if (cleanedSummary?.startsWith('This The ')) {
+        cleanedSummary = cleanedSummary.replace('This The ', 'The ');
+      }
+      
       if (summaryLower.startsWith('this ') || 
           summaryLower.startsWith('the ') ||
           summaryLower.startsWith('based on') ||
           summaryLower.startsWith('document') ||
           summaryLower.startsWith('content')) {
-        // Summary already has a proper start, use as-is
-        return semantic.summary;
+        // Summary already has a proper start, use cleaned version
+        return cleanedSummary;
       } else {
         // Add context prefix only if needed
-        return `This ${semantic.context || 'document'}: ${semantic.summary}`;
+        return `The ${semantic.context || 'document'}: ${cleanedSummary}`;
       }
     }
     

@@ -728,14 +728,22 @@ Format as JSON with keys: summary (specific answer to the query), context (where
   ): string[] {
     const insights: string[] = [];
     
-    // Add pattern-based insights
+    // Only add pattern-based insights if they're specific
     for (const pattern of statistical.patterns.slice(0, 3)) {
-      insights.push(`📊 ${pattern}`);
+      if (pattern.length > 20 && !pattern.includes('pattern')) {
+        insights.push(`📊 ${pattern}`);
+      }
     }
     
-    // Add theme-based insights
+    // Only add theme-based insights if they're meaningful
     for (const theme of semantic.keyThemes.slice(0, 2)) {
-      insights.push(`🎯 Focus area: ${theme}`);
+      // Skip generic themes like "Analysis", "Data", etc.
+      if (theme.length > 10 && 
+          !theme.includes('Analysis') && 
+          !theme.includes('Focus area') &&
+          !theme.includes('Data')) {
+        insights.push(`Key theme: ${theme}`);
+      }
     }
     
     return insights;
@@ -751,13 +759,17 @@ Format as JSON with keys: summary (specific answer to the query), context (where
   ): string[] {
     const recommendations: string[] = [];
     
-    if (intent.queryType === 'summary') {
-      recommendations.push('You might want to explore specific metrics or time periods for deeper insights.');
+    // Only add recommendations if we have specific, actionable insights
+    if (intent.queryType === 'analysis' && statistical.patterns.length > 2) {
+      // Only if we found meaningful patterns
+      const specificPattern = statistical.patterns.find(p => p.length > 30);
+      if (specificPattern) {
+        recommendations.push(`Based on the pattern: ${specificPattern}`);
+      }
     }
     
-    if (intent.queryType === 'analysis' && statistical.patterns.length > 0) {
-      recommendations.push('Consider investigating the root causes of identified patterns.');
-    }
+    // Don't add generic recommendations
+    // Users don't need to be told to "explore metrics" - they know that
     
     return recommendations;
   }
