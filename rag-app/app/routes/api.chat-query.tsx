@@ -106,7 +106,15 @@ export const action: ActionFunction = async ({ request }) => {
     const fileData = await prepareFileData(files, pageId);
     logger.trace('[Unified] File data prepared', {
       fileCount: fileData.length,
-      fileTypes: fileData.map(f => f.type)
+      fileTypes: fileData.map(f => f.type),
+      firstFile: fileData[0] ? {
+        filename: fileData[0].filename,
+        type: fileData[0].type,
+        hasContent: !!fileData[0].content,
+        contentLength: typeof fileData[0].content === 'string' ? fileData[0].content.length : 0,
+        hasSample: !!fileData[0].sample,
+        samplePreview: fileData[0].sample?.slice(0, 100) || 'No sample'
+      } : null
     });
     
     // Perform unified analysis using the correct method name: process
@@ -250,7 +258,12 @@ async function prepareFileData(files: any[], pageId: string) {
       filename: file.filename,
       type: fileType,
       hasSchema: !!file.schema,
-      rowCount: file.rowCount
+      rowCount: file.rowCount,
+      hasContent: !!file.content,
+      hasData: !!file.data,
+      contentType: Array.isArray(file.content) ? 'array' : typeof file.content,
+      dataLength: Array.isArray(file.data) ? file.data.length : 0,
+      firstDataRow: file.data?.[0] ? Object.keys(file.data[0]) : null
     });
     
     const fileInfo: any = {
@@ -317,10 +330,35 @@ async function prepareFileData(files: any[], pageId: string) {
     } 
     // For structured data files (CSV, Excel)
     else if (fileInfo.type === 'csv' || fileInfo.type === 'excel') {
-      // Add sample data if provided
-      if (file.sampleData) {
+      // Handle data from client (could be in data, sampleData, or content)
+      if (file.data && Array.isArray(file.data)) {
+        fileInfo.data = file.data;
+        fileInfo.sampleData = file.data.slice(0, 100);
+        
+        // Generate content string for AI analysis
+        if (file.data.length > 0) {
+          const headers = Object.keys(file.data[0]);
+          const rows = file.data.slice(0, 50).map(row => 
+            headers.map(h => row[h]).join(', ')
+          );
+          fileInfo.content = headers.join(', ') + '\n' + rows.join('\n');
+          fileInfo.sample = fileInfo.content.slice(0, 2000);
+        }
+        
+        logger.trace('[prepareFileData] Structured data from data array', {
+          filename: file.filename,
+          rowCount: file.data.length,
+          hasContent: !!fileInfo.content
+        });
+      } else if (file.sampleData) {
         fileInfo.sampleData = file.sampleData;
         fileInfo.data = file.sampleData;
+      } else if (file.content) {
+        // If content is provided as array or string
+        fileInfo.content = Array.isArray(file.content) 
+          ? file.content.join('\n') 
+          : file.content;
+        fileInfo.sample = fileInfo.content.slice(0, 2000);
       }
       
       // Add column statistics if provided
@@ -338,7 +376,10 @@ async function prepareFileData(files: any[], pageId: string) {
       logger.trace('[prepareFileData] Structured data prepared', {
         filename: file.filename,
         rowCount: fileInfo.datasetMetadata.total_rows,
-        columnCount: fileInfo.datasetMetadata.column_count
+        columnCount: fileInfo.datasetMetadata.column_count,
+        hasContent: !!fileInfo.content,
+        hasData: !!fileInfo.data,
+        contentLength: fileInfo.content?.length || 0
       });
     }
     // For text files

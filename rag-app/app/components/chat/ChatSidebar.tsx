@@ -326,7 +326,9 @@ export function ChatSidebar({
                 // Query the actual content from DuckDB
                 const contentQuery = `SELECT * FROM ${file.tableName} LIMIT 500`;
                 try {
-                  const result = await duckDBService.query(contentQuery);
+                  const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
+                  const duckdb = getDuckDB();
+                  const result = await duckdb.query(contentQuery);
                   console.log('[ChatSidebar] Content fetched:', {
                     filename: file.filename,
                     type: isPDF ? 'PDF' : (isCSV ? 'CSV' : 'Excel'),
