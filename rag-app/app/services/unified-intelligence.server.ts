@@ -111,13 +111,20 @@ export class UnifiedIntelligenceService {
       openAIConfigured: !!process.env.OPENAI_API_KEY
     });
 
+    // Track token usage across all operations
+    let totalTokensUsed = 0;
+
     // Step 1: Perform semantic analysis
     logger.trace('[UnifiedIntelligence] Starting semantic analysis...', { requestId });
-    const semantic = await this.performSemanticAnalysis(query, files, intent, requestId);
+    const semanticResult = await this.performSemanticAnalysisWithTokens(query, files, intent, requestId);
+    const semantic = semanticResult.analysis;
+    totalTokensUsed += semanticResult.tokensUsed;
+    
     logger.trace('[UnifiedIntelligence] Semantic analysis complete', {
       hasSummary: !!semantic.summary,
       keyThemesCount: semantic.keyThemes?.length || 0,
-      entitiesCount: semantic.entities?.length || 0
+      entitiesCount: semantic.entities?.length || 0,
+      tokensUsed: semanticResult.tokensUsed
     });
     
     // Step 2: Perform statistical analysis if needed
@@ -170,7 +177,7 @@ export class UnifiedIntelligenceService {
       confidence,
       responseType: intent.formatPreference as any,
       metadata: {
-        tokensUsed: 0, // Will be tracked by OpenAI calls
+        tokensUsed: totalTokensUsed,
         processingTime,
         filesAnalyzed: files.map(f => f.filename)
       }
@@ -185,6 +192,25 @@ export class UnifiedIntelligenceService {
     
     return response;
   }
+
+  /**
+   * Wrapper for semantic analysis that tracks tokens
+   */
+  private async performSemanticAnalysisWithTokens(
+    query: string,
+    files: FileContext[],
+    intent: QueryIntent,
+    requestId?: string
+  ): Promise<{ analysis: SemanticAnalysis; tokensUsed: number }> {
+    const analysis = await this.performSemanticAnalysis(query, files, intent, requestId);
+    // Token count will be set by performSemanticAnalysis
+    return { 
+      analysis, 
+      tokensUsed: this.lastTokensUsed || 0 
+    };
+  }
+
+  private lastTokensUsed = 0;
 
   /**
    * Perform semantic analysis on content
@@ -268,6 +294,7 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
           hasApiKey: !!process.env.OPENAI_API_KEY,
           reason: 'OpenAI client not initialized'
         });
+        this.lastTokensUsed = 0;
         return this.performContentBasedAnalysis(query, files, requestId);
       }
       
@@ -278,6 +305,7 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
           contentLength: fileDescriptions.length,
           files: files.map(f => ({ filename: f.filename, hasContent: !!f.content }))
         });
+        this.lastTokensUsed = 0;
         return this.performContentBasedAnalysis(query, files, requestId);
       }
 
@@ -345,6 +373,9 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
       const rawResponse = completion.choices[0]?.message?.content || '{}';
       const result = JSON.parse(rawResponse);
       
+      // Track token usage
+      this.lastTokensUsed = completion.usage?.total_tokens || 0;
+      
       logger.trace('[performSemanticAnalysis] OpenAI response received', {
         requestId,
         hasResult: !!result,
@@ -409,6 +440,9 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
         isRateLimitError: error instanceof Error && error.message.includes('rate limit')
       });
       
+      // Set tokens to 0 for fallback
+      this.lastTokensUsed = 0;
+      
       // IMPORTANT: Use enhanced fallback that extracts actual content
       logger.warn('[performSemanticAnalysis] Using content-based fallback analysis', {
         requestId
@@ -424,12 +458,6 @@ Format as JSON with keys: summary, context, keyThemes, entities, relationships
       });
       
       return fallbackResult;
-      
-      // IMPORTANT: Use enhanced fallback that extracts actual content
-      logger.warn('[performSemanticAnalysis] Using content-based fallback analysis (duplicate)', {
-        requestId
-      });
-      return this.performContentBasedAnalysis(query, files, requestId);
     }
   }
 
