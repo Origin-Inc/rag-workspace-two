@@ -69,7 +69,7 @@ export const action: ActionFunction = async ({ request }) => {
       filesCount: files?.length || 0,
       totalContentLength: files?.reduce((sum, f) => {
         const contentLength = typeof f.content === 'string' ? f.content.length :
-                            Array.isArray(f.content) ? f.content.join('').length : 0;
+                            Array.isArray(f.content) ? f.content.map((item: any) => typeof item === 'string' ? item : JSON.stringify(item)).join('').length : 0;
         return sum + contentLength;
       }, 0) || 0,
       conversationHistoryCount: conversationHistory?.length || 0
@@ -97,7 +97,9 @@ export const action: ActionFunction = async ({ request }) => {
                       files[0].content.slice(0, 100) : 
                       JSON.stringify(files[0].content).slice(0, 100),
         isContentEmpty: Array.isArray(files[0].content) ? 
-                       files[0].content.length === 0 || files[0].content.every(c => !c || c.trim().length === 0) :
+                       files[0].content.length === 0 || files[0].content.every(c => 
+                         !c || (typeof c === 'string' ? c.trim().length === 0 : false)
+                       ) :
                        !files[0].content || (typeof files[0].content === 'string' && files[0].content.trim().length === 0)
       } : null
     });
@@ -106,12 +108,12 @@ export const action: ActionFunction = async ({ request }) => {
     if (files && files.length > 0) {
       const contentValidation = files.map(file => {
         const contentLength = Array.isArray(file.content) ? 
-          file.content.join('').length : 
+          file.content.map(item => typeof item === 'string' ? item : JSON.stringify(item)).join('').length : 
           typeof file.content === 'string' ? file.content.length : 0;
         
         const hasActualContent = contentLength > 100 && 
           (Array.isArray(file.content) ? 
-            file.content.some(c => c && c.trim().length > 50) :
+            file.content.some(c => c && (typeof c === 'string' ? c.trim().length > 50 : true)) :
             typeof file.content === 'string' && file.content.trim().length > 50);
         
         return {
@@ -234,7 +236,7 @@ export const action: ActionFunction = async ({ request }) => {
     // CRITICAL DEBUG: Log prepared file data
     const preparedContentSize = fileData.reduce((sum, f) => {
       const size = typeof f.content === 'string' ? f.content.length :
-                   Array.isArray(f.content) ? f.content.join('').length : 0;
+                   Array.isArray(f.content) ? f.content.map((item: any) => typeof item === 'string' ? item : JSON.stringify(item)).join('').length : 0;
       return sum + size;
     }, 0);
     
@@ -247,7 +249,7 @@ export const action: ActionFunction = async ({ request }) => {
         hasContent: !!file.content,
         contentType: typeof file.content,
         contentLength: typeof file.content === 'string' ? file.content.length : 
-                      Array.isArray(file.content) ? file.content.join('').length : 0,
+                      Array.isArray(file.content) ? file.content.map((item: any) => typeof item === 'string' ? item : JSON.stringify(item)).join('').length : 0,
         contentSample: typeof file.content === 'string' ? file.content.slice(0, 500) :
                       Array.isArray(file.content) ? file.content.slice(0, 2).map(item => 
                         typeof item === 'string' ? item : JSON.stringify(item)
@@ -268,7 +270,7 @@ export const action: ActionFunction = async ({ request }) => {
       type: file.type,
       hasContent: !!file.content,
       contentLength: typeof file.content === 'string' ? file.content.length : 
-                     Array.isArray(file.content) ? file.content.join('').length : 0,
+                     Array.isArray(file.content) ? file.content.map((item: any) => typeof item === 'string' ? item : JSON.stringify(item)).join('').length : 0,
       hasData: !!file.data,
       dataLength: Array.isArray(file.data) ? file.data.length : 0,
       contentSample: typeof file.content === 'string' ? file.content.slice(0, 200) :
@@ -311,7 +313,7 @@ export const action: ActionFunction = async ({ request }) => {
           type: f.type,
           hasContent: !!f.content,
           contentLength: typeof f.content === 'string' ? f.content.length : 
-                        Array.isArray(f.content) ? f.content.join('').length : 0,
+                        Array.isArray(f.content) ? f.content.map((item: any) => typeof item === 'string' ? item : JSON.stringify(item)).join('').length : 0,
           actualContentSample: typeof f.content === 'string' ? f.content.slice(0, 300) :
                               Array.isArray(f.content) ? f.content.slice(0, 2).map(item =>
                                 typeof item === 'string' ? item : JSON.stringify(item)
@@ -568,10 +570,14 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
       
       // If content is provided in the request, use it
       if (file.content && Array.isArray(file.content)) {
-        // Content is an array of text chunks
-        fileInfo.content = file.content.join('\n\n');
+        // Content is an array of text chunks or data objects
+        fileInfo.content = file.content.map((item: any) => 
+          typeof item === 'string' ? item : JSON.stringify(item)
+        ).join('\n\n');
         fileInfo.extractedContent = file.content;
-        fileInfo.sample = file.content.slice(0, 5).join('\n\n').slice(0, 2000);
+        fileInfo.sample = file.content.slice(0, 5).map((item: any) =>
+          typeof item === 'string' ? item : JSON.stringify(item)
+        ).join('\n\n').slice(0, 2000);
         
         logger.trace('[prepareFileData] PDF content from chunks', {
           filename: file.filename,
@@ -650,7 +656,9 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
       } else if (file.content) {
         // If content is provided as array or string
         fileInfo.content = Array.isArray(file.content) 
-          ? file.content.join('\n') 
+          ? file.content.map((item: any) => 
+              typeof item === 'string' ? item : JSON.stringify(item)
+            ).join('\n') 
           : file.content;
         fileInfo.sample = fileInfo.content.slice(0, 2000);
       }
