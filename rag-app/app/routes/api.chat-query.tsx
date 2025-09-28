@@ -156,7 +156,9 @@ export const action: ActionFunction = async ({ request }) => {
           rawContentLength: Array.isArray(file.content) ? file.content.length : 
                            typeof file.content === 'string' ? file.content.length : 0,
           rawContentSample: Array.isArray(file.content) ? 
-                           file.content.slice(0, 2).map(chunk => chunk?.slice(0, 200)).join('\n---\n') :
+                           file.content.slice(0, 2).map((chunk: any) => 
+                             typeof chunk === 'string' ? chunk.slice(0, 200) : JSON.stringify(chunk).slice(0, 200)
+                           ).join('\n---\n') :
                            typeof file.content === 'string' ? file.content.slice(0, 500) : 
                            'NO CONTENT DETECTED',
           hasSchema: !!file.schema,
