@@ -7,6 +7,7 @@ import { ResponseComposer } from "~/services/response-composer.server";
 import { createChatCompletion, isOpenAIConfigured } from "~/services/openai.server";
 import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
+import { aiModelConfig } from '~/services/ai-model-config.server';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 const logger = new DebugLogger('api.chat-query');
@@ -431,8 +432,11 @@ export const action: ActionFunction = async ({ request }) => {
     // Track token usage and performance
     const totalProcessingTime = Date.now() - startTime;
     
+    // Get the actual model being used
+    const modelName = await aiModelConfig.getModelName(user.id);
+    
     const tokenMetadata = {
-      model: 'gpt-4-turbo-preview',
+      model: modelName,
       contextTokens: analysis?.metadata?.tokensUsed || 0,
       responseTokens: 0, // Will be set by OpenAI response
       totalTokens: analysis?.metadata?.tokensUsed || 0,
