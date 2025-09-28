@@ -347,13 +347,13 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         requestId,
         rawLength: fileDescriptions.length,
         trimmedLength,
-        threshold: 50,
-        willUseFallback: trimmedLength < 50,
+        threshold: 10,
+        willUseFallback: trimmedLength < 10,
         first200Chars: fileDescriptions.slice(0, 200),
         last100Chars: fileDescriptions.slice(-100)
       });
       
-      if (trimmedLength < 50) {
+      if (trimmedLength < 10) {
         logger.error('[performSemanticAnalysis] No meaningful content to analyze', {
           requestId,
           contentLength: trimmedLength,
