@@ -874,14 +874,40 @@ Format as JSON with keys: summary (specific answer to the query), context (where
           dataContent = file.content;
         } else if (Array.isArray(file.content)) {
           // Content might be array of strings or array of objects
-          dataContent = file.content.map(item => 
-            typeof item === 'string' ? item : JSON.stringify(item)
-          ).join('\n');
+          if (file.content.length > 0 && typeof file.content[0] === 'object') {
+            // Array of objects - format as a readable table-like structure
+            const headers = Object.keys(file.content[0]);
+            dataContent = `Columns: ${headers.join(', ')}\n`;
+            // Include first 100 rows as readable data
+            const sampleRows = file.content.slice(0, 100);
+            sampleRows.forEach((row, idx) => {
+              dataContent += `Row ${idx + 1}: ${JSON.stringify(row)}\n`;
+            });
+            if (file.content.length > 100) {
+              dataContent += `\n... and ${file.content.length - 100} more rows\n`;
+            }
+          } else {
+            // Array of strings
+            dataContent = file.content.map(item => 
+              typeof item === 'string' ? item : JSON.stringify(item)
+            ).join('\n');
+          }
         } else if (typeof file.content === 'object') {
           dataContent = JSON.stringify(file.content);
         }
       } else if (file.sample) {
         dataContent = typeof file.sample === 'string' ? file.sample : JSON.stringify(file.sample);
+      } else if (file.data && Array.isArray(file.data)) {
+        // Use data array if content is not available
+        const headers = file.data.length > 0 ? Object.keys(file.data[0]) : [];
+        dataContent = `Columns: ${headers.join(', ')}\n`;
+        const sampleRows = file.data.slice(0, 100);
+        sampleRows.forEach((row, idx) => {
+          dataContent += `Row ${idx + 1}: ${JSON.stringify(row)}\n`;
+        });
+        if (file.data.length > 100) {
+          dataContent += `\n... and ${file.data.length - 100} more rows\n`;
+        }
       }
       
       if (dataContent) {
@@ -889,6 +915,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
           filename: file.filename,
           hasContent: !!file.content,
           hasSample: !!file.sample,
+          hasData: !!file.data,
           contentLength: dataContent.length
         });
         
