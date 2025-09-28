@@ -1,6 +1,8 @@
 import { openai } from './openai.server';
 import { createSupabaseAdmin } from '~/utils/supabase.server';
 import { DebugLogger } from '~/utils/debug-logger';
+import { aiModelConfig } from './ai-model-config.server';
+import { costTracker } from './cost-tracker-simple.server';
 
 interface SearchResult {
   id: string;

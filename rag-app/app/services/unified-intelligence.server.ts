@@ -7,6 +7,9 @@
 import { openai } from './openai.server';
 import type { QueryIntent } from './query-intent-analyzer.server';
 import { DebugLogger } from '~/utils/debug-logger';
+import { aiModelConfig } from './ai-model-config.server';
+import { costTracker } from './cost-tracker-simple.server';
+// import { cacheManager } from './cache-manager.server';
 
 const logger = new DebugLogger('unified-intelligence');
 
@@ -313,14 +316,42 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         return this.performContentBasedAnalysis(query, files, requestId);
       }
 
+      // Cache functionality temporarily disabled during migration
+      // Will be re-enabled once Redis connection is stable
+
+      // Get optimal model for this query type
+      const queryComplexity = query.length > 200 || files.length > 1 ? 'complex' : 'simple';
+      const modelName = await aiModelConfig.getModelName(requestId);
+      
       logger.trace('[performSemanticAnalysis] Calling OpenAI API', {
         requestId,
         promptLength: prompt.length,
-        model: 'gpt-4-turbo-preview',
+        model: modelName,
+        queryComplexity,
         messageCount: 2,
-        systemMessage: 'You are a data analyst that understands both documents and datasets. Provide specific, detailed analysis based on the actual content provided.',
         userMessageLength: prompt.length,
         hasActualContent: fileDescriptions.trim().length > 0
+      });
+
+      // Build API parameters with model config
+      const apiParams = aiModelConfig.buildAPIParameters({
+        messages: [
+          { role: 'system', content: 'You are a document analysis system. CRITICAL: Only answer based on the provided document content. Never use general knowledge. If information is not in the document, explicitly state that. Always quote or reference specific parts of the document.' },
+          { role: 'user', content: prompt }
+        ],
+        jsonResponse: true,
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            summary: { type: 'string' },
+            context: { type: 'string' },
+            keyThemes: { type: 'array', items: { type: 'string' } },
+            entities: { type: 'array', items: { type: 'string' } },
+            relationships: { type: 'array', items: { type: 'string' } }
+          },
+          required: ['summary']
+        },
+        queryType: queryComplexity === 'complex' ? 'complex' : 'simple'
       });
 
       // Add retry logic for transient failures
@@ -330,16 +361,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
       
       while (retryCount <= maxRetries) {
         try {
-          completion = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
-        messages: [
-          { role: 'system', content: 'You are a document analysis system. CRITICAL: Only answer based on the provided document content. Never use general knowledge. If information is not in the document, explicitly state that. Always quote or reference specific parts of the document.' },
-          { role: 'user', content: prompt }
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.3,
-        max_tokens: 3000  // Increased for more detailed analysis
-          });
+          completion = await openai.chat.completions.create(apiParams);
           
           // Success - break out of retry loop
           break;
@@ -377,10 +399,12 @@ Format as JSON with keys: summary (specific answer to the query), context (where
       const rawResponse = completion.choices[0]?.message?.content || '{}';
       const result = JSON.parse(rawResponse);
       
-      // Track token usage
+      // Track token usage and cost
       this.lastTokensUsed = completion.usage?.total_tokens || 0;
+      const cost = await costTracker.trackUsage(completion, modelName, requestId);
       
       logger.trace('[performSemanticAnalysis] OpenAI response received', {
+        cost,
         requestId,
         hasResult: !!result,
         hasSummary: !!result.summary,
@@ -421,13 +445,17 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         return [];
       };
       
-      return {
+      const semanticResult = {
         summary: result.summary || 'Content analysis unavailable',
         context: result.context || this.inferContext(files),
         keyThemes: ensureArray(result.keyThemes),
         entities: ensureArray(result.entities),
         relationships: ensureArray(result.relationships)
       };
+      
+      // Cache functionality temporarily disabled during migration
+      
+      return semanticResult;
     } catch (error) {
       logger.error('[performSemanticAnalysis] CRITICAL: OpenAI API call failed', {
         error: error instanceof Error ? error.message : 'Unknown error',

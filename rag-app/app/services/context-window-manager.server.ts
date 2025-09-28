@@ -25,7 +25,12 @@ export interface ContextWindow {
 export class ContextWindowManager {
   // Token limits based on model capabilities
   private static readonly MODEL_LIMITS = {
+    'gpt-5-mini': 400000,
+    'gpt-5-nano': 200000,
+    'gpt-5': 500000,
     'gpt-4-turbo-preview': 128000,
+    'gpt-4o': 128000,
+    'gpt-4o-mini': 128000,
     'gpt-4': 8192,
     'gpt-3.5-turbo': 16384,
     'claude-3-opus': 200000,
@@ -40,9 +45,9 @@ export class ContextWindowManager {
   private static tokenCache = new Map<string, number>();
   
   /**
-   * Count tokens in a string using tiktoken
+   * Count tokens in a string using tiktoken with GPT-5 support
    */
-  static countTokens(text: string, model: TiktokenModel = 'gpt-4'): number {
+  static countTokens(text: string, model: string = 'gpt-4'): number {
     // Check cache first
     const cacheKey = `${model}:${text.substring(0, 100)}:${text.length}`;
     if (this.tokenCache.has(cacheKey)) {
@@ -50,9 +55,20 @@ export class ContextWindowManager {
     }
     
     try {
-      const encoder = encoding_for_model(model);
-      const tokens = encoder.encode(text).length;
-      encoder.free();
+      let tokens: number;
+      
+      // Handle GPT-5 models which aren't supported by tiktoken yet
+      if (model.includes('gpt-5')) {
+        // Use o200k_base encoding (newest available) for GPT-5 models
+        const encoder = get_encoding('o200k_base');
+        tokens = encoder.encode(text).length;
+        encoder.free();
+      } else {
+        // Use standard tiktoken for other models
+        const encoder = encoding_for_model(model as TiktokenModel);
+        tokens = encoder.encode(text).length;
+        encoder.free();
+      }
       
       // Cache the result
       this.tokenCache.set(cacheKey, tokens);
@@ -66,7 +82,9 @@ export class ContextWindowManager {
       return tokens;
     } catch (error) {
       // Fallback to approximation if tiktoken fails
-      return Math.ceil(text.length / 4);
+      // GPT-5 models tend to have better tokenization efficiency
+      const divisor = model.includes('gpt-5') ? 4.5 : 4;
+      return Math.ceil(text.length / divisor);
     }
   }
   
