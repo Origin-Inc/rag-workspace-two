@@ -866,7 +866,23 @@ Format as JSON with keys: summary (specific answer to the query), context (where
     // Include sample data for CSV/Excel if available
     if ((file.type === 'csv' || file.type === 'excel')) {
       // Use full content if available, otherwise use sample
-      const dataContent = file.content || file.sample || '';
+      let dataContent = '';
+      
+      // Handle different content formats
+      if (file.content) {
+        if (typeof file.content === 'string') {
+          dataContent = file.content;
+        } else if (Array.isArray(file.content)) {
+          // Content might be array of strings or array of objects
+          dataContent = file.content.map(item => 
+            typeof item === 'string' ? item : JSON.stringify(item)
+          ).join('\n');
+        } else if (typeof file.content === 'object') {
+          dataContent = JSON.stringify(file.content);
+        }
+      } else if (file.sample) {
+        dataContent = typeof file.sample === 'string' ? file.sample : JSON.stringify(file.sample);
+      }
       
       if (dataContent) {
         logger.trace('[describeFile] Including CSV/Excel content', {
@@ -877,9 +893,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         });
         
         // Limit content size for API calls
-        const preview = typeof dataContent === 'string' 
-          ? dataContent.slice(0, 50000)  // Increased to match PDF limit
-          : '';
+        const preview = dataContent.slice(0, 50000);  // Increased to match PDF limit
         
         return `${file.filename} (${type}${size ? `, ${size}` : ''})\n\nData:\n${preview}`;
       }

@@ -90,9 +90,12 @@ export const action: ActionFunction = async ({ request }) => {
         contentLength: files[0].content?.length || 0,
         contentType: Array.isArray(files[0].content) ? 'array' : typeof files[0].content,
         sampleContent: Array.isArray(files[0].content) ? 
-                      files[0].content[0]?.slice(0, 100) || 'No content' :
+                      (typeof files[0].content[0] === 'string' ? 
+                        files[0].content[0].slice(0, 100) : 
+                        JSON.stringify(files[0].content[0]).slice(0, 100)) || 'No content' :
                       typeof files[0].content === 'string' ?
-                      files[0].content.slice(0, 100) : 'No content',
+                      files[0].content.slice(0, 100) : 
+                      JSON.stringify(files[0].content).slice(0, 100),
         isContentEmpty: Array.isArray(files[0].content) ? 
                        files[0].content.length === 0 || files[0].content.every(c => !c || c.trim().length === 0) :
                        !files[0].content || (typeof files[0].content === 'string' && files[0].content.trim().length === 0)
@@ -246,7 +249,9 @@ export const action: ActionFunction = async ({ request }) => {
         contentLength: typeof file.content === 'string' ? file.content.length : 
                       Array.isArray(file.content) ? file.content.join('').length : 0,
         contentSample: typeof file.content === 'string' ? file.content.slice(0, 500) :
-                      Array.isArray(file.content) ? file.content.slice(0, 2).join('\n---\n').slice(0, 500) :
+                      Array.isArray(file.content) ? file.content.slice(0, 2).map(item => 
+                        typeof item === 'string' ? item : JSON.stringify(item)
+                      ).join('\n---\n').slice(0, 500) :
                       'NO PREPARED CONTENT',
         hasData: !!file.data,
         dataLength: Array.isArray(file.data) ? file.data.length : 0,
@@ -267,7 +272,8 @@ export const action: ActionFunction = async ({ request }) => {
       hasData: !!file.data,
       dataLength: Array.isArray(file.data) ? file.data.length : 0,
       contentSample: typeof file.content === 'string' ? file.content.slice(0, 200) :
-                     Array.isArray(file.content) ? file.content[0]?.slice(0, 200) : 'NO CONTENT'
+                     Array.isArray(file.content) && file.content[0] ? 
+                       (typeof file.content[0] === 'string' ? file.content[0].slice(0, 200) : JSON.stringify(file.content[0]).slice(0, 200)) : 'NO CONTENT'
     }));
     
     logger.trace('[Unified] Content validation results', {
@@ -307,7 +313,9 @@ export const action: ActionFunction = async ({ request }) => {
           contentLength: typeof f.content === 'string' ? f.content.length : 
                         Array.isArray(f.content) ? f.content.join('').length : 0,
           actualContentSample: typeof f.content === 'string' ? f.content.slice(0, 300) :
-                              Array.isArray(f.content) ? f.content.slice(0, 2).join('\\n').slice(0, 300) :
+                              Array.isArray(f.content) ? f.content.slice(0, 2).map(item =>
+                                typeof item === 'string' ? item : JSON.stringify(item)
+                              ).join('\\n').slice(0, 300) :
                               'NO CONTENT FOR INTELLIGENCE SERVICE'
         })),
         intentType: intent.queryType,
