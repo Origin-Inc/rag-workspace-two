@@ -224,20 +224,44 @@ export class UnifiedIntelligenceService {
     intent: QueryIntent,
     requestId?: string
   ): Promise<SemanticAnalysis> {
+    // CRITICAL LOGGING: Track exactly what data we receive
+    logger.trace('[performSemanticAnalysis] INPUT FILES DEBUG', {
+      requestId,
+      filesCount: files.length,
+      files: files.map(f => ({
+        filename: f.filename,
+        type: f.type,
+        hasContent: !!f.content,
+        contentType: typeof f.content,
+        contentIsArray: Array.isArray(f.content),
+        contentLength: Array.isArray(f.content) ? f.content.length :
+                      typeof f.content === 'string' ? f.content.length : 0,
+        firstItemType: Array.isArray(f.content) && f.content[0] ? typeof f.content[0] : 'no-items',
+        firstItemSample: Array.isArray(f.content) && f.content[0] ? 
+                        (typeof f.content[0] === 'object' ? JSON.stringify(f.content[0]).slice(0, 100) : 
+                         String(f.content[0]).slice(0, 100)) : 'no-content',
+        hasData: !!f.data,
+        dataLength: Array.isArray(f.data) ? f.data.length : 0
+      }))
+    });
+    
     // Build context from files
     const fileDescriptions = files.map(f => this.describeFile(f)).join('\n');
     
     // CRITICAL: Log the actual content being analyzed
-    logger.trace('[performSemanticAnalysis] Starting analysis', {
+    logger.trace('[performSemanticAnalysis] AFTER DESCRIBE_FILE', {
       requestId,
       query,
       filesCount: files.length,
       contentLength: fileDescriptions.length,
       hasOpenAI: !!openai,
       openAIKey: process.env.OPENAI_API_KEY ? 'configured' : 'missing',
+      openAIKeyLength: process.env.OPENAI_API_KEY?.length || 0,
       firstFile: files[0]?.filename,
       sampleContent: fileDescriptions.slice(0, 500),
-      isContentEmpty: fileDescriptions.trim().length === 0
+      isContentEmpty: fileDescriptions.trim().length === 0,
+      containsColumns: fileDescriptions.includes('Columns:'),
+      containsRows: fileDescriptions.includes('Row 1:')
     });
     
     // CRITICAL DEBUG: Log what's actually being sent to OpenAI
@@ -295,22 +319,52 @@ Format as JSON with keys: summary (specific answer to the query), context (where
     });
 
     try {
+      // CRITICAL LOGGING: Check OpenAI availability
+      logger.trace('[performSemanticAnalysis] OPENAI CHECK', {
+        requestId,
+        openaiExists: !!openai,
+        openaiType: typeof openai,
+        hasApiKey: !!process.env.OPENAI_API_KEY,
+        apiKeyLength: process.env.OPENAI_API_KEY?.length || 0,
+        apiKeyPrefix: process.env.OPENAI_API_KEY?.slice(0, 7) || 'no-key',
+        nodeEnv: process.env.NODE_ENV
+      });
+      
       if (!openai) {
         logger.warn('[performSemanticAnalysis] OpenAI not configured, using content-based fallback', {
           requestId,
           hasApiKey: !!process.env.OPENAI_API_KEY,
-          reason: 'OpenAI client not initialized'
+          reason: 'OpenAI client not initialized',
+          fallbackReason: 'NO_OPENAI_CLIENT'
         });
         this.lastTokensUsed = 0;
         return this.performContentBasedAnalysis(query, files, requestId);
       }
       
       // Verify we have actual content to send
-      if (fileDescriptions.trim().length < 50) {
+      const trimmedLength = fileDescriptions.trim().length;
+      logger.trace('[performSemanticAnalysis] CONTENT LENGTH CHECK', {
+        requestId,
+        rawLength: fileDescriptions.length,
+        trimmedLength,
+        threshold: 50,
+        willUseFallback: trimmedLength < 50,
+        first200Chars: fileDescriptions.slice(0, 200),
+        last100Chars: fileDescriptions.slice(-100)
+      });
+      
+      if (trimmedLength < 50) {
         logger.error('[performSemanticAnalysis] No meaningful content to analyze', {
           requestId,
-          contentLength: fileDescriptions.length,
-          files: files.map(f => ({ filename: f.filename, hasContent: !!f.content }))
+          contentLength: trimmedLength,
+          actualContent: fileDescriptions,
+          files: files.map(f => ({ 
+            filename: f.filename, 
+            hasContent: !!f.content,
+            contentType: typeof f.content,
+            dataLength: Array.isArray(f.data) ? f.data.length : 0
+          })),
+          fallbackReason: 'CONTENT_TOO_SHORT'
         });
         this.lastTokensUsed = 0;
         return this.performContentBasedAnalysis(query, files, requestId);
@@ -361,7 +415,23 @@ Format as JSON with keys: summary (specific answer to the query), context (where
       
       while (retryCount <= maxRetries) {
         try {
+          logger.trace('[performSemanticAnalysis] ATTEMPTING OPENAI API CALL', {
+            requestId,
+            attemptNumber: retryCount + 1,
+            maxRetries,
+            model: apiParams.model
+          });
+          
           completion = await openai.chat.completions.create(apiParams);
+          
+          logger.trace('[performSemanticAnalysis] OPENAI API SUCCESS', {
+            requestId,
+            promptTokens: completion.usage?.prompt_tokens || 0,
+            completionTokens: completion.usage?.completion_tokens || 0,
+            totalTokens: completion.usage?.total_tokens || 0,
+            finishReason: completion.choices?.[0]?.finish_reason,
+            responseLength: completion.choices?.[0]?.message?.content?.length || 0
+          });
           
           // Success - break out of retry loop
           break;
@@ -369,7 +439,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         } catch (openAIError) {
           retryCount++;
           
-          logger.error('[performSemanticAnalysis] OpenAI API call failed', {
+          logger.error('[performSemanticAnalysis] OPENAI API CALL FAILED', {
             requestId,
             retryCount,
             maxRetries,
