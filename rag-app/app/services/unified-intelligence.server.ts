@@ -1024,13 +1024,15 @@ Format as JSON with keys: summary (specific answer to the query), context (where
             preview: dataContent.slice(0, 200)
           });
         } else if (Array.isArray(file.content)) {
-          logger.trace('[describeFile] CSV content is array', {
+          logger.trace('[describeFile] CSV/Excel content is array', {
             filename: file.filename,
+            fileType: file.type,
             arrayLength: file.content.length,
             firstItemType: file.content[0] ? typeof file.content[0] : 'empty',
             firstItem: file.content[0] ? 
               (typeof file.content[0] === 'object' ? JSON.stringify(file.content[0]).slice(0, 200) : String(file.content[0]).slice(0, 200)) : 
-              'no-first-item'
+              'no-first-item',
+            isSmallExcelFile: file.type === 'excel' && file.content.length <= 20
           });
           
           // Content might be array of strings or array of objects
@@ -1073,24 +1075,43 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         // Use data array if content is not available
         const headers = file.data.length > 0 ? Object.keys(file.data[0]) : [];
         dataContent = `Columns: ${headers.join(', ')}\n`;
-        const sampleRows = file.data.slice(0, 100);
+        dataContent += `Total Rows: ${file.data.length}\n\n`;
+        
+        // For Excel files with few rows, include all data to ensure enough context
+        const rowLimit = (file.type === 'excel' && file.data.length <= 20) ? file.data.length : 100;
+        const sampleRows = file.data.slice(0, rowLimit);
+        
+        dataContent += `${file.type === 'excel' && file.data.length <= 20 ? 'Complete Data:' : 'Sample Data:'}\n`;
         sampleRows.forEach((row, idx) => {
           dataContent += `Row ${idx + 1}: ${JSON.stringify(row)}\n`;
         });
-        if (file.data.length > 100) {
-          dataContent += `\n... and ${file.data.length - 100} more rows\n`;
+        
+        // Add summary for Excel files with small datasets
+        if (file.type === 'excel' && file.data.length <= 20) {
+          dataContent += `\n[Excel Dataset Summary]\n`;
+          dataContent += `This Excel file contains ${file.data.length} total rows with ${headers.length} columns.\n`;
+          headers.forEach(header => {
+            const values = file.data.map((r: any) => r[header]).filter(v => v !== null && v !== undefined);
+            const uniqueCount = new Set(values).size;
+            dataContent += `  - ${header}: ${uniqueCount} unique values\n`;
+          });
+        } else if (file.data.length > rowLimit) {
+          dataContent += `\n... and ${file.data.length - rowLimit} more rows\n`;
         }
       }
       
       // CRITICAL DEBUG: Log the final dataContent
       logger.trace('[describeFile] FINAL dataContent status', {
         filename: file.filename,
+        fileType: file.type,
         hasDataContent: !!dataContent,
         dataContentLength: dataContent.length,
         dataContentPreview: dataContent.slice(0, 500),
         isEmpty: dataContent.trim().length === 0,
         containsActualData: dataContent.includes('Row') || dataContent.includes('Columns:'),
-        wordCount: dataContent.split(/\s+/).length
+        wordCount: dataContent.split(/\s+/).length,
+        isExcel: file.type === 'excel',
+        rowCount: file.data?.length || 0
       });
       
       if (dataContent) {
@@ -1109,12 +1130,15 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         const result = `${file.filename} (${type}${size ? `, ${size}` : ''})\n\nData:\n${preview}`;
         
         // CRITICAL: Log exactly what we're returning
-        logger.trace('[describeFile] RETURNING CSV CONTENT', {
+        logger.trace('[describeFile] RETURNING CSV/EXCEL CONTENT', {
           filename: file.filename,
+          fileType: file.type,
           returnLength: result.length,
           resultPreview: result.slice(0, 1000),
           containsData: result.includes('Data:'),
-          containsRows: result.includes('Row')
+          containsRows: result.includes('Row'),
+          isExcelWithFullData: file.type === 'excel' && result.includes('Complete Data:'),
+          hasExcelSummary: result.includes('[Excel Dataset Summary]')
         });
         
         return result;
@@ -1287,16 +1311,33 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         // Handle structured data
         if (file.data && Array.isArray(file.data) && file.data.length > 0) {
           const headers = Object.keys(file.data[0]);
-          const sampleRows = file.data.slice(0, 10);
+          // For Excel files with few rows, include all data for better analysis
+          const rowLimit = (file.type === 'excel' && file.data.length <= 20) ? file.data.length : 10;
+          const sampleRows = file.data.slice(0, rowLimit);
           
           combinedContent += `\n\n[Dataset: ${file.filename}]\n`;
+          combinedContent += `Type: ${file.type === 'excel' ? 'Excel Spreadsheet' : 'CSV File'}\n`;
           combinedContent += `Columns: ${headers.join(', ')}\n`;
           combinedContent += `Rows: ${file.rowCount || file.data.length}\n`;
-          combinedContent += `Sample Data:\n`;
+          combinedContent += `${file.type === 'excel' && file.data.length <= 20 ? 'Complete Data:' : 'Sample Data:'}\n`;
           
           sampleRows.forEach((row, idx) => {
             combinedContent += `Row ${idx + 1}: ${JSON.stringify(row)}\n`;
           });
+          
+          // Add more context for small Excel files
+          if (file.type === 'excel' && file.data.length <= 20) {
+            combinedContent += `\n[Complete Dataset Analysis]\n`;
+            headers.forEach(header => {
+              const values = file.data.map((r: any) => r[header]).filter(v => v !== null && v !== undefined);
+              const uniqueValues = [...new Set(values)];
+              if (uniqueValues.length <= 5) {
+                combinedContent += `${header}: ${uniqueValues.join(', ')}\n`;
+              } else {
+                combinedContent += `${header}: ${uniqueValues.length} unique values\n`;
+              }
+            });
+          }
           
           // Extract themes from column names and data
           headers.forEach(header => {
@@ -1305,6 +1346,8 @@ Format as JSON with keys: summary (specific answer to the query), context (where
             if (headerLower.includes('customer')) extractedThemes.add('Customer Data');
             if (headerLower.includes('product')) extractedThemes.add('Product Information');
             if (headerLower.includes('revenue')) extractedThemes.add('Revenue Metrics');
+            if (headerLower.includes('competitor')) extractedThemes.add('Competitor Analysis');
+            if (headerLower.includes('ai')) extractedThemes.add('AI Technology');
           });
         }
       }
