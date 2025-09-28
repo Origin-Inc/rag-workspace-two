@@ -41,8 +41,18 @@ export const action: ActionFunction = async ({ request }) => {
     }
     
     // Require authentication
-    const user = await requireUser(request);
-    logger.trace('[Unified] User authenticated', { requestId, userId: user.id });
+    let user;
+    try {
+      user = await requireUser(request);
+      logger.trace('[Unified] User authenticated', { requestId, userId: user.id });
+    } catch (authError) {
+      logger.error('[Unified] Authentication failed', {
+        requestId,
+        error: authError instanceof Error ? authError.message : 'Unknown auth error',
+        stack: authError instanceof Error ? authError.stack : undefined
+      });
+      throw authError;
+    }
 
     if (!isOpenAIConfigured()) {
       logger.warn('[Unified] OpenAI not configured');
@@ -636,6 +646,19 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
     } 
     // For structured data files (CSV, Excel)
     else if (fileInfo.type === 'csv' || fileInfo.type === 'excel') {
+      // CRITICAL DEBUG: Log incoming CSV data structure
+      logger.debug('[prepareFileData] CSV/Excel processing START', {
+        filename: file.filename,
+        hasData: !!file.data,
+        dataType: typeof file.data,
+        dataIsArray: Array.isArray(file.data),
+        dataLength: Array.isArray(file.data) ? file.data.length : 0,
+        hasContent: !!file.content,
+        contentType: typeof file.content,
+        hasSampleData: !!file.sampleData,
+        firstDataRow: file.data?.[0] ? Object.keys(file.data[0]).slice(0, 5) : null
+      });
+      
       // Handle data from client (could be in data, sampleData, or content)
       if (file.data && Array.isArray(file.data)) {
         fileInfo.data = file.data;
@@ -644,29 +667,58 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
         // Generate content string for AI analysis
         if (file.data.length > 0) {
           const headers = Object.keys(file.data[0]);
-          const rows = file.data.slice(0, 50).map(row => 
+          const rows = file.data.slice(0, 50).map((row: any) => 
             headers.map(h => row[h]).join(', ')
           );
           fileInfo.content = headers.join(', ') + '\n' + rows.join('\n');
           fileInfo.sample = fileInfo.content.slice(0, 2000);
+          
+          // CRITICAL: Log the generated content
+          logger.debug('[prepareFileData] CSV content GENERATED from data', {
+            filename: file.filename,
+            headers: headers.length,
+            rowsIncluded: rows.length,
+            contentLength: fileInfo.content.length,
+            contentPreview: fileInfo.content.slice(0, 500),
+            sampleLength: fileInfo.sample.length
+          });
         }
         
-        logger.trace('[prepareFileData] Structured data from data array', {
+        logger.debug('[prepareFileData] Structured data from data array', {
           filename: file.filename,
           rowCount: file.data.length,
-          hasContent: !!fileInfo.content
+          hasContent: !!fileInfo.content,
+          contentLength: fileInfo.content?.length || 0
         });
       } else if (file.sampleData) {
         fileInfo.sampleData = file.sampleData;
         fileInfo.data = file.sampleData;
+        logger.debug('[prepareFileData] Using sampleData field', {
+          filename: file.filename,
+          sampleDataLength: Array.isArray(file.sampleData) ? file.sampleData.length : 0
+        });
       } else if (file.content) {
         // If content is provided as array or string
+        logger.debug('[prepareFileData] CSV using content field directly', {
+          filename: file.filename,
+          contentType: typeof file.content,
+          contentIsArray: Array.isArray(file.content),
+          contentLength: Array.isArray(file.content) ? file.content.length : 
+                        typeof file.content === 'string' ? file.content.length : 0
+        });
+        
         fileInfo.content = Array.isArray(file.content) 
           ? file.content.map((item: any) => 
               typeof item === 'string' ? item : JSON.stringify(item)
             ).join('\n') 
           : file.content;
         fileInfo.sample = fileInfo.content.slice(0, 2000);
+        
+        logger.debug('[prepareFileData] CSV content processed', {
+          filename: file.filename,
+          processedContentLength: fileInfo.content.length,
+          samplePreview: fileInfo.sample.slice(0, 200)
+        });
       }
       
       // Add column statistics if provided
@@ -681,13 +733,18 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
         column_count: file.schema?.length || 0
       };
       
-      logger.trace('[prepareFileData] Structured data prepared', {
+      // CRITICAL FINAL CHECK: What are we actually sending?
+      logger.debug('[prepareFileData] CSV FINAL PREPARED STATE', {
         filename: file.filename,
         rowCount: fileInfo.datasetMetadata.total_rows,
         columnCount: fileInfo.datasetMetadata.column_count,
         hasContent: !!fileInfo.content,
+        contentType: typeof fileInfo.content,
+        contentLength: fileInfo.content?.length || 0,
         hasData: !!fileInfo.data,
-        contentLength: fileInfo.content?.length || 0
+        dataLength: Array.isArray(fileInfo.data) ? fileInfo.data.length : 0,
+        actualContentPreview: fileInfo.content ? fileInfo.content.slice(0, 500) : 'NO CONTENT SET',
+        willBeSentToAI: !!fileInfo.content && fileInfo.content.length > 0
       });
     }
     // For text files
@@ -702,8 +759,18 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
     preparedFiles.push(fileInfo);
   }
   
-  logger.trace('[prepareFileData] File preparation complete', {
-    preparedCount: preparedFiles.length
+  // CRITICAL: Final validation of all prepared files
+  logger.debug('[prepareFileData] FINAL VALIDATION - All files prepared', {
+    preparedCount: preparedFiles.length,
+    filesWithContent: preparedFiles.filter((f: any) => f.content && f.content.length > 0).length,
+    filesWithoutContent: preparedFiles.filter((f: any) => !f.content || f.content.length === 0).length,
+    preparedFilesSummary: preparedFiles.map((f: any) => ({
+      filename: f.filename,
+      type: f.type,
+      hasContent: !!f.content,
+      contentLength: f.content?.length || 0,
+      hasData: !!f.data
+    }))
   });
   
   return preparedFiles;

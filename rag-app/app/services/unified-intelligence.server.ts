@@ -353,8 +353,9 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         last100Chars: fileDescriptions.slice(-100)
       });
       
-      if (trimmedLength < 10) {
-        logger.error('[performSemanticAnalysis] No meaningful content to analyze', {
+      // CRITICAL FIX: Changed threshold from 10 to 0 to ensure we always try OpenAI if content exists
+      if (trimmedLength === 0) {
+        logger.error('[performSemanticAnalysis] ABSOLUTELY NO CONTENT to analyze', {
           requestId,
           contentLength: trimmedLength,
           actualContent: fileDescriptions,
@@ -364,11 +365,19 @@ Format as JSON with keys: summary (specific answer to the query), context (where
             contentType: typeof f.content,
             dataLength: Array.isArray(f.data) ? f.data.length : 0
           })),
-          fallbackReason: 'CONTENT_TOO_SHORT'
+          fallbackReason: 'NO_CONTENT_AT_ALL'
         });
         this.lastTokensUsed = 0;
         return this.performContentBasedAnalysis(query, files, requestId);
       }
+      
+      // CRITICAL: Log that we're proceeding with OpenAI
+      logger.trace('[performSemanticAnalysis] PROCEEDING WITH OPENAI CALL', {
+        requestId,
+        contentLength: trimmedLength,
+        willCallOpenAI: true,
+        hasOpenAIClient: !!openai
+      });
 
       // Cache functionality temporarily disabled during migration
       // Will be re-enabled once Redis connection is stable
@@ -419,10 +428,29 @@ Format as JSON with keys: summary (specific answer to the query), context (where
             requestId,
             attemptNumber: retryCount + 1,
             maxRetries,
+            model: apiParams.model,
+            messagesCount: apiParams.messages.length,
+            systemMessageLength: apiParams.messages[0].content.length,
+            userMessageLength: apiParams.messages[1].content.length,
+            totalPromptLength: apiParams.messages.reduce((sum, m) => sum + m.content.length, 0)
+          });
+          
+          // CRITICAL: Log immediately before API call
+          logger.trace('[performSemanticAnalysis] CALLING OPENAI NOW', {
+            requestId,
+            timestamp: new Date().toISOString(),
             model: apiParams.model
           });
           
           completion = await openai.chat.completions.create(apiParams);
+          
+          // CRITICAL: Log immediately after successful API call
+          logger.trace('[performSemanticAnalysis] OPENAI CALL COMPLETED', {
+            requestId,
+            timestamp: new Date().toISOString(),
+            hasCompletion: !!completion,
+            hasUsage: !!completion?.usage
+          });
           
           logger.trace('[performSemanticAnalysis] OPENAI API SUCCESS', {
             requestId,
@@ -472,6 +500,17 @@ Format as JSON with keys: summary (specific answer to the query), context (where
       // Track token usage and cost
       this.lastTokensUsed = completion.usage?.total_tokens || 0;
       const cost = await costTracker.trackUsage(completion, modelName, requestId);
+      
+      // CRITICAL: Log token tracking
+      logger.trace('[performSemanticAnalysis] TOKEN TRACKING', {
+        requestId,
+        lastTokensUsed: this.lastTokensUsed,
+        promptTokens: completion.usage?.prompt_tokens || 0,
+        completionTokens: completion.usage?.completion_tokens || 0,
+        totalTokens: completion.usage?.total_tokens || 0,
+        cost,
+        modelUsed: modelName
+      });
       
       logger.trace('[performSemanticAnalysis] OpenAI response received', {
         cost,
@@ -899,6 +938,24 @@ Format as JSON with keys: summary (specific answer to the query), context (where
     const type = file.type === 'pdf' ? 'document' : 'dataset';
     const size = file.rowCount ? `${file.rowCount} rows` : '';
     
+    // CRITICAL DEBUG: Log exactly what we receive
+    logger.trace('[describeFile] START - Raw file input', {
+      filename: file.filename,
+      type: file.type,
+      hasContent: !!file.content,
+      contentType: typeof file.content,
+      contentIsArray: Array.isArray(file.content),
+      contentLength: Array.isArray(file.content) ? file.content.length :
+                     typeof file.content === 'string' ? file.content.length : 0,
+      hasData: !!file.data,
+      dataIsArray: Array.isArray(file.data),
+      dataLength: Array.isArray(file.data) ? file.data.length : 0,
+      hasSample: !!file.sample,
+      sampleType: typeof file.sample,
+      rowCount: file.rowCount,
+      firstDataRow: file.data?.[0] ? Object.keys(file.data[0]) : null
+    });
+    
     // Include actual content for PDFs if available
     if (file.type === 'pdf' && file.content) {
       // Optimized for "lost in middle" phenomenon - prioritize relevant chunks
@@ -935,14 +992,47 @@ Format as JSON with keys: summary (specific answer to the query), context (where
     
     // Include sample data for CSV/Excel if available
     if ((file.type === 'csv' || file.type === 'excel')) {
+      logger.trace('[describeFile] CSV/Excel file detected', {
+        filename: file.filename,
+        type: file.type,
+        hasContent: !!file.content,
+        contentType: typeof file.content,
+        hasData: !!file.data,
+        dataLength: Array.isArray(file.data) ? file.data.length : 0,
+        hasSample: !!file.sample,
+        rowCount: file.rowCount
+      });
+      
       // Use full content if available, otherwise use sample
       let dataContent = '';
       
       // Handle different content formats
       if (file.content) {
+        logger.trace('[describeFile] CSV has content field', {
+          filename: file.filename,
+          contentType: typeof file.content,
+          isArray: Array.isArray(file.content),
+          arrayLength: Array.isArray(file.content) ? file.content.length : 0,
+          firstItemType: Array.isArray(file.content) && file.content[0] ? typeof file.content[0] : 'no-items'
+        });
+        
         if (typeof file.content === 'string') {
           dataContent = file.content;
+          logger.trace('[describeFile] CSV content is string', {
+            filename: file.filename,
+            stringLength: dataContent.length,
+            preview: dataContent.slice(0, 200)
+          });
         } else if (Array.isArray(file.content)) {
+          logger.trace('[describeFile] CSV content is array', {
+            filename: file.filename,
+            arrayLength: file.content.length,
+            firstItemType: file.content[0] ? typeof file.content[0] : 'empty',
+            firstItem: file.content[0] ? 
+              (typeof file.content[0] === 'object' ? JSON.stringify(file.content[0]).slice(0, 200) : String(file.content[0]).slice(0, 200)) : 
+              'no-first-item'
+          });
+          
           // Content might be array of strings or array of objects
           if (file.content.length > 0 && typeof file.content[0] === 'object') {
             // Array of objects - format as a readable table-like structure
@@ -967,7 +1057,19 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         }
       } else if (file.sample) {
         dataContent = typeof file.sample === 'string' ? file.sample : JSON.stringify(file.sample);
+        logger.trace('[describeFile] Using sample field', {
+          filename: file.filename,
+          sampleType: typeof file.sample,
+          sampleLength: dataContent.length,
+          preview: dataContent.slice(0, 200)
+        });
       } else if (file.data && Array.isArray(file.data)) {
+        logger.trace('[describeFile] Using data field', {
+          filename: file.filename,
+          dataLength: file.data.length,
+          firstRow: file.data[0] ? JSON.stringify(file.data[0]).slice(0, 200) : 'no-first-row'
+        });
+        
         // Use data array if content is not available
         const headers = file.data.length > 0 ? Object.keys(file.data[0]) : [];
         dataContent = `Columns: ${headers.join(', ')}\n`;
@@ -980,23 +1082,64 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         }
       }
       
+      // CRITICAL DEBUG: Log the final dataContent
+      logger.trace('[describeFile] FINAL dataContent status', {
+        filename: file.filename,
+        hasDataContent: !!dataContent,
+        dataContentLength: dataContent.length,
+        dataContentPreview: dataContent.slice(0, 500),
+        isEmpty: dataContent.trim().length === 0,
+        containsActualData: dataContent.includes('Row') || dataContent.includes('Columns:'),
+        wordCount: dataContent.split(/\s+/).length
+      });
+      
       if (dataContent) {
         logger.trace('[describeFile] Including CSV/Excel content', {
           filename: file.filename,
           hasContent: !!file.content,
           hasSample: !!file.sample,
           hasData: !!file.data,
-          contentLength: dataContent.length
+          contentLength: dataContent.length,
+          willReturnContent: true
         });
         
         // Limit content size for API calls
         const preview = dataContent.slice(0, 50000);  // Increased to match PDF limit
         
-        return `${file.filename} (${type}${size ? `, ${size}` : ''})\n\nData:\n${preview}`;
+        const result = `${file.filename} (${type}${size ? `, ${size}` : ''})\n\nData:\n${preview}`;
+        
+        // CRITICAL: Log exactly what we're returning
+        logger.trace('[describeFile] RETURNING CSV CONTENT', {
+          filename: file.filename,
+          returnLength: result.length,
+          resultPreview: result.slice(0, 1000),
+          containsData: result.includes('Data:'),
+          containsRows: result.includes('Row')
+        });
+        
+        return result;
+      } else {
+        logger.warn('[describeFile] NO CONTENT FOUND FOR CSV', {
+          filename: file.filename,
+          hadContent: !!file.content,
+          hadData: !!file.data,
+          hadSample: !!file.sample
+        });
       }
     }
     
-    return `${file.filename} (${type}${size ? `, ${size}` : ''})`;
+    // CRITICAL: Log when we return without content
+    const fallbackResult = `${file.filename} (${type}${size ? `, ${size}` : ''})`;
+    logger.warn('[describeFile] RETURNING WITHOUT CONTENT', {
+      filename: file.filename,
+      type: file.type,
+      result: fallbackResult,
+      hadContent: !!file.content,
+      hadData: !!file.data,
+      reason: 'No content extraction matched'
+    });
+    
+    return fallbackResult;
   }
 
   private inferContext(files: FileContext[]): string {

@@ -206,8 +206,14 @@ export class AIModelConfigService {
     const apiParams: any = {
       model: params.model,
       messages: options.messages,
-      temperature: params.temperature,
-      max_tokens: params.maxTokens
+      // gpt-5-mini only supports temperature=1
+      ...(params.model === 'gpt-5-mini' 
+        ? {} // Don't include temperature for gpt-5-mini (uses default of 1)
+        : { temperature: params.temperature }),
+      // Use max_completion_tokens for newer models (gpt-5, etc), max_tokens for older ones
+      ...(params.model.includes('gpt-5') || params.model.includes('gpt-4o') 
+        ? { max_completion_tokens: params.maxTokens } 
+        : { max_tokens: params.maxTokens })
     };
 
     // Add GPT-5 specific parameters
