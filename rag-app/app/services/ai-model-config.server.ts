@@ -31,12 +31,12 @@ export class AIModelConfigService {
   private pricing: Record<string, ModelPricing>;
 
   private constructor() {
-    // Initialize with environment variable or default to gpt-4o-mini (most efficient current model)
-    const modelName = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    // Initialize with environment variable or default to gpt-5-mini
+    const modelName = process.env.OPENAI_MODEL || 'gpt-5-mini';
     
     this.config = {
       model: modelName,
-      fallbackModel: process.env.OPENAI_FALLBACK_MODEL || 'gpt-4o-mini',
+      fallbackModel: process.env.OPENAI_FALLBACK_MODEL || 'gpt-5-mini',
       temperature: parseFloat(process.env.OPENAI_TEMPERATURE || '0.3'),
       maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS || '8000'),
       contextWindow: this.getContextWindow(modelName),
@@ -309,9 +309,9 @@ export class AIModelConfigService {
     budgetSensitive?: boolean;
     complexity: 'low' | 'medium' | 'high';
   }): string {
-    // For budget-sensitive simple tasks
+    // For budget-sensitive simple tasks - use gpt-5-mini for good balance
     if (task.budgetSensitive && task.complexity === 'low') {
-      return 'gpt-4o-mini';
+      return 'gpt-5-mini';
     }
 
     // For math-heavy or analytical tasks
