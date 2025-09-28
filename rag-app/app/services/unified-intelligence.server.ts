@@ -64,6 +64,9 @@ export interface UnifiedResponse {
   responseType: 'full' | 'table-only' | 'narrative-only' | 'specific-answer';
   metadata: {
     tokensUsed: number;
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
     processingTime: number;
     filesAnalyzed: string[];
   };
@@ -181,6 +184,9 @@ export class UnifiedIntelligenceService {
       responseType: intent.formatPreference as any,
       metadata: {
         tokensUsed: totalTokensUsed,
+        promptTokens: this.lastPromptTokens,
+        completionTokens: this.lastCompletionTokens,
+        totalTokens: totalTokensUsed,
         processingTime,
         filesAnalyzed: files.map(f => f.filename)
       }
@@ -214,6 +220,8 @@ export class UnifiedIntelligenceService {
   }
 
   private lastTokensUsed = 0;
+  private lastPromptTokens = 0;
+  private lastCompletionTokens = 0;
 
   /**
    * Perform semantic analysis on content
@@ -499,6 +507,8 @@ Format as JSON with keys: summary (specific answer to the query), context (where
       
       // Track token usage and cost
       this.lastTokensUsed = completion.usage?.total_tokens || 0;
+      this.lastPromptTokens = completion.usage?.prompt_tokens || 0;
+      this.lastCompletionTokens = completion.usage?.completion_tokens || 0;
       const cost = await costTracker.trackUsage(completion, modelName, requestId);
       
       // CRITICAL: Log token tracking

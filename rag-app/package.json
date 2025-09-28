@@ -94,7 +94,7 @@
     "lru-cache": "^11.1.0",
     "lucide-react": "^0.539.0",
     "marked": "^16.2.1",
-    "node-fetch": "^3.3.2",
+    "node-fetch": "^2.7.0",
     "openai": "^5.12.2",
     "p-limit": "^7.0.0",
     "papaparse": "^5.5.3",

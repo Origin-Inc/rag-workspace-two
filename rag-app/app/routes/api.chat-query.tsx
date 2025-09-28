@@ -445,11 +445,16 @@ export const action: ActionFunction = async ({ request }) => {
     // Get the actual model being used
     const modelName = await aiModelConfig.getModelName(user.id);
     
+    // Extract prompt and completion tokens if available
+    const promptTokens = analysis?.metadata?.promptTokens || analysis?.metadata?.tokensUsed || 0;
+    const completionTokens = analysis?.metadata?.completionTokens || 0;
+    const totalTokens = analysis?.metadata?.totalTokens || analysis?.metadata?.tokensUsed || promptTokens + completionTokens;
+    
     const tokenMetadata = {
       model: modelName,
-      contextTokens: analysis?.metadata?.tokensUsed || 0,
-      responseTokens: 0, // Will be set by OpenAI response
-      totalTokens: analysis?.metadata?.tokensUsed || 0,
+      contextTokens: promptTokens,
+      responseTokens: completionTokens,
+      totalTokens: totalTokens,
       intent: intent.formatPreference,
       confidence: intent.confidence,
       requestId,
