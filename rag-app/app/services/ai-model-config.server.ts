@@ -31,8 +31,8 @@ export class AIModelConfigService {
   private pricing: Record<string, ModelPricing>;
 
   private constructor() {
-    // Initialize with environment variable or default to GPT-5-mini
-    const modelName = process.env.OPENAI_MODEL || 'gpt-5-mini';
+    // Initialize with environment variable or default to gpt-4o-mini (most efficient current model)
+    const modelName = process.env.OPENAI_MODEL || 'gpt-4o-mini';
     
     this.config = {
       model: modelName,
@@ -212,36 +212,26 @@ export class AIModelConfigService {
 
     // Add GPT-5 specific parameters
     if (params.model.includes('gpt-5')) {
-      apiParams.verbosity = params.verbosity;
-      apiParams.reasoning_effort = params.reasoningEffort;
+      // Note: verbosity and reasoning_effort are GPT-5 features that may not be available yet
+      // Commenting out until confirmed available in API
+      // apiParams.verbosity = params.verbosity;
+      // apiParams.reasoning_effort = params.reasoningEffort;
 
-      // Enable caching for GPT-5 models
-      if (params.cacheEnabled) {
-        apiParams.cache_control = {
-          type: 'ephemeral',
-          ttl: 3600 // 1 hour cache
-        };
-      }
+      // Note: cache_control is not supported by OpenAI API
+      // Caching should be implemented at application level instead
     }
 
     // Handle JSON response format
     if (options.jsonResponse) {
-      if (options.jsonSchema && params.model.includes('gpt-5')) {
-        // Use GPT-5's JSON schema validation
-        apiParams.response_format = {
-          type: 'json_schema',
-          json_schema: options.jsonSchema
-        };
-      } else {
-        // Fallback to standard JSON mode
-        apiParams.response_format = { type: 'json_object' };
-      }
+      // Use standard JSON mode (json_schema not yet widely available)
+      apiParams.response_format = { type: 'json_object' };
     }
 
     // Handle custom tools for raw text output (GPT-5 feature)
-    if (options.customTools && params.model.includes('gpt-5')) {
-      apiParams.tools = [{ type: 'custom', format: 'plaintext' }];
-    }
+    // Note: custom tools with plaintext format not yet supported by API
+    // if (options.customTools && params.model.includes('gpt-5')) {
+    //   apiParams.tools = [{ type: 'custom', format: 'plaintext' }];
+    // }
 
     // Enable streaming if requested
     if (options.stream) {
