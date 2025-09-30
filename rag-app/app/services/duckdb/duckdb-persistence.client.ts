@@ -7,6 +7,7 @@ interface PersistedTable {
   schema: any;
   rowCount: number;
   timestamp: number;
+  originalFilename?: string;  // Store the original filename with extension
 }
 
 interface DBSchema {
@@ -63,7 +64,8 @@ export class DuckDBPersistenceService {
     tableName: string,
     pageId: string,
     schema: any,
-    rowCount: number
+    rowCount: number,
+    originalFilename?: string
   ): Promise<void> {
     try {
       const duckdb = getDuckDB();
@@ -97,6 +99,7 @@ export class DuckDBPersistenceService {
         schema,
         rowCount,
         timestamp: Date.now(),
+        originalFilename: originalFilename,
       };
       
       await new Promise((resolve, reject) => {
@@ -186,10 +189,13 @@ export class DuckDBPersistenceService {
             await duckdb.createTableFromData(originalTableName, processedData, restorationSchema);
             
             // Create DataFile metadata
+            // Use original filename if available, otherwise default to .csv
+            const filename = table.originalFilename || `${originalTableName}.csv`;
+            
             restoredFiles.push({
               id: `restored_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
               pageId,
-              filename: `${originalTableName}.csv`,
+              filename: filename,
               tableName: originalTableName,
               schema: table.schema,
               rowCount: table.rowCount,

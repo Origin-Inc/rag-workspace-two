@@ -1105,7 +1105,8 @@ Just upload a CSV or Excel file and ask me anything about it!`,
                 processed.tableName,
                 pageId,
                 schemaForStore,
-                processed.data.length
+                processed.data.length,
+                file.name  // Pass the original filename
               );
               console.log('[ChatSidebar] ✅ Saved to IndexedDB successfully');
             } catch (error) {

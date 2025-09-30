@@ -122,7 +122,7 @@ export class UnifiedIntelligenceService {
 
     // Step 1: Perform semantic analysis
     logger.trace('[UnifiedIntelligence] Starting semantic analysis...', { requestId });
-    const semanticResult = await this.performSemanticAnalysisWithTokens(query, files, intent, requestId);
+    const semanticResult = await this.performSemanticAnalysisWithTokens(query, files, intent, requestId, conversationHistory);
     const semantic = semanticResult.analysis;
     totalTokensUsed += semanticResult.tokensUsed;
     
@@ -209,9 +209,10 @@ export class UnifiedIntelligenceService {
     query: string,
     files: FileContext[],
     intent: QueryIntent,
-    requestId?: string
+    requestId?: string,
+    conversationHistory?: Array<{ role: string; content: string }>
   ): Promise<{ analysis: SemanticAnalysis; tokensUsed: number }> {
-    const analysis = await this.performSemanticAnalysis(query, files, intent, requestId);
+    const analysis = await this.performSemanticAnalysis(query, files, intent, requestId, conversationHistory);
     // Token count will be set by performSemanticAnalysis
     return { 
       analysis, 
@@ -230,7 +231,8 @@ export class UnifiedIntelligenceService {
     query: string,
     files: FileContext[],
     intent: QueryIntent,
-    requestId?: string
+    requestId?: string,
+    conversationHistory?: Array<{ role: string; content: string }>
   ): Promise<SemanticAnalysis> {
     // CRITICAL LOGGING: Track exactly what data we receive
     logger.trace('[performSemanticAnalysis] INPUT FILES DEBUG', {
@@ -394,22 +396,38 @@ Format as JSON with keys: summary (specific answer to the query), context (where
       const queryComplexity = query.length > 200 || files.length > 1 ? 'complex' : 'simple';
       const modelName = await aiModelConfig.getModelName(requestId);
       
+      // Build messages array with conversation history if available
+      const messages: any[] = [
+        { role: 'system', content: 'You are a document analysis system. CRITICAL: Only answer based on the provided document content. Never use general knowledge. If information is not in the document, explicitly state that. Always quote or reference specific parts of the document. Consider the conversation history for context when relevant.' }
+      ];
+      
+      // Add conversation history if available (limit to last 5 exchanges to avoid token limits)
+      if (conversationHistory && conversationHistory.length > 0) {
+        const recentHistory = conversationHistory.slice(-10); // Last 5 exchanges (user + assistant)
+        messages.push(...recentHistory.map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content.substring(0, 500) // Truncate long messages
+        })));
+      }
+      
+      // Add the current user query with document content
+      messages.push({ role: 'user', content: prompt });
+      
       logger.trace('[performSemanticAnalysis] Calling OpenAI API', {
         requestId,
         promptLength: prompt.length,
         model: modelName,
         queryComplexity,
-        messageCount: 2,
+        messageCount: messages.length,
         userMessageLength: prompt.length,
-        hasActualContent: fileDescriptions.trim().length > 0
+        hasActualContent: fileDescriptions.trim().length > 0,
+        hasConversationHistory: !!conversationHistory && conversationHistory.length > 0,
+        conversationHistoryLength: conversationHistory?.length || 0
       });
 
       // Build API parameters with model config
       const apiParams = aiModelConfig.buildAPIParameters({
-        messages: [
-          { role: 'system', content: 'You are a document analysis system. CRITICAL: Only answer based on the provided document content. Never use general knowledge. If information is not in the document, explicitly state that. Always quote or reference specific parts of the document.' },
-          { role: 'user', content: prompt }
-        ],
+        messages,
         jsonResponse: true,
         jsonSchema: {
           type: 'object',
