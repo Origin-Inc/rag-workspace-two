@@ -148,51 +148,82 @@ export function ChatSidebar({
         
         if (!isMounted) return;
         
-        // Try to load from cloud first
+        const restoredFilesMap = new Map<string, any>();
+        
+        // STEP 1: Always load from IndexedDB first (primary persistence)
+        try {
+          console.log('[ChatSidebar] Loading files from IndexedDB (primary storage)...');
+          const restoredFiles = await duckdb.restoreTablesForPage(pageId);
+          
+          if (restoredFiles.length > 0 && isMounted) {
+            console.log(`[ChatSidebar] ✅ Restored ${restoredFiles.length} tables from IndexedDB`);
+            restoredFiles.forEach((file: any) => {
+              restoredFilesMap.set(file.tableName, {
+                filename: file.filename,
+                tableName: file.tableName,
+                schema: file.schema,
+                rowCount: file.rowCount,
+                sizeBytes: file.sizeBytes,
+                source: 'indexeddb'
+              });
+            });
+          }
+        } catch (error) {
+          console.error('[ChatSidebar] Failed to restore from IndexedDB:', error);
+        }
+        
+        // STEP 2: Try to enhance with cloud metadata (if available)
         if (workspaceId) {
           try {
-            console.log('[ChatSidebar] Attempting to load files from cloud...');
+            console.log('[ChatSidebar] Checking for cloud metadata...');
             const { DuckDBCloudSyncService } = await import('~/services/duckdb/duckdb-cloud-sync.client');
             const cloudSync = DuckDBCloudSyncService.getInstance();
             
             const cloudFiles = await cloudSync.loadFilesFromCloud(pageId, workspaceId);
             
-            if (cloudFiles.length > 0 && isMounted) {
-              console.log(`[ChatSidebar] Restored ${cloudFiles.length} files from cloud`);
-              cloudFiles.forEach((file) => {
-                addDataFile({
-                  filename: file.filename,
-                  tableName: file.tableName,
-                  schema: file.schema,
-                  rowCount: file.rowCount,
-                  sizeBytes: file.sizeBytes,
-                  databaseId: file.id,  // Preserve the database UUID
-                });
-              });
+            if (cloudFiles.length > 0) {
+              console.log(`[ChatSidebar] Found ${cloudFiles.length} files in cloud metadata`);
               
-              // Cloud load successful, skip IndexedDB restore
-              return;
+              // Merge cloud metadata with IndexedDB data
+              cloudFiles.forEach((file) => {
+                const existingFile = restoredFilesMap.get(file.tableName);
+                if (existingFile) {
+                  // Enhance existing file with cloud metadata
+                  restoredFilesMap.set(file.tableName, {
+                    ...existingFile,
+                    databaseId: file.id,
+                    parquetUrl: file.parquetUrl,
+                    source: 'both'
+                  });
+                } else if (file.parquetUrl) {
+                  // File only in cloud, add it
+                  restoredFilesMap.set(file.tableName, {
+                    filename: file.filename,
+                    tableName: file.tableName,
+                    schema: file.schema,
+                    rowCount: file.rowCount,
+                    sizeBytes: file.sizeBytes,
+                    databaseId: file.id,
+                    source: 'cloud'
+                  });
+                }
+              });
             }
           } catch (error) {
-            console.error('[ChatSidebar] Failed to load from cloud, falling back to IndexedDB:', error);
+            console.warn('[ChatSidebar] Cloud metadata not available:', error);
+            // Not critical - IndexedDB data is already loaded
           }
         }
         
-        // Fall back to IndexedDB if cloud load fails or no workspace
-        const restoredFiles = await duckdb.restoreTablesForPage(pageId);
-        
-        // Add restored files to the store
-        if (restoredFiles.length > 0 && isMounted) {
-          console.log(`[ChatSidebar] Restored ${restoredFiles.length} tables from IndexedDB`);
-          restoredFiles.forEach((file: any) => {
-            addDataFile({
-              filename: file.filename,
-              tableName: file.tableName,
-              schema: file.schema,
-              rowCount: file.rowCount,
-              sizeBytes: file.sizeBytes,
-            });
+        // STEP 3: Add all restored files to the store
+        if (restoredFilesMap.size > 0 && isMounted) {
+          console.log(`[ChatSidebar] Total files restored: ${restoredFilesMap.size}`);
+          restoredFilesMap.forEach((file) => {
+            addDataFile(file);
+            console.log(`[ChatSidebar] Restored: ${file.filename} (source: ${file.source})`);
           });
+        } else {
+          console.log('[ChatSidebar] No files to restore');
         }
       } catch (error) {
         console.error('[ChatSidebar] Failed to restore tables:', error);
@@ -1039,63 +1070,94 @@ Just upload a CSV or Excel file and ask me anything about it!`,
           try {
             const storageUrl = uploadResult?.url || null;
             
-            // Export table to storage (this is what makes it persist!)
+            // ALWAYS persist to IndexedDB first (primary persistence layer)
+            console.log('[ChatSidebar] 💾 PERSISTING TO INDEXEDDB...');
+            try {
+              const { DuckDBPersistenceService } = await import('~/services/duckdb/duckdb-persistence.client');
+              const persistenceService = DuckDBPersistenceService.getInstance();
+              await persistenceService.persistTable(
+                processed.tableName,
+                pageId,
+                schemaForStore,
+                processed.data.length
+              );
+              console.log('[ChatSidebar] ✅ Saved to IndexedDB successfully');
+            } catch (error) {
+              console.error('[ChatSidebar] ⚠️ Failed to save to IndexedDB:', error);
+            }
+            
+            // Export table to cloud storage (enhancement, not required)
             let parquetUrl = null;
+            let cloudSyncStatus: 'pending' | 'success' | 'failed' = 'pending';
             const supabaseUrl = window.ENV?.SUPABASE_URL;
             const supabaseAnonKey = window.ENV?.SUPABASE_ANON_KEY;
             
-            // Check for Supabase credentials, NOT storageUrl
-            // We want to upload the DuckDB table regardless of user-uploads success
-            console.log('[ChatSidebar] 📊 STORAGE UPLOAD CHECK:', {
+            // Check for Supabase credentials
+            console.log('[ChatSidebar] 📊 CLOUD SYNC CHECK:', {
               hasSupabaseUrl: !!supabaseUrl,
-              supabaseUrl: supabaseUrl || 'MISSING',
               hasAnonKey: !!supabaseAnonKey,
-              anonKeyPreview: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : 'MISSING',
               workspaceId,
               pageId,
               tableName: processed.tableName
             });
             
-            if (supabaseUrl && supabaseAnonKey) {
-              try {
-                console.log('[ChatSidebar] ⬆️ STARTING TABLE EXPORT TO CLOUD...');
-                const { DuckDBExportService } = await import('~/services/duckdb/duckdb-export.client');
-                const exportService = DuckDBExportService.getInstance();
-                
-                console.log('[ChatSidebar] 🔧 Export service initialized, calling exportAndUploadToStorage...');
-                parquetUrl = await exportService.exportAndUploadToStorage(
-                  processed.tableName,
-                  workspaceId,
-                  supabaseUrl,
-                  supabaseAnonKey
-                );
-                
-                if (parquetUrl) {
-                  console.log('[ChatSidebar] ✅ TABLE SUCCESSFULLY UPLOADED TO CLOUD:', {
-                    url: parquetUrl,
-                    tableName: processed.tableName
-                  });
-                } else {
-                  console.error('[ChatSidebar] ❌ UPLOAD RETURNED NULL - Check DuckDBExport logs for details');
-                  // Check if in incognito mode or missing auth
-                  if (!document.cookie.includes('auth-token') && !document.cookie.includes('sb-')) {
-                    console.warn('[ChatSidebar] 💡 You may be in incognito mode or not logged in.');
-                    console.warn('[ChatSidebar] Files will be available locally during this session but won\'t persist to cloud.');
+            if (supabaseUrl && supabaseAnonKey && workspaceId) {
+              // Attempt cloud sync with retry logic
+              const maxRetries = 3;
+              let retryCount = 0;
+              
+              while (retryCount < maxRetries && !parquetUrl) {
+                try {
+                  console.log(`[ChatSidebar] ⬆️ CLOUD SYNC ATTEMPT ${retryCount + 1}/${maxRetries}...`);
+                  const { DuckDBExportService } = await import('~/services/duckdb/duckdb-export.client');
+                  const exportService = DuckDBExportService.getInstance();
+                  
+                  parquetUrl = await exportService.exportAndUploadToStorage(
+                    processed.tableName,
+                    workspaceId,
+                    supabaseUrl,
+                    supabaseAnonKey
+                  );
+                  
+                  if (parquetUrl) {
+                    console.log('[ChatSidebar] ✅ CLOUD SYNC SUCCESSFUL:', {
+                      url: parquetUrl,
+                      tableName: processed.tableName
+                    });
+                    cloudSyncStatus = 'success';
+                    break;
+                  } else {
+                    console.warn(`[ChatSidebar] ⚠️ Cloud sync attempt ${retryCount + 1} returned null`);
+                  }
+                } catch (error) {
+                  console.error(`[ChatSidebar] ❌ Cloud sync attempt ${retryCount + 1} failed:`, error);
+                  
+                  // If auth error, don't retry
+                  if (error instanceof Error && 
+                      (error.message.includes('401') || 
+                       error.message.includes('403') || 
+                       error.message.includes('auth'))) {
+                    console.warn('[ChatSidebar] 🔐 Authentication issue detected, stopping retries');
+                    break;
                   }
                 }
-              } catch (error) {
-                console.error('[ChatSidebar] ❌ EXCEPTION DURING TABLE EXPORT:', {
-                  error,
-                  message: error instanceof Error ? error.message : 'Unknown error',
-                  stack: error instanceof Error ? error.stack : undefined
-                });
+                
+                retryCount++;
+                if (retryCount < maxRetries && !parquetUrl) {
+                  // Exponential backoff
+                  const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 5000);
+                  console.log(`[ChatSidebar] ⏳ Retrying in ${delay}ms...`);
+                  await new Promise(resolve => setTimeout(resolve, delay));
+                }
+              }
+              
+              if (!parquetUrl) {
+                cloudSyncStatus = 'failed';
+                console.warn('[ChatSidebar] ⚠️ Cloud sync failed after all retries');
               }
             } else {
-              console.error('[ChatSidebar] ❌ MISSING SUPABASE CREDENTIALS:', {
-                hasUrl: !!supabaseUrl,
-                hasKey: !!supabaseAnonKey,
-                ENV: window.ENV
-              });
+              console.log('[ChatSidebar] ℹ️ Cloud sync not available (missing credentials or workspace)');
+              cloudSyncStatus = 'failed';
             }
             
             console.log('[ChatSidebar] 💾 SAVING METADATA TO DATABASE:', {
@@ -1205,9 +1267,21 @@ Just upload a CSV or Excel file and ask me anything about it!`,
         
         console.log('[ChatSidebar] About to add system message for file load');
         try {
+          // Create message with sync status indicator
+          let statusEmoji = '';
+          let statusText = '';
+          
+          if (cloudSyncStatus === 'success') {
+            statusEmoji = '☁️';
+            statusText = ' (synced to cloud)';
+          } else if (cloudSyncStatus === 'failed') {
+            statusEmoji = '💾';
+            statusText = ' (saved locally)';
+          }
+          
           addMessage({
             role: 'system',
-            content: `File "${file.name}" loaded with ${processed.data.length} rows. Ready for querying!`,
+            content: `${statusEmoji} File "${file.name}" loaded with ${processed.data.length} rows${statusText}. Ready for querying!`,
           });
           console.log('[ChatSidebar] System message added successfully');
         } catch (error) {

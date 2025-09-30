@@ -75,7 +75,7 @@ export class DuckDBExportService {
   }
   
   /**
-   * Export table and upload to Supabase Storage
+   * Export table and upload to Supabase Storage with improved error handling
    */
   async exportAndUploadToStorage(
     tableName: string,
@@ -112,22 +112,44 @@ export class DuckDBExportService {
       const supabase = createClient(supabaseUrl, supabaseKey, {
         auth: {
           persistSession: true,
-          autoRefreshToken: true
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          storage: window.localStorage // Explicitly use localStorage for session persistence
         }
       });
       console.log('[DuckDBExport] ✅ Supabase client created');
       
-      // Step 4: Check auth session
+      // Step 4: Check and refresh auth session
       console.log('[DuckDBExport] 🔐 STEP 4: Checking auth session...');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      console.log('[DuckDBExport] Auth session check:', {
+      
+      // Try to refresh session if no session found
+      if (!session && !sessionError) {
+        console.log('[DuckDBExport] No session found, attempting refresh...');
+        const { data: { session: refreshedSession }, error: refreshError } = 
+          await supabase.auth.refreshSession();
+        
+        if (refreshedSession) {
+          console.log('[DuckDBExport] Session refreshed successfully');
+        } else if (refreshError) {
+          console.warn('[DuckDBExport] Session refresh failed:', refreshError.message);
+        }
+      }
+      
+      console.log('[DuckDBExport] Auth session status:', {
         hasSession: !!session,
         sessionError: sessionError?.message || null,
         userId: session?.user?.id || 'NO USER',
-        role: session?.user?.role || 'NO ROLE'
+        role: session?.user?.role || 'NO ROLE',
+        isAnonymous: !session || !session.user
       });
       
-      // Step 5: Upload to storage
+      // Warning if no auth session (but continue - may work with anon access)
+      if (!session) {
+        console.warn('[DuckDBExport] ⚠️ No authenticated session - upload may fail if bucket requires auth');
+      }
+      
+      // Step 5: Upload to storage with retry capability
       console.log('[DuckDBExport] ⬆️ STEP 5: Uploading to storage bucket "duckdb-tables"...');
       const { data, error } = await supabase.storage
         .from('duckdb-tables')

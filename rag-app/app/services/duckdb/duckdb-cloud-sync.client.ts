@@ -120,30 +120,10 @@ export class DuckDBCloudSyncService {
           // Check if table already exists locally
           const tableExists = await this.tableExists(file.tableName);
           
-          if (!tableExists && file.parquetUrl) {
-            console.log(`[CloudSync] Restoring table ${file.tableName} from cloud`);
-            
-            // Download and restore Parquet file
-            await this.restoreTableFromParquet(file.tableName, file.parquetUrl, pageId);
-            
-            console.log(`[CloudSync] Table ${file.tableName} restored successfully`);
-            
-            // Add to loaded files only if restoration was successful
-            loadedFiles.push({
-              filename: file.filename,
-              tableName: file.tableName,
-              schema: file.schema,
-              rowCount: file.rowCount,
-              sizeBytes: file.sizeBytes,
-              id: file.id,
-              storageUrl: file.storageUrl,
-              parquetUrl: file.parquetUrl,
-              updatedAt: file.updatedAt
-            });
-          } else if (tableExists) {
+          if (tableExists) {
+            // Table exists locally - just add metadata
             console.log(`[CloudSync] Table ${file.tableName} already exists locally`);
             
-            // Add to loaded files since it exists
             loadedFiles.push({
               filename: file.filename,
               tableName: file.tableName,
@@ -155,8 +135,61 @@ export class DuckDBCloudSyncService {
               parquetUrl: file.parquetUrl,
               updatedAt: file.updatedAt
             });
-          } else if (!file.parquetUrl) {
-            console.warn(`[CloudSync] No storage URL for table ${file.tableName}, skipping`);
+          } else if (file.parquetUrl) {
+            // Table doesn't exist locally but has cloud backup
+            console.log(`[CloudSync] Restoring table ${file.tableName} from cloud`);
+            
+            try {
+              // Download and restore Parquet file
+              await this.restoreTableFromParquet(file.tableName, file.parquetUrl, pageId);
+              console.log(`[CloudSync] Table ${file.tableName} restored successfully`);
+              
+              // Add to loaded files only if restoration was successful
+              loadedFiles.push({
+                filename: file.filename,
+                tableName: file.tableName,
+                schema: file.schema,
+                rowCount: file.rowCount,
+                sizeBytes: file.sizeBytes,
+                id: file.id,
+                storageUrl: file.storageUrl,
+                parquetUrl: file.parquetUrl,
+                updatedAt: file.updatedAt
+              });
+            } catch (restoreError) {
+              console.error(`[CloudSync] Failed to restore from cloud:`, restoreError);
+              // Still add the metadata even if restore failed
+              // User can see the file existed and manually re-upload if needed
+              loadedFiles.push({
+                filename: file.filename,
+                tableName: file.tableName,
+                schema: file.schema,
+                rowCount: file.rowCount,
+                sizeBytes: file.sizeBytes,
+                id: file.id,
+                storageUrl: file.storageUrl,
+                parquetUrl: file.parquetUrl,
+                updatedAt: file.updatedAt,
+                restoreFailed: true // Mark as failed to show in UI
+              });
+            }
+          } else {
+            // No parquetUrl but metadata exists - likely upload failed
+            console.warn(`[CloudSync] No storage URL for table ${file.tableName}, but adding metadata`);
+            
+            // Still add the metadata so users know the file was uploaded before
+            loadedFiles.push({
+              filename: file.filename,
+              tableName: file.tableName,
+              schema: file.schema,
+              rowCount: file.rowCount,
+              sizeBytes: file.sizeBytes,
+              id: file.id,
+              storageUrl: file.storageUrl,
+              parquetUrl: null,
+              updatedAt: file.updatedAt,
+              cloudSyncFailed: true // Mark as sync failed
+            });
           }
         } catch (error) {
           console.error(`[CloudSync] Failed to restore table ${file.tableName}:`, error);

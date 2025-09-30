@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { X, FileText, FileSpreadsheet, File, ChevronRight, Database, Loader2, CloudIcon, CheckCircleIcon, CloudOff, CloudUpload } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { X, FileText, FileSpreadsheet, File, ChevronRight, Database, Loader2, CloudIcon, CheckCircleIcon, CloudOff, CloudUpload, RefreshCw, AlertCircle } from 'lucide-react';
 import { cn } from '~/utils/cn';
 import { useChatDataFiles } from '~/stores/chat-store';
 import type { FileSchema } from '~/services/file-processing.client';
-import type { SyncStatus } from './CloudSyncIndicator';
+
+type SyncStatus = 'synced' | 'syncing' | 'failed' | 'local-only';
 
 interface FileChipProps {
   file: {
@@ -63,28 +64,91 @@ function FileChip({
   const isProcessing = file.extractionStatus === 'processing';
   const hasFailed = file.extractionStatus === 'failed';
   
-  // Determine sync status
+  // Determine sync status with enhanced logic
   const getSyncStatus = (): SyncStatus => {
+    // Use explicit sync status if available
     if (file.syncStatus) return file.syncStatus;
+    
+    // Check for sync failures
+    if (file.cloudSyncFailed || file.restoreFailed) return 'failed';
+    
+    // Check if file has cloud storage
     if (file.storageUrl || file.parquetUrl) return 'synced';
+    
+    // Check source to determine status
+    if (file.source === 'both') return 'synced';
+    if (file.source === 'cloud') return 'synced';
+    
+    // Default to local-only
     return 'local-only';
   };
   
   const syncStatus = getSyncStatus();
+  const [isRetrying, setIsRetrying] = useState(false);
   
-  // Get sync icon
+  // Handle retry sync
+  const handleRetrySync = async () => {
+    if (isRetrying) return;
+    
+    setIsRetrying(true);
+    try {
+      // Call retry sync API or trigger re-upload
+      // This would need to be implemented with the actual sync logic
+      console.log(`Retrying sync for file: ${file.filename}`);
+      // TODO: Implement actual retry logic here
+      // await retryFileSync(file.id);
+    } catch (error) {
+      console.error('Failed to retry sync:', error);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+  
+  // Get sync icon with enhanced states
   const getSyncIcon = () => {
+    if (isRetrying) {
+      return <RefreshCw className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 animate-spin" />;
+    }
+    
     switch (syncStatus) {
       case 'synced':
         return <CheckCircleIcon className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />;
       case 'syncing':
         return <CloudUpload className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 animate-pulse" />;
-      case 'error':
-        return <CloudOff className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />;
+      case 'failed':
+        return (
+          <button
+            onClick={handleRetrySync}
+            className="hover:opacity-70 transition-opacity"
+            title="Click to retry sync"
+          >
+            <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+          </button>
+        );
       case 'local-only':
         return <CloudOff className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />;
       default:
         return <CloudIcon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />;
+    }
+  };
+  
+  // Get sync status text
+  const getSyncStatusText = () => {
+    if (isRetrying) return 'Retrying sync...';
+    
+    switch (syncStatus) {
+      case 'synced':
+        return 'Synced to cloud';
+      case 'syncing':
+        return 'Syncing...';
+      case 'failed':
+        if (file.cloudSyncFailed) return 'Cloud sync failed - click to retry';
+        if (file.restoreFailed) return 'Restore failed - re-upload file';
+        return 'Sync failed - click to retry';
+      case 'local-only':
+        return 'Saved locally only';
+      default:
+        return 'Unknown status';
     }
   };
   
@@ -129,10 +193,20 @@ function FileChip({
         </span>
       )}
       
-      {/* Sync Status Icon */}
-      <span className="flex-shrink-0" title={syncStatus === 'synced' ? 'Synced to cloud' : syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'error' ? 'Sync error' : 'Local only'}>
+      {/* Sync Status Icon with Enhanced Tooltip */}
+      <span 
+        className="flex-shrink-0 flex items-center" 
+        title={getSyncStatusText()}
+      >
         {getSyncIcon()}
       </span>
+      
+      {/* Show warning badge for failed syncs */}
+      {(syncStatus === 'failed' || file.cloudSyncFailed || file.restoreFailed) && (
+        <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+          {file.restoreFailed ? 'Re-upload' : 'Retry'}
+        </span>
+      )}
       
       {/* Remove Button */}
       <button

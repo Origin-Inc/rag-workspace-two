@@ -189,9 +189,8 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
         // For PDFs, the file is already uploaded from client - just process it
         // For CSV/Excel, we need to upload and serialize
         if (file.name.toLowerCase().endsWith('.pdf')) {
-          // PDF files are already uploaded from client, skip storage upload
+          // PDF files are already uploaded from client, but we need to save extracted content
           console.log(`[Upload] Processing PDF file: ${file.name}`);
-          // We'll process the PDF content directly
           storageUrl = url.searchParams.get('storageUrl') || null;
         } else {
           // 1. Upload original file to Supabase Storage (for CSV/Excel)
@@ -216,8 +215,73 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
         console.log(`[Upload] - Schema columns: ${processedData.schema?.columns?.length || 0}`);
         console.log(`[Upload] - Has extracted content: ${!!processedData.extractedContent}`);
         
-        // 3. Serialize to Parquet (skip for PDFs if no tabular data)
-        if (processedData.data && processedData.data.length > 0) {
+        // 3. Serialize to Parquet or save PDF extracted content
+        if (file.name.toLowerCase().endsWith('.pdf')) {
+          // For PDFs, save extracted content as JSON to storage for persistence
+          if (processedData.extractedContent) {
+            try {
+              console.log(`[Upload] Saving PDF extracted content to storage...`);
+              
+              // Create a JSON representation of the PDF content
+              const pdfContentData = {
+                tableName: processedData.tableName,
+                extractedContent: {
+                  text: processedData.extractedContent.text || '',
+                  tables: processedData.extractedContent.tables || [],
+                  metadata: processedData.extractedContent.metadata || {},
+                  pageCount: processedData.extractedContent.pages?.length || 0
+                },
+                data: processedData.data || [],
+                schema: processedData.schema,
+                type: 'pdf',
+                timestamp: new Date().toISOString()
+              };
+              
+              // Save to duckdb-tables bucket as JSON for persistence
+              const pdfContentPath = `${workspaceId}/${pageId}/${processedData.tableName}_content.json`;
+              const jsonBuffer = Buffer.from(JSON.stringify(pdfContentData));
+              
+              await storageService.uploadFile(
+                'duckdb-tables',
+                pdfContentPath,
+                jsonBuffer,
+                'application/json'
+              );
+              
+              parquetUrl = await storageService.getSignedUrl('duckdb-tables', pdfContentPath, 86400); // 24 hours
+              console.log(`[Upload] PDF content saved to storage: ${pdfContentPath}`);
+              
+              // If PDF has tables, also create a parquet file
+              if (processedData.data && processedData.data.length > 0) {
+                try {
+                  const serializationService = new DuckDBSerializationService();
+                  const parquetBuffer = await serializationService.serializeToParquet(
+                    processedData.data,
+                    processedData.schema,
+                    processedData.tableName
+                  );
+                  await serializationService.close();
+                  
+                  // Save parquet as secondary format
+                  const parquetPath = `${workspaceId}/${pageId}/${processedData.tableName}_tables.parquet`;
+                  await storageService.uploadFile(
+                    'duckdb-tables',
+                    parquetPath,
+                    parquetBuffer,
+                    'application/octet-stream'
+                  );
+                  console.log(`[Upload] PDF tables also saved as Parquet`);
+                } catch (err) {
+                  console.warn(`[Upload] Could not create Parquet for PDF tables:`, err);
+                }
+              }
+            } catch (pdfError) {
+              console.error(`[Upload] Failed to save PDF content:`, pdfError);
+              // Continue without persistence - at least metadata will be saved
+            }
+          }
+        } else if (processedData.data && processedData.data.length > 0) {
+          // For CSV/Excel files, serialize to Parquet
           try {
             const serializationService = new DuckDBSerializationService();
             const parquetBuffer = await serializationService.serializeToParquet(
@@ -229,22 +293,20 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
             
             console.log(`[Upload] Serialized to Parquet: ${parquetBuffer.length} bytes`);
             
-            // 4. Upload Parquet to Supabase Storage (skip if PDF already uploaded)
-            if (!file.name.toLowerCase().endsWith('.pdf')) {
-              const parquetPath = `${workspaceId}/${pageId}/${processedData.tableName}.parquet`;
-              await storageService.uploadFile(
-                'duckdb-tables',
-                parquetPath,
-                parquetBuffer,
-                'application/octet-stream'
-              );
-              
-              parquetUrl = await storageService.getSignedUrl('duckdb-tables', parquetPath, 86400); // 24 hours
-              console.log(`[Upload] Parquet uploaded to storage: ${parquetPath}`);
-            }
+            // Upload Parquet to Supabase Storage
+            const parquetPath = `${workspaceId}/${pageId}/${processedData.tableName}.parquet`;
+            await storageService.uploadFile(
+              'duckdb-tables',
+              parquetPath,
+              parquetBuffer,
+              'application/octet-stream'
+            );
+            
+            parquetUrl = await storageService.getSignedUrl('duckdb-tables', parquetPath, 86400); // 24 hours
+            console.log(`[Upload] Parquet uploaded to storage: ${parquetPath}`);
           } catch (parquetError) {
-            console.warn(`[Upload] Could not serialize to Parquet (might be PDF with no tables):`, parquetError);
-            // Continue without parquet for PDFs - they might only have text content
+            console.warn(`[Upload] Could not serialize to Parquet:`, parquetError);
+            // Continue without parquet
           }
         }
         

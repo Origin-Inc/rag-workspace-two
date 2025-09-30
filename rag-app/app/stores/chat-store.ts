@@ -56,6 +56,13 @@ export interface DataFile {
   rowCount: number;
   sizeBytes: number;
   uploadedAt: Date;
+  // Sync status properties
+  syncStatus?: 'synced' | 'syncing' | 'failed' | 'local-only';
+  storageUrl?: string | null;
+  parquetUrl?: string | null;
+  source?: 'indexeddb' | 'cloud' | 'both';
+  cloudSyncFailed?: boolean;
+  restoreFailed?: boolean;
 }
 
 interface ChatState {
