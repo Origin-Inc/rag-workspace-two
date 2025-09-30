@@ -620,9 +620,23 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
         });
       } else if (file.data && Array.isArray(file.data)) {
         // If data is provided (from DuckDB), extract text content
+        // Check multiple possible column names for PDF text content
         const textContent = file.data
-          .map((row: any) => row.text || row.content || '')
+          .map((row: any) => {
+            // Try various column names that might contain the PDF text
+            return row.text || row.content || row.chunk_text || row.chunk || 
+                   row.text_content || row.page_content || row.page_text || '';
+          })
           .filter(Boolean);
+        
+        // Log what columns are actually available for debugging
+        if (file.data.length > 0) {
+          logger.trace('[prepareFileData] PDF data columns available', {
+            filename: file.filename,
+            columns: Object.keys(file.data[0]),
+            sampleRow: file.data[0]
+          });
+        }
         
         fileInfo.content = textContent.join('\n\n');
         fileInfo.data = file.data;

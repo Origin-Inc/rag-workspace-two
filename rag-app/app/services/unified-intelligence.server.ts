@@ -582,8 +582,38 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         return [];
       };
       
+      // Check if the response is generic or actually contains meaningful analysis
+      const isGenericResponse = result.summary && (
+        result.summary.includes('Analyzing') || 
+        result.summary.includes('file(s)') ||
+        result.summary.includes('Content analysis unavailable') ||
+        result.summary.length < 50
+      );
+      
+      // If response is generic, try to extract more specific content from the files
+      let finalSummary = result.summary;
+      if (isGenericResponse || !result.summary) {
+        logger.warn('[performSemanticAnalysis] Generic or missing response detected, extracting direct content', {
+          requestId,
+          originalSummary: result.summary,
+          isGeneric: isGenericResponse
+        });
+        
+        // Try to extract meaningful content directly from the files
+        const fallbackAnalysis = this.performContentBasedAnalysis(query, files, requestId);
+        if (fallbackAnalysis.summary && fallbackAnalysis.summary.length > 50 && 
+            !fallbackAnalysis.summary.includes('Unable to extract')) {
+          finalSummary = fallbackAnalysis.summary;
+          logger.trace('[performSemanticAnalysis] Using fallback content extraction', {
+            requestId,
+            newSummaryLength: finalSummary.length,
+            improvedResponse: true
+          });
+        }
+      }
+      
       const semanticResult = {
-        summary: result.summary || 'Content analysis unavailable',
+        summary: finalSummary || 'Content analysis unavailable',
         context: result.context || this.inferContext(files),
         keyThemes: ensureArray(result.keyThemes),
         entities: ensureArray(result.entities),
@@ -985,16 +1015,41 @@ Format as JSON with keys: summary (specific answer to the query), context (where
     });
     
     // Include actual content for PDFs if available
-    if (file.type === 'pdf' && file.content) {
+    if (file.type === 'pdf') {
       // Optimized for "lost in middle" phenomenon - prioritize relevant chunks
       let contentPreview = '';
-      if (typeof file.content === 'string') {
-        contentPreview = file.content.slice(0, 30000); // Reduced to avoid context degradation
-      } else if (Array.isArray(file.content)) {
-        // Take first 30 chunks and last 20 chunks to leverage U-shaped performance
-        const firstChunks = file.content.slice(0, 30).join('\n\n');
-        const lastChunks = file.content.slice(-20).join('\n\n');
-        contentPreview = `${firstChunks}\n\n[... middle content ...]\n\n${lastChunks}`;
+      
+      // First try to get content from various sources
+      if (file.content) {
+        if (typeof file.content === 'string') {
+          contentPreview = file.content.slice(0, 30000); // Reduced to avoid context degradation
+        } else if (Array.isArray(file.content)) {
+          // Filter out empty strings and join with proper spacing
+          const validChunks = file.content.filter(chunk => chunk && chunk.trim().length > 0);
+          
+          if (validChunks.length > 50) {
+            // Take first 30 chunks and last 20 chunks to leverage U-shaped performance
+            const firstChunks = validChunks.slice(0, 30).join('\n\n');
+            const lastChunks = validChunks.slice(-20).join('\n\n');
+            contentPreview = `${firstChunks}\n\n[... middle content ...]\n\n${lastChunks}`;
+          } else {
+            // If not too many chunks, include all
+            contentPreview = validChunks.join('\n\n');
+          }
+        }
+      } else if (file.extractedContent) {
+        // Fallback to extractedContent if content is not available
+        if (Array.isArray(file.extractedContent)) {
+          contentPreview = file.extractedContent.filter(Boolean).join('\n\n').slice(0, 30000);
+        } else {
+          contentPreview = String(file.extractedContent).slice(0, 30000);
+        }
+      } else if (file.data && Array.isArray(file.data)) {
+        // Last resort: extract from data rows
+        const textChunks = file.data
+          .map((row: any) => row.text || row.content || row.chunk_text || '')
+          .filter(Boolean);
+        contentPreview = textChunks.join('\n\n').slice(0, 30000);
       }
       
       logger.trace('[describeFile] Including PDF content', {

@@ -355,7 +355,9 @@ export function ChatSidebar({
                 console.log('[ChatSidebar] Fetching content for:', file.filename, 'from table:', file.tableName);
                 
                 // Query the actual content from DuckDB
-                const contentQuery = `SELECT * FROM ${file.tableName} LIMIT 500`;
+                // For PDFs, get all rows since they contain chunks of text
+                const rowLimit = isPDF ? 10000 : 500; // Higher limit for PDFs to get all text chunks
+                const contentQuery = `SELECT * FROM ${file.tableName} LIMIT ${rowLimit}`;
                 try {
                   const { getDuckDB } = await import('~/services/duckdb/duckdb-service.client');
                   const duckdb = getDuckDB();
@@ -372,10 +374,25 @@ export function ChatSidebar({
                   
                   if (isPDF) {
                     // For PDFs, extract text content
+                    // Check multiple possible column names for text content
+                    const textContent = data?.map((row: any) => {
+                      // Try different column names that might contain the text
+                      return row.text || row.content || row.chunk_text || row.chunk || 
+                             row.text_content || row.page_content || '';
+                    }).filter(Boolean) || [];
+                    
+                    console.log('[ChatSidebar] PDF text extraction:', {
+                      filename: file.filename,
+                      rowCount: data?.length || 0,
+                      extractedChunks: textContent.length,
+                      sampleText: textContent[0]?.slice(0, 100),
+                      columnNames: data?.[0] ? Object.keys(data[0]) : []
+                    });
+                    
                     return {
                       ...file,
                       data: data || [],
-                      content: data?.map((row: any) => row.text || row.content).filter(Boolean) || []
+                      content: textContent
                     };
                   } else {
                     // For CSV/Excel, include limited data to prevent payload size issues
