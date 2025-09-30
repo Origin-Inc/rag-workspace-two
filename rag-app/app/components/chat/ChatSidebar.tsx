@@ -1064,6 +1064,7 @@ Just upload a CSV or Excel file and ask me anything about it!`,
         // We'll add to local store after getting database ID (if saving to cloud)
         // or immediately if not saving to cloud
         let databaseId: string | undefined;
+        let cloudSyncStatus: 'pending' | 'success' | 'failed' = 'pending';  // Declare here for proper scope
         
         // Save file metadata to database if we have a workspace
         if (workspaceId && pageId) {
@@ -1088,7 +1089,7 @@ Just upload a CSV or Excel file and ask me anything about it!`,
             
             // Export table to cloud storage (enhancement, not required)
             let parquetUrl = null;
-            let cloudSyncStatus: 'pending' | 'success' | 'failed' = 'pending';
+            // cloudSyncStatus already declared in outer scope
             const supabaseUrl = window.ENV?.SUPABASE_URL;
             const supabaseAnonKey = window.ENV?.SUPABASE_ANON_KEY;
             
@@ -1238,7 +1239,11 @@ Just upload a CSV or Excel file and ask me anything about it!`,
             }
           } catch (error) {
             console.error('[ChatSidebar] Error saving file metadata:', error);
+            cloudSyncStatus = 'failed';  // Mark as failed on error
           }
+        } else {
+          // No workspace/pageId - files are local only
+          cloudSyncStatus = 'failed';
         }
         
         // Now add the file to local store with database ID if available
