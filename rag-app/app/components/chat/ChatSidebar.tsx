@@ -378,12 +378,21 @@ export function ChatSidebar({
                       content: data?.map((row: any) => row.text || row.content).filter(Boolean) || []
                     };
                   } else {
-                    // For CSV/Excel, include the actual data
+                    // For CSV/Excel, include limited data to prevent payload size issues
+                    // Only send first 100 rows for context to avoid timeout
+                    const limitedData = data?.slice(0, 100) || [];
+                    
+                    // Create a text summary for large datasets
+                    const summary = data && data.length > 100 ? 
+                      `[Dataset contains ${data.length} total rows, showing first 100 rows]` : '';
+                    
                     return {
                       ...file,
-                      data: data || [],
-                      sampleData: data?.slice(0, 100) || [],
-                      content: data || []
+                      data: limitedData,
+                      sampleData: limitedData,
+                      content: limitedData,
+                      totalRows: data?.length || 0,
+                      summary
                     };
                   }
                 } catch (error) {
@@ -397,8 +406,24 @@ export function ChatSidebar({
           
           console.log('[ChatSidebar] Enriched files prepared:', {
             count: enrichedFiles.length,
-            hasContent: enrichedFiles.some(f => f.content?.length > 0)
+            hasContent: enrichedFiles.some(f => f.content?.length > 0),
+            files: enrichedFiles.map(f => ({
+              filename: f.filename,
+              contentType: Array.isArray(f.content) ? 'array' : typeof f.content,
+              contentLength: Array.isArray(f.content) ? f.content.length : 
+                           typeof f.content === 'string' ? f.content.length : 0,
+              dataLength: f.data?.length || 0,
+              hasSchema: !!f.schema,
+              schemaColumns: f.schema?.length || 0
+            }))
           });
+          
+          // Check payload size and warn if too large
+          const payloadSize = JSON.stringify(enrichedFiles).length;
+          if (payloadSize > 3 * 1024 * 1024) { // 3MB
+            console.warn('[ChatSidebar] WARNING: Large payload size:', (payloadSize / 1024 / 1024).toFixed(2), 'MB');
+            console.warn('[ChatSidebar] Consider reducing data size to prevent timeouts');
+          }
           
           // Call the unified intelligence endpoint
           const response = await fetch('/api/chat-query', {
