@@ -255,6 +255,10 @@ export class UnifiedIntelligenceService {
       }))
     });
     
+    // Check if this is a follow-up query by analyzing conversation history
+    const isFollowUpQuery = conversationHistory && conversationHistory.length > 0;
+    const lastUserQuery = conversationHistory?.slice(-2).find(msg => msg.role === 'user')?.content;
+    
     // Build context from files
     const fileDescriptions = files.map(f => this.describeFile(f)).join('\n');
     
@@ -271,7 +275,9 @@ export class UnifiedIntelligenceService {
       sampleContent: fileDescriptions.slice(0, 500),
       isContentEmpty: fileDescriptions.trim().length === 0,
       containsColumns: fileDescriptions.includes('Columns:'),
-      containsRows: fileDescriptions.includes('Row 1:')
+      containsRows: fileDescriptions.includes('Row 1:'),
+      isFollowUpQuery,
+      lastUserQuery: lastUserQuery?.slice(0, 100)
     });
     
     // CRITICAL DEBUG: Log what's actually being sent to OpenAI
@@ -295,8 +301,36 @@ export class UnifiedIntelligenceService {
       }))
     });
     
-    // CRITICAL FIX: Restructured prompt to avoid "lost in middle" phenomenon
-    const prompt = `
+    // CRITICAL FIX: Enhanced prompt with conversation awareness and specific extraction
+    let prompt = '';
+    
+    if (isFollowUpQuery && lastUserQuery) {
+      // This is a follow-up query - focus on building upon previous context
+      prompt = `
+You are continuing a conversation about documents. 
+
+PREVIOUS QUERY: "${lastUserQuery}"
+CURRENT QUERY: "${query}"
+
+Your task is to provide specific information that builds upon or adds detail to the previous discussion.
+
+DOCUMENT CONTENT:
+${fileDescriptions}
+
+END OF DOCUMENT CONTENT
+
+For the current query "${query}", please:
+- If asking for "more detail" or "more about", extract additional specific information beyond what was previously discussed
+- If asking about a specific topic/term, focus only on that topic within the document
+- Quote directly from the document when possible
+- Reference specific sections, pages, or parts of the document
+- If the information isn't in the document, clearly state that
+
+Format as JSON with keys: summary (specific answer building on previous context), context (where in document this was found), keyThemes (only themes directly related to current query), entities (specific names/terms from document), relationships (how elements connect)
+`;
+    } else {
+      // This is an initial query - provide comprehensive analysis
+      prompt = `
 You are analyzing a document. Your task is to find and extract SPECIFIC information about: "${query}"
 
 IMPORTANT: Only use the document content below. Do not use any general knowledge.
@@ -316,6 +350,7 @@ Rules:
 
 Format as JSON with keys: summary (specific answer to the query), context (where in document this was found), keyThemes (only themes directly related to the query), entities (specific names/terms from document), relationships (how elements connect)
 `;
+    }
 
     // CRITICAL DEBUG: Log the exact prompt being sent to OpenAI
     logger.trace('[performSemanticAnalysis] EXACT PROMPT TO OPENAI:', {
@@ -401,13 +436,23 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         { role: 'system', content: 'You are a document analysis system. CRITICAL: Only answer based on the provided document content. Never use general knowledge. If information is not in the document, explicitly state that. Always quote or reference specific parts of the document. Consider the conversation history for context when relevant.' }
       ];
       
-      // Add conversation history if available (limit to last 5 exchanges to avoid token limits)
+      // Add conversation history if available (limit to last 3 exchanges to avoid token limits)
       if (conversationHistory && conversationHistory.length > 0) {
-        const recentHistory = conversationHistory.slice(-10); // Last 5 exchanges (user + assistant)
-        messages.push(...recentHistory.map(msg => ({
-          role: msg.role === 'user' ? 'user' : 'assistant',
-          content: msg.content.substring(0, 500) // Truncate long messages
-        })));
+        const recentHistory = conversationHistory.slice(-6); // Last 3 exchanges (user + assistant)
+        
+        // For follow-up queries, include more context in system message
+        if (recentHistory.length > 0) {
+          const lastExchange = recentHistory.slice(-2);
+          const previousContext = lastExchange.map(msg => 
+            `${msg.role.toUpperCase()}: ${msg.content.substring(0, 300)}`
+          ).join('\n');
+          
+          // Update system message to include previous context
+          messages[0].content += `\n\nPREVIOUS CONVERSATION CONTEXT:\n${previousContext}\n\nUse this context to provide more specific, targeted answers that build upon what was previously discussed.`;
+        }
+        
+        // Don't include full conversation in messages to save tokens
+        // The context is now in the system message
       }
       
       // Add the current user query with document content
@@ -587,36 +632,59 @@ Format as JSON with keys: summary (specific answer to the query), context (where
         result.summary.includes('Analyzing') || 
         result.summary.includes('file(s)') ||
         result.summary.includes('Content analysis unavailable') ||
-        result.summary.length < 50
+        result.summary.length < 50 ||
+        result.summary.toLowerCase().includes('this document contains') ||
+        result.summary.toLowerCase().includes('this document explores')
       );
       
-      // If response is generic, try to extract more specific content from the files
+      // Enhanced fallback logic for better content extraction
       let finalSummary = result.summary;
+      let enhancedThemes = result.keyThemes || [];
+      let enhancedEntities = result.entities || [];
+      
       if (isGenericResponse || !result.summary) {
-        logger.warn('[performSemanticAnalysis] Generic or missing response detected, extracting direct content', {
+        logger.warn('[performSemanticAnalysis] Generic or missing response detected, using enhanced content extraction', {
           requestId,
           originalSummary: result.summary,
-          isGeneric: isGenericResponse
+          isGeneric: isGenericResponse,
+          isFollowUp: isFollowUpQuery
         });
         
-        // Try to extract meaningful content directly from the files
-        const fallbackAnalysis = this.performContentBasedAnalysis(query, files, requestId);
-        if (fallbackAnalysis.summary && fallbackAnalysis.summary.length > 50 && 
-            !fallbackAnalysis.summary.includes('Unable to extract')) {
-          finalSummary = fallbackAnalysis.summary;
-          logger.trace('[performSemanticAnalysis] Using fallback content extraction', {
-            requestId,
-            newSummaryLength: finalSummary.length,
-            improvedResponse: true
-          });
+        // For follow-up queries, try to extract content more specifically
+        if (isFollowUpQuery) {
+          const specificAnalysis = this.performSpecificContentExtraction(query, files, lastUserQuery, requestId);
+          if (specificAnalysis.summary && specificAnalysis.summary.length > 50) {
+            finalSummary = specificAnalysis.summary;
+            enhancedThemes = specificAnalysis.keyThemes;
+            enhancedEntities = specificAnalysis.entities;
+            logger.trace('[performSemanticAnalysis] Using specific follow-up content extraction', {
+              requestId,
+              newSummaryLength: finalSummary.length,
+              themesCount: enhancedThemes.length
+            });
+          }
+        } else {
+          // Try to extract meaningful content directly from the files
+          const fallbackAnalysis = this.performContentBasedAnalysis(query, files, requestId);
+          if (fallbackAnalysis.summary && fallbackAnalysis.summary.length > 50 && 
+              !fallbackAnalysis.summary.includes('Unable to extract')) {
+            finalSummary = fallbackAnalysis.summary;
+            enhancedThemes = fallbackAnalysis.keyThemes;
+            enhancedEntities = fallbackAnalysis.entities;
+            logger.trace('[performSemanticAnalysis] Using enhanced fallback content extraction', {
+              requestId,
+              newSummaryLength: finalSummary.length,
+              improvedResponse: true
+            });
+          }
         }
       }
       
       const semanticResult = {
         summary: finalSummary || 'Content analysis unavailable',
         context: result.context || this.inferContext(files),
-        keyThemes: ensureArray(result.keyThemes),
-        entities: ensureArray(result.entities),
+        keyThemes: ensureArray(enhancedThemes.length > 0 ? enhancedThemes : result.keyThemes),
+        entities: ensureArray(enhancedEntities.length > 0 ? enhancedEntities : result.entities),
         relationships: ensureArray(result.relationships)
       };
       
@@ -1123,13 +1191,36 @@ Format as JSON with keys: summary (specific answer to the query), context (where
             // Array of objects - format as a readable table-like structure
             const headers = Object.keys(file.content[0]);
             dataContent = `Columns: ${headers.join(', ')}\n`;
-            // Include first 100 rows as readable data
-            const sampleRows = file.content.slice(0, 100);
+            
+            // For follow-up queries, include more data to provide better context
+            const sampleRows = file.content.slice(0, 200); // Increased from 100 to 200
             sampleRows.forEach((row, idx) => {
               dataContent += `Row ${idx + 1}: ${JSON.stringify(row)}\n`;
             });
-            if (file.content.length > 100) {
-              dataContent += `\n... and ${file.content.length - 100} more rows\n`;
+            
+            // Add summary statistics for numeric columns to help with follow-up questions
+            headers.forEach(header => {
+              const values = sampleRows.map(row => row[header]).filter(v => v !== null && v !== undefined);
+              const numericValues = values.filter(v => !isNaN(Number(v))).map(Number);
+              
+              if (numericValues.length > 0) {
+                const sum = numericValues.reduce((a, b) => a + b, 0);
+                const avg = sum / numericValues.length;
+                const min = Math.min(...numericValues);
+                const max = Math.max(...numericValues);
+                dataContent += `${header} stats: avg=${avg.toFixed(2)}, min=${min}, max=${max}, count=${numericValues.length}\n`;
+              } else {
+                const uniqueValues = [...new Set(values)];
+                if (uniqueValues.length <= 10) {
+                  dataContent += `${header} values: ${uniqueValues.slice(0, 10).join(', ')}\n`;
+                } else {
+                  dataContent += `${header}: ${uniqueValues.length} unique values\n`;
+                }
+              }
+            });
+            
+            if (file.content.length > 200) {
+              dataContent += `\n... and ${file.content.length - 200} more rows\n`;
             }
           } else {
             // Array of strings
@@ -1271,6 +1362,257 @@ Format as JSON with keys: summary (specific answer to the query), context (where
       entities: [],
       relationships: []
     };
+  }
+
+  /**
+   * Perform specific content extraction for follow-up queries
+   * Focuses on extracting specific information that builds upon previous context
+   */
+  private performSpecificContentExtraction(
+    query: string,
+    files: FileContext[],
+    previousQuery?: string,
+    requestId?: string
+  ): SemanticAnalysis {
+    logger.trace('[performSpecificContentExtraction] Extracting specific content for follow-up', {
+      requestId,
+      query,
+      previousQuery,
+      filesCount: files.length
+    });
+
+    let targetContent = '';
+    const extractedThemes = new Set<string>();
+    const extractedEntities = new Set<string>();
+    
+    // Extract keywords from current and previous queries
+    const currentKeywords = this.extractQueryKeywords(query);
+    const previousKeywords = previousQuery ? this.extractQueryKeywords(previousQuery) : [];
+    const allKeywords = [...new Set([...currentKeywords, ...previousKeywords])];
+    
+    logger.trace('[performSpecificContentExtraction] Keywords extracted', {
+      currentKeywords,
+      previousKeywords,
+      allKeywords
+    });
+    
+    for (const file of files) {
+      if (file.type === 'pdf') {
+        let pdfContent = '';
+        
+        // Get full content
+        if (file.content) {
+          pdfContent = Array.isArray(file.content) 
+            ? file.content.filter(Boolean).join(' ')
+            : String(file.content);
+        } else if (file.extractedContent) {
+          pdfContent = Array.isArray(file.extractedContent)
+            ? file.extractedContent.filter(Boolean).join(' ')
+            : String(file.extractedContent);
+        } else if (file.data && Array.isArray(file.data)) {
+          pdfContent = file.data
+            .map((row: any) => row.text || row.content || '')
+            .filter(Boolean)
+            .join(' ');
+        }
+        
+        if (pdfContent.length > 0) {
+          // Find sections that mention keywords from current or previous queries
+          const relevantSections = this.extractRelevantSections(pdfContent, allKeywords, query);
+          
+          if (relevantSections.length > 0) {
+            targetContent += `\n\n[Relevant Content from ${file.filename}]\n${relevantSections.join('\n\n')}`;
+            
+            // Extract themes specifically related to the query
+            const contentLower = relevantSections.join(' ').toLowerCase();
+            allKeywords.forEach(keyword => {
+              if (contentLower.includes(keyword.toLowerCase())) {
+                extractedThemes.add(`${keyword.charAt(0).toUpperCase() + keyword.slice(1)} Discussion`);
+              }
+            });
+            
+            // Extract specific entities mentioned in relevant sections
+            this.extractEntitiesFromContent(relevantSections.join(' ')).forEach(entity => {
+              extractedEntities.add(entity);
+            });
+          }
+        }
+      } else if (file.type === 'csv' || file.type === 'excel') {
+        // For CSV/Excel, look for columns or data related to keywords
+        if (file.data && Array.isArray(file.data) && file.data.length > 0) {
+          const headers = Object.keys(file.data[0]);
+          const relevantColumns = headers.filter(header => 
+            allKeywords.some(keyword => 
+              header.toLowerCase().includes(keyword.toLowerCase())
+            )
+          );
+          
+          if (relevantColumns.length > 0) {
+            targetContent += `\n\n[Relevant Data from ${file.filename}]\n`;
+            targetContent += `Related columns: ${relevantColumns.join(', ')}\n`;
+            
+            // Show sample data for relevant columns
+            const sampleRows = file.data.slice(0, 5);
+            sampleRows.forEach((row, idx) => {
+              const relevantData: any = {};
+              relevantColumns.forEach(col => {
+                relevantData[col] = row[col];
+              });
+              targetContent += `Row ${idx + 1}: ${JSON.stringify(relevantData)}\n`;
+            });
+            
+            // Add themes based on relevant columns
+            relevantColumns.forEach(col => {
+              extractedThemes.add(`${col} Analysis`);
+            });
+          }
+        }
+      }
+    }
+    
+    // Generate focused summary
+    let summary = '';
+    if (targetContent.length > 100) {
+      summary = this.generateFocusedSummary(targetContent, query, previousQuery);
+    } else {
+      summary = `No specific information found about "${query}" in the provided documents. The content may not contain details about this particular topic.`;
+    }
+    
+    const result = {
+      summary: summary.slice(0, 1000),
+      context: targetContent.length > 100 
+        ? `Targeted content analysis focused on: ${allKeywords.join(', ')}` 
+        : 'Limited relevant content found',
+      keyThemes: Array.from(extractedThemes).slice(0, 10),
+      entities: Array.from(extractedEntities).slice(0, 10),
+      relationships: this.extractContentRelationships(targetContent)
+    };
+    
+    logger.trace('[performSpecificContentExtraction] Specific extraction complete', {
+      requestId,
+      summaryLength: result.summary.length,
+      themesCount: result.keyThemes.length,
+      entitiesCount: result.entities.length,
+      targetContentLength: targetContent.length,
+      foundRelevantContent: targetContent.length > 100
+    });
+    
+    return result;
+  }
+
+  /**
+   * Extract keywords from a query for targeted content searching
+   */
+  private extractQueryKeywords(query: string): string[] {
+    const words = query.toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(word => word.length > 3)
+      .filter(word => !['about', 'what', 'how', 'why', 'when', 'where', 'which', 'more', 'tell', 'from', 'this', 'that', 'with', 'without', 'and', 'or', 'but', 'the', 'a', 'an', 'is', 'are', 'was', 'were', 'will', 'would', 'could', 'should', 'can', 'may', 'might'].includes(word));
+    
+    return [...new Set(words)];
+  }
+
+  /**
+   * Extract sections of content that are relevant to the given keywords
+   */
+  private extractRelevantSections(content: string, keywords: string[], query: string): string[] {
+    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
+    const relevantSections: string[] = [];
+    const sectionSize = 3; // Number of sentences per section
+    
+    for (let i = 0; i < sentences.length; i += sectionSize) {
+      const section = sentences.slice(i, i + sectionSize).join('. ').trim();
+      const sectionLower = section.toLowerCase();
+      
+      // Check if section contains any keywords or query terms
+      const hasKeyword = keywords.some(keyword => 
+        sectionLower.includes(keyword.toLowerCase())
+      );
+      
+      const hasQueryTerm = query.toLowerCase().split(/\s+/).some(term => 
+        term.length > 3 && sectionLower.includes(term)
+      );
+      
+      if (hasKeyword || hasQueryTerm) {
+        relevantSections.push(section);
+      }
+    }
+    
+    // If we found too many sections, prioritize those with multiple keyword matches
+    if (relevantSections.length > 10) {
+      const scoredSections = relevantSections.map(section => {
+        const sectionLower = section.toLowerCase();
+        const score = keywords.reduce((acc, keyword) => {
+          return acc + (sectionLower.includes(keyword.toLowerCase()) ? 1 : 0);
+        }, 0);
+        return { section, score };
+      });
+      
+      return scoredSections
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10)
+        .map(item => item.section);
+    }
+    
+    return relevantSections.slice(0, 10);
+  }
+
+  /**
+   * Extract entities (names, places, concepts) from content
+   */
+  private extractEntitiesFromContent(content: string): string[] {
+    const entities: string[] = [];
+    
+    // Look for capitalized words that might be entities
+    const capitalizedPattern = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g;
+    const matches = content.match(capitalizedPattern);
+    
+    if (matches) {
+      // Filter out common words and keep likely entities
+      const likelyEntities = matches.filter(match => 
+        !['The', 'This', 'That', 'These', 'Those', 'A', 'An', 'And', 'Or', 'But', 'So', 'For', 'To', 'Of', 'In', 'On', 'At', 'By', 'With', 'From'].includes(match)
+      );
+      
+      entities.push(...[...new Set(likelyEntities)].slice(0, 10));
+    }
+    
+    return entities;
+  }
+
+  /**
+   * Generate a focused summary for specific content extraction
+   */
+  private generateFocusedSummary(content: string, currentQuery: string, previousQuery?: string): string {
+    // Remove section headers and clean up content
+    const cleanContent = content
+      .replace(/\[Relevant Content from .*?\]/g, '')
+      .replace(/\[Relevant Data from .*?\]/g, '')
+      .replace(/Row \d+:/g, '')
+      .trim();
+    
+    if (cleanContent.length < 50) {
+      return `Limited specific information found about "${currentQuery}".`;
+    }
+    
+    // Extract the most relevant sentences
+    const sentences = cleanContent.split(/[.!?]+/).filter(s => s.trim().length > 20);
+    const queryWords = currentQuery.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    
+    const relevantSentences = sentences
+      .filter(sentence => {
+        const sentenceLower = sentence.toLowerCase();
+        return queryWords.some(word => sentenceLower.includes(word));
+      })
+      .slice(0, 3);
+    
+    if (relevantSentences.length > 0) {
+      const summary = relevantSentences.join('. ').trim();
+      return summary.length > 500 ? summary.substring(0, 500) + '...' : summary;
+    }
+    
+    // Fallback to first portion of content
+    return cleanContent.length > 300 ? cleanContent.substring(0, 300) + '...' : cleanContent;
   }
 
   /**

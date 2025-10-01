@@ -170,22 +170,36 @@ export class ResponseComposer {
       // Check if summary already starts with "This", "The", or other complete phrases
       const summaryLower = semantic.summary?.toLowerCase() || '';
       
-      // Clean up duplicate "This The document" issue
+      // Clean up duplicate "This The document" issue and other malformed starts
       let cleanedSummary = semantic.summary;
       if (cleanedSummary?.startsWith('This The ')) {
         cleanedSummary = cleanedSummary.replace('This The ', 'The ');
+      }
+      if (cleanedSummary?.startsWith('The content analysis reveals: ')) {
+        cleanedSummary = cleanedSummary.replace('The content analysis reveals: ', '');
+      }
+      
+      // Check if this is targeted content (from follow-up queries)
+      const isTargetedContent = semantic.context?.includes('Targeted content analysis') || 
+                               semantic.context?.includes('focused on:');
+      
+      if (isTargetedContent) {
+        // For targeted content, be more direct about what was found
+        return cleanedSummary || 'Specific information extracted from the document.';
       }
       
       if (summaryLower.startsWith('this ') || 
           summaryLower.startsWith('the ') ||
           summaryLower.startsWith('based on') ||
           summaryLower.startsWith('document') ||
-          summaryLower.startsWith('content')) {
+          summaryLower.startsWith('content') ||
+          summaryLower.startsWith('no specific information') ||
+          summaryLower.startsWith('limited specific information')) {
         // Summary already has a proper start, use cleaned version
         return cleanedSummary;
       } else {
         // Add context prefix only if needed
-        return `The ${semantic.context || 'document'}: ${cleanedSummary}`;
+        return `From the ${semantic.context || 'document'}: ${cleanedSummary}`;
       }
     }
     
