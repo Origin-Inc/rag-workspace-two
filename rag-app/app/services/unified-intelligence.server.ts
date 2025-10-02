@@ -1504,58 +1504,104 @@ Format as JSON with keys: summary (specific answer to the query), context (where
    * Extract keywords from a query for targeted content searching
    */
   private extractQueryKeywords(query: string): string[] {
+    const stopWords = ['about', 'what', 'how', 'why', 'when', 'where', 'which', 'more', 'tell', 'from', 'this', 'that', 'with', 'without', 'and', 'or', 'but', 'the', 'a', 'an', 'is', 'are', 'was', 'were', 'will', 'would', 'could', 'should', 'can', 'may', 'might', 'does', 'say', 'file'];
+    
+    // First extract proper nouns (capitalized words) which are often important
+    const properNouns = query.match(/\b[A-Z][a-z]+\b/g) || [];
+    
+    // Then extract all other meaningful words
     const words = query.toLowerCase()
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
-      .filter(word => word.length > 3)
-      .filter(word => !['about', 'what', 'how', 'why', 'when', 'where', 'which', 'more', 'tell', 'from', 'this', 'that', 'with', 'without', 'and', 'or', 'but', 'the', 'a', 'an', 'is', 'are', 'was', 'were', 'will', 'would', 'could', 'should', 'can', 'may', 'might'].includes(word));
+      .filter(word => word.length > 2) // Allow shorter words like "AI"
+      .filter(word => !stopWords.includes(word));
     
-    return [...new Set(words)];
+    // Combine and deduplicate, keeping proper nouns in lowercase for matching
+    const allWords = [...properNouns.map(w => w.toLowerCase()), ...words];
+    return [...new Set(allWords)];
   }
 
   /**
    * Extract sections of content that are relevant to the given keywords
    */
   private extractRelevantSections(content: string, keywords: string[], query: string): string[] {
-    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
+    // First try paragraph-level extraction for better context
+    const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 50);
     const relevantSections: string[] = [];
-    const sectionSize = 3; // Number of sentences per section
     
-    for (let i = 0; i < sentences.length; i += sectionSize) {
-      const section = sentences.slice(i, i + sectionSize).join('. ').trim();
-      const sectionLower = section.toLowerCase();
+    // Extract all meaningful terms from the query
+    const queryTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 2);
+    const allSearchTerms = [...new Set([...keywords.map(k => k.toLowerCase()), ...queryTerms])];
+    
+    // Search through paragraphs first
+    if (paragraphs.length > 0) {
+      for (const paragraph of paragraphs) {
+        const paragraphLower = paragraph.toLowerCase();
+        
+        // Check how many search terms appear in this paragraph
+        const matchCount = allSearchTerms.reduce((count, term) => {
+          const regex = new RegExp(`\\b${term}\\b`, 'gi');
+          const matches = (paragraphLower.match(regex) || []).length;
+          return count + matches;
+        }, 0);
+        
+        if (matchCount > 0) {
+          relevantSections.push(paragraph);
+        }
+      }
+    }
+    
+    // If no paragraphs found or too few results, try sentence-level search
+    if (relevantSections.length < 3) {
+      const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
+      const contextWindow = 3; // Include surrounding sentences
       
-      // Check if section contains any keywords or query terms
-      const hasKeyword = keywords.some(keyword => 
-        sectionLower.includes(keyword.toLowerCase())
-      );
-      
-      const hasQueryTerm = query.toLowerCase().split(/\s+/).some(term => 
-        term.length > 3 && sectionLower.includes(term)
-      );
-      
-      if (hasKeyword || hasQueryTerm) {
-        relevantSections.push(section);
+      for (let i = 0; i < sentences.length; i++) {
+        const sentence = sentences[i];
+        const sentenceLower = sentence.toLowerCase();
+        
+        // Check if sentence contains any search terms
+        const hasRelevantTerm = allSearchTerms.some(term => 
+          sentenceLower.includes(term)
+        );
+        
+        if (hasRelevantTerm) {
+          // Get surrounding context
+          const startIdx = Math.max(0, i - contextWindow);
+          const endIdx = Math.min(sentences.length, i + contextWindow + 1);
+          const section = sentences.slice(startIdx, endIdx).join('. ').trim();
+          
+          // Avoid duplicates
+          if (!relevantSections.some(existing => existing.includes(sentence.substring(0, 30)))) {
+            relevantSections.push(section);
+          }
+          
+          // Skip ahead to avoid overlap
+          i = endIdx - 1;
+        }
       }
     }
     
     // If we found too many sections, prioritize those with multiple keyword matches
-    if (relevantSections.length > 10) {
+    if (relevantSections.length > 5) {
       const scoredSections = relevantSections.map(section => {
         const sectionLower = section.toLowerCase();
-        const score = keywords.reduce((acc, keyword) => {
-          return acc + (sectionLower.includes(keyword.toLowerCase()) ? 1 : 0);
+        // Score based on all search terms
+        const score = allSearchTerms.reduce((acc, term) => {
+          const regex = new RegExp(`\\b${term}\\b`, 'gi');
+          const matches = (sectionLower.match(regex) || []).length;
+          return acc + matches;
         }, 0);
         return { section, score };
       });
       
       return scoredSections
         .sort((a, b) => b.score - a.score)
-        .slice(0, 10)
+        .slice(0, 5) // Return top 5 most relevant sections
         .map(item => item.section);
     }
     
-    return relevantSections.slice(0, 10);
+    return relevantSections.slice(0, 5);
   }
 
   /**
@@ -1589,30 +1635,72 @@ Format as JSON with keys: summary (specific answer to the query), context (where
       .replace(/\[Relevant Content from .*?\]/g, '')
       .replace(/\[Relevant Data from .*?\]/g, '')
       .replace(/Row \d+:/g, '')
+      .replace(/\n+/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
     
     if (cleanContent.length < 50) {
       return `Limited specific information found about "${currentQuery}".`;
     }
     
-    // Extract the most relevant sentences
-    const sentences = cleanContent.split(/[.!?]+/).filter(s => s.trim().length > 20);
-    const queryWords = currentQuery.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    // Extract key terms from query (including proper nouns like "Coda")
+    const queryTerms = new Set([
+      ...currentQuery.match(/\b[A-Z][a-z]+\b/g) || [], // Proper nouns
+      ...currentQuery.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !['what', 'does', 'the', 'say', 'about'].includes(w))
+    ].map(t => t.toLowerCase()));
     
-    const relevantSentences = sentences
-      .filter(sentence => {
-        const sentenceLower = sentence.toLowerCase();
-        return queryWords.some(word => sentenceLower.includes(word));
-      })
-      .slice(0, 3);
-    
-    if (relevantSentences.length > 0) {
-      const summary = relevantSentences.join('. ').trim();
-      return summary.length > 500 ? summary.substring(0, 500) + '...' : summary;
+    // For "what does X say about Y" queries, focus on Y
+    const aboutMatch = currentQuery.match(/about\s+(\w+)/i);
+    if (aboutMatch) {
+      queryTerms.add(aboutMatch[1].toLowerCase());
     }
     
-    // Fallback to first portion of content
-    return cleanContent.length > 300 ? cleanContent.substring(0, 300) + '...' : cleanContent;
+    // Split content into meaningful chunks
+    const chunks = cleanContent.split(/(?<=[.!?])\s+/);
+    const relevantChunks: { text: string; score: number }[] = [];
+    
+    for (const chunk of chunks) {
+      const chunkLower = chunk.toLowerCase();
+      let score = 0;
+      
+      // Score based on query term occurrences
+      for (const term of queryTerms) {
+        const regex = new RegExp(`\\b${term}\\b`, 'gi');
+        const matches = (chunkLower.match(regex) || []).length;
+        score += matches * 2; // Weight term matches heavily
+      }
+      
+      // Add context scoring for surrounding mentions
+      if (score > 0 && chunk.length > 30) {
+        relevantChunks.push({ text: chunk, score });
+      }
+    }
+    
+    // Sort by relevance and combine top chunks
+    relevantChunks.sort((a, b) => b.score - a.score);
+    const topChunks = relevantChunks.slice(0, 5);
+    
+    if (topChunks.length > 0) {
+      // Create a coherent summary from the top chunks
+      const summary = topChunks
+        .map(c => c.text)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      // Format the response based on query type
+      if (currentQuery.toLowerCase().includes('what') && currentQuery.toLowerCase().includes('about')) {
+        // For "what does X say about Y" questions
+        const prefix = `Based on the document: `;
+        return prefix + (summary.length > 800 ? summary.substring(0, 800) + '...' : summary);
+      } else {
+        // For other queries
+        return summary.length > 800 ? summary.substring(0, 800) + '...' : summary;
+      }
+    }
+    
+    // Fallback to first portion of relevant content
+    return cleanContent.length > 500 ? cleanContent.substring(0, 500) + '...' : cleanContent;
   }
 
   /**
