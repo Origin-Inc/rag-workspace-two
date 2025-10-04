@@ -1,1 +1,0 @@
-postgresql://postgres:testpassword123@db.test.supabase.co:5432/postgres
