@@ -130,3 +130,5 @@ Once auth works, complete end-to-end testing of file persistence.
 ---
 
 **Bottom Line**: We've made massive progress. The core system works. Just need to verify the connection pool fix and potentially one more RLS adjustment.
+
+postgresql://postgres.jhghvjvvhvhjvj:iugugihohbukjy@aws-1-us-west-1.pooler.supabase.com:8765/postgres
