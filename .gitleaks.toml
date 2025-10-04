@@ -1,0 +1,95 @@
+# GitLeaks Configuration File
+# This file configures what secrets to look for and what to ignore
+
+title = "GitLeaks Configuration"
+
+# Extend the base configuration (includes common patterns)
+[extend]
+useDefault = true
+
+# Additional custom rules for your specific needs
+[[rules]]
+id = "postgresql-connection-string"
+description = "PostgreSQL Connection String with Password"
+regex = '''postgresql://[^:]+:[^@]+@[^/]+'''
+tags = ["database", "postgresql"]
+
+[[rules]]
+id = "supabase-project-url"
+description = "Supabase Project URL with potential secrets"
+regex = '''https://[a-z]{20}\.supabase\.(co|io)'''
+tags = ["supabase", "database"]
+
+[[rules]]
+id = "supabase-service-role"
+description = "Supabase Service Role Key"
+regex = '''sbp_[a-f0-9]{40}'''
+tags = ["supabase", "api-key"]
+
+[[rules]]
+id = "redis-connection-string"
+description = "Redis Connection String with Password"
+regex = '''redis://[^:]*:[^@]+@'''
+tags = ["database", "redis"]
+
+# Custom rule for the specific leaked pattern
+[[rules]]
+id = "known-leaked-pattern"
+description = "Known leaked Supabase project ID"
+regex = '''afqibcfcornmwppxjbyk'''
+tags = ["known-leak"]
+
+# Allowlist - patterns to ignore (false positives)
+[allowlist]
+description = "Global allowlist"
+
+# Ignore example/template patterns
+paths = [
+  '''.env.example''',
+  '''.env.local.example''',
+  '''.*test.*''',
+  '''.*spec.*''',
+]
+
+# Ignore files that are allowed to have these patterns
+files = [
+  '''(.*?)(jpg|jpeg|png|gif|svg|pdf|zip|tar|gz)$''',
+  '''(.*?)(lock|sum)$''',
+]
+
+# Ignore specific commits (if needed)
+commits = []
+
+# Allow placeholder patterns
+regexes = [
+  '''postgresql://\[.*?\]:\[.*?\]@\[.*?\]''',  # [USERNAME]:[PASSWORD] format
+  '''postgresql://[^:]+:password@localhost''',  # Generic localhost with "password"
+  '''postgresql://postgres:postgres@localhost''',  # Common dev setup
+  '''postgresql://[^:]+:YOUR_[^@]+@''',  # YOUR_PASSWORD patterns
+  '''postgresql://raguser:SecurePassword123@''',  # Example password from docs
+  '''YOUR_.*_HERE''',  # Placeholder patterns
+  '''<.*?>''',  # Angle bracket placeholders
+  '''\$\{.*?\}''',  # Environment variable references
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6.*''',  # Example Supabase keys
+]
+
+# Stopwords - if these appear in the line, ignore it
+stopwords = [
+  "example",
+  "EXAMPLE",
+  "sample",
+  "SAMPLE",
+  "test",
+  "TEST",
+  "demo",
+  "DEMO",
+  "placeholder",
+  "PLACEHOLDER",
+  "REDACTED",
+  "[PROJECT_ID]",
+  "[PASSWORD]",
+  "[USERNAME]",
+  "[HOST]",
+  "[PORT]",
+  "[DATABASE]",
+]

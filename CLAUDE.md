@@ -78,7 +78,7 @@ mcp__supabase__apply_migration({
 #### 1. NEVER Write Real Values in Documentation
 ```markdown
 ❌ WRONG (What Claude keeps doing):
-DATABASE_URL=postgresql://postgres.PROJECT-REDACTED:PASSWORD-REDACTED@aws-1-us-east-2...
+DATABASE_URL=postgresql://postgres.afqibcfcornmwppxjbyk:bonqo4rafgymzizvUp@aws-1-us-east-2...
 
 ✅ CORRECT (What Claude MUST do):
 DATABASE_URL=postgresql://[PROJECT_ID]:[PASSWORD]@[HOST]:[PORT]/postgres
@@ -127,7 +127,7 @@ Claude MUST mentally check:
 ```bash
 # Claude should suggest running these before commits:
 git diff --staged | grep -E "postgresql://postgres\.|sk-|sbp_|redis://default:"
-git diff --staged | grep -E "PROJECT-REDACTED|PASSWORD-REDACTED"  # Known leaked values
+git diff --staged | grep -E "afqibcfcornmwppxjbyk|bonqo4rafgymzizvUp"  # Known leaked values
 ```
 
 ### Why This Keeps Happening:

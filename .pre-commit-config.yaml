@@ -1,0 +1,24 @@
+# Pre-commit hooks configuration
+# Install: pip install pre-commit
+# Setup: pre-commit install
+# Manual run: pre-commit run --all-files
+
+repos:
+  # GitLeaks - Secret Detection
+  - repo: https://github.com/zricethezav/gitleaks
+    rev: v8.18.1
+    hooks:
+      - id: gitleaks
+        name: Detect secrets with GitLeaks
+        entry: gitleaks protect --verbose --staged
+        pass_filenames: false
+        
+  # Alternative: Use local gitleaks if installed
+  # - repo: local
+  #   hooks:
+  #     - id: gitleaks
+  #       name: GitLeaks Secret Scanner
+  #       entry: gitleaks protect --verbose --staged --config=.gitleaks.toml
+  #       language: system
+  #       pass_filenames: false
+  #       always_run: true
