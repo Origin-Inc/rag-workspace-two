@@ -133,6 +133,3 @@ Once auth works, complete end-to-end testing of file persistence.
 
 <!-- WARNING: NEVER put real credentials in report files like this! 
      This is exactly how the original leak happened. Always use placeholders. -->
-
-## Testing GitLeaks Detection
-postgresql://postgres.fakeproject789:TestPassword123!@db.testproject.supabase.co:5432/postgres
