@@ -64,21 +64,80 @@ mcp__supabase__apply_migration({
 
 ## 🔴 SECURITY - NEVER COMMIT SECRETS
 
-### NEVER commit sensitive credentials:
-- **❌ NEVER** real API keys in any committed file
-- **❌ NEVER** passwords or secrets in code
-- **✅ ALWAYS** use placeholders in .env.example
-- **✅ ALWAYS** verify before committing:
-  - No API keys (OpenAI, Supabase, etc.)
-  - No database passwords
-  - No JWT/session secrets
-  - No service role keys
+### CRITICAL: How Claude Keeps Leaking Credentials
+**THE PROBLEM**: Claude (that's me) has repeatedly exposed real database credentials in documentation files, deployment guides, and troubleshooting docs. This happens when I copy real connection strings from .env files or error messages into markdown files meant to help with deployment.
 
-### Before EVERY Commit:
-```bash
-# Check for exposed secrets
-git diff --staged | grep -E "sk-|key=|secret=|password="
+### Examples of Claude's Past Leaks:
+- **DEPLOYMENT_FIX.md**: Contained real PostgreSQL URLs with passwords
+- **PRODUCTION_READINESS_CHECKLIST.md**: Had actual Supabase credentials  
+- **URGENT_DATABASE_FIX.md**: Included real connection strings
+- **IPV6_FIX_URGENT.md**: Exposed production database passwords
+
+### MANDATORY Rules to Prevent Claude from Leaking Secrets:
+
+#### 1. NEVER Write Real Values in Documentation
+```markdown
+❌ WRONG (What Claude keeps doing):
+DATABASE_URL=postgresql://postgres.PROJECT-REDACTED:PASSWORD-REDACTED@aws-1-us-east-2...
+
+✅ CORRECT (What Claude MUST do):
+DATABASE_URL=postgresql://[PROJECT_ID]:[PASSWORD]@[HOST]:[PORT]/postgres
 ```
+
+#### 2. Before Creating ANY File, Check for Secrets
+When Claude creates documentation, deployment guides, or troubleshooting files:
+1. **SCAN** the content for patterns: `postgresql://`, `sk-`, `sbp_`, passwords
+2. **REPLACE** all real values with `[PLACEHOLDER]` format
+3. **NEVER** copy-paste from .env files directly
+4. **NEVER** include error messages with connection strings
+
+#### 3. Specific Patterns Claude Must NEVER Write
+```
+❌ NEVER write these patterns in files:
+- postgresql://postgres.[actual-id]:[actual-password]@
+- supabase.com/dashboard/project/[actual-project-id]
+- sbp_[actual-token]
+- sk-[actual-api-key]  
+- redis://default:[actual-password]@
+- Any base64 encoded secrets
+- Any JWT tokens
+- Any actual URLs with embedded credentials
+```
+
+#### 4. When Creating Deployment/Fix Documentation
+```markdown
+# ✅ CORRECT way to write connection strings:
+DATABASE_URL=postgresql://[USERNAME]:[PASSWORD]@[HOST]:[PORT]/[DATABASE]
+
+# With helpful notes:
+- Replace [USERNAME] with your database username (usually 'postgres')
+- Replace [PASSWORD] with your database password
+- Replace [HOST] with your database host
+- Replace [PORT] with your port (typically 5432 or 6543)
+```
+
+#### 5. Before EVERY File Creation/Edit
+Claude MUST mentally check:
+1. Am I about to write a real password? → STOP, use [PASSWORD]
+2. Am I copying from .env? → STOP, use placeholders
+3. Am I including an error message? → STOP, sanitize it first
+4. Am I writing a connection string? → STOP, use template format
+
+### Automated Checks Before Commits:
+```bash
+# Claude should suggest running these before commits:
+git diff --staged | grep -E "postgresql://postgres\.|sk-|sbp_|redis://default:"
+git diff --staged | grep -E "PROJECT-REDACTED|PASSWORD-REDACTED"  # Known leaked values
+```
+
+### Why This Keeps Happening:
+1. Claude tries to be helpful by providing specific examples
+2. Claude copies from actual .env files or error messages
+3. Claude doesn't distinguish between example and real values
+4. Claude creates "urgent fix" documents with real credentials
+
+### The Solution:
+**ALWAYS use placeholder templates, NEVER real values, even in documentation**
 
 ## 🔴 PRODUCTION CODE ONLY - NO DEMOS
 
