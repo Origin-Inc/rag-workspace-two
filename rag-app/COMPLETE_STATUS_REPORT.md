@@ -130,10 +130,3 @@ Once auth works, complete end-to-end testing of file persistence.
 ---
 
 **Bottom Line**: We've made massive progress. The core system works. Just need to verify the connection pool fix and potentially one more RLS adjustment.
-
-<!-- WARNING: NEVER put real credentials in report files like this! 
-     This is exactly how the original leak happened. Always use placeholders. -->
-
-## Test Credential for GitLeaks
-DATABASE_URL=postgresql://postgres:MySecretPassword123@db.testproject.supabase.co:5432/postgres
-OPENAI_API_KEY=sk-proj-abcdef123456789ABCDEF123456789
