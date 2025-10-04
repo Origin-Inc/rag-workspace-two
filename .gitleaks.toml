@@ -11,7 +11,7 @@ useDefault = true
 [[rules]]
 id = "postgresql-connection-string"
 description = "PostgreSQL Connection String with Password"
-regex = '''postgresql://[^:]+:[^@]+@[^/]+'''
+regex = '''postgresql://[^:]+:[^@]+@[^/]+/\w+'''
 tags = ["database", "postgresql"]
 
 [[rules]]
@@ -49,6 +49,18 @@ paths = [
   '''.env.local.example''',
   '''.*test.*''',
   '''.*spec.*''',
+  '''README.md''',  # GitLeaks own examples
+  '''migration-to-vercel.sh''',  # Template script
+  '''rag-app/QUICK_DEPLOY.md''',  # Example secrets for setup
+  '''rag-app/DEPLOYMENT.md''',  # Deployment templates
+  '''rag-app/VERCEL_DEPLOYMENT_GUIDE.md''',  # Deployment guide
+  '''rag-app/docs/.*''',  # Documentation files
+  '''rag-app/scripts/.*''',  # Script documentation
+  '''DEPLOYMENT.md''',  # Deployment templates
+  '''CLAUDE.md''',  # Instructions with example patterns
+  '''rag-app/app/utils/supabase.server.ts''',  # Has Supabase demo JWTs
+  '''rag-app/fix-.*\.cjs''',  # Fix scripts with demo tokens
+  '''.mcp.json''',  # MCP config - should use env vars instead
 ]
 
 # Ignore files that are allowed to have these patterns
@@ -66,11 +78,16 @@ regexes = [
   '''postgresql://[^:]+:password@localhost''',  # Generic localhost with "password"
   '''postgresql://postgres:postgres@localhost''',  # Common dev setup
   '''postgresql://[^:]+:YOUR_[^@]+@''',  # YOUR_PASSWORD patterns
+  '''postgresql://[^:]+:\[YOUR-PASSWORD\]@''',  # [YOUR-PASSWORD] patterns
   '''postgresql://raguser:SecurePassword123@''',  # Example password from docs
   '''YOUR_.*_HERE''',  # Placeholder patterns
   '''<.*?>''',  # Angle bracket placeholders
   '''\$\{.*?\}''',  # Environment variable references
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6.*''',  # Supabase demo tokens
   '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6.*''',  # Example Supabase keys
+  '''redis://default:\[.*?\]@''',  # Redis placeholder patterns
+  '''cafebabe:deadbeef''',  # Classic example hex values
+  '''AKIAIMNOJVGFDXXXE4OA''',  # AWS example key from docs
 ]
 
 # Stopwords - if these appear in the line, ignore it
