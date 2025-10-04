@@ -83,7 +83,7 @@ async function generateContentFromTemplate(
   const prompt = buildGenerationPrompt(template, variables, patterns);
   
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4-turbo-preview',
+    model: 'gpt-5',
     messages: [
       {
         role: 'system',

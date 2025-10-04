@@ -86,7 +86,7 @@ interface UserIntent {
 
 async function analyzeIntent(query: string): Promise<UserIntent> {
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4',
+    model: 'gpt-5',
     messages: [
       {
         role: 'system',
@@ -123,7 +123,7 @@ async function generatePageSummary(pageId: string, context: PageContext): Promis
   
   // Generate intelligent summary
   const summary = await openai.chat.completions.create({
-    model: 'gpt-4',
+    model: 'gpt-5',
     messages: [
       {
         role: 'system',
@@ -228,7 +228,7 @@ async function generateWorkspaceOverview(
   
   // Generate natural language overview
   const overview = await openai.chat.completions.create({
-    model: 'gpt-4',
+    model: 'gpt-5',
     messages: [
       {
         role: 'system',

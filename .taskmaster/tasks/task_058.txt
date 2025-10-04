@@ -1,0 +1,43 @@
+# Task ID: 58
+# Title: Phase 1: State Management Migration to Jotai
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Replace Zustand with Jotai atomic state management to eliminate re-render cascades and improve performance
+# Details:
+Migrate from multiple Zustand stores causing 26+ re-renders to Jotai's atomic state management. This will reduce re-renders to 1-3 per interaction by using atomic updates instead of store subscriptions.
+
+# Test Strategy:
+Verify re-render count reduction using React DevTools Profiler. Test that all state updates work correctly with new atomic pattern.
+
+# Subtasks:
+## 1. Install and configure Jotai with React Suspense [pending]
+### Dependencies: None
+### Description: Install jotai package and set up provider with React Suspense configuration
+### Details:
+npm install jotai jotai-tanstack-query. Configure JotaiProvider in app root with Suspense boundaries. Set up atoms directory structure at app/atoms/.
+
+## 2. Create atomic state for chat messages [pending]
+### Dependencies: 58.1
+### Description: Replace useChatMessages Zustand store with Jotai atoms
+### Details:
+Create app/atoms/chat.atoms.ts with messagesAtom, addMessageAtom, clearMessagesAtom. Implement atomic updates to prevent cascading re-renders.
+
+## 3. Create atomic state for data files [pending]
+### Dependencies: 58.1
+### Description: Replace useChatDataFiles Zustand store with Jotai atoms
+### Details:
+Create app/atoms/dataFiles.atoms.ts with filesAtom, addFileAtom, removeFileAtom, updateFileProgressAtom. Use atomFamily for per-file state management.
+
+## 4. Migrate ChatSidebar component to Jotai [pending]
+### Dependencies: 58.2, 58.3
+### Description: Update ChatSidebar.tsx to use Jotai atoms instead of Zustand stores
+### Details:
+Replace all useStore hooks with useAtom, useAtomValue, useSetAtom. Implement React.memo and useMemo for stable references. Add Suspense boundaries for async atoms.
+
+## 5. Implement batched state updates for file loading [pending]
+### Dependencies: 58.4
+### Description: Create batch update mechanism to prevent multiple re-renders during file restoration
+### Details:
+Implement batchedUpdatesAtom using unstable_batchedUpdates. Update file loading logic to batch all state changes. Reduce 20+ renders to single render per file load operation.
+

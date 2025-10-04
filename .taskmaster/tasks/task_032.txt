@@ -185,7 +185,7 @@ export class HierarchicalSummarizer {
     
     // Generate hierarchical summary
     const summary = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-5",
       messages: [{
         role: "system",
         content: "Create a hierarchical summary that captures key entities and relationships from parent and child pages, emphasizing inheritance and hierarchical patterns."

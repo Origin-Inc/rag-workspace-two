@@ -11,6 +11,7 @@ import {
 } from "@remix-run/react";
 import { ThemeProvider } from "~/components/theme/ThemeProvider";
 import { ErrorBoundary as MonitoringErrorBoundary } from "~/components/monitoring/ErrorBoundary";
+import { JotaiProviderWrapper } from "~/providers/jotai-provider";
 import { useEffect } from "react";
 import type { 
   LinksFunction, 
@@ -126,11 +127,13 @@ export default function App() {
   }, []);
 
   return (
-    <ThemeProvider>
-      <MonitoringErrorBoundary level="app">
-        <Outlet />
-      </MonitoringErrorBoundary>
-    </ThemeProvider>
+    <JotaiProviderWrapper>
+      <ThemeProvider>
+        <MonitoringErrorBoundary level="app">
+          <Outlet />
+        </MonitoringErrorBoundary>
+      </ThemeProvider>
+    </JotaiProviderWrapper>
   );
 }
 

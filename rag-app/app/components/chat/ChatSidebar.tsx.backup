@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Upload, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useChatMessages, useChatDataFiles, useChatState } from '~/hooks/use-chat-atoms';
+import { useChatMessages, useChatDataFiles, useChatConnection } from '~/stores/chat-store';
 import { useLayoutStore } from '~/stores/layout-store';
 import { ResizeHandle } from '~/components/ui/ResizeHandle';
 import { ChatMessage } from './ChatMessage';
@@ -13,7 +13,7 @@ import { FuzzyFileMatcherClient } from '~/services/fuzzy-file-matcher.client';
 import { FileDisambiguationDialog } from './FileDisambiguationDialog';
 import { SmartClarificationPrompt } from './SmartClarificationPrompt';
 import type { FileMatchResult } from '~/services/fuzzy-file-matcher.client';
-import type { DataFile } from '~/atoms/chat-atoms';
+import type { DataFile } from '~/stores/chat-store';
 import { QueryAnalyzer } from '~/services/query-analyzer.client';
 
 // Confidence thresholds for file matching
@@ -48,9 +48,9 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   console.log('[ChatSidebar] Component rendering:', { pageId, workspaceId, skipFileLoad, delayFileLoad });
   
-  const { messages, addMessage, clearMessages, batchAddMessages } = useChatMessages(pageId);
-  const { dataFiles, addDataFile, removeDataFile, setDataFiles } = useChatDataFiles(pageId);
-  const { isLoading, setLoading } = useChatState();
+  const { messages, addMessage, clearMessages } = useChatMessages(pageId);
+  const { dataFiles, addDataFile, removeDataFile } = useChatDataFiles(pageId);
+  const { isLoading, setLoading } = useChatConnection();
   const { 
     isChatSidebarOpen, 
     setChatSidebarOpen, 
@@ -104,13 +104,13 @@ export function ChatSidebar({
         if (data.messages && data.messages.length > 0 && isMounted) {
           // Batch update to prevent multiple renders
           clearMessages();
-          // Use batch add to prevent cascading re-renders
-          batchAddMessages(data.messages.map((msg: any) => ({
-            role: msg.role,
-            content: msg.content,
-            metadata: msg.metadata,
-            pageId,
-          })));
+          data.messages.forEach((msg: any) => {
+            addMessage({
+              role: msg.role,
+              content: msg.content,
+              metadata: msg.metadata,
+            });
+          });
         }
       } catch (error) {
         console.error('[ChatSidebar] Failed to load chat messages:', error);
@@ -215,19 +215,11 @@ export function ChatSidebar({
           }
         }
         
-        // STEP 3: Add all restored files to the store in batch
+        // STEP 3: Add all restored files to the store
         if (restoredFilesMap.size > 0 && isMounted) {
           console.log(`[ChatSidebar] Total files restored: ${restoredFilesMap.size}`);
-          // Convert Map to array and batch update
-          const filesToAdd = Array.from(restoredFilesMap.values()).map(file => ({
-            ...file,
-            pageId, // Ensure pageId is set
-          }));
-          
-          // Batch update all files at once to prevent re-renders
-          setDataFiles(filesToAdd);
-          
-          filesToAdd.forEach((file) => {
+          restoredFilesMap.forEach((file) => {
+            addDataFile(file);
             console.log(`[ChatSidebar] Restored: ${file.filename} (source: ${file.source})`);
           });
         } else {

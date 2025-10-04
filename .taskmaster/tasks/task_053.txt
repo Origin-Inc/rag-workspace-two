@@ -1,6 +1,6 @@
 # Task ID: 53
 # Title: Implement File Upload and Data Processing
-# Status: pending
+# Status: done
 # Dependencies: 52
 # Priority: high
 # Description: Create drag-and-drop file upload functionality for CSV/Excel/PDF files with automatic parsing, text extraction, OCR capabilities, table detection, and loading into DuckDB tables for natural language querying
@@ -55,7 +55,7 @@ async function processFile(file) {
 10. Verify PDF viewer and citation system functionality
 
 # Subtasks:
-## 9. Create File Context Display Component [in-progress]
+## 9. Create File Context Display Component [done]
 ### Dependencies: 53.7
 ### Description: Build a visual component to show uploaded files in the chat interface using modern UI patterns
 ### Details:
@@ -73,7 +73,7 @@ Create a FileContextDisplay component that shows all uploaded files for the curr
 
 Reference implementations: ChatPDF's side panel, Perplexity's attachment chips, PowerBI Copilot's "attached items" display, Material Design chip components.
 
-## 10. Implement Natural Language File Reference Parser [pending]
+## 10. Implement Natural Language File Reference Parser [done]
 ### Dependencies: 53.8
 ### Description: Create a system to detect and parse file references in natural language queries
 ### Details:
@@ -91,7 +91,7 @@ Build a FileReferenceParser service that identifies when users reference specifi
 
 Example: "What's the total revenue in sales.csv for Q4?" → Detects "sales.csv" → Maps to table "sales_abc123" → Includes only this table in SQL context.
 
-## 11. Build File Management Interface [pending]
+## 11. Build File Management Interface [done]
 ### Dependencies: 53.9
 ### Description: Create a comprehensive file management system for uploaded data files with deletion, details view, and context control
 ### Details:
@@ -111,7 +111,7 @@ Implement a FileManagementPanel component that provides full control over upload
 
 Reference: Perplexity's 30-day retention, ChatGPT's file management in Code Interpreter, PowerBI's data source management.
 
-## 12. Implement Intelligent Context Window Management [pending]
+## 12. Implement Intelligent Context Window Management [done]
 ### Dependencies: 53.10
 ### Description: Build a system to intelligently manage file context within token limits using hybrid context stuffing and vector search
 ### Details:
@@ -139,7 +139,7 @@ Create a ContextWindowManager service that optimizes how file data is included i
 
 Based on: ChatGPT Enterprise's 110k token context stuffing + vector search, Perplexity's extraction of "most important parts" for long files.
 
-## 13. Create File Citation and Attribution System [pending]
+## 13. Create File Citation and Attribution System [done]
 ### Dependencies: 53.11, 53.12
 ### Description: Build a system to track and display which files were used to generate each response
 ### Details:
@@ -172,7 +172,7 @@ Implement a CitationSystem that tracks file usage and provides clear attribution
 
 Based on: ChatPDF's clickable citations with source scrolling, ChatGPT's footnote-style citations, Academic paper citation standards.
 
-## 14. Integrate Client-Side DuckDB Data Loading [pending]
+## 14. Integrate Client-Side DuckDB Data Loading [done]
 ### Dependencies: 53.6, 53.8
 ### Description: Connect the file upload system with browser-based DuckDB instance for immediate data availability
 ### Details:
@@ -199,7 +199,7 @@ Bridge the file upload API with the client-side DuckDB service to ensure uploade
 
 Note: This bridges our server-side file processing with client-side DuckDB execution, ensuring seamless data availability for natural language queries.
 
-## 15. Implement PDF Text and Table Extraction System [pending]
+## 15. Implement PDF Text and Table Extraction System [done]
 ### Dependencies: 53.1, 53.4
 ### Description: Build comprehensive PDF processing capability to extract text, tables, and images for analysis in chat
 ### Details:
@@ -273,7 +273,7 @@ Create a PDFProcessingService that handles PDF uploads with text extraction, tab
 
 Based on: Claude's PDF capabilities with OCR and table recognition, ChatGPT's 512MB limit but limited OCR, Modern PDF.js for rendering and extraction.
 
-## 16. Create PDF-to-DuckDB Table Conversion Pipeline [pending]
+## 16. Create PDF-to-DuckDB Table Conversion Pipeline [done]
 ### Dependencies: 53.15, 53.5
 ### Description: Build automated pipeline to convert PDF tables into queryable DuckDB tables for SQL analysis
 ### Details:
@@ -389,7 +389,7 @@ CREATE TABLE invoice_metadata (
 
 Based on: ChatPDF's structured extraction, PowerBI's automated table detection, Claude's ability to understand complex PDF structures.
 
-## 17. Build PDF Viewer with Split-Screen Chat Interface [canceled]
+## 17. Build PDF Viewer with Split-Screen Chat Interface [done]
 ### Dependencies: 53.15, 53.9
 ### Description: Create interactive PDF viewer with side-by-side chat, clickable citations, and page navigation like Claude and ChatPDF
 ### Details:
@@ -562,7 +562,7 @@ Build DataPreview.tsx component that renders a scrollable table with column head
 ### Details:
 Modify upload endpoint to accept multiple files in a single request. Implement batch processing with progress tracking for each file. Add relationship detection by analyzing column names and data patterns (look for common ID fields, foreign key patterns). Create a relationships metadata table in Prisma to store detected or user-defined relationships. Update the UI to show upload progress for multiple files with individual status indicators. Implement a relationship viewer component that shows connections between uploaded tables.
 
-## 18. Create SQL Generation Service for Natural Language Queries [pending]
+## 18. Create SQL Generation Service for Natural Language Queries [done]
 ### Dependencies: None
 ### Description: Build a service that converts natural language queries to SQL using OpenAI, specifically for DuckDB tables
 ### Details:
@@ -588,7 +588,7 @@ Create a DuckDBQueryService (client-side) that:
      `;
      
      return await openai.chat.completions.create({
-       model: 'gpt-4',
+       model: 'gpt-5',
        messages: [{ role: 'user', content: prompt }]
      });
    };
@@ -606,7 +606,7 @@ Create a DuckDBQueryService (client-side) that:
    - Handle large result sets with pagination
    - Include query metadata (SQL used, tables accessed)
 
-## 19. Create Chat Query API Endpoint [pending]
+## 19. Create Chat Query API Endpoint [done]
 ### Dependencies: None
 ### Description: Build API endpoint to process chat queries, generate SQL, and return execution instructions
 ### Details:
@@ -644,7 +644,7 @@ Create app/routes/api.chat-query.tsx that:
    - Return helpful error messages for invalid queries
    - Log queries for debugging
 
-## 20. Add Chat Message Persistence to Database [pending]
+## 20. Add Chat Message Persistence to Database [done]
 ### Dependencies: None
 ### Description: Implement database persistence for chat messages to maintain history across sessions
 ### Details:
@@ -684,7 +684,7 @@ Update the system to persist chat messages:
    - Implement optimistic updates with rollback on error
    - Add pagination for long chat histories
 
-## 21. Connect ChatSidebar to Query Processing Pipeline [pending]
+## 21. Connect ChatSidebar to Query Processing Pipeline [done]
 ### Dependencies: None
 ### Description: Wire up the ChatSidebar component to execute queries through the complete pipeline
 ### Details:

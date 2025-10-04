@@ -27,15 +27,21 @@ Go to: https://vercel.com/dashboard → Select your project → Settings → Env
 #### DATABASE_URL
 ```
 # Change FROM:
-postgresql://postgres.PROJECT-REDACTED:PASSWORD-REDACTED@aws-1-us-east-2.pooler.supabase.com:6543/postgres
+postgresql://[PROJECT_ID]:[PASSWORD]@[HOST]:6543/postgres
 
 # Change TO:
-postgresql://postgres.PROJECT-REDACTED:PASSWORD-REDACTED@aws-1-us-east-2.pooler.supabase.com:5432/postgres?pgbouncer=true&connection_limit=1
+postgresql://[PROJECT_ID]:[PASSWORD]@[HOST]:5432/postgres?pgbouncer=true&connection_limit=1
 ```
+
+**Note**: 
+- Replace `[PROJECT_ID]` with your Supabase project ID
+- Replace `[PASSWORD]` with your database password
+- Replace `[HOST]` with your database host (e.g., aws-0-us-east-1.pooler.supabase.com)
+- Port should be 5432 for direct connection, not 6543
 
 #### SUPABASE_SERVICE_ROLE_KEY
 1. Go to: https://supabase.com/dashboard
-2. Select your project (PROJECT-REDACTED)
+2. Select your project
 3. Settings → API
 4. Copy the `service_role` key (NOT the anon key)
 5. Replace in Vercel
@@ -46,7 +52,7 @@ postgresql://postgres.PROJECT-REDACTED:PASSWORD-REDACTED@aws-1-us-east-2.pooler.
 https://your-app.vercel.app
 
 # Change TO (your actual URL):
-https://rag-workspace-i7ko0wtpn-joeys-projects-5f82499b.vercel.app
+https://[YOUR-PROJECT-NAME].vercel.app
 ```
 
 ### 3. Redeploy

@@ -24,7 +24,8 @@ node_modules/
 # OS specific
 .DS_Store
 
+.vercel
+
 # Task files
 # tasks.json
 # tasks/ 
-.vercel

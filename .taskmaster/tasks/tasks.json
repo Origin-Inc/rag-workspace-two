@@ -2710,11 +2710,228 @@
         ],
         "status": "pending",
         "subtasks": []
+      },
+      {
+        "id": 58,
+        "title": "Phase 1: State Management Migration to Jotai",
+        "description": "Replace Zustand with Jotai atomic state management to eliminate re-render cascades and improve performance",
+        "details": "Migrate from multiple Zustand stores causing 26+ re-renders to Jotai's atomic state management. This will reduce re-renders to 1-3 per interaction by using atomic updates instead of store subscriptions.",
+        "testStrategy": "Verify re-render count reduction using React DevTools Profiler. Test that all state updates work correctly with new atomic pattern.",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install and configure Jotai with React Suspense",
+            "description": "Install jotai package and set up provider with React Suspense configuration",
+            "details": "npm install jotai jotai-tanstack-query. Configure JotaiProvider in app root with Suspense boundaries. Set up atoms directory structure at app/atoms/.",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 58
+          },
+          {
+            "id": 2,
+            "title": "Create atomic state for chat messages",
+            "description": "Replace useChatMessages Zustand store with Jotai atoms",
+            "details": "Create app/atoms/chat.atoms.ts with messagesAtom, addMessageAtom, clearMessagesAtom. Implement atomic updates to prevent cascading re-renders.",
+            "status": "done",
+            "dependencies": [
+              "58.1"
+            ],
+            "parentTaskId": 58
+          },
+          {
+            "id": 3,
+            "title": "Create atomic state for data files",
+            "description": "Replace useChatDataFiles Zustand store with Jotai atoms",
+            "details": "Create app/atoms/dataFiles.atoms.ts with filesAtom, addFileAtom, removeFileAtom, updateFileProgressAtom. Use atomFamily for per-file state management.",
+            "status": "done",
+            "dependencies": [
+              "58.1"
+            ],
+            "parentTaskId": 58
+          },
+          {
+            "id": 4,
+            "title": "Migrate ChatSidebar component to Jotai",
+            "description": "Update ChatSidebar.tsx to use Jotai atoms instead of Zustand stores",
+            "details": "Replace all useStore hooks with useAtom, useAtomValue, useSetAtom. Implement React.memo and useMemo for stable references. Add Suspense boundaries for async atoms.",
+            "status": "done",
+            "dependencies": [
+              "58.2",
+              "58.3"
+            ],
+            "parentTaskId": 58
+          },
+          {
+            "id": 5,
+            "title": "Implement batched state updates for file loading",
+            "description": "Create batch update mechanism to prevent multiple re-renders during file restoration",
+            "details": "Implement batchedUpdatesAtom using unstable_batchedUpdates. Update file loading logic to batch all state changes. Reduce 20+ renders to single render per file load operation.",
+            "status": "done",
+            "dependencies": [
+              "58.4"
+            ],
+            "parentTaskId": 58
+          }
+        ]
+      },
+      {
+        "id": 59,
+        "title": "Phase 2: Implement Intent Router and Conversation Context",
+        "description": "Build ChatGPT-style conversational AI with intent classification and context management",
+        "details": "Create an intent router that can handle general chat, data queries, and hybrid queries. Implement conversation context manager to maintain chat history and enable natural follow-up questions.",
+        "testStrategy": "",
+        "status": "pending",
+        "dependencies": [
+          58
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Intent Classification Service",
+            "description": "Build service to classify user queries into general_chat, data_query, or hybrid intents",
+            "details": "Create app/services/intent-classifier.server.ts with pattern matching for query types. Implement confidence scoring. Add fallback to hybrid for uncertain classification.",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 59
+          },
+          {
+            "id": 2,
+            "title": "Build Conversation Context Manager",
+            "description": "Create service to maintain conversation history with U-shaped attention pattern",
+            "details": "Create app/services/conversation-context.server.ts. Implement sliding window of last 10 exchanges. Add context summarization for middle messages to prevent 'Lost in Middle' issue.",
+            "status": "pending",
+            "dependencies": [
+              "59.1"
+            ],
+            "parentTaskId": 59
+          },
+          {
+            "id": 3,
+            "title": "Integrate Intent Router with API endpoint",
+            "description": "Update api.chat-query.tsx to use intent classification for routing",
+            "details": "Modify endpoint to first classify intent, then route to appropriate handler. Add handlers for general_chat (direct AI), data_query (DuckDB first), and hybrid (both).",
+            "status": "pending",
+            "dependencies": [
+              "59.1",
+              "59.2"
+            ],
+            "parentTaskId": 59
+          }
+        ]
+      },
+      {
+        "id": 60,
+        "title": "Phase 3: Implement Streaming Response Architecture",
+        "description": "Replace blocking API calls with streaming responses for sub-second response times",
+        "details": "Implement Server-Sent Events (SSE) for streaming responses. Create parallel processing pipeline to run semantic, statistical, and SQL analysis concurrently. Stream results as they become available.",
+        "testStrategy": "",
+        "status": "pending",
+        "dependencies": [
+          59
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create streaming API endpoint",
+            "description": "Build new /api/chat-query-stream endpoint with SSE support",
+            "details": "Create app/routes/api.chat-query-stream.tsx using Remix eventStream. Implement SSE protocol with proper headers. Add heartbeat to keep connection alive.",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 60
+          },
+          {
+            "id": 2,
+            "title": "Implement parallel processing service",
+            "description": "Create service to run analysis operations concurrently",
+            "details": "Create app/services/parallel-intelligence.server.ts. Use Promise.allSettled for semantic, statistical, and SQL analysis. Yield results as they complete, not waiting for all.",
+            "status": "pending",
+            "dependencies": [
+              "60.1"
+            ],
+            "parentTaskId": 60
+          }
+        ]
+      },
+      {
+        "id": 61,
+        "title": "Phase 4: Optimize Data Processing Pipeline",
+        "description": "Fix the 50K row loading issue and implement smart data querying",
+        "details": "Stop sending full datasets to OpenAI. Implement query-first approach where DuckDB queries data locally and only sends relevant results (5-10 rows) to AI. Add progressive data loading for large files.",
+        "testStrategy": "",
+        "status": "pending",
+        "dependencies": [
+          60
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement query-first data processing",
+            "description": "Change data flow to query locally first, then send only results to AI",
+            "details": "Update api.chat-query.tsx to run DuckDB query first. Extract only top 10-20 relevant rows. Send condensed results to OpenAI instead of full dataset. Reduce payload from 3.5MB to <100KB.",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 61
+          },
+          {
+            "id": 2,
+            "title": "Implement progressive data loading",
+            "description": "Add chunked loading for large files to prevent memory issues",
+            "details": "Update duckdb-service.client.ts to load data in 10K row chunks. Add progress reporting. Yield control between chunks with setTimeout(0) to prevent UI blocking.",
+            "status": "pending",
+            "dependencies": [
+              "61.1"
+            ],
+            "parentTaskId": 61
+          },
+          {
+            "id": 3,
+            "title": "Fix PDF content truncation issue",
+            "description": "Remove aggressive 30K character limit that loses relevant content",
+            "details": "Update unified-intelligence.server.ts to remove 30K limit. Implement smart content selection based on relevance scoring. Fix 'Lost in Middle' by using full content with proper chunking.",
+            "status": "pending",
+            "dependencies": [
+              "61.1"
+            ],
+            "parentTaskId": 61
+          }
+        ]
+      },
+      {
+        "id": 62,
+        "title": "Phase 5: Implement Virtual Scrolling for Large Datasets",
+        "description": "Add TanStack Virtual for efficient rendering of million-row tables",
+        "details": "Replace current table rendering with virtual scrolling to handle large datasets without loading all rows into DOM. Implement progressive loading as user scrolls. Add infinite scrolling support.",
+        "testStrategy": "",
+        "status": "pending",
+        "dependencies": [
+          61
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 63,
+        "title": "Phase 6: Build Native Spreadsheet Editor Integration",
+        "description": "Enable CSV/XLSX files to be converted to editable native database tables in the editor",
+        "details": "Allow users to upload CSV/XLSX files and convert them to native database tables. Implement real-time editing capabilities with optimistic updates. Create spreadsheet-like interface for data manipulation.",
+        "testStrategy": "",
+        "status": "pending",
+        "dependencies": [
+          62
+        ],
+        "priority": "medium",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-09-29T05:40:19.249Z",
+      "updated": "2025-10-03T19:11:21.077Z",
       "description": "Tasks for master context"
     }
   }

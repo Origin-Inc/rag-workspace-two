@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
 Deno.serve(async (req) => {
   const { description, columns } = await req.json();
   const completion = await openai.chat.completions.create({
-    model: "gpt-4",
+    model: "gpt-5",
     messages: [
       {role: "system", content: "Generate database column formulas for calculations like days until due date, percentage complete, etc."},
       {role: "user", content: `${description}\nAvailable columns: ${JSON.stringify(columns)}`}

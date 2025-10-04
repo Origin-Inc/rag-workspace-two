@@ -1,0 +1,24 @@
+# GitGuardian Configuration
+# This file tells GitGuardian what to ignore in security scans
+
+version: 2
+
+# Ignore documentation and example files
+paths-ignore:
+  - '**/*.md'
+  - '**/*.mdx'
+  - '**/test/**'
+  - '**/tests/**'
+  - '**/__tests__/**'
+  - '**/examples/**'
+  - '**/.env.example'
+  - '**/.env.local.example'
+  - '**/PRODUCTION_READINESS_CHECKLIST.md'
+
+# Known false positives
+# These are placeholder/example values that look like real secrets
+known-secrets:
+  - name: "Documentation PostgreSQL Examples"
+    match: "postgresql://\\[.*\\]"
+  - name: "Localhost PostgreSQL"
+    match: "postgresql://postgres:postgres@localhost"

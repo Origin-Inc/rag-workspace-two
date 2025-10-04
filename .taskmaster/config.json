@@ -9,7 +9,7 @@
     "research": {
       "provider": "claude-code",
       "modelId": "opus",
-      "maxTokens": 64000,
+      "maxTokens": 32000,
       "temperature": 0.1
     },
     "fallback": {

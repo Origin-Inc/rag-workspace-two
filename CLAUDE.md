@@ -350,3 +350,7 @@ await prisma.$transaction(async (tx) => {
 - Use emojis unless requested
 - Commit changes unless explicitly asked
 - Create new demo/test routes (see CRITICAL RULES above)
+
+## Task Master AI Instructions
+**Import Task Master's development workflow commands and guidelines, treat as if import is in the main CLAUDE.md file.**
+@./.taskmaster/CLAUDE.md

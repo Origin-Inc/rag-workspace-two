@@ -3,7 +3,7 @@
 # Status: pending
 # Dependencies: 53
 # Priority: high
-# Description: Implement OpenAI GPT-4 integration to convert natural language questions into SQL queries and execute them on uploaded data
+# Description: Implement OpenAI GPT-5 integration to convert natural language questions into SQL queries and execute them on uploaded data
 # Details:
 1. Create OpenAI prompt engineering system for SQL generation
 2. Build context-aware prompt with table schemas
@@ -57,7 +57,7 @@ async function executeQuery(sql, tables) {
 ### Dependencies: None
 ### Description: Create the OpenAI service integration and develop the prompt engineering system for converting natural language to SQL queries
 ### Details:
-Create an OpenAI service module that handles API communication. Implement the prompt template system with configurable system prompts and user messages. Design the prompt structure to include table schemas, column types, and DuckDB-specific SQL syntax rules. Include few-shot examples in the prompt for better accuracy. Set up environment variables for OpenAI API key and model configuration (GPT-4). Create a prompt builder function that dynamically constructs prompts based on available tables and their schemas.
+Create an OpenAI service module that handles API communication. Implement the prompt template system with configurable system prompts and user messages. Design the prompt structure to include table schemas, column types, and DuckDB-specific SQL syntax rules. Include few-shot examples in the prompt for better accuracy. Set up environment variables for OpenAI API key and model configuration (GPT-5). Create a prompt builder function that dynamically constructs prompts based on available tables and their schemas.
 
 ## 2. Implement Schema Introspection and Context Building [pending]
 ### Dependencies: 54.1
