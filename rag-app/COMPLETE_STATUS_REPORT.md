@@ -130,3 +130,6 @@ Once auth works, complete end-to-end testing of file persistence.
 ---
 
 **Bottom Line**: We've made massive progress. The core system works. Just need to verify the connection pool fix and potentially one more RLS adjustment.
+
+## Test Credential for GitLeaks
+postgresql://postgres.testproject123:SuperSecret456Password@db.fakeproject.supabase.co:5432/postgres
