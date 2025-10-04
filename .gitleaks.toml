@@ -60,7 +60,6 @@ paths = [
   '''CLAUDE.md''',  # Instructions with example patterns
   '''rag-app/app/utils/supabase.server.ts''',  # Has Supabase demo JWTs
   '''rag-app/fix-.*\.cjs''',  # Fix scripts with demo tokens
-  '''rag-app/COMPLETE_STATUS_REPORT.md''',  # Test file
   '''.mcp.json''',  # MCP config - should use env vars instead
 ]
 
