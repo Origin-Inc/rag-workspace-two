@@ -68,6 +68,9 @@ export const action: ActionFunction = async ({ request }) => {
     const body = await request.json();
     const { query, files, pageId, workspaceId, conversationHistory } = body;
     
+    // Ensure conversationHistory is always an array
+    const safeConversationHistory = Array.isArray(conversationHistory) ? conversationHistory : [];
+    
     // Calculate actual payload size after parsing
     const payloadSize = JSON.stringify(body).length;
     const payloadSizeMB = payloadSize / (1024 * 1024);
@@ -344,7 +347,7 @@ export const action: ActionFunction = async ({ request }) => {
         query,
         files: fileData,
         intent,
-        conversationHistory: conversationHistory || [],
+        conversationHistory: safeConversationHistory,
         options: {
           includeSQL: false,
           includeSemantic: true,

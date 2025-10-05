@@ -252,7 +252,7 @@ export function ChatSidebarPerformant({
           pageId,
           workspaceId,
           files: dataFiles,
-          conversationHistory: messages.slice(-10),
+          conversationHistory: Array.isArray(messages) ? messages.slice(-10) : [],
         }),
       });
       
@@ -489,7 +489,7 @@ export function ChatSidebarPerformant({
     return () => {
       isMounted = false;
     };
-  }, [pageId]); // Only depend on pageId
+  }, [pageId, batchAddMessages]); // Include stable batchAddMessages callback
   
   // Load files on mount
   useEffect(() => {
@@ -514,7 +514,7 @@ export function ChatSidebarPerformant({
     return () => {
       isMounted = false;
     };
-  }, [pageId]); // Only depend on pageId
+  }, [pageId, setDataFiles]); // Include stable setDataFiles callback
   
   // Track mount state
   useEffect(() => {
