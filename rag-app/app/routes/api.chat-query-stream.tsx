@@ -1,4 +1,3 @@
-import { eventStream } from "@remix-run/node";
 import type { ActionFunction } from "@remix-run/node";
 import { prisma } from "~/utils/prisma.server";
 import { queryIntentAnalyzer } from "~/services/query-intent-analyzer.server";
@@ -17,9 +16,33 @@ export const action: ActionFunction = async ({ request }) => {
   const startTime = Date.now();
   const requestId = `stream_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
-  return eventStream(request.signal, function setup(send) {
-    (async () => {
-      try {
+  // Custom SSE implementation to avoid eventStream import issues on Vercel
+  return new Response(
+    new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        const send = (event: { event?: string; data: string }) => {
+          const eventLine = event.event ? `event: ${event.event}\n` : '';
+          const dataLine = `data: ${event.data}\n\n`;
+          controller.enqueue(encoder.encode(eventLine + dataLine));
+        };
+        
+        // Handle abort signal
+        request.signal.addEventListener('abort', () => {
+          controller.close();
+        });
+        
+        // Send heartbeat every 30 seconds to keep connection alive
+        const heartbeat = setInterval(() => {
+          try {
+            send({ event: "heartbeat", data: JSON.stringify({ timestamp: Date.now() }) });
+          } catch (e) {
+            // Stream might be closed
+            clearInterval(heartbeat);
+          }
+        }, 30000);
+        
+        try {
         // Send initial connection event
         send({ 
           event: "connected", 
@@ -243,20 +266,22 @@ export const action: ActionFunction = async ({ request }) => {
             code: "PROCESSING_ERROR"
           })
         });
+      } finally {
+        // Clean up heartbeat on completion
+        clearInterval(heartbeat);
+        controller.close();
+        logger.trace('[Stream] Connection closed', { requestId });
       }
-    })();
-    
-    // Send heartbeat every 30 seconds to keep connection alive
-    const heartbeat = setInterval(() => {
-      send({ event: "heartbeat", data: JSON.stringify({ timestamp: Date.now() }) });
-    }, 30000);
-    
-    // Cleanup on close
-    return function clear() {
-      clearInterval(heartbeat);
-      logger.trace('[Stream] Connection closed', { requestId });
-    };
-  });
+      }
+    }),
+    {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    }
+  );
 };
 
 /**

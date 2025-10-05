@@ -90,3 +90,5 @@ ENV_ANALYSIS.md
 # Task files
 # tasks.json
 # tasks/ 
+.env.vercel
+REMOVE_SECRETS_FROM_HISTORY.md
