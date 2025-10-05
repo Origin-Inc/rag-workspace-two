@@ -375,12 +375,30 @@ function ChatSidebarPerformantBase({
       });
       
       if (!response.ok) throw new Error('Upload failed');
-      
+
       const result = await response.json();
-      
+
       if (result.success && result.files?.[0]) {
         const uploadedFile = result.files[0];
-        
+
+        // Check if the file upload had an error
+        if (uploadedFile.error) {
+          setUploadProgress({
+            filename: file.name,
+            progress: 0,
+            status: 'error',
+            error: uploadedFile.error,
+          });
+
+          addMessage({
+            role: 'system',
+            content: `Failed to upload "${file.name}": ${uploadedFile.error}`,
+          });
+
+          setTimeout(() => setUploadProgress(null), 3000);
+          return;
+        }
+
         // Add file to state
         addDataFile({
           databaseId: uploadedFile.id,
@@ -390,19 +408,19 @@ function ChatSidebarPerformantBase({
           rowCount: uploadedFile.rowCount || 0,
           sizeBytes: file.size,
         });
-        
+
         setUploadProgress({
           filename: file.name,
           progress: 100,
           status: 'complete',
         });
-        
+
         addMessage({
           role: 'system',
           content: `File "${file.name}" uploaded successfully!`,
         });
       }
-      
+
       setTimeout(() => setUploadProgress(null), 2000);
     } catch (error) {
       console.error('Upload failed:', error);
