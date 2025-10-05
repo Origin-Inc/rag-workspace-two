@@ -183,15 +183,20 @@ export const action: ActionFunction = async ({ request }) => {
       });
     }
 
-    if (!query || !files || files.length === 0) {
+    if (!query || !files) {
       logger.warn('[Unified] Missing required fields', { query: !!query, files: !!files });
       return json(
         { 
-          content: "Please provide a query and at least one file to analyze.",
-          metadata: { error: "Missing query or files" }
+          content: "Please provide a query.",
+          metadata: { error: "Missing query or files parameter" }
         },
         { status: 400 }
       );
+    }
+    
+    // Allow empty files array for general queries
+    if (files.length === 0) {
+      logger.trace('[Unified] Processing general query without files', { query });
     }
 
     // Analyze query intent

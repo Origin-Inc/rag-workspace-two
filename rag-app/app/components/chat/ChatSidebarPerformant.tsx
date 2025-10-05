@@ -297,7 +297,7 @@ function ChatSidebarPerformantBase({
     } finally {
       setLoading(false);
     }
-  }, [pageId, workspaceId, dataFiles, messages, addMessage, setLoading]);
+  }, [pageId, workspaceId, addMessage, setLoading]);
   
   /**
    * Process general query - memoized
