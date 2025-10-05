@@ -30,23 +30,30 @@ export class FileProcessingService {
   ];
 
   static async parseCSV(file: File): Promise<{ data: any[], schema: FileSchema }> {
-    return new Promise((resolve, reject) => {
-      Papa.parse(file, {
-        header: true,
-        dynamicTyping: true,
-        skipEmptyLines: true,
-        complete: (result: ParseResult<any>) => {
-          if (result.errors.length > 0) {
-            console.warn('CSV parsing warnings:', result.errors);
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Convert File to text for server-side parsing
+        const text = await file.text();
+
+        Papa.parse(text, {
+          header: true,
+          dynamicTyping: true,
+          skipEmptyLines: true,
+          complete: (result: ParseResult<any>) => {
+            if (result.errors.length > 0) {
+              console.warn('CSV parsing warnings:', result.errors);
+            }
+
+            const schema = this.inferSchema(result.data);
+            resolve({ data: result.data, schema });
+          },
+          error: (error) => {
+            reject(new Error(`Failed to parse CSV: ${error.message}`));
           }
-          
-          const schema = this.inferSchema(result.data);
-          resolve({ data: result.data, schema });
-        },
-        error: (error) => {
-          reject(new Error(`Failed to parse CSV: ${error.message}`));
-        }
-      });
+        });
+      } catch (error) {
+        reject(new Error(`Failed to read CSV file: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      }
     });
   }
 
