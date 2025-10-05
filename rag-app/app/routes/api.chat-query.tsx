@@ -116,12 +116,13 @@ export const action: ActionFunction = async ({ request }) => {
         contentLength: files[0].content?.length || 0,
         contentType: Array.isArray(files[0].content) ? 'array' : typeof files[0].content,
         sampleContent: Array.isArray(files[0].content) ? 
-                      (typeof files[0].content[0] === 'string' ? 
-                        files[0].content[0].slice(0, 100) : 
-                        JSON.stringify(files[0].content[0]).slice(0, 100)) || 'No content' :
+                      (files[0].content[0] ? 
+                        (typeof files[0].content[0] === 'string' ? 
+                          files[0].content[0].slice(0, 100) : 
+                          JSON.stringify(files[0].content[0]).slice(0, 100)) : 'No content') :
                       typeof files[0].content === 'string' ?
                       files[0].content.slice(0, 100) : 
-                      JSON.stringify(files[0].content).slice(0, 100),
+                      files[0].content ? JSON.stringify(files[0].content).slice(0, 100) : 'No content',
         isContentEmpty: Array.isArray(files[0].content) ? 
                        files[0].content.length === 0 || files[0].content.every(c => 
                          !c || (typeof c === 'string' ? c.trim().length === 0 : false)
@@ -183,7 +184,7 @@ export const action: ActionFunction = async ({ request }) => {
                            typeof file.content === 'string' ? file.content.length : 0,
           rawContentSample: Array.isArray(file.content) ? 
                            file.content.slice(0, 2).map((chunk: any) => 
-                             typeof chunk === 'string' ? chunk.slice(0, 200) : JSON.stringify(chunk).slice(0, 200)
+                             chunk ? (typeof chunk === 'string' ? chunk.slice(0, 200) : JSON.stringify(chunk).slice(0, 200)) : 'Empty chunk'
                            ).join('\n---\n') :
                            typeof file.content === 'string' ? file.content.slice(0, 500) : 
                            'NO CONTENT DETECTED',
@@ -311,7 +312,8 @@ export const action: ActionFunction = async ({ request }) => {
       dataLength: Array.isArray(file.data) ? file.data.length : 0,
       contentSample: typeof file.content === 'string' ? file.content.slice(0, 200) :
                      Array.isArray(file.content) && file.content[0] ? 
-                       (typeof file.content[0] === 'string' ? file.content[0].slice(0, 200) : JSON.stringify(file.content[0]).slice(0, 200)) : 'NO CONTENT'
+                       (typeof file.content[0] === 'string' ? file.content[0].slice(0, 200) : 
+                        file.content[0] ? JSON.stringify(file.content[0]).slice(0, 200) : 'Empty item') : 'NO CONTENT'
     }));
     
     logger.trace('[Unified] Content validation results', {
