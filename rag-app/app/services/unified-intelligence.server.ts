@@ -1864,27 +1864,28 @@ Format as JSON with keys: summary (specific answer to the query), context (where
             // Add more context for small Excel files
             if (file.type === 'excel' && file.data.length <= 20) {
               combinedContent += `\n[Complete Dataset Analysis]\n`;
+              headers.forEach(header => {
+                const values = file.data.map((r: any) => r[header]).filter(v => v !== null && v !== undefined);
+                const uniqueValues = [...new Set(values)];
+                if (uniqueValues.length <= 5) {
+                  combinedContent += `${header}: ${uniqueValues.join(', ')}\n`;
+                } else {
+                  combinedContent += `${header}: ${uniqueValues.length} unique values\n`;
+                }
+              });
+            }
+            
+            // Extract themes from column names and data
             headers.forEach(header => {
-              const values = file.data.map((r: any) => r[header]).filter(v => v !== null && v !== undefined);
-              const uniqueValues = [...new Set(values)];
-              if (uniqueValues.length <= 5) {
-                combinedContent += `${header}: ${uniqueValues.join(', ')}\n`;
-              } else {
-                combinedContent += `${header}: ${uniqueValues.length} unique values\n`;
-              }
+              const headerLower = header.toLowerCase();
+              if (headerLower.includes('sales')) extractedThemes.add('Sales Analysis');
+              if (headerLower.includes('customer')) extractedThemes.add('Customer Data');
+              if (headerLower.includes('product')) extractedThemes.add('Product Information');
+              if (headerLower.includes('revenue')) extractedThemes.add('Revenue Metrics');
+              if (headerLower.includes('competitor')) extractedThemes.add('Competitor Analysis');
+              if (headerLower.includes('ai')) extractedThemes.add('AI Technology');
             });
           }
-          
-          // Extract themes from column names and data
-          headers.forEach(header => {
-            const headerLower = header.toLowerCase();
-            if (headerLower.includes('sales')) extractedThemes.add('Sales Analysis');
-            if (headerLower.includes('customer')) extractedThemes.add('Customer Data');
-            if (headerLower.includes('product')) extractedThemes.add('Product Information');
-            if (headerLower.includes('revenue')) extractedThemes.add('Revenue Metrics');
-            if (headerLower.includes('competitor')) extractedThemes.add('Competitor Analysis');
-            if (headerLower.includes('ai')) extractedThemes.add('AI Technology');
-          });
         }
       }
     }
@@ -1958,7 +1959,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
     
     return result;
   }
-
+  
   private extractContentRelationships(content: string): string[] {
     const relationships: string[] = [];
     
