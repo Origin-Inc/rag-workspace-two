@@ -281,32 +281,54 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
             }
           }
         } else if (processedData.data && processedData.data.length > 0) {
-          // For CSV/Excel files, serialize to Parquet
+          // For CSV/Excel files, store data as JSON for easy retrieval
           try {
-            const serializationService = new DuckDBSerializationService();
-            const parquetBuffer = await serializationService.serializeToParquet(
-              processedData.data,
-              processedData.schema,
-              processedData.tableName
-            );
-            await serializationService.close();
-            
-            console.log(`[Upload] Serialized to Parquet: ${parquetBuffer.length} bytes`);
-            
-            // Upload Parquet to Supabase Storage
-            const parquetPath = `${workspaceId}/${pageId}/${processedData.tableName}.parquet`;
+            const csvContentData = {
+              tableName: processedData.tableName,
+              data: processedData.data,
+              schema: processedData.schema,
+              type: file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'excel',
+              timestamp: new Date().toISOString()
+            };
+
+            // Save to duckdb-tables bucket as JSON for persistence
+            const csvContentPath = `${workspaceId}/${pageId}/${processedData.tableName}_data.json`;
+            const jsonBuffer = Buffer.from(JSON.stringify(csvContentData));
+
             await storageService.uploadFile(
               'duckdb-tables',
-              parquetPath,
-              parquetBuffer,
-              'application/octet-stream'
+              csvContentPath,
+              jsonBuffer,
+              'application/json'
             );
-            
-            parquetUrl = await storageService.getSignedUrl('duckdb-tables', parquetPath, 86400); // 24 hours
-            console.log(`[Upload] Parquet uploaded to storage: ${parquetPath}`);
-          } catch (parquetError) {
-            console.warn(`[Upload] Could not serialize to Parquet:`, parquetError);
-            // Continue without parquet
+
+            parquetUrl = await storageService.getSignedUrl('duckdb-tables', csvContentPath, 86400); // 24 hours
+            console.log(`[Upload] CSV/Excel data saved to storage: ${csvContentPath}`);
+
+            // Also create Parquet for DuckDB compatibility
+            try {
+              const serializationService = new DuckDBSerializationService();
+              const parquetBuffer = await serializationService.serializeToParquet(
+                processedData.data,
+                processedData.schema,
+                processedData.tableName
+              );
+              await serializationService.close();
+
+              const parquetPath = `${workspaceId}/${pageId}/${processedData.tableName}.parquet`;
+              await storageService.uploadFile(
+                'duckdb-tables',
+                parquetPath,
+                parquetBuffer,
+                'application/octet-stream'
+              );
+              console.log(`[Upload] Parquet also saved: ${parquetPath}`);
+            } catch (parquetError) {
+              console.warn(`[Upload] Could not create Parquet:`, parquetError);
+            }
+          } catch (error) {
+            console.error(`[Upload] Could not save CSV/Excel data:`, error);
+            // Continue without persistence
           }
         }
         

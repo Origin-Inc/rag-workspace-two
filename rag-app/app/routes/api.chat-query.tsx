@@ -586,13 +586,13 @@ export const action: ActionFunction = async ({ request }) => {
  */
 async function prepareFileData(files: any[], pageId: string, requestId?: string) {
   const preparedFiles = [];
-  
+
   logger.trace('[prepareFileData] Starting file preparation', {
     requestId,
     fileCount: files.length,
     pageId
   });
-  
+
   for (const file of files) {
     const fileType = getFileType(file.filename);
     logger.trace('[prepareFileData] Processing file', {
@@ -602,10 +602,62 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
       rowCount: file.rowCount,
       hasContent: !!file.content,
       hasData: !!file.data,
+      hasParquetUrl: !!file.parquetUrl,
+      hasStorageUrl: !!file.storageUrl,
       contentType: Array.isArray(file.content) ? 'array' : typeof file.content,
       dataLength: Array.isArray(file.data) ? file.data.length : 0,
       firstDataRow: file.data?.[0] ? Object.keys(file.data[0]) : null
     });
+
+    // If file doesn't have data/content but has a parquetUrl, fetch it
+    if (!file.data && !file.content && file.parquetUrl) {
+      try {
+        logger.trace('[prepareFileData] Fetching file content from storage', {
+          filename: file.filename,
+          parquetUrl: file.parquetUrl
+        });
+
+        const response = await fetch(file.parquetUrl);
+        if (response.ok) {
+          const contentType = response.headers.get('content-type');
+
+          if (contentType?.includes('application/json')) {
+            const jsonData = await response.json();
+
+            // PDF content stored as JSON
+            if (jsonData.extractedContent) {
+              file.content = jsonData.extractedContent;
+              file.data = jsonData.data;
+              logger.trace('[prepareFileData] Loaded PDF content from JSON', {
+                filename: file.filename,
+                chunkCount: jsonData.extractedContent?.length || 0
+              });
+            }
+            // CSV/Excel data stored as JSON
+            else if (jsonData.data && Array.isArray(jsonData.data)) {
+              file.data = jsonData.data;
+              file.schema = jsonData.schema;
+              logger.trace('[prepareFileData] Loaded CSV/Excel data from JSON', {
+                filename: file.filename,
+                rowCount: jsonData.data.length
+              });
+            }
+          } else {
+            // For Parquet files, we'd need a Parquet reader
+            // For now, log that we need to implement this
+            logger.warn('[prepareFileData] Parquet reading not yet implemented', {
+              filename: file.filename,
+              contentType
+            });
+          }
+        }
+      } catch (error) {
+        logger.error('[prepareFileData] Failed to fetch file content', {
+          filename: file.filename,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
     
     const fileInfo: any = {
       id: file.id || file.filename,
