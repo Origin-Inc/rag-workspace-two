@@ -6,7 +6,6 @@
 
 import { openai } from './openai.server';
 import type { QueryIntent } from './query-intent-analyzer.server';
-import { DataQueryOptimizer } from './data-query-optimizer.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { aiModelConfig } from './ai-model-config.server';
 import { costTracker } from './cost-tracker-simple.server';
@@ -1824,32 +1823,10 @@ Format as JSON with keys: summary (specific answer to the query), context (where
       } else if (file.type === 'csv' || file.type === 'excel') {
         // Handle structured data with query optimization
         if (file.data && Array.isArray(file.data) && file.data.length > 0) {
-          // Use optimizer for large datasets
-          if (file.data.length > 50) {
-            logger.trace('[performContentBasedAnalysis] Using optimizer for large dataset', {
-              filename: file.filename,
-              rowCount: file.data.length
-            });
-            
-            const optimized = await DataQueryOptimizer.optimizeDataQuery(
-              query,
-              [file as any],
-              intent
-            );
-            
-            combinedContent += `\n\n[Dataset: ${file.filename}]\n`;
-            combinedContent += DataQueryOptimizer.formatForAI(optimized);
-            
-            logger.trace('[performContentBasedAnalysis] Optimized data size', {
-              originalRows: file.data.length,
-              optimizedRows: optimized.relevantRows.length,
-              reduction: Math.round((1 - optimized.relevantRows.length / file.data.length) * 100) + '%'
-            });
-          } else {
-            // Small dataset - include all data
-            const headers = Object.keys(file.data[0]);
-            const rowLimit = (file.type === 'excel' && file.data.length <= 20) ? file.data.length : 10;
-            const sampleRows = file.data.slice(0, rowLimit);
+          // Include sample data (simplified without optimizer)
+          const headers = Object.keys(file.data[0]);
+          const rowLimit = Math.min(file.data.length, 50); // Max 50 rows
+          const sampleRows = file.data.slice(0, rowLimit);
             
             combinedContent += `\n\n[Dataset: ${file.filename}]\n`;
             combinedContent += `Type: ${file.type === 'excel' ? 'Excel Spreadsheet' : 'CSV File'}\n`;
