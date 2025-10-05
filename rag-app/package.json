@@ -22,7 +22,8 @@
     "rollback:hierarchy": "tsx scripts/rollback-to-projects.ts",
     "redis:configure": "node scripts/configure-redis.js",
     "prestart": "npm run redis:configure",
-    "test:async-embeddings": "tsx scripts/test-async-embeddings.ts"
+    "test:async-embeddings": "tsx scripts/test-async-embeddings.ts",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
@@ -147,6 +148,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "happy-dom": "^18.0.1",
+    "husky": "^9.1.7",
     "jsdom": "^25.0.1",
     "prettier": "^3.6.2",
     "prisma": "^6.13.0",

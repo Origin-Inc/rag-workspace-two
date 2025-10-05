@@ -1,0 +1,23 @@
+#!/bin/bash
+
+echo "🔍 Running GitLeaks security scan on staged files..."
+
+# Run gitleaks on staged files
+gitleaks protect --staged --verbose --config .gitleaks.toml
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "❌ COMMIT BLOCKED: Secrets detected in staged files!"
+    echo ""
+    echo "GitLeaks found potential credentials or secrets."
+    echo "Please remove them before committing."
+    echo ""
+    echo "If this is a false positive:"
+    echo "1. Use placeholders like [PASSWORD] or [API-KEY]"
+    echo "2. Add pattern to .gitleaks.toml allowlist"
+    echo "3. Force commit with: git commit --no-verify (DANGEROUS!)"
+    echo ""
+    exit 1
+fi
+
+echo "✅ No secrets detected - proceeding with commit"
