@@ -23,7 +23,7 @@
     "redis:configure": "node scripts/configure-redis.js",
     "prestart": "npm run redis:configure",
     "test:async-embeddings": "tsx scripts/test-async-embeddings.ts",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "keywords": [],
   "author": "",
