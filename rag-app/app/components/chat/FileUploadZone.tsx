@@ -88,7 +88,7 @@ export function FileUploadZone({ onFileUpload, className, isUploading = false }:
       <input
         ref={fileInputRef}
         type="file"
-        accept=".csv,.xlsx,.xls,.pdf"
+        accept=".csv,.xlsx,.xls"
         multiple
         onChange={handleFileSelect}
         className="hidden"
