@@ -185,103 +185,29 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
         
         let storageUrl = null;
         let parquetUrl = null;
-        
-        // For PDFs, the file is already uploaded from client - just process it
-        // For CSV/Excel, we need to upload and serialize
-        if (file.name.toLowerCase().endsWith('.pdf')) {
-          // PDF files are already uploaded from client, but we need to save extracted content
-          console.log(`[Upload] Processing PDF file: ${file.name}`);
-          storageUrl = url.searchParams.get('storageUrl') || null;
-        } else {
-          // 1. Upload original file to Supabase Storage (for CSV/Excel)
-          const originalPath = `${workspaceId}/${pageId}/${Date.now()}_${file.name}`;
-          const uploadResult = await storageService.uploadFile(
-            'user-uploads',
-            originalPath,
-            file,
-            file.type
-          );
 
-          storageUrl = await storageService.getSignedUrl('user-uploads', originalPath, 86400); // 24 hours
-          console.log(`[Upload] File uploaded to storage: ${originalPath}`);
-        }
+        // 1. Upload original file to Supabase Storage
+        const originalPath = `${workspaceId}/${pageId}/${Date.now()}_${file.name}`;
+        const uploadResult = await storageService.uploadFile(
+          'user-uploads',
+          originalPath,
+          file,
+          file.type
+        );
+
+        storageUrl = await storageService.getSignedUrl('user-uploads', originalPath, 86400); // 24 hours
+        console.log(`[Upload] File uploaded to storage: ${originalPath}`);
         
-        // 2. Process the file (parse CSV/Excel/PDF)
+        // 2. Process the file (parse CSV/Excel)
         console.log(`[Upload] Processing file with FileProcessingService...`);
         const processedData = await FileProcessingService.processFile(file);
         console.log(`[Upload] File processed:`);
         console.log(`[Upload] - Table name: ${processedData.tableName}`);
         console.log(`[Upload] - Data rows: ${processedData.data?.length || 0}`);
         console.log(`[Upload] - Schema columns: ${processedData.schema?.columns?.length || 0}`);
-        console.log(`[Upload] - Has extracted content: ${!!processedData.extractedContent}`);
         
-        // 3. Serialize to Parquet or save PDF extracted content
-        if (file.name.toLowerCase().endsWith('.pdf')) {
-          // For PDFs, save extracted content as JSON to storage for persistence
-          if (processedData.extractedContent) {
-            try {
-              console.log(`[Upload] Saving PDF extracted content to storage...`);
-              
-              // Create a JSON representation of the PDF content
-              const pdfContentData = {
-                tableName: processedData.tableName,
-                extractedContent: {
-                  text: processedData.extractedContent.text || '',
-                  tables: processedData.extractedContent.tables || [],
-                  metadata: processedData.extractedContent.metadata || {},
-                  pageCount: processedData.extractedContent.pages?.length || 0
-                },
-                data: processedData.data || [],
-                schema: processedData.schema,
-                type: 'pdf',
-                timestamp: new Date().toISOString()
-              };
-              
-              // Save to duckdb-tables bucket as JSON for persistence
-              const pdfContentPath = `${workspaceId}/${pageId}/${processedData.tableName}_content.json`;
-              const jsonBuffer = Buffer.from(JSON.stringify(pdfContentData));
-              
-              await storageService.uploadFile(
-                'duckdb-tables',
-                pdfContentPath,
-                jsonBuffer,
-                'application/json'
-              );
-              
-              parquetUrl = await storageService.getSignedUrl('duckdb-tables', pdfContentPath, 86400); // 24 hours
-              console.log(`[Upload] PDF content saved to storage: ${pdfContentPath}`);
-              
-              // If PDF has tables, also create a parquet file
-              if (processedData.data && processedData.data.length > 0) {
-                try {
-                  const serializationService = new DuckDBSerializationService();
-                  const parquetBuffer = await serializationService.serializeToParquet(
-                    processedData.data,
-                    processedData.schema,
-                    processedData.tableName
-                  );
-                  await serializationService.close();
-                  
-                  // Save parquet as secondary format
-                  const parquetPath = `${workspaceId}/${pageId}/${processedData.tableName}_tables.parquet`;
-                  await storageService.uploadFile(
-                    'duckdb-tables',
-                    parquetPath,
-                    parquetBuffer,
-                    'application/octet-stream'
-                  );
-                  console.log(`[Upload] PDF tables also saved as Parquet`);
-                } catch (err) {
-                  console.warn(`[Upload] Could not create Parquet for PDF tables:`, err);
-                }
-              }
-            } catch (pdfError) {
-              console.error(`[Upload] Failed to save PDF content:`, pdfError);
-              // Continue without persistence - at least metadata will be saved
-            }
-          }
-        } else if (processedData.data && processedData.data.length > 0) {
-          // For CSV/Excel files, store data as JSON for easy retrieval
+        // 3. Store data as JSON for easy retrieval
+        if (processedData.data && processedData.data.length > 0) {
           try {
             const csvContentData = {
               tableName: processedData.tableName,
@@ -354,17 +280,7 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
             rowCount: processedData.schema.rowCount,
             sizeBytes: file.size,
             storageUrl,
-            parquetUrl,
-            // Store PDF-specific metadata if available
-            metadata: processedData.extractedContent ? {
-              type: 'pdf',
-              totalPages: processedData.extractedContent.metadata?.totalPages,
-              tablesFound: processedData.extractedContent.tables?.length || 0,
-              imagesFound: processedData.extractedContent.images?.length || 0,
-              author: processedData.extractedContent.metadata?.author,
-              title: processedData.extractedContent.metadata?.title,
-              creationDate: processedData.extractedContent.metadata?.creationDate
-            } : undefined
+            parquetUrl
           }
         });
         
@@ -377,15 +293,7 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
           sizeBytes: file.size,
           storageUrl,
           parquetUrl,
-          data: processedData.data, // Return all data for client-side DuckDB
-          // Include PDF metadata if available
-          ...(processedData.extractedContent && {
-            pdfMetadata: {
-              totalPages: processedData.extractedContent.metadata?.totalPages,
-              tablesExtracted: processedData.extractedContent.tables?.length || 0,
-              imagesExtracted: processedData.extractedContent.images?.length || 0
-            }
-          })
+          data: processedData.data // Return all data for client-side DuckDB
         });
         
         // Update existing tables for next iteration
