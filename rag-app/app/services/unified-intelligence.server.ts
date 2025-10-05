@@ -1827,42 +1827,41 @@ Format as JSON with keys: summary (specific answer to the query), context (where
           const headers = Object.keys(file.data[0]);
           const rowLimit = Math.min(file.data.length, 50); // Max 50 rows
           const sampleRows = file.data.slice(0, rowLimit);
-            
-            combinedContent += `\n\n[Dataset: ${file.filename}]\n`;
-            combinedContent += `Type: ${file.type === 'excel' ? 'Excel Spreadsheet' : 'CSV File'}\n`;
-            combinedContent += `Columns: ${headers.join(', ')}\n`;
-            combinedContent += `Rows: ${file.rowCount || file.data.length}\n`;
-            combinedContent += `${file.type === 'excel' && file.data.length <= 20 ? 'Complete Data:' : 'Sample Data:'}\n`;
-            
-            sampleRows.forEach((row, idx) => {
-              combinedContent += `Row ${idx + 1}: ${JSON.stringify(row)}\n`;
-            });
-            
-            // Add more context for small Excel files
-            if (file.type === 'excel' && file.data.length <= 20) {
-              combinedContent += `\n[Complete Dataset Analysis]\n`;
-              headers.forEach(header => {
-                const values = file.data.map((r: any) => r[header]).filter(v => v !== null && v !== undefined);
-                const uniqueValues = [...new Set(values)];
-                if (uniqueValues.length <= 5) {
-                  combinedContent += `${header}: ${uniqueValues.join(', ')}\n`;
-                } else {
-                  combinedContent += `${header}: ${uniqueValues.length} unique values\n`;
-                }
-              });
-            }
-            
-            // Extract themes from column names and data
+
+          combinedContent += `\n\n[Dataset: ${file.filename}]\n`;
+          combinedContent += `Type: ${file.type === 'excel' ? 'Excel Spreadsheet' : 'CSV File'}\n`;
+          combinedContent += `Columns: ${headers.join(', ')}\n`;
+          combinedContent += `Rows: ${file.rowCount || file.data.length}\n`;
+          combinedContent += `${file.type === 'excel' && file.data.length <= 20 ? 'Complete Data:' : 'Sample Data:'}\n`;
+
+          sampleRows.forEach((row, idx) => {
+            combinedContent += `Row ${idx + 1}: ${JSON.stringify(row)}\n`;
+          });
+
+          // Add more context for small Excel files
+          if (file.type === 'excel' && file.data.length <= 20) {
+            combinedContent += `\n[Complete Dataset Analysis]\n`;
             headers.forEach(header => {
-              const headerLower = header.toLowerCase();
-              if (headerLower.includes('sales')) extractedThemes.add('Sales Analysis');
-              if (headerLower.includes('customer')) extractedThemes.add('Customer Data');
-              if (headerLower.includes('product')) extractedThemes.add('Product Information');
-              if (headerLower.includes('revenue')) extractedThemes.add('Revenue Metrics');
-              if (headerLower.includes('competitor')) extractedThemes.add('Competitor Analysis');
-              if (headerLower.includes('ai')) extractedThemes.add('AI Technology');
+              const values = file.data.map((r: any) => r[header]).filter(v => v !== null && v !== undefined);
+              const uniqueValues = [...new Set(values)];
+              if (uniqueValues.length <= 5) {
+                combinedContent += `${header}: ${uniqueValues.join(', ')}\n`;
+              } else {
+                combinedContent += `${header}: ${uniqueValues.length} unique values\n`;
+              }
             });
           }
+
+          // Extract themes from column names and data
+          headers.forEach(header => {
+            const headerLower = header.toLowerCase();
+            if (headerLower.includes('sales')) extractedThemes.add('Sales Analysis');
+            if (headerLower.includes('customer')) extractedThemes.add('Customer Data');
+            if (headerLower.includes('product')) extractedThemes.add('Product Information');
+            if (headerLower.includes('revenue')) extractedThemes.add('Revenue Metrics');
+            if (headerLower.includes('competitor')) extractedThemes.add('Competitor Analysis');
+            if (headerLower.includes('ai')) extractedThemes.add('AI Technology');
+          });
         }
       }
     }
