@@ -598,23 +598,26 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
       };
       
       // If content is provided in the request, use it
-      if (file.content && Array.isArray(file.content)) {
+      if ((file.content && Array.isArray(file.content)) || (file.data && Array.isArray(file.data))) {
         // Content is an array of text chunks or data objects
-        fileInfo.content = file.content.map((item: any) => 
+        // Use file.data if file.content doesn't exist (for new PDF structure)
+        const contentArray = Array.isArray(file.content) ? file.content : 
+                           (file.data && Array.isArray(file.data) ? file.data.map((row: any) => row.text || JSON.stringify(row)) : []);
+        fileInfo.content = contentArray.map((item: any) => 
           typeof item === 'string' ? item : JSON.stringify(item)
         ).join('\n\n');
-        fileInfo.extractedContent = file.content;
-        fileInfo.sample = file.content.slice(0, 5).map((item: any) =>
+        fileInfo.extractedContent = contentArray;
+        fileInfo.sample = contentArray.slice(0, 5).map((item: any) =>
           typeof item === 'string' ? item : JSON.stringify(item)
         ).join('\n\n').slice(0, 2000);
         
         logger.trace('[prepareFileData] PDF content from chunks', {
           filename: file.filename,
-          chunkCount: file.content.length,
+          chunkCount: contentArray.length,
           totalLength: fileInfo.content.length,
           sampleLength: fileInfo.sample.length,
-          firstChunkSample: file.content[0]?.slice(0, 300) || 'Empty first chunk',
-          lastChunkSample: file.content[file.content.length - 1]?.slice(0, 300) || 'Empty last chunk'
+          firstChunkSample: contentArray[0]?.slice(0, 300) || 'Empty first chunk',
+          lastChunkSample: contentArray[contentArray.length - 1]?.slice(0, 300) || 'Empty last chunk'
         });
         
         // CRITICAL: Log actual content being prepared
