@@ -2,8 +2,8 @@ import { json, LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useFetcher, Link, NavLink, useLocation } from "@remix-run/react";
 import { EnhancedBlockEditor } from "~/components/editor/EnhancedBlockEditor";
 import { ClientOnly } from "~/components/ClientOnly";
-// Using optimized ChatSidebar with reduced re-renders
-import { ChatSidebarOptimized as ChatSidebar } from "~/components/chat/ChatSidebarOptimized";
+// Fixed Zustand hooks - using original ChatSidebar
+import { ChatSidebar } from "~/components/chat/ChatSidebar";
 import { ChatErrorBoundary } from "~/components/error/ChatErrorBoundary";
 import { useLayoutStore, LAYOUT_CONSTANTS } from "~/stores/layout-store";
 import { ResizeHandle } from "~/components/ui/ResizeHandle";
