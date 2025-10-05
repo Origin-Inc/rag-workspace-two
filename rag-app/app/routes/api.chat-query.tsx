@@ -86,7 +86,7 @@ export const action: ActionFunction = async ({ request }) => {
                             Array.isArray(f.content) ? f.content.map((item: any) => typeof item === 'string' ? item : JSON.stringify(item)).join('').length : 0;
         return sum + contentLength;
       }, 0) || 0,
-      conversationHistoryCount: conversationHistory?.length || 0
+      conversationHistoryCount: safeConversationHistory.length
     });
 
     logger.trace('[Unified] Request body parsed', {
@@ -95,7 +95,7 @@ export const action: ActionFunction = async ({ request }) => {
       fileCount: files?.length || 0,
       pageId,
       workspaceId,
-      hasConversationHistory: !!conversationHistory,
+      hasConversationHistory: safeConversationHistory.length > 0,
       firstFile: files?.[0] ? {
         filename: files[0].filename,
         hasData: !!files[0].data,
@@ -338,7 +338,7 @@ export const action: ActionFunction = async ({ request }) => {
         })),
         intentType: intent.queryType,
         intentFormat: intent.formatPreference,
-        hasConversationHistory: conversationHistory && conversationHistory.length > 0
+        hasConversationHistory: safeConversationHistory.length > 0
       });
       
       // Add request ID to track through the pipeline
