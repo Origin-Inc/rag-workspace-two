@@ -2,7 +2,7 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { User, Bot, ChevronDown, ChevronUp, Code, BarChart, Plus } from 'lucide-react';
-import type { ChatMessage as ChatMessageType } from '~/stores/chat-store';
+import type { ChatMessage as ChatMessageType } from '~/atoms/chat-atoms';
 import { cn } from '~/utils/cn';
 import { ChatCitation } from './ChatCitation';
 import { FileClarificationPrompt } from './FileClarificationPrompt';

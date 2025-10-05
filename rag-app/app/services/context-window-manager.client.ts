@@ -1,6 +1,6 @@
 import type { FileSchema } from '~/services/file-processing.client';
 import { FuzzyFileMatcherClient } from './fuzzy-file-matcher.client';
-import type { DataFile } from '~/stores/chat-store';
+import type { DataFile } from '~/atoms/chat-atoms';
 
 export interface ContextItem {
   type: 'system' | 'schema' | 'data' | 'message' | 'query';

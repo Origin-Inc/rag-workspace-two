@@ -1,5 +1,5 @@
 import { HelpCircle, FileText, FolderOpen, Upload } from 'lucide-react';
-import type { DataFile } from '~/stores/chat-store';
+import type { DataFile } from '~/atoms/chat-atoms';
 import type { FileMatchResult } from '~/services/fuzzy-file-matcher.client';
 import { cn } from '~/utils/cn';
 

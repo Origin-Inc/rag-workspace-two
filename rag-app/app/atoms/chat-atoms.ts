@@ -4,7 +4,7 @@ import { atomWithStorage } from 'jotai/utils';
 export interface ChatMessage {
   id: string;
   pageId: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'clarification' | 'not-found';
   content: string;
   metadata?: {
     sql?: string;
@@ -12,13 +12,38 @@ export interface ChatMessage {
     blockId?: string;
     error?: string;
     dataFiles?: string[];
+    usedTables?: Array<{
+      name: string;
+      filename: string;
+      fileId?: string;
+      columnsUsed?: string[];
+      rowsAccessed?: number;
+    }>;
+    // For clarification messages
+    clarificationData?: {
+      match?: any; // FileMatchResult - optional for smart clarifications
+      query: string;
+      pendingMessage?: string;
+    };
+    // For smart clarifications (non-file specific)
+    smartClarification?: {
+      message: string;
+      suggestions?: string[];
+    };
+    // For not-found messages  
+    notFoundData?: {
+      query: string;
+      availableFiles: DataFile[];
+      suggestions?: any[]; // FileMatchResult[]
+    };
   };
   timestamp: Date;
   isStreaming?: boolean;
 }
 
 export interface DataFile {
-  id: string;
+  id: string;  // Temporary ID for UI tracking
+  databaseId?: string;  // UUID from database (when file is persisted to cloud)
   pageId: string;
   filename: string;
   tableName: string;
@@ -30,11 +55,14 @@ export interface DataFile {
   rowCount: number;
   sizeBytes: number;
   uploadedAt: Date;
+  // Sync status properties
+  syncStatus?: 'synced' | 'syncing' | 'failed' | 'local-only';
   storageUrl?: string | null;
   parquetUrl?: string | null;
-  updatedAt?: string;
-  restoreFailed?: boolean;
+  source?: 'indexeddb' | 'cloud' | 'both';
   cloudSyncFailed?: boolean;
+  restoreFailed?: boolean;
+  updatedAt?: string;
 }
 
 // Core atoms - these are the source of truth
@@ -96,6 +124,8 @@ export const updateMessageAtom = atom(
     
     const updatedMessages = [...pageMessages];
     const existingMessage = updatedMessages[messageIndex];
+    if (!existingMessage) return;
+    
     updatedMessages[messageIndex] = {
       ...existingMessage,
       ...updates,
@@ -121,6 +151,20 @@ export const clearMessagesAtom = atom(
     set(messagesAtom, {
       ...messages,
       [pageId]: [],
+    });
+  }
+);
+
+export const deleteMessageAtom = atom(
+  null,
+  (get, set, { pageId, messageId }: { pageId: string; messageId: string }) => {
+    const messages = get(messagesAtom);
+    const pageMessages = messages[pageId];
+    if (!pageMessages) return;
+    
+    set(messagesAtom, {
+      ...messages,
+      [pageId]: pageMessages.filter(m => m.id !== messageId),
     });
   }
 );

@@ -1,5 +1,5 @@
 import { getDuckDB } from './duckdb-service.client';
-import type { DataFile } from '~/stores/chat-store-ultimate-fix';
+import type { DataFile } from '~/atoms/chat-atoms';
 import { ContextWindowManagerClient } from '~/services/context-window-manager.client';
 
 export interface QueryResult {

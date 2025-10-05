@@ -1,4 +1,4 @@
-import type { DataFile } from '~/stores/chat-store';
+import type { DataFile } from '~/atoms/chat-atoms';
 
 export interface FileMatchResult {
   file: DataFile;

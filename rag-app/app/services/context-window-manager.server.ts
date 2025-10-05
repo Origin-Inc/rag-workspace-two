@@ -1,7 +1,7 @@
 import { get_encoding, encoding_for_model, type TiktokenModel } from 'tiktoken';
 import type { FileSchema } from '~/services/file-processing.server';
 import { FuzzyFileMatcher } from './fuzzy-file-matcher.server';
-import type { DataFile } from '~/stores/chat-store';
+import type { DataFile } from '~/atoms/chat-atoms';
 
 export interface ContextItem {
   type: 'system' | 'schema' | 'data' | 'message' | 'query';

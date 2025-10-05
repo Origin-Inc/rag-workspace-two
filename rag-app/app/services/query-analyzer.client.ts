@@ -1,7 +1,7 @@
-import type { DataFile } from '~/stores/chat-store';
+import type { DataFile } from '~/atoms/chat-atoms';
 
 export interface QueryAnalysis {
-  intent: 'query-data' | 'general-chat' | 'unclear' | 'greeting' | 'help-request' | 'command';
+  intent: 'query-data' | 'general-chat' | 'unclear' | 'greeting' | 'help-request' | 'command' | 'conversational' | 'off-topic';
   confidence: number;
   clarificationNeeded: boolean;
   clarificationMessage?: string;
@@ -15,17 +15,39 @@ export class QueryAnalyzer {
   private static readonly GIBBERISH_PATTERNS = /^[a-z]{8,}$|^[qwerty]+$|^[asdf]+$|^[zxcv]+$/i;
   
   // Greeting patterns
-  private static readonly GREETING_PATTERNS = /^(hi|hello|hey|good morning|good afternoon|good evening|greetings)/i;
+  private static readonly GREETING_PATTERNS = /^(hi|hello|hey|good morning|good afternoon|good evening|greetings|howdy|sup|yo)\b/i;
   
   // Help request patterns
   private static readonly HELP_PATTERNS = /^(help|what can you do|how do i|how to|can you help|what are you capable)/i;
   
-  // Data query indicators
+  // Conversational patterns (non-data related)
+  private static readonly CONVERSATIONAL_PATTERNS = [
+    /how are you/i,
+    /how('s| is) (it going|your day|everything)/i,
+    /what('s| is) (up|new|happening)/i,
+    /nice to (meet|see) you/i,
+    /thank you|thanks/i,
+    /you('re| are) (great|awesome|helpful)/i,
+    /have a (good|nice|great) (day|evening|morning)/i
+  ];
+  
+  // Off-topic patterns (clearly not about data)
+  private static readonly OFF_TOPIC_PATTERNS = [
+    /weather|temperature|forecast|rain|snow|sunny|cloudy/i,
+    /news|politics|sports|entertainment/i,
+    /recipe|cooking|food(?! data)/i,
+    /joke|funny|humor/i,
+    /meaning of life|philosophy/i,
+    /time|date|calendar(?! data)/i,
+    /directions|location|map(?! data)/i
+  ];
+  
+  // Data query indicators (more specific to avoid false positives)
   private static readonly DATA_QUERY_INDICATORS = [
     'show', 'display', 'analyze', 'summarize', 'query', 'find', 'get',
     'calculate', 'average', 'sum', 'count', 'group', 'filter',
     'from', 'where', 'select', 'data', 'table', 'file', 'csv',
-    'what', 'explain', 'describe', 'tell', 'about', 'contain', 'specific',
+    'explain', 'describe', 'tell', 'contain', 'specific',
     'content', 'information', 'details', 'overview', 'insights', 'pdf'
   ];
   
@@ -74,7 +96,27 @@ export class QueryAnalyzer {
     if (this.GREETING_PATTERNS.test(normalizedQuery)) {
       return {
         intent: 'greeting',
+        confidence: 0.95,
+        clarificationNeeded: false
+      };
+    }
+    
+    // Check for conversational patterns
+    const isConversational = this.CONVERSATIONAL_PATTERNS.some(pattern => pattern.test(normalizedQuery));
+    if (isConversational) {
+      return {
+        intent: 'conversational',
         confidence: 0.9,
+        clarificationNeeded: false
+      };
+    }
+    
+    // Check for off-topic queries
+    const isOffTopic = this.OFF_TOPIC_PATTERNS.some(pattern => pattern.test(normalizedQuery));
+    if (isOffTopic) {
+      return {
+        intent: 'off-topic',
+        confidence: 0.85,
         clarificationNeeded: false
       };
     }
@@ -100,9 +142,23 @@ export class QueryAnalyzer {
       };
     }
     
+    // Check for explicit file content requests
+    const isExplicitFileQuery = /what.*in.*(the|my).*file|what.*(does|is).*(the|this).*file.*contain/i.test(normalizedQuery);
+    
     // Analyze for data query intent
     const dataQueryScore = this.calculateDataQueryScore(normalizedQuery);
     const mentionsFile = this.checkForFileReference(normalizedQuery, availableFiles);
+    
+    // If explicitly asking about file content, treat as data query
+    if (isExplicitFileQuery && availableFiles.length > 0) {
+      return {
+        intent: 'query-data',
+        confidence: 0.95,
+        clarificationNeeded: false,
+        mentionsFile: true,
+        fileReference: mentionsFile.reference || availableFiles[0].filename
+      };
+    }
     
     if (dataQueryScore > 0.6 || mentionsFile.mentioned) {
       return {
@@ -168,35 +224,54 @@ export class QueryAnalyzer {
     let score = 0;
     const words = query.toLowerCase().split(/\s+/);
     
-    for (const word of words) {
-      if (this.DATA_QUERY_INDICATORS.includes(word)) {
-        score += 0.2;
+    // Must have context about files to be a data query
+    const hasFileContext = /file|data|csv|pdf|excel|document|table|database/i.test(query);
+    if (!hasFileContext) {
+      // Check for strong data indicators without file context
+      for (const word of words) {
+        if (['analyze', 'summarize', 'calculate', 'average', 'sum', 'count'].includes(word)) {
+          score += 0.15;
+        }
+      }
+    } else {
+      // Has file context, weight indicators higher
+      for (const word of words) {
+        if (this.DATA_QUERY_INDICATORS.includes(word)) {
+          score += 0.25;
+        }
       }
     }
     
-    // Check for semantic query patterns (questions about content)
-    if (/what.*about|what.*contain|explain.*file|describe.*file|tell.*about/i.test(query)) {
-      score += 0.5;
+    // Check for semantic query patterns WITH file references
+    if (/what.*(in|about).*(file|data|document|pdf|csv)/i.test(query)) {
+      score += 0.6;
+    } else if (/what.*about|what.*contain/i.test(query) && hasFileContext) {
+      score += 0.4;
     }
     
     // Check for SQL-like patterns
     if (/select|from|where|group by|order by/i.test(query)) {
+      score += 0.5;
+    }
+    
+    // Check for aggregation keywords with data context
+    if (/sum|average|mean|median|count|total|maximum|minimum/i.test(query) && hasFileContext) {
       score += 0.4;
     }
     
-    // Check for aggregation keywords
-    if (/sum|average|mean|median|count|total|maximum|minimum/i.test(query)) {
-      score += 0.3;
+    // Check for document analysis keywords WITH file mention
+    if (/summarize|analyze|overview|insight|understand|review/i.test(query) && hasFileContext) {
+      score += 0.5;
     }
     
-    // Check for document analysis keywords
-    if (/summarize|analyze|overview|insight|understand|review/i.test(query)) {
-      score += 0.4;
-    }
-    
-    // Check if mentions file extensions
+    // Check if mentions file extensions explicitly
     if (/\.pdf|\.csv|\.xlsx?|\.txt/i.test(query)) {
-      score += 0.3;
+      score += 0.4;
+    }
+    
+    // Penalize if it looks off-topic
+    if (this.OFF_TOPIC_PATTERNS.some(p => p.test(query))) {
+      score = Math.max(0, score - 0.5);
     }
     
     return Math.min(1, score);

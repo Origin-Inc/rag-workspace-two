@@ -1,5 +1,5 @@
 import { getDuckDB } from './duckdb-service.client';
-import type { DataFile } from '~/stores/chat-store';
+import type { DataFile } from '~/atoms/chat-atoms';
 
 interface CloudDataFile extends DataFile {
   id: string;

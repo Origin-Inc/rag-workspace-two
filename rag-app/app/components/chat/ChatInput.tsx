@@ -2,7 +2,7 @@ import { useState, useRef, KeyboardEvent } from 'react';
 import { Send, Loader2, Plus } from 'lucide-react';
 import { cn } from '~/utils/cn';
 import { FileReferenceSuggestions } from './FileReferenceSuggestions';
-import { useChatDataFiles } from '~/stores/chat-store';
+import { useChatDataFiles } from '~/hooks/use-chat-atoms';
 
 interface ChatInputProps {
   pageId: string;

@@ -65,18 +65,52 @@ export function ChatSidebar({
   
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
-  const [disambiguationState, setDisambiguationState] = useState<{
-    matches: FileMatchResult[];
+  // Consolidated state for user interactions - only one can be active at a time
+  const [interactionState, setInteractionState] = useState<{
+    type: 'disambiguation' | 'clarification' | 'not-found' | null;
+    matches?: FileMatchResult[];
+    match?: FileMatchResult;
     query: string;
     pendingMessage: string;
+    suggestions?: FileMatchResult[];
   } | null>(null);
-  const [clarificationState, setClarificationState] = useState<{
+  
+  // Helper functions for state management
+  const clearInteractionState = () => setInteractionState(null);
+  
+  const setDisambiguationState = (state: { matches: FileMatchResult[]; query: string; pendingMessage: string } | null) => {
+    if (state) {
+      setInteractionState({
+        type: 'disambiguation',
+        matches: state.matches,
+        query: state.query,
+        pendingMessage: state.pendingMessage
+      });
+    } else {
+      clearInteractionState();
+    }
+  };
+  
+  const setClarificationState = (state: {
     type: 'clarification' | 'not-found';
     match?: FileMatchResult;
-    suggestions?: FileMatchResult[];
     query: string;
     pendingMessage: string;
-  } | null>(null);
+    suggestions?: FileMatchResult[];
+  } | null) => {
+    if (state) {
+      setInteractionState({
+        ...state,
+        type: state.type
+      });
+    } else {
+      clearInteractionState();
+    }
+  };
+  
+  // Getters for backward compatibility
+  const disambiguationState = interactionState?.type === 'disambiguation' ? interactionState : null;
+  const clarificationState = (interactionState?.type === 'clarification' || interactionState?.type === 'not-found') ? interactionState : null;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef(true);
   
@@ -677,7 +711,27 @@ export function ChatSidebar({
       case 'greeting':
         addMessage({
           role: 'assistant',
-          content: 'Hello! How can I help you today? I can analyze your data files or answer questions.',
+          content: 'Hello! How can I help you today? I can analyze your data files, answer questions, or help you understand your documents.',
+        });
+        return;
+        
+      case 'conversational':
+        addMessage({
+          role: 'assistant',
+          content: "I'm doing great, thank you for asking! I'm here to help you analyze data and documents. What would you like to explore today?",
+        });
+        return;
+        
+      case 'off-topic':
+        addMessage({
+          role: 'assistant',
+          content: `I'm specialized in data and document analysis, so I can't help with that topic. However, I can:
+• Analyze CSV, Excel, and PDF files
+• Generate insights and summaries
+• Answer questions about your data
+• Create visualizations and statistics
+
+Would you like to upload a file to analyze?`,
         });
         return;
         
@@ -688,32 +742,46 @@ export function ChatSidebar({
 • Analyzing and querying your data files
 • Creating summaries and visualizations
 • Calculating statistics and aggregations
+• Understanding PDF documents
 • Answering questions about your data
 
-Just upload a CSV or Excel file and ask me anything about it!`,
+Just upload a file and ask me anything about it!`,
         });
         return;
         
       case 'general-chat':
-        // Check if we have PDF files and the query might be about them
-        const hasPdfFiles = dataFiles.some(f => f.filename.toLowerCase().endsWith('.pdf'));
-        const isAskingAboutFiles = /what|explain|describe|tell|about|contain|specific/i.test(content.toLowerCase());
-        
-        // If we have PDFs and user is asking about files, route to unified intelligence
-        if (hasPdfFiles && isAskingAboutFiles && dataFiles.length > 0) {
-          // Process as a semantic query with all PDF files
-          const pdfFiles = dataFiles.filter(f => f.filename.toLowerCase().endsWith('.pdf'));
-          await processQueryWithFile(content, pdfFiles.length > 0 ? pdfFiles : dataFiles);
-          return;
+        // For truly general chat, check if there are files to work with
+        if (dataFiles.length > 0) {
+          // Check if the query might be asking about the files
+          const mightBeAboutFiles = /what|explain|describe|tell|show|about|contain|in the/i.test(content.toLowerCase());
+          
+          if (mightBeAboutFiles) {
+            // User might be asking about the files in a general way
+            const fileType = dataFiles.some(f => f.filename.toLowerCase().endsWith('.pdf')) ? 'document' : 'data';
+            addMessage({
+              role: 'assistant',
+              content: `I see you have ${dataFiles.length} ${fileType} file${dataFiles.length > 1 ? 's' : ''} uploaded. Would you like me to:
+• Summarize the content
+• Answer specific questions about it
+• Extract key information
+• Analyze the data
+
+Just let me know what you're looking for!`,
+            });
+          } else {
+            // General chat without file reference
+            addMessage({
+              role: 'assistant',
+              content: 'I can help you analyze your uploaded files. What would you like to know about your data?',
+            });
+          }
+        } else {
+          // No files uploaded yet
+          addMessage({
+            role: 'assistant',
+            content: 'I specialize in data and document analysis. Please upload a CSV, Excel, or PDF file to get started!',
+          });
         }
-        
-        // Otherwise, provide helpful guidance
-        addMessage({
-          role: 'assistant',
-          content: dataFiles.length > 0 
-            ? 'I can help you analyze your data files. Try asking me to summarize your data or calculate statistics!'
-            : 'I specialize in data analysis. Please upload a CSV or Excel file to get started!',
-        });
         return;
     }
     
