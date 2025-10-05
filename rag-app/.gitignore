@@ -71,7 +71,17 @@ node_modules/
 VERCEL_ENV_UPDATE.md
 *_CREDENTIALS.md
 *_SECRETS.md
-*_ENV_*.md 
+*_ENV_*.md
+DEPLOYMENT_FIX.md
+URGENT_DATABASE_FIX.md
+IPV6_FIX_URGENT.md
+FINAL_SOLUTION.md
+SUPABASE_FREE_TIER_FIX.md
+VERCEL_DEPLOYMENT_FIX.md
+verify-persistence-setup.md
+FIX_CONNECTION_POOL_NOW.md
+*_FIX*.md
+*_URGENT*.md 
 
 # Task files
 # tasks.json
