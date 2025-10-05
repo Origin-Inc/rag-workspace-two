@@ -196,13 +196,13 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
           // 1. Upload original file to Supabase Storage (for CSV/Excel)
           const originalPath = `${workspaceId}/${pageId}/${Date.now()}_${file.name}`;
           const uploadResult = await storageService.uploadFile(
-            'user-data-files',
+            'user-uploads',
             originalPath,
             file,
             file.type
           );
-          
-          storageUrl = await storageService.getSignedUrl('user-data-files', originalPath, 86400); // 24 hours
+
+          storageUrl = await storageService.getSignedUrl('user-uploads', originalPath, 86400); // 24 hours
           console.log(`[Upload] File uploaded to storage: ${originalPath}`);
         }
         
