@@ -1,4 +1,4 @@
-import * as Papa from 'papaparse';
+import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import type { ParseResult } from 'papaparse';
 import { PDFProcessingService } from './pdf-processing.server';
