@@ -83,6 +83,10 @@ FIX_CONNECTION_POOL_NOW.md
 *_FIX*.md
 *_URGENT*.md 
 
+# Analysis files that might contain credentials
+ENV_ANALYSIS.md
+*_ANALYSIS.md
+
 # Task files
 # tasks.json
 # tasks/ 
