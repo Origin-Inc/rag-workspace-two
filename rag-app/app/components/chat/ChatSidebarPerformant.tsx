@@ -150,7 +150,7 @@ interface ChatSidebarPerformantProps {
   className?: string;
 }
 
-export function ChatSidebarPerformant({ 
+function ChatSidebarPerformantBase({ 
   pageId, 
   workspaceId,
   className 
@@ -180,6 +180,17 @@ export function ChatSidebarPerformant({
   // Refs for stable references
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMountedRef = useRef(true);
+  const dataFilesRef = useRef(dataFiles);
+  const messagesRef = useRef(messages);
+  
+  // Keep refs updated
+  useEffect(() => {
+    dataFilesRef.current = dataFiles;
+  }, [dataFiles]);
+  
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   
   // Track render count for debugging
   const renderCountRef = useRef(0);
@@ -225,16 +236,16 @@ export function ChatSidebarPerformant({
     }
     
     // Analyze query intent
-    const analysis = queryAnalyzer.analyzeQuery(content, dataFiles);
+    const analysis = queryAnalyzer.analyzeQuery(content, dataFilesRef.current);
     console.log('[ChatSidebarPerformant] Query analysis:', analysis);
     
     // Process based on intent
-    if (analysis.intent === 'query-data' && dataFiles.length > 0) {
+    if (analysis.intent === 'query-data' && dataFilesRef.current.length > 0) {
       await processDataQuery(content);
     } else {
       await processGeneralQuery(content);
     }
-  }, [pageId, dataFiles, addMessage, queryAnalyzer]);
+  }, [pageId, addMessage, queryAnalyzer]);
   
   /**
    * Process data query - memoized
@@ -251,8 +262,8 @@ export function ChatSidebarPerformant({
           query,
           pageId,
           workspaceId,
-          files: dataFiles,
-          conversationHistory: Array.isArray(messages) ? messages.slice(-10) : [],
+          files: dataFilesRef.current,
+          conversationHistory: Array.isArray(messagesRef.current) ? messagesRef.current.slice(-10) : [],
         }),
       });
       
@@ -621,3 +632,13 @@ export function ChatSidebarPerformant({
     </div>
   );
 }
+
+// Export memoized version with custom comparison
+export const ChatSidebarPerformant = memo(ChatSidebarPerformantBase, (prevProps, nextProps) => {
+  // Only re-render if these specific props change
+  return (
+    prevProps.pageId === nextProps.pageId &&
+    prevProps.workspaceId === nextProps.workspaceId &&
+    prevProps.className === nextProps.className
+  );
+});
