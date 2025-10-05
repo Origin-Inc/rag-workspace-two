@@ -48,7 +48,8 @@ export class QueryAnalyzer {
     'calculate', 'average', 'sum', 'count', 'group', 'filter',
     'from', 'where', 'select', 'data', 'table', 'file', 'csv',
     'explain', 'describe', 'tell', 'contain', 'specific',
-    'content', 'information', 'details', 'overview', 'insights', 'pdf'
+    'content', 'information', 'details', 'overview', 'insights', 'pdf',
+    'notion', 'coda', 'document', 'page', 'deep', 'detailed', 'depth'
   ];
   
   // Vague request patterns
@@ -143,7 +144,7 @@ export class QueryAnalyzer {
     }
     
     // Check for explicit file content requests
-    const isExplicitFileQuery = /what.*in.*(the|my).*file|what.*(does|is).*(the|this).*file.*contain/i.test(normalizedQuery);
+    const isExplicitFileQuery = /what.*in.*(the|my).*file|what.*(does|is).*(the|this).*file.*contain|summarize.*(the|my|this).*file|give.*detail.*file|explain.*file/i.test(normalizedQuery);
     
     // Analyze for data query intent
     const dataQueryScore = this.calculateDataQueryScore(normalizedQuery);
@@ -245,6 +246,8 @@ export class QueryAnalyzer {
     // Check for semantic query patterns WITH file references
     if (/what.*(in|about).*(file|data|document|pdf|csv)/i.test(query)) {
       score += 0.6;
+    } else if (/summarize.*file|give.*detail.*file|explain.*file/i.test(query)) {
+      score += 0.8;
     } else if (/what.*about|what.*contain/i.test(query) && hasFileContext) {
       score += 0.4;
     }
