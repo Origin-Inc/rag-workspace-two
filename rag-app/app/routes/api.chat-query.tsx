@@ -4,6 +4,7 @@ import { prisma } from "~/utils/prisma.server";
 import { queryIntentAnalyzer } from "~/services/query-intent-analyzer.server";
 import { UnifiedIntelligenceService } from "~/services/unified-intelligence.server";
 import { ResponseComposer } from "~/services/response-composer.server";
+import { ConversationContextManager } from "~/services/conversation-context.server";
 import { createChatCompletion, isOpenAIConfigured } from "~/services/openai.server";
 import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
@@ -66,7 +67,18 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     const body = await request.json();
-    const { query, files, pageId, workspaceId, conversationHistory } = body;
+    const { query, files, pageId, workspaceId, conversationHistory, sessionId } = body;
+    
+    // Generate session ID if not provided
+    const currentSessionId = sessionId || `session_${user.id}_${Date.now()}`;
+    
+    // Get or create conversation context
+    const context = ConversationContextManager.getContext(
+      currentSessionId,
+      user.id,
+      workspaceId,
+      pageId
+    );
     
     // Ensure conversationHistory is always an array
     const safeConversationHistory = Array.isArray(conversationHistory) ? conversationHistory : [];
@@ -208,6 +220,9 @@ export const action: ActionFunction = async ({ request }) => {
       confidence: intent.confidence,
       needsDataAccess: queryIntentAnalyzer.needsDataAccess(intent)
     });
+    
+    // Update context with query and intent
+    ConversationContextManager.updateWithQuery(context, query, intent, files || []);
 
     // Initialize services with extensive logging
     logger.trace('[Unified] Initializing services...');
@@ -512,6 +527,16 @@ export const action: ActionFunction = async ({ request }) => {
     });
     
     // Log performance summary for monitoring
+    // Update context with response
+    const responseType = files && files.length > 0 ? 'data-query' : 'general-chat';
+    ConversationContextManager.updateWithResponse(
+      context,
+      finalResponse.content,
+      responseType,
+      totalProcessingTime,
+      tokenMetadata?.totalTokens
+    );
+    
     logger.trace('[Unified] Request completed', {
       requestId,
       userId: user.id,
@@ -526,7 +551,8 @@ export const action: ActionFunction = async ({ request }) => {
       success: true
     });
 
-    return json(finalResponse);
+    // Include session ID in response for client continuity
+    return json({ ...finalResponse, sessionId: currentSessionId });
 
   } catch (error) {
     logger.error('[Unified] Request failed', {
