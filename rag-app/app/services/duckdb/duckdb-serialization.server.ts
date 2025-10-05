@@ -253,10 +253,4 @@ export class DuckDBSerializationService {
     return 'string';
   }
   
-  /**
-   * Close the database connection
-   */
-  async close() {
-    await this.db.close();
-  }
 }
