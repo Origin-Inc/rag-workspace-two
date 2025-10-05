@@ -52,6 +52,22 @@ export class QueryAnalyzer {
     'notion', 'coda', 'document', 'page', 'deep', 'detailed', 'depth'
   ];
   
+  // File content query patterns - NEW
+  private static readonly FILE_CONTENT_PATTERNS = [
+    /summarize\s+(the|this|my)?\s*(file|document|pdf|csv|data)/i,
+    /what.*\s+(in|about|does|is)\s+(the|this|my)?\s*(file|document|pdf|csv|data)/i,
+    /explain\s+(the|this|my)?\s*(file|document|pdf|csv|data)/i,
+    /show\s+me?\s*(the|this)?\s*(content|data|information)\s*(of|from|in)?\s*(the|this|my)?\s*(file|document)/i,
+    /analyze\s+(the|this|my)?\s*(file|document|pdf|csv|data)/i,
+    /tell\s+me?\s*(about|what)?\s*(the|this|my)?\s*(file|document|pdf|csv|data)/i,
+    /give\s+me?\s*(a|an)?\s*(summary|overview|details)\s*(of|about|from)?\s*(the|this|my)?\s*(file|document)/i,
+    /what\s+can\s+you\s+tell\s+me\s+about\s+(the|this|my)?\s*(file|document|pdf|csv|data)/i,
+    /describe\s+(the|this|my)?\s*(file|document|pdf|csv|data)/i,
+    /(notion|coda)\s+file/i,  // Specific mention of "notion file" or "coda file"
+    /the\s+file/i,  // Simple "the file" when files are present
+    /my\s+(document|file|pdf|csv|data)/i  // "my document", "my file", etc.
+  ];
+  
   // Vague request patterns
   private static readonly VAGUE_PATTERNS = [
     /^(do it|do that|can you do that|do this for me|help me with this)$/i,
@@ -143,15 +159,22 @@ export class QueryAnalyzer {
       };
     }
     
-    // Check for explicit file content requests
-    const isExplicitFileQuery = /what.*in.*(the|my).*file|what.*(does|is).*(the|this).*file.*contain|summarize.*(the|my|this).*file|give.*detail.*file|explain.*file/i.test(normalizedQuery);
+    // Check for explicit file content requests using enhanced patterns
+    const isExplicitFileQuery = this.FILE_CONTENT_PATTERNS.some(pattern => pattern.test(normalizedQuery));
+    
+    // Also check for contextual file queries when files are available
+    const isContextualFileQuery = availableFiles.length > 0 && (
+      /^(summarize|explain|analyze|describe|show)\s+(it|this|that)$/i.test(normalizedQuery) ||
+      /^what.*\s+(it|this|that)\s+(contains?|says?|is about)$/i.test(normalizedQuery) ||
+      /^(the|this|my)\s+file$/i.test(normalizedQuery)
+    );
     
     // Analyze for data query intent
     const dataQueryScore = this.calculateDataQueryScore(normalizedQuery);
     const mentionsFile = this.checkForFileReference(normalizedQuery, availableFiles);
     
     // If explicitly asking about file content, treat as data query
-    if (isExplicitFileQuery && availableFiles.length > 0) {
+    if ((isExplicitFileQuery || isContextualFileQuery) && availableFiles.length > 0) {
       return {
         intent: 'query-data',
         confidence: 0.95,
