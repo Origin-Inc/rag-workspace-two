@@ -384,7 +384,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
           fallbackReason: 'NO_OPENAI_CLIENT'
         });
         this.lastTokensUsed = 0;
-        return this.performContentBasedAnalysis(query, files, requestId);
+        return await this.performContentBasedAnalysis(query, files, requestId);
       }
       
       // Verify we have actual content to send
@@ -414,7 +414,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
           fallbackReason: 'NO_CONTENT_AT_ALL'
         });
         this.lastTokensUsed = 0;
-        return this.performContentBasedAnalysis(query, files, requestId);
+        return await this.performContentBasedAnalysis(query, files, requestId);
       }
       
       // CRITICAL: Log that we're proceeding with OpenAI
@@ -666,7 +666,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
           }
         } else {
           // Try to extract meaningful content directly from the files
-          const fallbackAnalysis = this.performContentBasedAnalysis(query, files, requestId);
+          const fallbackAnalysis = await this.performContentBasedAnalysis(query, files, requestId);
           if (fallbackAnalysis.summary && fallbackAnalysis.summary.length > 50 && 
               !fallbackAnalysis.summary.includes('Unable to extract')) {
             finalSummary = fallbackAnalysis.summary;
@@ -715,7 +715,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
       logger.warn('[performSemanticAnalysis] Using content-based fallback analysis', {
         requestId
       });
-      const fallbackResult = this.performContentBasedAnalysis(query, files, requestId);
+      const fallbackResult = await this.performContentBasedAnalysis(query, files, requestId);
       
       // Log fallback result quality
       logger.trace('[performSemanticAnalysis] Fallback analysis result:', {
@@ -1708,11 +1708,11 @@ Format as JSON with keys: summary (specific answer to the query), context (where
    * Perform content-based analysis when OpenAI is unavailable or fails
    * Extracts actual content from files instead of returning generic responses
    */
-  private performContentBasedAnalysis(
+  private async performContentBasedAnalysis(
     query: string,
     files: FileContext[],
     requestId?: string
-  ): SemanticAnalysis {
+  ): Promise<SemanticAnalysis> {
     logger.trace('[performContentBasedAnalysis] Extracting content directly', {
       requestId,
       filesCount: files.length,
