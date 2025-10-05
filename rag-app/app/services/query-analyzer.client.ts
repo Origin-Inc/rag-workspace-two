@@ -313,8 +313,8 @@ export class QueryAnalyzer {
     const queryLower = query.toLowerCase();
     
     for (const file of availableFiles) {
-      const filename = file.filename.toLowerCase();
-      const tableName = file.tableName.toLowerCase();
+      const filename = file.filename?.toLowerCase() || '';
+      const tableName = file.tableName?.toLowerCase() || '';
       
       if (queryLower.includes(filename) || queryLower.includes(tableName)) {
         return { mentioned: true, reference: file.filename };
