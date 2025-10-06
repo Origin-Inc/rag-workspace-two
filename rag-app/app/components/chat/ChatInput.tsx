@@ -95,7 +95,7 @@ export function ChatInput({
               "flex items-center justify-center"
             )}
             aria-label="Upload file"
-            title="Upload CSV, Excel, or PDF file"
+            title="Upload CSV or Excel file"
           >
             <Plus className="w-5 h-5" />
           </button>
