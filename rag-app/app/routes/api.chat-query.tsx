@@ -9,6 +9,7 @@ import { createChatCompletion, isOpenAIConfigured } from "~/services/openai.serv
 import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { aiModelConfig } from '~/services/ai-model-config.server';
+import { QueryErrorRecovery } from '~/services/query-error-recovery.server';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 const logger = new DebugLogger('api.chat-query');
@@ -371,7 +372,7 @@ export const action: ActionFunction = async ({ request }) => {
         intent,
         conversationHistory: safeConversationHistory,
         options: {
-          includeSQL: false,
+          includeSQL: true, // Enable SQL generation for data queries
           includeSemantic: true,
           includeInsights: true,
           includeStatistics: true,
@@ -557,25 +558,34 @@ export const action: ActionFunction = async ({ request }) => {
     return json({ ...finalResponse, sessionId: currentSessionId });
 
   } catch (error) {
-    logger.error('[Unified] Request failed', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      type: error instanceof Error ? error.constructor.name : typeof error
+    // Log error with context for monitoring
+    QueryErrorRecovery.logError(error, {
+      requestId,
+      query: body?.query,
+      userId: user?.id,
+      fileCount: files?.length || 0
     });
-    
-    // Provide a helpful error message
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    // Generate user-friendly error response with recovery suggestions
+    const errorResponse = QueryErrorRecovery.generateErrorResponse(
+      error instanceof Error ? error : new Error(String(error))
+    );
+
+    // Determine HTTP status code based on error category
+    const statusCode = errorResponse.metadata.category === 'authentication_error' ? 401 :
+                      errorResponse.metadata.category === 'validation_error' ? 400 :
+                      500;
+
     return json(
       {
-        content: `I encountered an error while processing your request: ${errorMessage}\n\nPlease try rephrasing your query or ensure the files are properly loaded.`,
-        metadata: { 
-          error: errorMessage,
-          stack: process.env.NODE_ENV === 'development' ? 
-            (error instanceof Error ? error.stack : undefined) : undefined,
-          timestamp: new Date().toISOString()
+        content: errorResponse.content,
+        metadata: {
+          ...errorResponse.metadata,
+          stack: process.env.NODE_ENV === 'development' && error instanceof Error ?
+            error.stack : undefined
         }
       },
-      { status: 500 }
+      { status: statusCode }
     );
   }
 };

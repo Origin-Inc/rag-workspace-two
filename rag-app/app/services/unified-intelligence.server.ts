@@ -9,6 +9,7 @@ import type { QueryIntent } from './query-intent-analyzer.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { aiModelConfig } from './ai-model-config.server';
 import { costTracker } from './cost-tracker-simple.server';
+import { SQLValidator } from './sql-validator.server';
 // import { cacheManager } from './cache-manager.server';
 
 const logger = new DebugLogger('unified-intelligence');
@@ -782,16 +783,174 @@ Format as JSON with keys: summary (specific answer to the query), context (where
   }
 
   /**
-   * Generate context-aware SQL
+   * Generate context-aware SQL using OpenAI
    */
   private async generateContextAwareSQL(
     query: string,
     files: FileContext[],
     semantic: SemanticAnalysis
   ): Promise<string> {
-    // This will be enhanced by the api.chat-query.tsx endpoint
-    // For now, return empty as SQL generation is handled separately
-    return '';
+    if (!openai) {
+      logger.warn('[generateContextAwareSQL] OpenAI not configured');
+      return '';
+    }
+
+    // Only generate SQL for files with structured data
+    const dataFiles = files.filter(f =>
+      (f.type === 'csv' || f.type === 'excel') && f.schema
+    );
+
+    if (dataFiles.length === 0) {
+      logger.trace('[generateContextAwareSQL] No structured data files found');
+      return '';
+    }
+
+    try {
+      // Build schema context for each table with enhanced metadata
+      const schemaContext = dataFiles.map(f => {
+        const tableName = f.filename.replace(/[^a-zA-Z0-9_]/g, '_');
+        const columns = f.schema?.columns || [];
+
+        // Build column descriptions with type info and stats
+        const columnDescriptions = columns.map((c: any) => {
+          let desc = `${c.name} (${c.type})`;
+
+          // Add column metadata if available
+          if (c.isPrimary) desc += ' [PRIMARY KEY]';
+          if (c.isRequired) desc += ' [REQUIRED]';
+          if (c.isUnique) desc += ' [UNIQUE]';
+
+          return desc;
+        }).join(', ');
+
+        // Get sample data if available
+        let sampleRows = '';
+        if (f.data && Array.isArray(f.data) && f.data.length > 0) {
+          const sampleData = f.data.slice(0, 3);
+          sampleRows = '\nSample rows:\n' + sampleData.map((row: any, idx: number) =>
+            `Row ${idx + 1}: ${JSON.stringify(row)}`
+          ).join('\n');
+        }
+
+        // Add column statistics if available from metadata
+        let columnStats = '';
+        if (f.metadata?.columnStats) {
+          columnStats = '\nColumn statistics:\n' + Object.entries(f.metadata.columnStats)
+            .slice(0, 5) // Limit to top 5 columns for context
+            .map(([colName, stats]: [string, any]) => {
+              let statStr = `  ${colName}:`;
+              if (stats.uniqueValues !== undefined) statStr += ` ${stats.uniqueValues} unique values`;
+              if (stats.nullCount !== undefined) statStr += `, ${stats.nullCount} nulls`;
+              if (stats.minValue !== undefined) statStr += `, min: ${stats.minValue}`;
+              if (stats.maxValue !== undefined) statStr += `, max: ${stats.maxValue}`;
+              return statStr;
+            }).join('\n');
+        }
+
+        return `
+Table: ${tableName}
+Columns: ${columnDescriptions}
+Row count: ${f.rowCount || 0}${columnStats}${sampleRows}
+`;
+      }).join('\n---\n');
+
+      // Build the prompt for SQL generation
+      const systemPrompt = `You are an expert SQL query generator. Generate DuckDB SQL queries based on natural language questions.
+
+IMPORTANT RULES:
+1. Generate ONLY SELECT queries (no INSERT, UPDATE, DELETE, DROP, ALTER, CREATE)
+2. Use proper DuckDB SQL syntax
+3. Table names are provided in the schema context
+4. Return ONLY the SQL query without explanations or markdown code blocks
+5. Use appropriate WHERE clauses, JOINs, GROUP BY, ORDER BY as needed
+6. For aggregations, always use descriptive column aliases
+7. Limit results to 1000 rows unless specified otherwise
+8. Use CAST() for explicit type conversions when needed
+
+Available tables and schemas:
+${schemaContext}`;
+
+      const userPrompt = `Generate a SQL query to answer this question: "${query}"
+
+Context from semantic analysis:
+- Summary: ${semantic.summary}
+- Key themes: ${semantic.keyThemes.join(', ')}
+- Entities: ${semantic.entities.join(', ')}
+
+Return ONLY the SQL query.`;
+
+      logger.trace('[generateContextAwareSQL] Calling OpenAI', {
+        tableCount: dataFiles.length,
+        queryLength: query.length
+      });
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.1, // Low temperature for more deterministic SQL
+        max_tokens: 1000
+      });
+
+      const generatedSQL = completion.choices[0]?.message?.content?.trim() || '';
+
+      // Remove markdown code blocks if present
+      let cleanedSQL = generatedSQL
+        .replace(/```sql\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+
+      // Validate SQL using comprehensive validator
+      const schemaInfo = dataFiles.map(f => ({
+        tableName: f.filename.replace(/[^a-zA-Z0-9_]/g, '_'),
+        columns: (f.schema?.columns || []).map((c: any) => ({
+          name: c.name,
+          type: c.type
+        }))
+      }));
+
+      const validation = SQLValidator.validate(cleanedSQL, schemaInfo);
+
+      if (!validation.valid) {
+        logger.warn('[generateContextAwareSQL] SQL validation failed', {
+          sql: cleanedSQL,
+          errors: validation.errors
+        });
+        return '';
+      }
+
+      // Log warnings but continue
+      if (validation.warnings.length > 0) {
+        logger.trace('[generateContextAwareSQL] SQL validation warnings', {
+          warnings: validation.warnings
+        });
+      }
+
+      // Use sanitized SQL
+      const finalSQL = validation.sanitizedSQL || cleanedSQL;
+
+      // Track tokens used
+      this.lastPromptTokens = completion.usage?.prompt_tokens || 0;
+      this.lastCompletionTokens = completion.usage?.completion_tokens || 0;
+      this.lastTokensUsed = completion.usage?.total_tokens || 0;
+
+      logger.trace('[generateContextAwareSQL] SQL generated successfully', {
+        sqlLength: finalSQL.length,
+        tokensUsed: this.lastTokensUsed,
+        hasWarnings: validation.warnings.length > 0
+      });
+
+      return finalSQL;
+
+    } catch (error) {
+      logger.error('[generateContextAwareSQL] Failed to generate SQL', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      return '';
+    }
   }
 
   /**
