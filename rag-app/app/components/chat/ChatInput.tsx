@@ -121,6 +121,7 @@ export function ChatInput({
           style={{ height: '40px' }}
         />
         <button
+          id="upload-button"
           onClick={handleSubmit}
           disabled={disabled || !input.trim()}
           className={cn(
@@ -144,7 +145,7 @@ export function ChatInput({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv,.xlsx,.xls,.pdf"
+          accept=".csv,.xlsx,.xls"
           className="hidden"
           onChange={async (e) => {
             const file = e.target.files?.[0];
