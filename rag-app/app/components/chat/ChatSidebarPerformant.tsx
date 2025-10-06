@@ -479,15 +479,15 @@ function ChatSidebarPerformantBase({
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
+
     const files = Array.from(e.dataTransfer.files);
     for (const file of files) {
-      if (file.name.match(/\.(csv|xlsx?|pdf)$/i)) {
+      if (file.name.match(/\.(csv|xlsx?)$/i)) {
         await handleFileUpload(file);
       } else {
         addMessage({
           role: 'system',
-          content: `File "${file.name}" is not supported. Please upload CSV, Excel, or PDF files.`,
+          content: `File "${file.name}" is not supported. Please upload CSV or Excel files.`,
         });
       }
     }
@@ -639,7 +639,7 @@ function ChatSidebarPerformantBase({
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept=".csv,.xlsx,.xls,.pdf"
+        accept=".csv,.xlsx,.xls"
         multiple
         onChange={(e) => {
           const files = Array.from(e.target.files || []);
