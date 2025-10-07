@@ -68,24 +68,37 @@ export class DuckDBSerializationService {
     console.log(`[DuckDBSerializationService] Creating table: ${tableName}`);
     
     // Generate CREATE TABLE statement from schema
-    const columns = schema.columns.map((col: any) => {
+    // CRITICAL FIX: Filter out columns with empty names (pandas index, unnamed columns)
+    const validColumns = schema.columns.filter((col: any) => {
+      const hasName = col.name && col.name.trim() !== '';
+      if (!hasName) {
+        console.error(`[DuckDBSerializationService] ⚠️ Filtering out column with empty name`);
+      }
+      return hasName;
+    });
+
+    if (validColumns.length === 0) {
+      throw new Error('No valid columns found in schema (all column names are empty)');
+    }
+
+    const columns = validColumns.map((col: any) => {
       const duckdbType = this.mapTypeToDuckDB(col.type);
       return `"${col.name}" ${duckdbType}`;
     }).join(', ');
-    
+
     const createTableSQL = `CREATE TABLE ${tableName} (${columns})`;
     console.log(`[DuckDBSerializationService] SQL: ${createTableSQL}`);
-    
+
     await this.db.all(createTableSQL);
-    
+
     // Insert data
     if (data.length > 0) {
-      const placeholders = schema.columns.map(() => '?').join(', ');
+      const placeholders = validColumns.map(() => '?').join(', ');
       const insertSQL = `INSERT INTO ${tableName} VALUES (${placeholders})`;
-      
+
       const stmt = await this.db.prepare(insertSQL);
       for (const row of data) {
-        const values = schema.columns.map((col: any) => {
+        const values = validColumns.map((col: any) => {
           const value = row[col.name];
           
           // Handle null/undefined values
