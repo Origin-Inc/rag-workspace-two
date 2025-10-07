@@ -78,6 +78,30 @@ export const action: ActionFunction = async ({ request }) => {
     query = body.query;
     files = body.files || [];
     const { pageId, workspaceId, conversationHistory, sessionId, queryResults, fileMetadata, stream } = body;
+
+    // CRITICAL DEBUG: Log what client sent
+    logger.error('[REQUEST DEBUG] ⚠️ Request body analysis', {
+      requestId,
+      query: query?.slice(0, 100),
+      filesCount: files?.length || 0,
+      files: files?.map(f => ({
+        filename: f.filename,
+        type: f.type,
+        tableName: f.tableName,
+        hasData: !!f.data,
+        dataIsArray: Array.isArray(f.data),
+        dataLength: Array.isArray(f.data) ? f.data.length : 0,
+        hasContent: !!f.content,
+        contentType: typeof f.content,
+        contentLength: typeof f.content === 'string' ? f.content.length :
+                      Array.isArray(f.content) ? f.content.length : 0,
+        hasParquetUrl: !!f.parquetUrl,
+        hasStorageUrl: !!f.storageUrl,
+        firstDataRow: f.data?.[0] ? Object.keys(f.data[0]) : null
+      })),
+      hasQueryResults: !!queryResults,
+      queryResultsData: queryResults?.data ? `${queryResults.data.length} rows` : 'none'
+    });
     
     // Generate session ID if not provided
     const currentSessionId = sessionId || `session_${user.id}_${Date.now()}`;
@@ -275,8 +299,28 @@ export const action: ActionFunction = async ({ request }) => {
     // QUERY-FIRST INTEGRATION (Task 61.1):
     // If query results are provided, use them instead of preparing full files
     let fileData;
+
+    // CRITICAL DEBUG: Check what we received
+    logger.error('[CRITICAL DEBUG] Data path selection', {
+      requestId,
+      hasQueryResults: !!queryResults,
+      queryResultsKeys: queryResults ? Object.keys(queryResults) : [],
+      queryResultsData: queryResults?.data ? `${queryResults.data.length} rows` : 'no data',
+      hasFiles: !!files,
+      filesCount: files?.length || 0,
+      filesPreview: files?.slice(0, 2).map(f => ({
+        filename: f.filename,
+        hasData: !!f.data,
+        dataLength: Array.isArray(f.data) ? f.data.length : 0,
+        hasContent: !!f.content,
+        contentType: typeof f.content,
+        contentLength: typeof f.content === 'string' ? f.content.length :
+                      Array.isArray(f.content) ? f.content.length : 0
+      }))
+    });
+
     if (queryResults && queryResults.data) {
-      logger.trace('[Query-First] Using query results instead of full files', {
+      logger.error('[Query-First] ✅ USING QUERY-FIRST PATH', {
         requestId,
         resultRows: queryResults.data.length,
         sql: queryResults.sql,
@@ -285,6 +329,12 @@ export const action: ActionFunction = async ({ request }) => {
 
       fileData = prepareQueryResults(queryResults, fileMetadata, requestId);
     } else {
+      logger.error('[Traditional] ⚠️ USING TRADITIONAL PATH', {
+        requestId,
+        reason: !queryResults ? 'No queryResults' : 'No queryResults.data',
+        filesCount: files?.length || 0
+      });
+
       // PHASE 2: Intelligent file filtering with fuzzy matching (84% reduction)
       let filteredFiles = files;
       if (files && files.length > 1) {
@@ -330,13 +380,26 @@ export const action: ActionFunction = async ({ request }) => {
 
     const fileDataTime = Date.now() - fileDataStart;
 
-    logger.trace('[Unified] File data preparation completed', {
+    logger.error('[Unified] ⚠️ File data preparation CRITICAL CHECKPOINT', {
       requestId,
       preparationTimeMs: fileDataTime,
       preparedFiles: fileData.length,
-      approach: queryResults ? 'query-first' : 'traditional'
+      approach: queryResults ? 'query-first' : 'traditional',
+      firstFile: fileData[0] ? {
+        filename: fileData[0].filename,
+        type: fileData[0].type,
+        hasContent: !!fileData[0].content,
+        contentType: typeof fileData[0].content,
+        contentPreview: typeof fileData[0].content === 'string' ?
+          fileData[0].content.slice(0, 300) :
+          Array.isArray(fileData[0].content) ?
+            `Array with ${fileData[0].content.length} items` :
+            'NO CONTENT',
+        hasData: !!fileData[0].data,
+        dataLength: Array.isArray(fileData[0].data) ? fileData[0].data.length : 0
+      } : 'NO FILES PREPARED'
     });
-    
+
     // CRITICAL DEBUG: Log prepared file data
     const preparedContentSize = fileData.reduce((sum, f) => {
       const size = typeof f.content === 'string' ? f.content.length :
@@ -889,24 +952,33 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
       if (file.data && Array.isArray(file.data)) {
         fileInfo.data = file.data;
         fileInfo.sampleData = file.data.slice(0, 100);
-        
+
         // Generate content string for AI analysis
         if (file.data.length > 0) {
           const headers = Object.keys(file.data[0]);
-          const rows = file.data.slice(0, 50).map((row: any) => 
+          const rows = file.data.slice(0, 50).map((row: any) =>
             headers.map(h => row[h]).join(', ')
           );
           fileInfo.content = headers.join(', ') + '\n' + rows.join('\n');
           fileInfo.sample = fileInfo.content.slice(0, 2000);
-          
+
           // CRITICAL: Log the generated content
-          logger.debug('[prepareFileData] CSV content GENERATED from data', {
+          logger.error('[prepareFileData] ✅ CSV CONTENT GENERATED', {
             filename: file.filename,
             headers: headers.length,
+            headersList: headers,
+            totalRows: file.data.length,
             rowsIncluded: rows.length,
             contentLength: fileInfo.content.length,
             contentPreview: fileInfo.content.slice(0, 500),
-            sampleLength: fileInfo.sample.length
+            sampleLength: fileInfo.sample.length,
+            firstDataRow: file.data[0],
+            lastDataRow: file.data[file.data.length - 1]
+          });
+        } else {
+          logger.error('[prepareFileData] ⚠️ CSV HAS EMPTY DATA ARRAY', {
+            filename: file.filename,
+            dataLength: file.data.length
           });
         }
         

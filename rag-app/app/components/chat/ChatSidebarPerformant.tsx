@@ -334,7 +334,17 @@ function ChatSidebarPerformantBase({
 
       // QUERY-FIRST APPROACH: Execute SQL locally first if we have structured data
       if (structuredFiles.length > 0) {
-        console.log('[Query-First] Executing local DuckDB query for', structuredFiles.length, 'files');
+        console.error('[Query-First] ⚠️ ATTEMPTING LOCAL DUCKDB QUERY', {
+          structuredFilesCount: structuredFiles.length,
+          files: structuredFiles.map(f => ({
+            filename: f.filename,
+            type: f.type,
+            tableName: f.tableName,
+            rowCount: f.rowCount,
+            hasSchema: !!f.schema
+          })),
+          query
+        });
 
         try {
           // Process natural language → SQL → Results
@@ -345,10 +355,13 @@ function ChatSidebarPerformantBase({
             workspaceId
           );
 
-          console.log('[Query-First] Query executed successfully', {
+          console.error('[Query-First] ✅ QUERY EXECUTED SUCCESSFULLY', {
             rowCount: queryResult.rowCount,
             executionTime: queryResult.executionTime,
-            sql: queryResult.sql
+            sql: queryResult.sql,
+            columnsCount: queryResult.columns?.length || 0,
+            dataRows: queryResult.data?.length || 0,
+            firstRow: queryResult.data?.[0]
           });
 
           // Send query RESULTS to AI with STREAMING for immediate feedback
@@ -445,14 +458,30 @@ function ChatSidebarPerformantBase({
           return; // Success - exit early
 
         } catch (queryError) {
-          console.error('[Query-First] Failed to execute query locally:', queryError);
-          // Fall through to traditional approach
-          console.log('[Query-First] Falling back to traditional file-based approach');
+          console.error('[Query-First] ❌ QUERY FAILED - FALLING BACK TO TRADITIONAL', {
+            error: queryError instanceof Error ? queryError.message : String(queryError),
+            errorStack: queryError instanceof Error ? queryError.stack : undefined,
+            errorType: queryError instanceof Error ? queryError.constructor.name : typeof queryError
+          });
         }
       }
 
       // FALLBACK: Traditional approach for non-structured files or if query-first fails
-      console.log('[Traditional] Using file-based approach');
+      console.error('[Traditional] ⚠️ USING TRADITIONAL FILE-BASED APPROACH', {
+        reason: structuredFiles.length === 0 ? 'No structured files' : 'Query-first failed',
+        filesCount: dataFilesRef.current.length,
+        files: dataFilesRef.current.map(f => ({
+          filename: f.filename,
+          type: f.type,
+          hasData: !!f.data,
+          dataLength: Array.isArray(f.data) ? f.data.length : 0,
+          hasContent: !!f.content,
+          contentLength: typeof f.content === 'string' ? f.content.length :
+                        Array.isArray(f.content) ? f.content.length : 0,
+          hasParquetUrl: !!f.parquetUrl
+        }))
+      });
+
       const response = await fetch('/api/chat-query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
