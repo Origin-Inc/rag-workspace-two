@@ -406,17 +406,32 @@ function ChatSidebarPerformantBase({
           // Skip to traditional approach
         } else {
           try {
-            // Execute simple SELECT query directly (no API call for SQL generation)
-            // This avoids the "Unable to extract..." streaming error
+            // Query DuckDB locally to get sample data
+            const duckdb = getDuckDB();
+            const conn = await duckdb.getConnection();
             const tableName = filesWithData[0].tableName;
-            const queryResult = await duckdbService.executeQuery(
-              `SELECT * FROM ${tableName} LIMIT 100`,
-              false
-            );
+            const result = await conn.query(`SELECT * FROM ${tableName} LIMIT 100`);
+            const sampleData = result.toArray();
+
+            console.error('[Query-First] ✅ FETCHED SAMPLE DATA FROM DUCKDB', {
+              tableName,
+              rowCount: sampleData.length,
+              columns: result.schema.fields.map(f => f.name)
+            });
+
+            // Now send this data to the API for analysis (not SQL generation)
+            // Send directly to chat-query with the actual data
+            const queryResult = {
+              success: true,
+              data: sampleData,
+              sql: `SELECT * FROM ${tableName} LIMIT 100`,
+              columns: result.schema.fields.map(f => f.name),
+              rowCount: sampleData.length,
+              executionTime: 0
+            };
 
             console.error('[Query-First] ✅ QUERY EXECUTED SUCCESSFULLY', {
               rowCount: queryResult.rowCount,
-              executionTime: queryResult.executionTime,
               sql: queryResult.sql,
               columnsCount: queryResult.columns?.length || 0,
               dataRows: queryResult.data?.length || 0,
