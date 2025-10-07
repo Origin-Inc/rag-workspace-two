@@ -79,7 +79,8 @@ export class DuckDBQueryService {
         
         return {
           id: t.id,
-          name: t.tableName,
+          filename: t.tableName,
+          tableName: t.tableName,
           schema: t.schema,
           rowCount: t.rowCount,
           data: sampleData,
