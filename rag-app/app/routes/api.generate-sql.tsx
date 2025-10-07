@@ -1,8 +1,9 @@
 import { json, type ActionFunctionArgs } from '@remix-run/node';
 import { requireUser } from '~/services/auth/auth.server';
-import { UnifiedIntelligenceService } from '~/services/unified-intelligence.server';
 import type { SQLGenerationResponse } from '~/services/duckdb/duckdb-query.client';
 import { DebugLogger } from '~/utils/debug-logger';
+import { openai } from '~/services/openai.server';
+import { SQLValidator } from '~/services/sql-validator.server';
 
 const logger = new DebugLogger('api:generate-sql');
 
@@ -23,6 +24,161 @@ interface GenerateSQLRequest {
   }>;
   conversationHistory?: Array<{ role: string; content: string }>;
   model?: string;
+}
+
+/**
+ * Generate SQL from natural language query
+ * Optimized for speed - no semantic analysis required
+ */
+async function generateSQL(
+  query: string,
+  files: Array<{
+    filename: string;
+    tableName: string;
+    schema: any;
+    rowCount?: number;
+    data?: any[];
+  }>,
+  requestId: string
+): Promise<string> {
+  if (!openai) {
+    logger.error('[generateSQL] OpenAI not configured', { requestId });
+    return '';
+  }
+
+  // Filter for structured data files only
+  const dataFiles = files.filter(f => f.schema);
+
+  if (dataFiles.length === 0) {
+    logger.error('[generateSQL] No structured data files found', { requestId });
+    return '';
+  }
+
+  try {
+    // Build schema context for each table
+    const schemaContext = dataFiles.map(f => {
+      const tableName = f.tableName;
+      const columns = f.schema?.columns || [];
+
+      // Build column descriptions with type info
+      const columnDescriptions = columns.map((c: any) => {
+        return `${c.name} (${c.type})`;
+      }).join(', ');
+
+      // Get sample data if available
+      let sampleRows = '';
+      if (f.data && Array.isArray(f.data) && f.data.length > 0) {
+        const sampleData = f.data.slice(0, 3);
+        sampleRows = '\nSample rows:\n' + sampleData.map((row: any, idx: number) =>
+          `Row ${idx + 1}: ${JSON.stringify(row)}`
+        ).join('\n');
+      }
+
+      return `
+Table: ${tableName}
+Columns: ${columnDescriptions}
+Row count: ${f.rowCount || 0}${sampleRows}
+`;
+    }).join('\n---\n');
+
+    // Build the prompt for SQL generation
+    const systemPrompt = `You are an expert SQL query generator. Generate DuckDB SQL queries based on natural language questions.
+
+IMPORTANT RULES:
+1. Generate ONLY SELECT queries (no INSERT, UPDATE, DELETE, DROP, ALTER, CREATE)
+2. Use proper DuckDB SQL syntax
+3. Table names are provided in the schema context - use them exactly as shown
+4. Return ONLY the SQL query without explanations or markdown code blocks
+5. Use appropriate WHERE clauses, JOINs, GROUP BY, ORDER BY as needed
+6. For aggregations, always use descriptive column aliases
+7. Limit results to 1000 rows unless specified otherwise
+8. Use CAST() for explicit type conversions when needed
+
+Available tables and schemas:
+${schemaContext}`;
+
+    const userPrompt = `Generate a SQL query to answer this question: "${query}"
+
+Return ONLY the SQL query.`;
+
+    logger.trace('[generateSQL] Calling OpenAI', {
+      requestId,
+      tableCount: dataFiles.length,
+      queryLength: query.length
+    });
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4-turbo-preview',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.1, // Low temperature for deterministic SQL
+      max_tokens: 1000
+    });
+
+    const generatedSQL = completion.choices[0]?.message?.content?.trim() || '';
+
+    logger.trace('[generateSQL] OpenAI response received', {
+      requestId,
+      hasSql: !!generatedSQL,
+      sqlLength: generatedSQL.length
+    });
+
+    // Remove markdown code blocks if present
+    let cleanedSQL = generatedSQL
+      .replace(/```sql\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
+
+    // Validate SQL
+    const schemaInfo = dataFiles.map(f => ({
+      tableName: f.tableName,
+      columns: (f.schema?.columns || []).map((c: any) => ({
+        name: c.name,
+        type: c.type
+      }))
+    }));
+
+    const validation = SQLValidator.validate(cleanedSQL, schemaInfo);
+
+    if (!validation.valid) {
+      logger.warn('[generateSQL] SQL validation failed', {
+        requestId,
+        sql: cleanedSQL,
+        errors: validation.errors
+      });
+      return '';
+    }
+
+    // Log warnings but continue
+    if (validation.warnings.length > 0) {
+      logger.trace('[generateSQL] SQL validation warnings', {
+        requestId,
+        warnings: validation.warnings
+      });
+    }
+
+    // Use sanitized SQL
+    const finalSQL = validation.sanitizedSQL || cleanedSQL;
+
+    logger.trace('[generateSQL] SQL generated successfully', {
+      requestId,
+      sqlLength: finalSQL.length,
+      tokensUsed: completion.usage?.total_tokens || 0,
+      hasWarnings: validation.warnings.length > 0
+    });
+
+    return finalSQL;
+
+  } catch (error) {
+    logger.error('[generateSQL] Failed to generate SQL', {
+      requestId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return '';
+  }
 }
 
 /**
@@ -101,29 +257,8 @@ export async function action({ request }: ActionFunctionArgs) {
       });
     });
 
-    // Initialize intelligence service
-    const intelligence = new UnifiedIntelligenceService();
-
-    // Generate SQL using the existing generateContextAwareSQL method
-    // This method is already optimized for SQL generation with proper schema context
-    const sql = await intelligence['generateContextAwareSQL'](
-      query,
-      files.map(f => ({
-        id: f.id || f.filename,
-        filename: f.filename,
-        type: f.filename.toLowerCase().endsWith('.csv') ? 'csv' : 'excel',
-        schema: f.schema,
-        data: f.data,
-        rowCount: f.rowCount,
-      })),
-      {
-        intent: 'data_query',
-        confidence: 0.9,
-        needsDataAccess: true,
-        formatPreference: 'table',
-        suggestedFiles: files.map(f => f.filename)
-      }
-    );
+    // Generate SQL directly using OpenAI (no semantic analysis needed for speed)
+    const sql = await generateSQL(query, files, requestId);
 
     logger.trace('[generate-sql] SQL generated', {
       requestId,
