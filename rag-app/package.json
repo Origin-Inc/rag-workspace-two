@@ -23,7 +23,8 @@
     "redis:configure": "node scripts/configure-redis.js",
     "prestart": "npm run redis:configure",
     "test:async-embeddings": "tsx scripts/test-async-embeddings.ts",
-    "prepare": "husky || true"
+    "prepare": "husky || true",
+    "predeploy": "echo '❌ Direct vercel deploy blocked. Use git push instead.' && exit 1"
   },
   "keywords": [],
   "author": "",

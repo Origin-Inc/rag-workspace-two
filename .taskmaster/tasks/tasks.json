@@ -848,7 +848,7 @@
             "title": "Implement query-first data processing",
             "description": "Change data flow to query locally first, then send only results to AI",
             "details": "Update api.chat-query.tsx to run DuckDB query first. Extract only top 10-20 relevant rows. Send condensed results to OpenAI instead of full dataset. Reduce payload from 3.5MB to <100KB.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "parentTaskId": 61
           },
@@ -1148,7 +1148,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-10-06T23:47:03.124Z",
+      "updated": "2025-10-07T00:32:58.499Z",
       "description": "Tasks for master context"
     }
   }

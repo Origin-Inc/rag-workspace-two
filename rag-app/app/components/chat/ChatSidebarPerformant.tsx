@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useRef, useEffect, useMemo, useState } from 'react';
 import { Upload, ChevronLeft, ChevronRight } from 'lucide-react';
-import { 
-  useChatMessagesOptimized, 
+import {
+  useChatMessagesOptimized,
   useChatDataFilesOptimized,
   useChatLoadingOptimized,
 } from '~/hooks/use-chat-atoms-optimized';
@@ -12,6 +12,7 @@ import { ChatInput } from './ChatInput';
 import { FileContextDisplay } from './FileContextDisplay';
 import { cn } from '~/utils/cn';
 import { QueryAnalyzer } from '~/services/query-analyzer.client';
+import { DuckDBQueryService } from '~/services/duckdb/duckdb-query.client';
 import type { DataFile } from '~/atoms/chat-atoms-optimized';
 
 // ============= MEMOIZED SUB-COMPONENTS =============
@@ -248,13 +249,116 @@ function ChatSidebarPerformantBase({
   }, [pageId, addMessage, queryAnalyzer]);
   
   /**
-   * Process data query - memoized
+   * Process data query with query-first approach - memoized
+   *
+   * NEW FLOW (Task 61.1):
+   * 1. Execute SQL query locally in DuckDB
+   * 2. Get query results (top 20 rows)
+   * 3. Send only results to AI (not full dataset)
+   * 4. AI analyzes actual data instead of metadata
    */
   const processDataQuery = useCallback(async (query: string) => {
     setLoading(true);
-    
+
     try {
-      // Send to unified intelligence endpoint
+      const duckdbService = DuckDBQueryService.getInstance();
+
+      // Check if we have structured data files (CSV/Excel)
+      const structuredFiles = dataFilesRef.current.filter(
+        f => f.type === 'csv' || f.type === 'excel'
+      );
+
+      // QUERY-FIRST APPROACH: Execute SQL locally first if we have structured data
+      if (structuredFiles.length > 0) {
+        console.log('[Query-First] Executing local DuckDB query for', structuredFiles.length, 'files');
+
+        try {
+          // Process natural language → SQL → Results
+          const queryResult = await duckdbService.processNaturalLanguageQuery(
+            query,
+            dataFilesRef.current,
+            pageId,
+            workspaceId
+          );
+
+          console.log('[Query-First] Query executed successfully', {
+            rowCount: queryResult.rowCount,
+            executionTime: queryResult.executionTime,
+            sql: queryResult.sql
+          });
+
+          // Send query RESULTS to AI (not full dataset)
+          const response = await fetch('/api/chat-query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query,
+              pageId,
+              workspaceId,
+              // NEW: Send query results instead of full files
+              queryResults: {
+                data: queryResult.data?.slice(0, 20) || [], // Top 20 rows only
+                sql: queryResult.sql,
+                columns: queryResult.columns,
+                rowCount: queryResult.rowCount,
+                executionTime: queryResult.executionTime,
+              },
+              // Include file metadata for context
+              fileMetadata: dataFilesRef.current.map(f => ({
+                filename: f.filename,
+                type: f.type,
+                rowCount: f.rowCount,
+                schema: f.schema,
+              })),
+              conversationHistory: Array.isArray(messagesRef.current) ? messagesRef.current.slice(-10) : [],
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+          }
+
+          const result = await response.json();
+
+          // Add assistant response with query metadata
+          addMessage({
+            role: 'assistant',
+            content: result.content,
+            metadata: {
+              ...result.metadata,
+              queryFirst: true,
+              sql: queryResult.sql,
+              rowsAnalyzed: queryResult.data?.slice(0, 20).length || 0,
+              totalRows: queryResult.rowCount,
+              executionTime: queryResult.executionTime,
+            },
+          });
+
+          // Save assistant message
+          await fetch(`/api/chat/messages/${pageId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              role: 'assistant',
+              content: result.content,
+              metadata: {
+                ...result.metadata,
+                sql: queryResult.sql,
+              },
+            }),
+          });
+
+          return; // Success - exit early
+
+        } catch (queryError) {
+          console.error('[Query-First] Failed to execute query locally:', queryError);
+          // Fall through to traditional approach
+          console.log('[Query-First] Falling back to traditional file-based approach');
+        }
+      }
+
+      // FALLBACK: Traditional approach for non-structured files or if query-first fails
+      console.log('[Traditional] Using file-based approach');
       const response = await fetch('/api/chat-query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -266,18 +370,18 @@ function ChatSidebarPerformantBase({
           conversationHistory: Array.isArray(messagesRef.current) ? messagesRef.current.slice(-10) : [],
         }),
       });
-      
+
       if (!response.ok) throw new Error('Failed to get response');
-      
+
       const result = await response.json();
-      
+
       // Add assistant response
       addMessage({
         role: 'assistant',
         content: result.content,
         metadata: result.metadata,
       });
-      
+
       // Save assistant message
       await fetch(`/api/chat/messages/${pageId}`, {
         method: 'POST',

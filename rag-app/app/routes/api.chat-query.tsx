@@ -68,7 +68,7 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     const body = await request.json();
-    const { query, files, pageId, workspaceId, conversationHistory, sessionId } = body;
+    const { query, files, pageId, workspaceId, conversationHistory, sessionId, queryResults, fileMetadata } = body;
     
     // Generate session ID if not provided
     const currentSessionId = sessionId || `session_${user.id}_${Date.now()}`;
@@ -260,15 +260,33 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     // Prepare file data based on type
-    logger.trace('[Unified] Preparing file data...', { requestId });
+    logger.trace('[Unified] Preparing file data...', { requestId, hasQueryResults: !!queryResults });
     const fileDataStart = Date.now();
-    const fileData = await prepareFileData(files, pageId, requestId);
+
+    // QUERY-FIRST INTEGRATION (Task 61.1):
+    // If query results are provided, use them instead of preparing full files
+    let fileData;
+    if (queryResults && queryResults.data) {
+      logger.trace('[Query-First] Using query results instead of full files', {
+        requestId,
+        resultRows: queryResults.data.length,
+        sql: queryResults.sql,
+        executionTime: queryResults.executionTime
+      });
+
+      fileData = prepareQueryResults(queryResults, fileMetadata, requestId);
+    } else {
+      // Traditional file-based approach
+      fileData = await prepareFileData(files, pageId, requestId);
+    }
+
     const fileDataTime = Date.now() - fileDataStart;
-    
+
     logger.trace('[Unified] File data preparation completed', {
       requestId,
       preparationTimeMs: fileDataTime,
-      preparedFiles: fileData.length
+      preparedFiles: fileData.length,
+      approach: queryResults ? 'query-first' : 'traditional'
     });
     
     // CRITICAL DEBUG: Log prepared file data
@@ -894,6 +912,103 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
   });
   
   return preparedFiles;
+}
+
+/**
+ * Prepare query results for AI analysis (Query-First approach - Task 61.1)
+ *
+ * Instead of sending full datasets, we send SQL query results.
+ * This reduces payload from megabytes to kilobytes.
+ */
+function prepareQueryResults(
+  queryResults: {
+    data: any[];
+    sql?: string;
+    columns?: string[];
+    rowCount?: number;
+    executionTime?: number;
+  },
+  fileMetadata?: Array<{
+    filename: string;
+    type: string;
+    rowCount?: number;
+    schema?: any[];
+  }>,
+  requestId?: string
+): any[] {
+  logger.trace('[prepareQueryResults] START', {
+    requestId,
+    resultRows: queryResults.data?.length || 0,
+    columns: queryResults.columns?.length || 0,
+    sql: queryResults.sql?.slice(0, 200),
+    hasMetadata: !!fileMetadata
+  });
+
+  const results = queryResults.data || [];
+
+  if (results.length === 0) {
+    logger.warn('[prepareQueryResults] No results data provided', { requestId });
+    return [];
+  }
+
+  // Format results as a readable text table
+  const headers = queryResults.columns || Object.keys(results[0] || {});
+
+  // Create CSV-like content for AI to analyze
+  let content = `SQL Query:\n${queryResults.sql || 'Not provided'}\n\n`;
+  content += `Execution Time: ${queryResults.executionTime || 0}ms\n`;
+  content += `Total Rows: ${queryResults.rowCount || results.length}\n`;
+  content += `Showing: Top ${results.length} rows\n\n`;
+  content += `Results:\n`;
+  content += `${headers.join(' | ')}\n`;
+  content += `${headers.map(() => '---').join(' | ')}\n`;
+
+  results.forEach((row, idx) => {
+    const values = headers.map(h => {
+      const val = row[h];
+      if (val === null || val === undefined) return 'NULL';
+      if (typeof val === 'number') return val.toFixed(2);
+      return String(val).slice(0, 50); // Truncate long strings
+    });
+    content += `${values.join(' | ')}\n`;
+  });
+
+  // Add file context if provided
+  let fileContext = '\n\nSource Files:\n';
+  if (fileMetadata && fileMetadata.length > 0) {
+    fileMetadata.forEach(meta => {
+      fileContext += `- ${meta.filename} (${meta.type}, ${meta.rowCount || 0} rows)\n`;
+    });
+  }
+
+  const preparedFile = {
+    id: 'query_results',
+    filename: 'Query Results',
+    type: 'csv',
+    content: content + fileContext,
+    data: results,
+    schema: headers.map((h: string) => ({
+      name: h,
+      type: typeof results[0][h] === 'number' ? 'number' : 'text'
+    })),
+    rowCount: results.length,
+    metadata: {
+      sql: queryResults.sql,
+      executionTime: queryResults.executionTime,
+      totalRows: queryResults.rowCount,
+      isQueryResult: true
+    }
+  };
+
+  logger.trace('[prepareQueryResults] COMPLETE', {
+    requestId,
+    contentLength: content.length,
+    contentPreview: content.slice(0, 500),
+    headers: headers.length,
+    rowsFormatted: results.length
+  });
+
+  return [preparedFile];
 }
 
 /**
