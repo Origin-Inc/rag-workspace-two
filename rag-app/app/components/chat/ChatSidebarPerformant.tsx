@@ -378,26 +378,41 @@ function ChatSidebarPerformantBase({
 
       // QUERY-FIRST APPROACH: Execute SQL locally first if we have structured data
       if (structuredFiles.length > 0) {
+        // CRITICAL: Only query files that have data loaded in DuckDB
+        // Old files uploaded before the fix won't have data in DuckDB
+        const filesWithData = structuredFiles.filter(f => f.data && Array.isArray(f.data) && f.data.length > 0);
+
         console.error('[Query-First] ⚠️ ATTEMPTING LOCAL DUCKDB QUERY', {
           structuredFilesCount: structuredFiles.length,
+          filesWithDataCount: filesWithData.length,
           files: structuredFiles.map(f => ({
             filename: f.filename,
             type: f.type,
             tableName: f.tableName,
             rowCount: f.rowCount,
-            hasSchema: !!f.schema
+            hasSchema: !!f.schema,
+            hasData: !!f.data,
+            dataLength: Array.isArray(f.data) ? f.data.length : 0
           })),
           query
         });
 
-        try {
-          // Process natural language → SQL → Results
-          const queryResult = await duckdbService.processNaturalLanguageQuery(
-            query,
-            dataFilesRef.current,
-            pageId,
-            workspaceId
-          );
+        // Only proceed with query-first if we have files with data loaded
+        if (filesWithData.length === 0) {
+          console.error('[Query-First] ⚠️ NO FILES WITH DATA LOADED - SKIPPING QUERY-FIRST', {
+            reason: 'Files uploaded before DuckDB loading was implemented',
+            suggestion: 'Re-upload files or use traditional approach'
+          });
+          // Skip to traditional approach
+        } else {
+          try {
+            // Process natural language → SQL → Results (only with files that have data)
+            const queryResult = await duckdbService.processNaturalLanguageQuery(
+              query,
+              filesWithData, // Use only files with loaded data
+              pageId,
+              workspaceId
+            );
 
           console.error('[Query-First] ✅ QUERY EXECUTED SUCCESSFULLY', {
             rowCount: queryResult.rowCount,
@@ -501,12 +516,13 @@ function ChatSidebarPerformantBase({
 
           return; // Success - exit early
 
-        } catch (queryError) {
-          console.error('[Query-First] ❌ QUERY FAILED - FALLING BACK TO TRADITIONAL', {
-            error: queryError instanceof Error ? queryError.message : String(queryError),
-            errorStack: queryError instanceof Error ? queryError.stack : undefined,
-            errorType: queryError instanceof Error ? queryError.constructor.name : typeof queryError
-          });
+          } catch (queryError) {
+            console.error('[Query-First] ❌ QUERY FAILED - FALLING BACK TO TRADITIONAL', {
+              error: queryError instanceof Error ? queryError.message : String(queryError),
+              errorStack: queryError instanceof Error ? queryError.stack : undefined,
+              errorType: queryError instanceof Error ? queryError.constructor.name : typeof queryError
+            });
+          }
         }
       }
 
