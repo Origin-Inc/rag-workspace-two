@@ -289,7 +289,12 @@ export class FuzzyFileMatcher {
   ): number {
     let score = 0;
     const queryLower = query.toLowerCase();
-    
+
+    // Guard: Skip if schema is not iterable
+    if (!file.schema || !Array.isArray(file.schema)) {
+      return 0;
+    }
+
     // Check semantic mappings
     for (const [concept, keywords] of Object.entries(this.SEMANTIC_MAPPINGS)) {
       if (queryLower.includes(concept)) {
@@ -306,7 +311,7 @@ export class FuzzyFileMatcher {
         }
       }
     }
-    
+
     // Check column names directly in query
     for (const column of file.schema) {
       const columnName = column.name.toLowerCase();
@@ -315,7 +320,7 @@ export class FuzzyFileMatcher {
         matchedTokens.push(column.name);
       }
     }
-    
+
     return Math.min(1, score);
   }
   
