@@ -843,6 +843,39 @@ function ChatSidebarPerformantBase({
             ...file,
             type: getFileTypeFromFilename(file.filename)
           }));
+
+          // Load files with parquetUrl into DuckDB for query-first approach
+          for (const file of filesWithType) {
+            if (file.parquetUrl && (file.type === 'csv' || file.type === 'excel')) {
+              try {
+                // Fetch the JSON data from storage
+                const dataResponse = await fetch(file.parquetUrl);
+                if (dataResponse.ok) {
+                  const fileData = await dataResponse.json();
+
+                  if (fileData.data && Array.isArray(fileData.data) && fileData.data.length > 0) {
+                    // Load into DuckDB
+                    const duckdb = getDuckDB();
+                    await duckdb.createTableFromData(
+                      file.tableName,
+                      fileData.data,
+                      fileData.schema || file.schema,
+                      pageId
+                    );
+
+                    // Store data in file object for client-side access
+                    file.data = fileData.data;
+
+                    console.log(`[Load] ✅ Loaded ${fileData.data.length} rows into DuckDB table ${file.tableName}`);
+                  }
+                }
+              } catch (loadError) {
+                console.error(`[Load] ⚠️ Failed to load ${file.filename} into DuckDB:`, loadError);
+                // Continue with other files
+              }
+            }
+          }
+
           setDataFiles(filesWithType);
         }
       } catch (error) {
