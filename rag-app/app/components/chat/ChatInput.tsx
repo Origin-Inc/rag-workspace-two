@@ -85,6 +85,7 @@ export function ChatInput({
       <div className="flex items-end gap-2 w-full">
         {onFileUpload && (
           <button
+            id="upload-file"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
             className={cn(
@@ -121,7 +122,7 @@ export function ChatInput({
           style={{ height: '40px' }}
         />
         <button
-          id="upload-button"
+          id="send-message"
           onClick={handleSubmit}
           disabled={disabled || !input.trim()}
           className={cn(

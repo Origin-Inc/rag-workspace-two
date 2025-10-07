@@ -660,7 +660,7 @@ export const action: ActionFunction = async ({ request }) => {
     // Log error with context for monitoring
     QueryErrorRecovery.logError(error, {
       requestId,
-      query: body?.query,
+      query: query || 'unknown',
       userId: user?.id,
       fileCount: files?.length || 0
     });
