@@ -79,6 +79,29 @@ async function handleStreamingResponse(
   }
 }
 
+/**
+ * Helper function to derive file type from filename extension
+ * This is needed because the database doesn't store a `type` field
+ */
+function getFileTypeFromFilename(filename: string): string {
+  const ext = filename.toLowerCase().split('.').pop();
+  switch (ext) {
+    case 'csv':
+      return 'csv';
+    case 'xlsx':
+    case 'xls':
+      return 'excel';
+    case 'pdf':
+      return 'pdf';
+    case 'txt':
+      return 'text';
+    case 'md':
+      return 'markdown';
+    default:
+      return 'unknown';
+  }
+}
+
 // ============= MEMOIZED SUB-COMPONENTS =============
 
 /**
@@ -779,7 +802,12 @@ function ChatSidebarPerformantBase({
         
         const data = await response.json();
         if (data.files?.length > 0) {
-          setDataFiles(data.files);
+          // Derive file type from filename since database doesn't store it
+          const filesWithType = data.files.map((file: any) => ({
+            ...file,
+            type: getFileTypeFromFilename(file.filename)
+          }));
+          setDataFiles(filesWithType);
         }
       } catch (error) {
         console.error('Failed to load files:', error);
