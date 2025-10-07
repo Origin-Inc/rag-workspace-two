@@ -328,9 +328,29 @@ function ChatSidebarPerformantBase({
       const duckdbService = DuckDBQueryService.getInstance();
 
       // Check if we have structured data files (CSV/Excel)
+      console.error('[processDataQuery] 🔍 CHECKING FOR STRUCTURED FILES', {
+        totalFiles: dataFilesRef.current.length,
+        files: dataFilesRef.current.map(f => ({
+          filename: f.filename,
+          type: f.type,
+          fileType: typeof f.type,
+          isCSV: f.type === 'csv',
+          isExcel: f.type === 'excel',
+          hasData: !!f.data,
+          dataLength: Array.isArray(f.data) ? f.data.length : 0
+        }))
+      });
+
       const structuredFiles = dataFilesRef.current.filter(
         f => f.type === 'csv' || f.type === 'excel'
       );
+
+      console.error('[processDataQuery] 🔍 STRUCTURED FILES FILTER RESULT', {
+        structuredFilesCount: structuredFiles.length,
+        totalFilesCount: dataFilesRef.current.length,
+        filterFailed: structuredFiles.length === 0,
+        structuredFiles: structuredFiles.map(f => f.filename)
+      });
 
       // QUERY-FIRST APPROACH: Execute SQL locally first if we have structured data
       if (structuredFiles.length > 0) {
