@@ -414,14 +414,41 @@ function ChatSidebarPerformantBase({
               workspaceId
             );
 
-            console.error('[Query-First] ✅ QUERY EXECUTED SUCCESSFULLY', {
+            console.error('[Query-First] Query execution result:', {
+              success: queryResult.queryResult.success,
               rowCount: queryResult.queryResult.rowCount,
               executionTime: queryResult.queryResult.executionTime,
               sql: queryResult.sqlGeneration.sql,
+              hasSql: !!queryResult.sqlGeneration.sql,
               columnsCount: queryResult.queryResult.columns?.length || 0,
               dataRows: queryResult.queryResult.data?.length || 0,
-              firstRow: queryResult.queryResult.data?.[0]
+              firstRow: queryResult.queryResult.data?.[0],
+              error: queryResult.queryResult.error,
+              sqlGenerationError: queryResult.sqlGeneration.error
             });
+
+          // CRITICAL: Check if query actually succeeded and has data
+          if (!queryResult.queryResult.success ||
+              !queryResult.sqlGeneration.sql ||
+              !queryResult.queryResult.data ||
+              queryResult.queryResult.data.length === 0) {
+            console.error('[Query-First] ❌ QUERY FAILED OR NO DATA - DETAILS:', {
+              success: queryResult.queryResult.success,
+              hasSql: !!queryResult.sqlGeneration.sql,
+              hasData: !!queryResult.queryResult.data,
+              dataLength: queryResult.queryResult.data?.length || 0,
+              queryError: queryResult.queryResult.error,
+              sqlError: queryResult.sqlGeneration.error,
+              explanation: queryResult.sqlGeneration.explanation
+            });
+            throw new Error(
+              queryResult.queryResult.error ||
+              queryResult.sqlGeneration.error ||
+              'Query returned no data'
+            );
+          }
+
+          console.error('[Query-First] ✅ VALIDATION PASSED - PROCEEDING WITH STREAMING');
 
           // Send query RESULTS to AI with STREAMING for immediate feedback
           let streamedContent = '';

@@ -87,6 +87,18 @@ export class DuckDBQueryService {
         };
       }));
       
+      console.log('[generateSQL] Sending request to API:', {
+        query,
+        filesCount: tablesWithSamples.length,
+        firstFile: tablesWithSamples[0] ? {
+          filename: tablesWithSamples[0].filename,
+          tableName: tablesWithSamples[0].tableName,
+          hasData: !!tablesWithSamples[0].data,
+          dataLength: tablesWithSamples[0].data?.length || 0,
+          schemaColumns: tablesWithSamples[0].schema?.columns?.length || 0
+        } : null
+      });
+
       const response = await fetch('/api/chat-query', {
         method: 'POST',
         headers: {
@@ -102,14 +114,32 @@ export class DuckDBQueryService {
         }),
       });
 
+      console.log('[generateSQL] API response status:', response.status, response.statusText);
+
       if (!response.ok) {
-        const error = await response.json();
+        const errorText = await response.text();
+        let error;
+        try {
+          error = JSON.parse(errorText);
+        } catch {
+          error = { error: errorText };
+        }
+        console.error('[generateSQL] API returned error:', error);
         throw new Error(error.error || 'Failed to generate SQL');
       }
 
-      return await response.json();
+      const result = await response.json();
+      console.log('[generateSQL] API returned result:', {
+        hasSql: !!result.sql,
+        sql: result.sql?.slice(0, 100),
+        hasError: !!result.error,
+        error: result.error,
+        confidence: result.confidence
+      });
+
+      return result;
     } catch (error) {
-      console.error('Failed to generate SQL:', error);
+      console.error('[generateSQL] ❌ FAILED:', error);
       
       // Return a fallback response with explanation
       return {
