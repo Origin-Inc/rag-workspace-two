@@ -99,7 +99,7 @@ export class DuckDBQueryService {
         } : null
       });
 
-      const response = await fetch('/api/chat-query', {
+      const response = await fetch('/api/generate-sql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,9 +108,9 @@ export class DuckDBQueryService {
           query,
           pageId,
           workspaceId,
-          files: tablesWithSamples, // Changed from 'tables' to 'files' to match API expectation
+          files: tablesWithSamples,
           conversationHistory,
-          model: 'gpt-4-turbo-preview', // Can be made configurable
+          model: 'gpt-4-turbo-preview',
         }),
       });
 
