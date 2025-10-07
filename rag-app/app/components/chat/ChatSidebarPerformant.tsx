@@ -461,6 +461,17 @@ function ChatSidebarPerformantBase({
             metadata: { streaming: true },
           });
 
+          // CRITICAL FIX: Convert BigInt to Number for JSON serialization
+          // DuckDB returns BigInt for COUNT/SUM aggregates which JSON.stringify can't handle
+          const serializableData = queryResult.queryResult.data?.slice(0, 20).map(row => {
+            const serializedRow: any = {};
+            for (const [key, value] of Object.entries(row)) {
+              // Convert BigInt to Number for JSON compatibility
+              serializedRow[key] = typeof value === 'bigint' ? Number(value) : value;
+            }
+            return serializedRow;
+          }) || [];
+
           await handleStreamingResponse(
             '/api/chat-query',
             {
@@ -469,10 +480,12 @@ function ChatSidebarPerformantBase({
               workspaceId,
               // NEW: Send query results instead of full files
               queryResults: {
-                data: queryResult.queryResult.data?.slice(0, 20) || [], // Top 20 rows only
+                data: serializableData, // Serializable data (BigInt converted to Number)
                 sql: queryResult.sqlGeneration.sql,
                 columns: queryResult.queryResult.columns,
-                rowCount: queryResult.queryResult.rowCount,
+                rowCount: typeof queryResult.queryResult.rowCount === 'bigint'
+                  ? Number(queryResult.queryResult.rowCount)
+                  : queryResult.queryResult.rowCount,
                 executionTime: queryResult.queryResult.executionTime,
               },
               // Include file metadata for context
