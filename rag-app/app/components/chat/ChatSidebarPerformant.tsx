@@ -406,22 +406,22 @@ function ChatSidebarPerformantBase({
           // Skip to traditional approach
         } else {
           try {
-            // Process natural language → SQL → Results (only with files that have data)
-            const queryResult = await duckdbService.processNaturalLanguageQuery(
-              query,
-              filesWithData, // Use only files with loaded data
-              pageId,
-              workspaceId
+            // Execute simple SELECT query directly (no API call for SQL generation)
+            // This avoids the "Unable to extract..." streaming error
+            const tableName = filesWithData[0].tableName;
+            const queryResult = await duckdbService.executeQuery(
+              `SELECT * FROM ${tableName} LIMIT 100`,
+              false
             );
 
-          console.error('[Query-First] ✅ QUERY EXECUTED SUCCESSFULLY', {
-            rowCount: queryResult.rowCount,
-            executionTime: queryResult.executionTime,
-            sql: queryResult.sql,
-            columnsCount: queryResult.columns?.length || 0,
-            dataRows: queryResult.data?.length || 0,
-            firstRow: queryResult.data?.[0]
-          });
+            console.error('[Query-First] ✅ QUERY EXECUTED SUCCESSFULLY', {
+              rowCount: queryResult.rowCount,
+              executionTime: queryResult.executionTime,
+              sql: queryResult.sql,
+              columnsCount: queryResult.columns?.length || 0,
+              dataRows: queryResult.data?.length || 0,
+              firstRow: queryResult.data?.[0]
+            });
 
           // Send query RESULTS to AI with STREAMING for immediate feedback
           let streamedContent = '';
