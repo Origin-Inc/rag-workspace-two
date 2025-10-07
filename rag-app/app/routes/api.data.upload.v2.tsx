@@ -234,18 +234,21 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
             // Also create Parquet for DuckDB compatibility
             try {
               const serializationService = new DuckDBSerializationService();
-              const parquetBuffer = await serializationService.serializeToParquet(
+              const result = await serializationService.serializeToParquet(
                 processedData.data,
                 processedData.schema,
                 processedData.tableName
               );
               await serializationService.close();
 
+              // Use updated schema with renamed columns
+              processedData.schema = result.schema;
+
               const parquetPath = `${workspaceId}/${pageId}/${processedData.tableName}.parquet`;
               await storageService.uploadFile(
                 'duckdb-tables',
                 parquetPath,
-                parquetBuffer,
+                result.buffer,
                 'application/octet-stream'
               );
               console.log(`[Upload] Parquet also saved: ${parquetPath}`);
