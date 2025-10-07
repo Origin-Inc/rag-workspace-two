@@ -19,13 +19,18 @@ const logger = new DebugLogger('api.chat-query');
 export const action: ActionFunction = async ({ request }) => {
   const startTime = Date.now();
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  
+
+  // Declare variables at top for error handler access
+  let user: any;
+  let query: string = '';
+  let files: any[] = [];
+
   try {
     // Monitor request size
     const contentLength = request.headers.get('content-length');
     const requestSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
-    
-    logger.trace('[Unified] Request started', { 
+
+    logger.trace('[Unified] Request started', {
       requestId,
       userId: 'pending',
       requestSizeMB: requestSizeMB.toFixed(2),
@@ -33,7 +38,7 @@ export const action: ActionFunction = async ({ request }) => {
       isLargePayload: requestSizeMB > 1,
       isCriticalSize: requestSizeMB > 3.5 // Near Vercel limit
     });
-    
+
     // Warn if approaching Vercel limits
     if (requestSizeMB > 3.5) {
       logger.warn('[Unified] LARGE PAYLOAD WARNING', {
@@ -43,9 +48,8 @@ export const action: ActionFunction = async ({ request }) => {
         recommendation: 'Consider implementing compression or chunking'
       });
     }
-    
+
     // Require authentication
-    let user;
     try {
       user = await requireUser(request);
       logger.trace('[Unified] User authenticated', { requestId, userId: user.id });
@@ -70,7 +74,10 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     const body = await request.json();
-    const { query, files, pageId, workspaceId, conversationHistory, sessionId, queryResults, fileMetadata, stream } = body;
+    // Extract variables (already declared at top for error handler)
+    query = body.query;
+    files = body.files || [];
+    const { pageId, workspaceId, conversationHistory, sessionId, queryResults, fileMetadata, stream } = body;
     
     // Generate session ID if not provided
     const currentSessionId = sessionId || `session_${user.id}_${Date.now()}`;
