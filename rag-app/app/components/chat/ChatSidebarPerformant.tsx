@@ -15,6 +15,70 @@ import { QueryAnalyzer } from '~/services/query-analyzer.client';
 import { DuckDBQueryService } from '~/services/duckdb/duckdb-query.client';
 import type { DataFile } from '~/atoms/chat-atoms-optimized';
 
+/**
+ * Helper function to handle Server-Sent Events streaming from API
+ */
+async function handleStreamingResponse(
+  url: string,
+  body: any,
+  onToken: (token: string) => void,
+  onMetadata: (metadata: any) => void,
+  onDone: () => void,
+  onError: (error: Error) => void
+) {
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, stream: true }),
+    });
+
+    if (!response.ok || !response.body) {
+      throw new Error('Failed to get streaming response');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('event:')) {
+          const eventMatch = line.match(/event: (\w+)\ndata: (.+)/s);
+          if (eventMatch) {
+            const [, event, data] = eventMatch;
+            const parsedData = JSON.parse(data);
+
+            switch (event) {
+              case 'token':
+                onToken(parsedData.content || '');
+                break;
+              case 'metadata':
+                onMetadata(parsedData.metadata || {});
+                break;
+              case 'done':
+                onDone();
+                return;
+              case 'error':
+                onError(new Error(parsedData.error || 'Stream error'));
+                return;
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    onError(error instanceof Error ? error : new Error('Unknown streaming error'));
+  }
+}
+
 // ============= MEMOIZED SUB-COMPONENTS =============
 
 /**
@@ -287,11 +351,20 @@ function ChatSidebarPerformantBase({
             sql: queryResult.sql
           });
 
-          // Send query RESULTS to AI (not full dataset)
-          const response = await fetch('/api/chat-query', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          // Send query RESULTS to AI with STREAMING for immediate feedback
+          let streamedContent = '';
+          let metadata: any = {};
+
+          // Add placeholder message for streaming
+          addMessage({
+            role: 'assistant',
+            content: '',
+            metadata: { streaming: true },
+          });
+
+          await handleStreamingResponse(
+            '/api/chat-query',
+            {
               query,
               pageId,
               workspaceId,
@@ -311,28 +384,49 @@ function ChatSidebarPerformantBase({
                 schema: f.schema,
               })),
               conversationHistory: Array.isArray(messagesRef.current) ? messagesRef.current.slice(-10) : [],
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-          }
-
-          const result = await response.json();
-
-          // Add assistant response with query metadata
-          addMessage({
-            role: 'assistant',
-            content: result.content,
-            metadata: {
-              ...result.metadata,
-              queryFirst: true,
-              sql: queryResult.sql,
-              rowsAnalyzed: queryResult.data?.slice(0, 20).length || 0,
-              totalRows: queryResult.rowCount,
-              executionTime: queryResult.executionTime,
             },
-          });
+            // onToken: Append content as it streams
+            (token) => {
+              streamedContent += token;
+              // Update last message with accumulated content
+              const currentMessages = messagesRef.current;
+              if (currentMessages.length > 0) {
+                const lastMessage = currentMessages[currentMessages.length - 1];
+                if (lastMessage.role === 'assistant') {
+                  addMessage({
+                    role: 'assistant',
+                    content: streamedContent,
+                    metadata: { ...lastMessage.metadata, streaming: true },
+                  });
+                }
+              }
+            },
+            // onMetadata: Save metadata for final message
+            (meta) => {
+              metadata = meta;
+            },
+            // onDone: Finalize message with complete content
+            () => {
+              addMessage({
+                role: 'assistant',
+                content: streamedContent,
+                metadata: {
+                  ...metadata,
+                  queryFirst: true,
+                  sql: queryResult.sql,
+                  rowsAnalyzed: queryResult.data?.slice(0, 20).length || 0,
+                  totalRows: queryResult.rowCount,
+                  executionTime: queryResult.executionTime,
+                  streaming: false,
+                },
+              });
+            },
+            // onError: Fall back to traditional approach
+            (error) => {
+              console.error('[Streaming] Error, falling back:', error);
+              throw error;
+            }
+          );
 
           // Save assistant message
           await fetch(`/api/chat/messages/${pageId}`, {

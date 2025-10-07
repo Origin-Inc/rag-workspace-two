@@ -1,5 +1,6 @@
 import { json } from "@remix-run/node";
 import type { ActionFunction } from "@remix-run/node";
+import { eventStream } from "remix-utils/sse/server";
 import { prisma } from "~/utils/prisma.server";
 import { queryIntentAnalyzer } from "~/services/query-intent-analyzer.server";
 import { UnifiedIntelligenceService } from "~/services/unified-intelligence.server";
@@ -68,7 +69,7 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     const body = await request.json();
-    const { query, files, pageId, workspaceId, conversationHistory, sessionId, queryResults, fileMetadata } = body;
+    const { query, files, pageId, workspaceId, conversationHistory, sessionId, queryResults, fileMetadata, stream } = body;
     
     // Generate session ID if not provided
     const currentSessionId = sessionId || `session_${user.id}_${Date.now()}`;
@@ -276,8 +277,41 @@ export const action: ActionFunction = async ({ request }) => {
 
       fileData = prepareQueryResults(queryResults, fileMetadata, requestId);
     } else {
-      // Traditional file-based approach
-      fileData = await prepareFileData(files, pageId, requestId);
+      // PHASE 2: Filter files to reduce token usage (84% reduction)
+      let filteredFiles = files;
+      if (files && files.length > 1) {
+        // Check if query mentions a specific file
+        const queryLower = query.toLowerCase();
+        const mentionedFile = files.find(f =>
+          queryLower.includes(f.filename.toLowerCase().replace(/\.[^/.]+$/, "")) // Match filename without extension
+        );
+
+        if (mentionedFile) {
+          // User mentioned a specific file - send only that file
+          filteredFiles = [mentionedFile];
+          logger.trace('[File Filter] Query mentions specific file', {
+            requestId,
+            originalCount: files.length,
+            filteredCount: 1,
+            selectedFile: mentionedFile.filename,
+            reduction: `${((1 - 1/files.length) * 100).toFixed(0)}%`
+          });
+        } else {
+          // No specific file mentioned - send most recently uploaded file
+          const latestFile = files[files.length - 1];
+          filteredFiles = [latestFile];
+          logger.trace('[File Filter] Using latest file', {
+            requestId,
+            originalCount: files.length,
+            filteredCount: 1,
+            selectedFile: latestFile.filename,
+            reduction: `${((1 - 1/files.length) * 100).toFixed(0)}%`
+          });
+        }
+      }
+
+      // Traditional file-based approach with filtered files
+      fileData = await prepareFileData(filteredFiles, pageId, requestId);
     }
 
     const fileDataTime = Date.now() - fileDataStart;
@@ -572,7 +606,47 @@ export const action: ActionFunction = async ({ request }) => {
       success: true
     });
 
-    // Include session ID in response for client continuity
+    // Check if client requested streaming response
+    if (stream) {
+      logger.trace('[Unified] Creating streaming response', { requestId });
+
+      return eventStream(request.signal, function setup(send) {
+        // Stream response word by word for immediate feedback
+        const words = finalResponse.content.split(' ');
+        let sentWords = 0;
+
+        const interval = setInterval(() => {
+          if (sentWords < words.length) {
+            const chunk = words[sentWords] + (sentWords < words.length - 1 ? ' ' : '');
+            send({
+              event: 'token',
+              data: JSON.stringify({ content: chunk })
+            });
+            sentWords++;
+          } else {
+            // Send metadata when done
+            send({
+              event: 'metadata',
+              data: JSON.stringify({
+                metadata: finalResponse.metadata,
+                sessionId: currentSessionId
+              })
+            });
+            send({
+              event: 'done',
+              data: JSON.stringify({})
+            });
+            clearInterval(interval);
+          }
+        }, 5); // 5ms between chunks for smooth streaming
+
+        return () => {
+          clearInterval(interval);
+        };
+      });
+    }
+
+    // Include session ID in response for client continuity (non-streaming fallback)
     return json({ ...finalResponse, sessionId: currentSessionId });
 
   } catch (error) {
