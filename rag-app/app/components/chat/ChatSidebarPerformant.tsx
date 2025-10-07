@@ -503,7 +503,7 @@ function ChatSidebarPerformantBase({
           return;
         }
 
-        // Add file to state
+        // Add file to state (including parquetUrl for server-side data fetching)
         addDataFile({
           databaseId: uploadedFile.id,
           filename: uploadedFile.filename,
@@ -511,37 +511,8 @@ function ChatSidebarPerformantBase({
           schema: uploadedFile.schema || [],
           rowCount: uploadedFile.rowCount || 0,
           sizeBytes: file.size,
+          parquetUrl: uploadedFile.parquetUrl, // CRITICAL: Enables server to fetch actual data
         });
-
-        // CRITICAL: Load data into client-side DuckDB for query-first flow
-        if (uploadedFile.data && uploadedFile.data.length > 0) {
-          try {
-            console.log(`[DuckDB Load] Loading ${uploadedFile.tableName} into DuckDB (${uploadedFile.data.length} rows)`);
-            const duckdbService = DuckDBQueryService.getInstance();
-
-            // Initialize DuckDB if not ready
-            const duckdb = duckdbService.getDuckDB();
-            if (!duckdb.isReady()) {
-              console.log(`[DuckDB Load] Initializing DuckDB...`);
-              await duckdb.initialize();
-            }
-
-            // Load table into DuckDB
-            await duckdb.createTableFromData(
-              uploadedFile.tableName,
-              uploadedFile.data,
-              uploadedFile.schema,
-              pageId
-            );
-
-            console.log(`[DuckDB Load] ✓ Table ${uploadedFile.tableName} loaded successfully`);
-          } catch (duckdbError) {
-            console.error(`[DuckDB Load] Failed to load table into DuckDB:`, duckdbError);
-            // Don't block upload - query-first will fall back to traditional approach
-          }
-        } else {
-          console.warn(`[DuckDB Load] No data available for ${uploadedFile.tableName}`);
-        }
 
         setUploadProgress({
           filename: file.name,
