@@ -95,7 +95,7 @@ export class DuckDBQueryService {
           query,
           pageId,
           workspaceId,
-          tables: tablesWithSamples,
+          files: tablesWithSamples, // Changed from 'tables' to 'files' to match API expectation
           conversationHistory,
           model: 'gpt-4-turbo-preview', // Can be made configurable
         }),

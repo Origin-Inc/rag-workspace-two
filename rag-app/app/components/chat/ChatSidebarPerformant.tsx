@@ -406,36 +406,21 @@ function ChatSidebarPerformantBase({
           // Skip to traditional approach
         } else {
           try {
-            // Query DuckDB locally to get sample data
-            const duckdb = getDuckDB();
-            const conn = await duckdb.getConnection();
-            const tableName = filesWithData[0].tableName;
-            const result = await conn.query(`SELECT * FROM ${tableName} LIMIT 100`);
-            const sampleData = result.toArray();
-
-            console.error('[Query-First] ✅ FETCHED SAMPLE DATA FROM DUCKDB', {
-              tableName,
-              rowCount: sampleData.length,
-              columns: result.schema.fields.map(f => f.name)
-            });
-
-            // Now send this data to the API for analysis (not SQL generation)
-            // Send directly to chat-query with the actual data
-            const queryResult = {
-              success: true,
-              data: sampleData,
-              sql: `SELECT * FROM ${tableName} LIMIT 100`,
-              columns: result.schema.fields.map(f => f.name),
-              rowCount: sampleData.length,
-              executionTime: 0
-            };
+            // Process natural language → SQL → Results (with files that have data loaded)
+            const queryResult = await duckdbService.processNaturalLanguageQuery(
+              query,
+              filesWithData,
+              pageId,
+              workspaceId
+            );
 
             console.error('[Query-First] ✅ QUERY EXECUTED SUCCESSFULLY', {
-              rowCount: queryResult.rowCount,
-              sql: queryResult.sql,
-              columnsCount: queryResult.columns?.length || 0,
-              dataRows: queryResult.data?.length || 0,
-              firstRow: queryResult.data?.[0]
+              rowCount: queryResult.queryResult.rowCount,
+              executionTime: queryResult.queryResult.executionTime,
+              sql: queryResult.sqlGeneration.sql,
+              columnsCount: queryResult.queryResult.columns?.length || 0,
+              dataRows: queryResult.queryResult.data?.length || 0,
+              firstRow: queryResult.queryResult.data?.[0]
             });
 
           // Send query RESULTS to AI with STREAMING for immediate feedback
@@ -457,11 +442,11 @@ function ChatSidebarPerformantBase({
               workspaceId,
               // NEW: Send query results instead of full files
               queryResults: {
-                data: queryResult.data?.slice(0, 20) || [], // Top 20 rows only
-                sql: queryResult.sql,
-                columns: queryResult.columns,
-                rowCount: queryResult.rowCount,
-                executionTime: queryResult.executionTime,
+                data: queryResult.queryResult.data?.slice(0, 20) || [], // Top 20 rows only
+                sql: queryResult.sqlGeneration.sql,
+                columns: queryResult.queryResult.columns,
+                rowCount: queryResult.queryResult.rowCount,
+                executionTime: queryResult.queryResult.executionTime,
               },
               // Include file metadata for context
               fileMetadata: dataFilesRef.current.map(f => ({
@@ -500,10 +485,10 @@ function ChatSidebarPerformantBase({
                 metadata: {
                   ...metadata,
                   queryFirst: true,
-                  sql: queryResult.sql,
-                  rowsAnalyzed: queryResult.data?.slice(0, 20).length || 0,
-                  totalRows: queryResult.rowCount,
-                  executionTime: queryResult.executionTime,
+                  sql: queryResult.sqlGeneration.sql,
+                  rowsAnalyzed: queryResult.queryResult.data?.slice(0, 20).length || 0,
+                  totalRows: queryResult.queryResult.rowCount,
+                  executionTime: queryResult.queryResult.executionTime,
                   streaming: false,
                 },
               });
@@ -521,10 +506,10 @@ function ChatSidebarPerformantBase({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               role: 'assistant',
-              content: result.content,
+              content: streamedContent,
               metadata: {
-                ...result.metadata,
-                sql: queryResult.sql,
+                ...metadata,
+                sql: queryResult.sqlGeneration.sql,
               },
             }),
           });
