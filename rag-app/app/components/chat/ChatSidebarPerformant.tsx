@@ -13,6 +13,7 @@ import { FileContextDisplay } from './FileContextDisplay';
 import { cn } from '~/utils/cn';
 import { QueryAnalyzer } from '~/services/query-analyzer.client';
 import { DuckDBQueryService } from '~/services/duckdb/duckdb-query.client';
+import { getDuckDB } from '~/services/duckdb/duckdb-service.client';
 import type { DataFile } from '~/atoms/chat-atoms-optimized';
 
 /**
@@ -669,6 +670,23 @@ function ChatSidebarPerformantBase({
           return;
         }
 
+        // Load data into client-side DuckDB for query-first approach
+        if (uploadedFile.data && Array.isArray(uploadedFile.data) && uploadedFile.data.length > 0) {
+          try {
+            const duckdb = getDuckDB();
+            await duckdb.createTableFromData(
+              uploadedFile.tableName,
+              uploadedFile.data,
+              uploadedFile.schema,
+              pageId
+            );
+            console.log(`[Upload] ✅ Loaded ${uploadedFile.data.length} rows into DuckDB table ${uploadedFile.tableName}`);
+          } catch (duckdbError) {
+            console.error('[Upload] ⚠️ Failed to load data into DuckDB:', duckdbError);
+            // Continue anyway - server-side fallback will work
+          }
+        }
+
         // Add file to state (including parquetUrl for server-side data fetching)
         addDataFile({
           databaseId: uploadedFile.id,
@@ -679,6 +697,7 @@ function ChatSidebarPerformantBase({
           sizeBytes: file.size,
           parquetUrl: uploadedFile.parquetUrl, // CRITICAL: Enables server to fetch actual data
           type: getFileTypeFromFilename(uploadedFile.filename), // Derive type from filename
+          data: uploadedFile.data, // Store data for client-side queries
         });
 
         setUploadProgress({
