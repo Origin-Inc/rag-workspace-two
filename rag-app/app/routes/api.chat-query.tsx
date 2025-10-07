@@ -11,6 +11,7 @@ import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { aiModelConfig } from '~/services/ai-model-config.server';
 import { QueryErrorRecovery } from '~/services/query-error-recovery.server';
+import { FuzzyFileMatcher } from '~/services/fuzzy-file-matcher.server';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 const logger = new DebugLogger('api.chat-query');
@@ -277,30 +278,36 @@ export const action: ActionFunction = async ({ request }) => {
 
       fileData = prepareQueryResults(queryResults, fileMetadata, requestId);
     } else {
-      // PHASE 2: Filter files to reduce token usage (84% reduction)
+      // PHASE 2: Intelligent file filtering with fuzzy matching (84% reduction)
       let filteredFiles = files;
       if (files && files.length > 1) {
-        // Check if query mentions a specific file
-        const queryLower = query.toLowerCase();
-        const mentionedFile = files.find(f =>
-          queryLower.includes(f.filename.toLowerCase().replace(/\.[^/.]+$/, "")) // Match filename without extension
-        );
+        // Use fuzzy matcher to find best matching file
+        const matches = FuzzyFileMatcher.matchFiles(query, files, {
+          confidenceThreshold: 0.3,
+          maxResults: 1,
+          includeSemanticMatch: true,
+          includeTemporalMatch: true,
+        });
 
-        if (mentionedFile) {
-          // User mentioned a specific file - send only that file
-          filteredFiles = [mentionedFile];
-          logger.trace('[File Filter] Query mentions specific file', {
+        if (matches.length > 0 && matches[0].confidence >= 0.3) {
+          // Found a good match - use it
+          filteredFiles = [matches[0].file];
+          logger.trace('[File Filter] Fuzzy match found', {
             requestId,
             originalCount: files.length,
             filteredCount: 1,
-            selectedFile: mentionedFile.filename,
+            selectedFile: matches[0].file.filename,
+            matchType: matches[0].matchType,
+            confidence: matches[0].confidence.toFixed(2),
+            matchedTokens: matches[0].matchedTokens,
+            reason: matches[0].reason,
             reduction: `${((1 - 1/files.length) * 100).toFixed(0)}%`
           });
         } else {
-          // No specific file mentioned - send most recently uploaded file
+          // No good match - use most recent file as fallback
           const latestFile = files[files.length - 1];
           filteredFiles = [latestFile];
-          logger.trace('[File Filter] Using latest file', {
+          logger.trace('[File Filter] No fuzzy match, using latest file', {
             requestId,
             originalCount: files.length,
             filteredCount: 1,
