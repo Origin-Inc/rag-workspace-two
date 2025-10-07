@@ -678,6 +678,7 @@ function ChatSidebarPerformantBase({
           rowCount: uploadedFile.rowCount || 0,
           sizeBytes: file.size,
           parquetUrl: uploadedFile.parquetUrl, // CRITICAL: Enables server to fetch actual data
+          type: getFileTypeFromFilename(uploadedFile.filename), // Derive type from filename
         });
 
         setUploadProgress({
