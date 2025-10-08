@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { loader, action } from './api.context.$pageId';
+import { loader, action } from '~/routes/api.context.$pageId';
 import { prisma } from '~/utils/db.server';
 
 // Mock auth
