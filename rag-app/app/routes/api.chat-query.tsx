@@ -299,6 +299,7 @@ export const action: ActionFunction = async ({ request }) => {
     // QUERY-FIRST INTEGRATION (Task 61.1):
     // If query results are provided, use them instead of preparing full files
     let fileData;
+    let storedQueryResults = null; // Store for passing to ResponseComposer
 
     // CRITICAL DEBUG: Check what we received
     logger.error('[CRITICAL DEBUG] Data path selection', {
@@ -328,6 +329,16 @@ export const action: ActionFunction = async ({ request }) => {
       });
 
       fileData = prepareQueryResults(queryResults, fileMetadata, requestId);
+
+      // CRITICAL FIX: Store query results for ResponseComposer
+      storedQueryResults = {
+        success: true,
+        data: queryResults.data,
+        sql: queryResults.sql,
+        columns: queryResults.columns,
+        rowCount: queryResults.rowCount,
+        executionTime: queryResults.executionTime
+      };
     } else {
       logger.error('[Traditional] ⚠️ USING TRADITIONAL PATH', {
         requestId,
@@ -567,7 +578,7 @@ export const action: ActionFunction = async ({ request }) => {
       response = await composer.compose(
         intent,
         analysis,
-        null, // queryResult - we're not providing SQL results here
+        storedQueryResults, // CRITICAL FIX: Pass query results from query-first path
         {
           prioritizeNarrative: true,
           depth: intent.expectedDepth,
