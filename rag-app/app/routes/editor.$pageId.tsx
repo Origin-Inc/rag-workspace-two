@@ -1271,6 +1271,7 @@ export default function EditorPage() {
         <div className="flex-1 overflow-hidden bg-theme-bg-primary">
           <ClientOnly fallback={<div className="h-full bg-theme-bg-primary animate-pulse" />}>
             <EnhancedBlockEditor
+              key={page.id}
               initialBlocks={blocks}
               onChange={handleChange}
               onSave={handleSave}

@@ -839,13 +839,12 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
   );
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   
-  // Sync blocks when initialBlocks changes (e.g., from AI updates)
+  // Sync blocks when initialBlocks changes (e.g., from AI updates or page navigation)
+  // Use JSON.stringify for deep comparison to catch content changes
   useEffect(() => {
-    if (initialBlocks && initialBlocks.length > 0) {
-      console.log('[EnhancedBlockEditor] Syncing blocks from props:', initialBlocks);
-      setBlocks(initialBlocks);
-    }
-  }, [initialBlocks]);
+    console.log('[EnhancedBlockEditor] Syncing blocks from props:', initialBlocks);
+    setBlocks(initialBlocks);
+  }, [JSON.stringify(initialBlocks)]);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [dragOverBlockId, setDragOverBlockId] = useState<string | null>(null);
   const [showCommandBar, setShowCommandBar] = useState(false);
