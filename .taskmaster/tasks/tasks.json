@@ -1019,7 +1019,7 @@
         "description": "Build REST API endpoints for loading and saving conversation context",
         "details": "Create /app/routes/api.context.$pageId.tsx with:\n\nLoader (GET /api/context/:pageId):\n- Load context from database via contextPersistence.loadContext()\n- Return context with files, queryHistory, activeFileId, etc.\n\nAction (POST /api/context/:pageId):\n- Accept context updates in body\n- Save via contextPersistence.saveContext()\n- Return success response\n\nUsed by chat component to persist/restore context across page reloads",
         "testStrategy": "",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           72
         ],
@@ -1148,7 +1148,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-10-08T22:07:07.044Z",
+      "updated": "2025-10-08T22:31:45.351Z",
       "description": "Tasks for master context"
     }
   }
