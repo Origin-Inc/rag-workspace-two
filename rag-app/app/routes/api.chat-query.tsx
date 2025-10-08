@@ -18,6 +18,7 @@ const logger = new DebugLogger('api.chat-query');
 
 /**
  * Format query results as a markdown table
+ * For narrow/tall chat interfaces, transpose single-row data to show columns vertically
  */
 function formatQueryResultsAsMarkdown(queryResults: any): string {
   if (!queryResults?.data || queryResults.data.length === 0) {
@@ -27,11 +28,31 @@ function formatQueryResultsAsMarkdown(queryResults: any): string {
   const rows = queryResults.data;
   const columns = Object.keys(rows[0]);
 
-  // Build header
+  // For single-row results (like aggregations), display vertically for better UX in chat
+  if (rows.length === 1) {
+    const header = `| Column | Value |`;
+    const separator = `| --- | --- |`;
+
+    const rowsMarkdown = columns.map(col => {
+      const val = rows[0][col];
+      let formattedVal = '';
+      if (val === null || val === undefined) {
+        formattedVal = '';
+      } else if (typeof val === 'number') {
+        formattedVal = val.toLocaleString();
+      } else {
+        formattedVal = String(val);
+      }
+      return `| ${col} | ${formattedVal} |`;
+    }).join('\n');
+
+    return `${header}\n${separator}\n${rowsMarkdown}`;
+  }
+
+  // For multi-row results, use traditional horizontal layout
   const header = `| ${columns.join(' | ')} |`;
   const separator = `| ${columns.map(() => '---').join(' | ')} |`;
 
-  // Build rows
   const rowsMarkdown = rows.map((row: any) => {
     const values = columns.map(col => {
       const val = row[col];
