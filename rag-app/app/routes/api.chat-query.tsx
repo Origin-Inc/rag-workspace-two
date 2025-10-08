@@ -16,6 +16,35 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 
 const logger = new DebugLogger('api.chat-query');
 
+/**
+ * Format query results as a markdown table
+ */
+function formatQueryResultsAsMarkdown(queryResults: any): string {
+  if (!queryResults?.data || queryResults.data.length === 0) {
+    return '*No results*';
+  }
+
+  const rows = queryResults.data;
+  const columns = Object.keys(rows[0]);
+
+  // Build header
+  const header = `| ${columns.join(' | ')} |`;
+  const separator = `| ${columns.map(() => '---').join(' | ')} |`;
+
+  // Build rows
+  const rowsMarkdown = rows.map((row: any) => {
+    const values = columns.map(col => {
+      const val = row[col];
+      if (val === null || val === undefined) return '';
+      if (typeof val === 'number') return val.toLocaleString();
+      return String(val);
+    });
+    return `| ${values.join(' | ')} |`;
+  }).join('\n');
+
+  return `${header}\n${separator}\n${rowsMarkdown}`;
+}
+
 export const action: ActionFunction = async ({ request }) => {
   const startTime = Date.now();
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -416,6 +445,99 @@ export const action: ActionFunction = async ({ request }) => {
         dataLength: Array.isArray(fileData[0].data) ? fileData[0].data.length : 0
       } : 'NO FILES PREPARED'
     });
+
+    // ========== QUERY-FIRST FAST PATH ==========
+    // If we have query results, skip expensive semantic analysis entirely
+    if (queryResults?.data && queryResults.data.length > 0) {
+      logger.error('[Query-First Fast Path] Using optimized flow - skipping UnifiedIntelligenceService', {
+        requestId,
+        sql: queryResults.sql,
+        rowCount: queryResults.data.length,
+        executionTime: queryResults.executionTime
+      });
+
+      // Format the response directly without semantic analysis
+      const formattedStart = Date.now();
+
+      // Build a simple, clear response with the SQL results
+      const tableMarkdown = formatQueryResultsAsMarkdown(queryResults);
+      const responseText = `### Query Results\n\n${tableMarkdown}\n\n**Query Details:**\n- SQL: \`${queryResults.sql}\`\n- Rows: ${queryResults.data.length}\n- Execution Time: ${queryResults.executionTime}ms`;
+
+      const formattedTime = Date.now() - formattedStart;
+      logger.error('[TIMING] Query-first formatting', { requestId, formattingTimeMs: formattedTime });
+
+      // Skip to streaming
+      const totalProcessingTime = Date.now() - authStart;
+      logger.error('[TIMING] ===== REQUEST TIMING BREAKDOWN (Query-First Fast Path) =====', {
+        requestId,
+        totalProcessingTimeMs: totalProcessingTime,
+        totalProcessingTimeSec: (totalProcessingTime / 1000).toFixed(2),
+        approach: 'query-first-fast-path'
+      });
+
+      // Stream the response
+      const stream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          const streamStart = Date.now();
+          let firstTokenSent = false;
+          let sentWords = 0;
+
+          const words = responseText.split(/(\s+)/);
+
+          for (const word of words) {
+            if (!firstTokenSent && sentWords === 0) {
+              const timeToFirstToken = Date.now() - streamStart;
+              logger.error('[TIMING] Time to first token (fast path)', {
+                requestId,
+                timeToFirstTokenMs: timeToFirstToken
+              });
+              firstTokenSent = true;
+            }
+
+            const event = `event: token\ndata: ${JSON.stringify({ content: word })}\n\n`;
+            controller.enqueue(encoder.encode(event));
+            sentWords++;
+
+            // Small delay between words for streaming effect
+            await new Promise(resolve => setTimeout(resolve, 20));
+          }
+
+          // Send metadata
+          const metadataEvent = `event: metadata\ndata: ${JSON.stringify({
+            metadata: {
+              queryFirst: true,
+              sql: queryResults.sql,
+              rowsAnalyzed: queryResults.data.length,
+              executionTime: queryResults.executionTime,
+              approach: 'fast-path'
+            }
+          })}\n\n`;
+          controller.enqueue(encoder.encode(metadataEvent));
+
+          // Send done
+          const doneEvent = `event: done\ndata: ${JSON.stringify({ complete: true })}\n\n`;
+          controller.enqueue(encoder.encode(doneEvent));
+
+          controller.close();
+
+          logger.error('[TIMING] Total streaming time (fast path)', {
+            requestId,
+            streamingTimeMs: Date.now() - streamStart,
+            wordsSent: sentWords
+          });
+        }
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    }
+    // ========== END QUERY-FIRST FAST PATH ==========
 
     // CRITICAL DEBUG: Log prepared file data
     const preparedContentSize = fileData.reduce((sum, f) => {
