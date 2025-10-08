@@ -50,9 +50,11 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     // Require authentication
+    const authStart = Date.now();
     try {
       user = await requireUser(request);
-      logger.trace('[Unified] User authenticated', { requestId, userId: user.id });
+      const authTime = Date.now() - authStart;
+      logger.error('[TIMING] Authentication', { requestId, authTimeMs: authTime });
     } catch (authError) {
       logger.error('[Unified] Authentication failed', {
         requestId,
@@ -73,11 +75,14 @@ export const action: ActionFunction = async ({ request }) => {
       );
     }
 
+    const parseStart = Date.now();
     const body = await request.json();
     // Extract variables (already declared at top for error handler)
     query = body.query;
     files = body.files || [];
     const { pageId, workspaceId, conversationHistory, sessionId, queryResults, fileMetadata, stream } = body;
+    const parseTime = Date.now() - parseStart;
+    logger.error('[TIMING] Parse request body', { requestId, parseTimeMs: parseTime });
 
     // CRITICAL DEBUG: Log what client sent
     logger.error('[REQUEST DEBUG] ⚠️ Request body analysis', {
@@ -390,6 +395,7 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     const fileDataTime = Date.now() - fileDataStart;
+    logger.error('[TIMING] Data preparation', { requestId, dataPreparationTimeMs: fileDataTime });
 
     logger.error('[Unified] ⚠️ File data preparation CRITICAL CHECKPOINT', {
       requestId,
@@ -533,10 +539,10 @@ export const action: ActionFunction = async ({ request }) => {
       });
       
       const analysisTime = Date.now() - analysisStart;
-      logger.trace('[Unified] Analysis completed successfully', {
+      logger.error('[TIMING] UnifiedIntelligenceService.process()', {
         requestId,
-        analysisTimeMs: analysisTime,
-        analysisTimeSec: (analysisTime / 1000).toFixed(2)
+        intelligenceTimeMs: analysisTime,
+        intelligenceTimeSec: (analysisTime / 1000).toFixed(2)
       });
     } catch (analysisError) {
       logger.error('[Unified] Analysis failed', {
@@ -558,7 +564,8 @@ export const action: ActionFunction = async ({ request }) => {
     // Compose natural response using correct parameter structure
     logger.trace('[Unified] Starting response composition...');
     let response;
-    
+
+    const composeStart = Date.now();
     try {
       // CRITICAL DEBUG: Log what we're sending to the response composer
       logger.trace('[Unified] SENDING TO RESPONSE COMPOSER:', {
@@ -573,7 +580,7 @@ export const action: ActionFunction = async ({ request }) => {
           includeTechnicalDetails: false
         }
       });
-      
+
       // ResponseComposer.compose expects: (intent, analysis, queryResult?, options?)
       response = await composer.compose(
         intent,
@@ -585,6 +592,13 @@ export const action: ActionFunction = async ({ request }) => {
           includeTechnicalDetails: false
         }
       );
+
+      const composeTime = Date.now() - composeStart;
+      logger.error('[TIMING] ResponseComposer.compose()', {
+        requestId,
+        composeTimeMs: composeTime,
+        composeTimeSec: (composeTime / 1000).toFixed(2)
+      });
       
       // CRITICAL DEBUG: Log the composed response
       logger.trace('[Unified] RESPONSE COMPOSER OUTPUT:', {
@@ -607,7 +621,15 @@ export const action: ActionFunction = async ({ request }) => {
 
     // Track token usage and performance
     const totalProcessingTime = Date.now() - startTime;
-    
+
+    // Log comprehensive timing breakdown
+    logger.error('[TIMING] ===== REQUEST TIMING BREAKDOWN =====', {
+      requestId,
+      totalProcessingTimeMs: totalProcessingTime,
+      totalProcessingTimeSec: (totalProcessingTime / 1000).toFixed(2),
+      approach: queryResults ? 'query-first' : 'traditional'
+    });
+
     // Get the actual model being used
     const modelName = await aiModelConfig.getModelName(user.id);
     
@@ -696,14 +718,24 @@ export const action: ActionFunction = async ({ request }) => {
 
     // Check if client requested streaming response
     if (stream) {
+      const streamStart = Date.now();
       logger.trace('[Unified] Creating streaming response', { requestId });
 
       return eventStream(request.signal, function setup(send) {
         // Stream response word by word for immediate feedback
         const words = finalResponse.content.split(' ');
         let sentWords = 0;
+        let firstTokenSent = false;
 
         const interval = setInterval(() => {
+          if (!firstTokenSent && sentWords === 0) {
+            const timeToFirstToken = Date.now() - streamStart;
+            logger.error('[TIMING] Time to first token', {
+              requestId,
+              timeToFirstTokenMs: timeToFirstToken
+            });
+            firstTokenSent = true;
+          }
           if (sentWords < words.length) {
             const chunk = words[sentWords] + (sentWords < words.length - 1 ? ' ' : '');
             send({
