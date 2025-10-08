@@ -456,11 +456,14 @@ function ChatSidebarPerformantBase({
 
           // CRITICAL FIX: Track message ID for streaming updates
           // Create placeholder message and get its ID
-          const streamingMessageId = addMessage({
+          const streamingMessage = addMessage({
             role: 'assistant',
             content: '',
             metadata: { streaming: true },
           });
+
+          // Get the message ID from the returned message
+          const streamingMessageId = streamingMessage?.id || messages[messages.length - 1]?.id;
 
           // CRITICAL FIX: Convert BigInt to Number for JSON serialization
           // DuckDB returns BigInt for COUNT/SUM aggregates which JSON.stringify can't handle
