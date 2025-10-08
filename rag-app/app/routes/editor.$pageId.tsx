@@ -695,6 +695,16 @@ export default function EditorPage() {
   const maxRetries = 3;
   const retryTimeoutRef = useRef<NodeJS.Timeout>();
 
+  // CRITICAL FIX: Reset state when page changes (navigation to different page)
+  useEffect(() => {
+    setBlocks(initialBlocks);
+    setTempTitle(page.title || '');
+    setLastSaved(null);
+    setSaveError(null);
+    setRetryCount(0);
+    setEditingTitle(false);
+  }, [page.id, initialBlocks, page.title]);
+
   const handleSaveTitle = async () => {
     if (!tempTitle.trim() || tempTitle === page.title) {
       setEditingTitle(false);
