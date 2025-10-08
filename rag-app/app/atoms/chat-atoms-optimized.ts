@@ -191,9 +191,17 @@ export const updateMessageActionFamily = atomFamily(
       const messagesAtom = pageMessagesFamily(pageId);
       const messages = get(messagesAtom);
       const messageIndex = messages.findIndex(m => m.id === messageId);
-      
-      if (messageIndex === -1) return;
-      
+
+      if (messageIndex === -1) {
+        console.error('[updateMessage] Message not found!', {
+          messageId,
+          pageId,
+          availableMessageIds: messages.map(m => m.id),
+          totalMessages: messages.length
+        });
+        return;
+      }
+
       const updatedMessages = [...messages];
       updatedMessages[messageIndex] = {
         ...updatedMessages[messageIndex],
@@ -203,7 +211,7 @@ export const updateMessageActionFamily = atomFamily(
         pageId: updatedMessages[messageIndex].pageId,
         timestamp: updatedMessages[messageIndex].timestamp,
       };
-      
+
       set(messagesAtom, updatedMessages);
     }
   ),

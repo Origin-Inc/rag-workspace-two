@@ -465,6 +465,13 @@ function ChatSidebarPerformantBase({
           // Get the message ID from the returned message
           const streamingMessageId = streamingMessage?.id || messages[messages.length - 1]?.id;
 
+          if (!streamingMessageId) {
+            console.error('[Streaming] CRITICAL: No message ID captured! streamingMessage:', streamingMessage, 'messages.length:', messages.length);
+            throw new Error('Failed to capture message ID for streaming');
+          }
+
+          console.log('[Streaming] Message ID captured:', streamingMessageId, 'from addMessage return:', !!streamingMessage?.id);
+
           // CRITICAL FIX: Convert BigInt to Number for JSON serialization
           // DuckDB returns BigInt for COUNT/SUM aggregates which JSON.stringify can't handle
           const serializableData = queryResult.queryResult.data?.slice(0, 20).map(row => {
@@ -505,6 +512,7 @@ function ChatSidebarPerformantBase({
             (token) => {
               streamedContent += token;
               // Update the streaming message with accumulated content
+              console.log('[Streaming] Token received, updating message', streamingMessageId, 'content length:', streamedContent.length);
               updateMessage(streamingMessageId, {
                 content: streamedContent,
                 metadata: { streaming: true },
@@ -516,6 +524,7 @@ function ChatSidebarPerformantBase({
             },
             // onDone: Finalize message with complete content
             () => {
+              console.log('[Streaming] Done, finalizing message', streamingMessageId, 'final content length:', streamedContent.length);
               updateMessage(streamingMessageId, {
                 content: streamedContent,
                 metadata: {
