@@ -5,5 +5,8 @@
     "papaparse": "^5.5.3",
     "react-contenteditable": "^3.3.7",
     "xlsx": "^0.18.5"
+  },
+  "scripts": {
+    "prepare": "husky"
   }
 }

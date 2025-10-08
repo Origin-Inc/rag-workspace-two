@@ -1,4 +1,4 @@
-import type { DataFile } from '~/stores/chat-store';
+import type { DataFile } from '~/atoms/chat-atoms';
 
 // This is a client-side version of the fuzzy file matcher
 // It has the same interface but is optimized for browser performance

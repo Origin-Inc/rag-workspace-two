@@ -1,11 +1,13 @@
-import { createSupabaseServerClient } from '~/utils/supabase.server';
+import { createSupabaseServerClient, createSupabaseAdmin } from '~/utils/supabase.server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export class FileStorageService {
   private supabase: SupabaseClient;
   
   constructor(request: Request, response: Response) {
-    this.supabase = createSupabaseServerClient(request, response);
+    // Use admin client for storage operations to ensure proper permissions
+    // Storage operations are server-side only and controlled by our auth
+    this.supabase = createSupabaseAdmin();
   }
   
   /**

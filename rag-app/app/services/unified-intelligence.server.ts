@@ -9,6 +9,7 @@ import type { QueryIntent } from './query-intent-analyzer.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { aiModelConfig } from './ai-model-config.server';
 import { costTracker } from './cost-tracker-simple.server';
+import { SQLValidator } from './sql-validator.server';
 // import { cacheManager } from './cache-manager.server';
 
 const logger = new DebugLogger('unified-intelligence');
@@ -383,7 +384,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
           fallbackReason: 'NO_OPENAI_CLIENT'
         });
         this.lastTokensUsed = 0;
-        return this.performContentBasedAnalysis(query, files, requestId);
+        return await this.performContentBasedAnalysis(query, files, requestId);
       }
       
       // Verify we have actual content to send
@@ -413,7 +414,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
           fallbackReason: 'NO_CONTENT_AT_ALL'
         });
         this.lastTokensUsed = 0;
-        return this.performContentBasedAnalysis(query, files, requestId);
+        return await this.performContentBasedAnalysis(query, files, requestId);
       }
       
       // CRITICAL: Log that we're proceeding with OpenAI
@@ -665,7 +666,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
           }
         } else {
           // Try to extract meaningful content directly from the files
-          const fallbackAnalysis = this.performContentBasedAnalysis(query, files, requestId);
+          const fallbackAnalysis = await this.performContentBasedAnalysis(query, files, requestId);
           if (fallbackAnalysis.summary && fallbackAnalysis.summary.length > 50 && 
               !fallbackAnalysis.summary.includes('Unable to extract')) {
             finalSummary = fallbackAnalysis.summary;
@@ -714,7 +715,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
       logger.warn('[performSemanticAnalysis] Using content-based fallback analysis', {
         requestId
       });
-      const fallbackResult = this.performContentBasedAnalysis(query, files, requestId);
+      const fallbackResult = await this.performContentBasedAnalysis(query, files, requestId);
       
       // Log fallback result quality
       logger.trace('[performSemanticAnalysis] Fallback analysis result:', {
@@ -782,16 +783,174 @@ Format as JSON with keys: summary (specific answer to the query), context (where
   }
 
   /**
-   * Generate context-aware SQL
+   * Generate context-aware SQL using OpenAI
    */
   private async generateContextAwareSQL(
     query: string,
     files: FileContext[],
     semantic: SemanticAnalysis
   ): Promise<string> {
-    // This will be enhanced by the api.chat-query.tsx endpoint
-    // For now, return empty as SQL generation is handled separately
-    return '';
+    if (!openai) {
+      logger.warn('[generateContextAwareSQL] OpenAI not configured');
+      return '';
+    }
+
+    // Only generate SQL for files with structured data
+    const dataFiles = files.filter(f =>
+      (f.type === 'csv' || f.type === 'excel') && f.schema
+    );
+
+    if (dataFiles.length === 0) {
+      logger.trace('[generateContextAwareSQL] No structured data files found');
+      return '';
+    }
+
+    try {
+      // Build schema context for each table with enhanced metadata
+      const schemaContext = dataFiles.map(f => {
+        const tableName = f.filename.replace(/[^a-zA-Z0-9_]/g, '_');
+        const columns = f.schema?.columns || [];
+
+        // Build column descriptions with type info and stats
+        const columnDescriptions = columns.map((c: any) => {
+          let desc = `${c.name} (${c.type})`;
+
+          // Add column metadata if available
+          if (c.isPrimary) desc += ' [PRIMARY KEY]';
+          if (c.isRequired) desc += ' [REQUIRED]';
+          if (c.isUnique) desc += ' [UNIQUE]';
+
+          return desc;
+        }).join(', ');
+
+        // Get sample data if available
+        let sampleRows = '';
+        if (f.data && Array.isArray(f.data) && f.data.length > 0) {
+          const sampleData = f.data.slice(0, 3);
+          sampleRows = '\nSample rows:\n' + sampleData.map((row: any, idx: number) =>
+            `Row ${idx + 1}: ${JSON.stringify(row)}`
+          ).join('\n');
+        }
+
+        // Add column statistics if available from metadata
+        let columnStats = '';
+        if (f.metadata?.columnStats) {
+          columnStats = '\nColumn statistics:\n' + Object.entries(f.metadata.columnStats)
+            .slice(0, 5) // Limit to top 5 columns for context
+            .map(([colName, stats]: [string, any]) => {
+              let statStr = `  ${colName}:`;
+              if (stats.uniqueValues !== undefined) statStr += ` ${stats.uniqueValues} unique values`;
+              if (stats.nullCount !== undefined) statStr += `, ${stats.nullCount} nulls`;
+              if (stats.minValue !== undefined) statStr += `, min: ${stats.minValue}`;
+              if (stats.maxValue !== undefined) statStr += `, max: ${stats.maxValue}`;
+              return statStr;
+            }).join('\n');
+        }
+
+        return `
+Table: ${tableName}
+Columns: ${columnDescriptions}
+Row count: ${f.rowCount || 0}${columnStats}${sampleRows}
+`;
+      }).join('\n---\n');
+
+      // Build the prompt for SQL generation
+      const systemPrompt = `You are an expert SQL query generator. Generate DuckDB SQL queries based on natural language questions.
+
+IMPORTANT RULES:
+1. Generate ONLY SELECT queries (no INSERT, UPDATE, DELETE, DROP, ALTER, CREATE)
+2. Use proper DuckDB SQL syntax
+3. Table names are provided in the schema context
+4. Return ONLY the SQL query without explanations or markdown code blocks
+5. Use appropriate WHERE clauses, JOINs, GROUP BY, ORDER BY as needed
+6. For aggregations, always use descriptive column aliases
+7. Limit results to 1000 rows unless specified otherwise
+8. Use CAST() for explicit type conversions when needed
+
+Available tables and schemas:
+${schemaContext}`;
+
+      const userPrompt = `Generate a SQL query to answer this question: "${query}"
+
+Context from semantic analysis:
+- Summary: ${semantic.summary}
+- Key themes: ${semantic.keyThemes.join(', ')}
+- Entities: ${semantic.entities.join(', ')}
+
+Return ONLY the SQL query.`;
+
+      logger.trace('[generateContextAwareSQL] Calling OpenAI', {
+        tableCount: dataFiles.length,
+        queryLength: query.length
+      });
+
+      const apiParams = aiModelConfig.buildAPIParameters({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        queryType: 'simple'
+      });
+
+      const completion = await openai.chat.completions.create(apiParams);
+
+      const generatedSQL = completion.choices[0]?.message?.content?.trim() || '';
+
+      // Remove markdown code blocks if present
+      let cleanedSQL = generatedSQL
+        .replace(/```sql\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+
+      // Validate SQL using comprehensive validator
+      const schemaInfo = dataFiles.map(f => ({
+        tableName: f.filename.replace(/[^a-zA-Z0-9_]/g, '_'),
+        columns: (f.schema?.columns || []).map((c: any) => ({
+          name: c.name,
+          type: c.type
+        }))
+      }));
+
+      const validation = SQLValidator.validate(cleanedSQL, schemaInfo);
+
+      if (!validation.valid) {
+        logger.warn('[generateContextAwareSQL] SQL validation failed', {
+          sql: cleanedSQL,
+          errors: validation.errors
+        });
+        return '';
+      }
+
+      // Log warnings but continue
+      if (validation.warnings.length > 0) {
+        logger.trace('[generateContextAwareSQL] SQL validation warnings', {
+          warnings: validation.warnings
+        });
+      }
+
+      // Use sanitized SQL
+      const finalSQL = validation.sanitizedSQL || cleanedSQL;
+
+      // Track tokens used
+      this.lastPromptTokens = completion.usage?.prompt_tokens || 0;
+      this.lastCompletionTokens = completion.usage?.completion_tokens || 0;
+      this.lastTokensUsed = completion.usage?.total_tokens || 0;
+
+      logger.trace('[generateContextAwareSQL] SQL generated successfully', {
+        sqlLength: finalSQL.length,
+        tokensUsed: this.lastTokensUsed,
+        hasWarnings: validation.warnings.length > 0
+      });
+
+      return finalSQL;
+
+    } catch (error) {
+      logger.error('[generateContextAwareSQL] Failed to generate SQL', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      return '';
+    }
   }
 
   /**
@@ -1707,11 +1866,11 @@ Format as JSON with keys: summary (specific answer to the query), context (where
    * Perform content-based analysis when OpenAI is unavailable or fails
    * Extracts actual content from files instead of returning generic responses
    */
-  private performContentBasedAnalysis(
+  private async performContentBasedAnalysis(
     query: string,
     files: FileContext[],
     requestId?: string
-  ): SemanticAnalysis {
+  ): Promise<SemanticAnalysis> {
     logger.trace('[performContentBasedAnalysis] Extracting content directly', {
       requestId,
       filesCount: files.length,
@@ -1821,23 +1980,23 @@ Format as JSON with keys: summary (specific answer to the query), context (where
           });
         }
       } else if (file.type === 'csv' || file.type === 'excel') {
-        // Handle structured data
+        // Handle structured data with query optimization
         if (file.data && Array.isArray(file.data) && file.data.length > 0) {
+          // Include sample data (simplified without optimizer)
           const headers = Object.keys(file.data[0]);
-          // For Excel files with few rows, include all data for better analysis
-          const rowLimit = (file.type === 'excel' && file.data.length <= 20) ? file.data.length : 10;
+          const rowLimit = Math.min(file.data.length, 50); // Max 50 rows
           const sampleRows = file.data.slice(0, rowLimit);
-          
+
           combinedContent += `\n\n[Dataset: ${file.filename}]\n`;
           combinedContent += `Type: ${file.type === 'excel' ? 'Excel Spreadsheet' : 'CSV File'}\n`;
           combinedContent += `Columns: ${headers.join(', ')}\n`;
           combinedContent += `Rows: ${file.rowCount || file.data.length}\n`;
           combinedContent += `${file.type === 'excel' && file.data.length <= 20 ? 'Complete Data:' : 'Sample Data:'}\n`;
-          
+
           sampleRows.forEach((row, idx) => {
             combinedContent += `Row ${idx + 1}: ${JSON.stringify(row)}\n`;
           });
-          
+
           // Add more context for small Excel files
           if (file.type === 'excel' && file.data.length <= 20) {
             combinedContent += `\n[Complete Dataset Analysis]\n`;
@@ -1851,7 +2010,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
               }
             });
           }
-          
+
           // Extract themes from column names and data
           headers.forEach(header => {
             const headerLower = header.toLowerCase();
@@ -1935,7 +2094,7 @@ Format as JSON with keys: summary (specific answer to the query), context (where
     
     return result;
   }
-
+  
   private extractContentRelationships(content: string): string[] {
     const relationships: string[] = [];
     

@@ -11,6 +11,7 @@ node_modules/
 
 # Environment variables
 .env
+.env.vercel
 
 # Editor directories and files
 .idea
@@ -29,3 +30,4 @@ node_modules/
 # Task files
 # tasks.json
 # tasks/ 
+.env*.local

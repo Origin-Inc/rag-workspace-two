@@ -68,6 +68,7 @@ model Workspace {
   userFiles      UserFile[]
   userDataTables UserDataTable[]
   fileProcessingJobs FileProcessingJob[]
+  chatContexts   ChatContext[]
 
   @@index([slug])
   @@map("workspaces")
@@ -193,6 +194,8 @@ model Page {
   chatMessages ChatMessage[]
   dataFiles   DataFile[]
   userFiles   UserFile[]
+  chatContext ChatContext?
+  queryHistory QueryHistory[]
 
   @@unique([workspaceId, slug]) // New unique constraint for workspace-based slugs
   @@unique([projectId, slug]) // Keep for backward compatibility
@@ -588,7 +591,8 @@ model DataFile {
   // Relations
   page        Page        @relation(fields: [pageId], references: [id], onDelete: Cascade)
   workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  
+  chatContexts ChatContext[]
+
   @@index([pageId])
   @@index([workspaceId])
   @@index([tableName])
@@ -696,38 +700,91 @@ model FileProcessingJob {
   id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   fileId          String      @map("file_id") @db.Uuid
   workspaceId     String      @map("workspace_id") @db.Uuid
-  
+
   // Job details
   jobType         String      @map("job_type") @db.VarChar(50) // parse_csv, parse_excel, extract_pdf
   status          String      @default("pending") @db.VarChar(20) // pending, running, completed, failed
   priority        Int         @default(5)
-  
+
   // Progress tracking
   totalRows       Int?        @map("total_rows")
   processedRows   Int         @default(0) @map("processed_rows")
   progressPercent Int         @default(0) @map("progress_percent")
-  
+
   // Error handling
   retryCount      Int         @default(0) @map("retry_count")
   maxRetries      Int         @default(3) @map("max_retries")
   errorMessage    String?     @map("error_message") @db.Text
   errorDetails    Json?       @map("error_details") @db.JsonB
-  
+
   // Timing
   startedAt       DateTime?   @map("started_at") @db.Timestamptz(6)
   completedAt     DateTime?   @map("completed_at") @db.Timestamptz(6)
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  
+
   // Worker info
   workerId        String?     @map("worker_id") @db.VarChar(100)
-  
+
   // Relations
   file            UserFile    @relation(fields: [fileId], references: [id], onDelete: Cascade)
   workspace       Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  
+
   @@index([status, priority])
   @@index([fileId])
   @@index([workspaceId])
   @@index([createdAt])
   @@map("file_processing_jobs")
+}
+
+// Chat context persistence for conversation memory
+model ChatContext {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pageId        String      @unique @map("page_id") @db.Uuid
+  workspaceId   String      @map("workspace_id") @db.Uuid
+
+  // Active file tracking
+  activeFileId  String?     @map("active_file_id") @db.Uuid
+
+  // Conversation state
+  currentTopic  String?     @map("current_topic") @db.Text
+  entities      Json        @default("{}") @db.JsonB // {person: ["John", "Mary"], company: ["Acme"]}
+  preferences   Json        @default("{}") @db.JsonB // {display: "table", timezone: "UTC"}
+
+  // Metadata
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  page          Page        @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  activeFile    DataFile?   @relation(fields: [activeFileId], references: [id], onDelete: SetNull)
+
+  @@index([pageId])
+  @@index([workspaceId])
+  @@map("chat_contexts")
+}
+
+// Query history for U-shaped attention pattern
+model QueryHistory {
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pageId    String      @map("page_id") @db.Uuid
+
+  // Query details
+  query     String      @db.Text
+  intent    String      @db.VarChar(50) // general_chat, data_query, hybrid
+  sql       String?     @db.Text // Generated SQL if data_query
+  results   Json?       @db.JsonB // Query results
+
+  // Response
+  response  String?     @db.Text
+
+  // Metadata
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  page      Page        @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+  @@index([createdAt(sort: Desc)])
+  @@map("query_history")
 }

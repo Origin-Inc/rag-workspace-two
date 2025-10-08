@@ -25,11 +25,11 @@ export function FileUploadZone({ onFileUpload, className, isUploading = false }:
     }
     
     // Check file type
-    const validExtensions = ['.csv', '.xlsx', '.xls', '.pdf'];
+    const validExtensions = ['.csv', '.xlsx', '.xls'];
     const isValidType = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
-    
+
     if (!isValidType) {
-      setError(`File "${file.name}" is not supported. Please upload CSV, Excel, or PDF files.`);
+      setError(`File "${file.name}" is not supported. Please upload CSV or Excel files only.`);
       return false;
     }
     
@@ -88,7 +88,7 @@ export function FileUploadZone({ onFileUpload, className, isUploading = false }:
       <input
         ref={fileInputRef}
         type="file"
-        accept=".csv,.xlsx,.xls,.pdf"
+        accept=".csv,.xlsx,.xls"
         multiple
         onChange={handleFileSelect}
         className="hidden"

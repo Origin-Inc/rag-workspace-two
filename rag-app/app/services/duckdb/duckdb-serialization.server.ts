@@ -22,31 +22,35 @@ export class DuckDBSerializationService {
   
   /**
    * Load data into DuckDB and export to Parquet format
+   * Returns both the Parquet buffer AND the updated schema with renamed columns
    */
   async serializeToParquet(
     data: any[],
     schema: any,
     tableName: string
-  ): Promise<Buffer> {
+  ): Promise<{ buffer: Buffer; schema: any }> {
     try {
       console.log(`[DuckDBSerializationService] Starting serialization for table: ${tableName}`);
       console.log(`[DuckDBSerializationService] Data rows: ${data.length}, Schema columns: ${schema.columns?.length || 0}`);
-      
+
       // Ensure DB is initialized
       await this.initializeDB();
-      
+
       if (!this.db) {
         throw new Error('DuckDB not initialized');
       }
-      
-      // Create table from data
-      await this.createTableFromData(data, schema, tableName);
-      
+
+      // Create table from data and get updated schema
+      const updatedSchema = await this.createTableFromData(data, schema, tableName);
+
       // Export to Parquet buffer
       const parquetBuffer = await this.exportTableToParquet(tableName);
-      
+
       console.log(`[DuckDBSerializationService] Serialization complete: ${parquetBuffer.length} bytes`);
-      return parquetBuffer;
+      return {
+        buffer: parquetBuffer,
+        schema: updatedSchema
+      };
     } catch (error) {
       console.error('[DuckDBSerializationService] Failed to serialize to Parquet:', error);
       throw error;
@@ -55,38 +59,59 @@ export class DuckDBSerializationService {
   
   /**
    * Create a DuckDB table from data
+   * Returns updated schema with renamed columns
    */
   private async createTableFromData(
     data: any[],
     schema: any,
     tableName: string
-  ) {
+  ): Promise<any> {
     if (!this.db) {
       throw new Error('DuckDB not initialized');
     }
-    
+
     console.log(`[DuckDBSerializationService] Creating table: ${tableName}`);
-    
+
     // Generate CREATE TABLE statement from schema
-    const columns = schema.columns.map((col: any) => {
+    // CRITICAL FIX: Rename columns with empty names (pandas index, unnamed columns)
+    // Always wrap column names in quotes to handle spaces, special chars, etc.
+    const processedColumns = schema.columns.map((col: any, index: number) => {
+      let columnName = col.name?.trim();
+
+      // Rename empty/unnamed columns with placeholder names
+      if (!columnName || columnName === '') {
+        columnName = `unnamed_column_${index}`;
+        console.log(`[DuckDBSerializationService] ⚠️ Renamed empty column at index ${index} to "${columnName}"`);
+      }
+
+      return {
+        originalName: col.name,
+        name: columnName,
+        type: col.type
+      };
+    });
+
+    // Build CREATE TABLE with quoted column names (handles spaces, special chars)
+    const columns = processedColumns.map((col: any) => {
       const duckdbType = this.mapTypeToDuckDB(col.type);
-      return `"${col.name}" ${duckdbType}`;
+      return `"${col.name}" ${duckdbType}`;  // Always quoted
     }).join(', ');
-    
+
     const createTableSQL = `CREATE TABLE ${tableName} (${columns})`;
     console.log(`[DuckDBSerializationService] SQL: ${createTableSQL}`);
-    
+
     await this.db.all(createTableSQL);
-    
-    // Insert data
+
+    // Insert data - map original column names to new names
     if (data.length > 0) {
-      const placeholders = schema.columns.map(() => '?').join(', ');
+      const placeholders = processedColumns.map(() => '?').join(', ');
       const insertSQL = `INSERT INTO ${tableName} VALUES (${placeholders})`;
-      
+
       const stmt = await this.db.prepare(insertSQL);
       for (const row of data) {
-        const values = schema.columns.map((col: any) => {
-          const value = row[col.name];
+        const values = processedColumns.map((col: any) => {
+          // Use original name to get value from row
+          const value = row[col.originalName];
           
           // Handle null/undefined values
           if (value === null || value === undefined) {
@@ -104,6 +129,15 @@ export class DuckDBSerializationService {
       }
       await stmt.finalize();
     }
+
+    // Return updated schema with renamed columns
+    return {
+      ...schema,
+      columns: processedColumns.map((col: any) => ({
+        name: col.name,  // Use new name
+        type: col.type
+      }))
+    };
   }
   
   /**
@@ -253,10 +287,4 @@ export class DuckDBSerializationService {
     return 'string';
   }
   
-  /**
-   * Close the database connection
-   */
-  async close() {
-    await this.db.close();
-  }
 }

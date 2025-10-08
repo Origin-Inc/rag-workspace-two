@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { DataFile } from '~/stores/chat-store-ultimate-fix';
+import type { DataFile } from '~/atoms/chat-atoms';
 
 export interface FileReference {
   fileId: string;

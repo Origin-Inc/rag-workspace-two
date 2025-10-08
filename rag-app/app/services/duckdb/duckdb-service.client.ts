@@ -11,6 +11,24 @@ export class DuckDBService {
 
   private constructor() {}
 
+  /**
+   * Normalize column name to match DuckDB's normalize_names behavior
+   * Converts to lowercase, replaces non-alphanumeric with underscores
+   */
+  private normalizeColumnName(name: string): string {
+    if (!name) return name;
+
+    // DuckDB normalize_names behavior:
+    // 1. Convert to lowercase
+    // 2. Replace non-alphanumeric characters with underscores
+    // 3. Trim whitespace
+    return name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
+  }
+
   public static getInstance(): DuckDBService {
     if (!DuckDBService.instance) {
       DuckDBService.instance = new DuckDBService();
@@ -98,10 +116,10 @@ export class DuckDBService {
       // First, create a temporary file in DuckDB's virtual file system
       await this.db!.registerFileText(`${tableName}.csv`, csvData);
       
-      // Create table from CSV
+      // Create table from CSV with normalized column names
       await conn.query(`
-        CREATE TABLE IF NOT EXISTS ${tableName} AS 
-        SELECT * FROM read_csv_auto('${tableName}.csv', header=true)
+        CREATE TABLE IF NOT EXISTS ${tableName} AS
+        SELECT * FROM read_csv_auto('${tableName}.csv', header=true, normalize_names=true)
       `);
       
       console.log(`Table ${tableName} created successfully`);
@@ -131,10 +149,10 @@ export class DuckDBService {
       const jsonString = JSON.stringify(jsonData);
       await this.db!.registerFileText(`${tableName}.json`, jsonString);
       
-      // Create table from JSON
+      // Create table from JSON with normalized column names
       await conn.query(`
-        CREATE TABLE IF NOT EXISTS ${tableName} AS 
-        SELECT * FROM read_json_auto('${tableName}.json')
+        CREATE TABLE IF NOT EXISTS ${tableName} AS
+        SELECT * FROM read_json_auto('${tableName}.json', normalize_names=true)
       `);
       
       console.log(`Table ${tableName} created from JSON successfully`);
@@ -242,21 +260,26 @@ export class DuckDBService {
       
       // Generate CREATE TABLE statement if schema is provided
       if (schema && schema.columns.length > 0) {
-        // Process columns, giving dummy names to empty ones
+        // Process columns: normalize names and handle empty names
         let unnamedColumnCount = 0;
         const processedColumns = schema.columns.map(col => {
           let columnName = col.name ? col.name.trim() : '';
-          
+          let originalName = columnName; // Store original for data access
+
           // If column name is empty, give it a dummy name
           if (!columnName) {
             unnamedColumnCount++;
             columnName = `column_${unnamedColumnCount}`;
             console.log(`Warning: Empty column name replaced with "${columnName}"`);
+          } else {
+            // Normalize column name to match DuckDB behavior
+            columnName = this.normalizeColumnName(columnName);
           }
-          
+
           return {
             ...col,
-            name: columnName
+            name: columnName,
+            originalName: originalName || columnName
           };
         });
         
@@ -285,10 +308,9 @@ export class DuckDBService {
         
         // Prepare data for insertion using processed columns
         const values = data.map(row => {
-          const vals = processedColumns.map((col, index) => {
-            // Use original column name from schema for data access
-            const originalName = schema.columns[index].name;
-            const val = row[originalName];
+          const vals = processedColumns.map((col) => {
+            // Use original column name for data access (before normalization)
+            const val = row[col.originalName];
             
             if (val === null || val === undefined) return 'NULL';
             
@@ -322,13 +344,13 @@ export class DuckDBService {
           await conn.query(`INSERT INTO ${tableName} VALUES ${batch}`);
         }
       } else {
-        // Use JSON import for automatic schema detection
+        // Use JSON import for automatic schema detection with normalized names
         const jsonString = JSON.stringify(data);
         await this.db!.registerFileText(`${tableName}_import.json`, jsonString);
-        
+
         await conn.query(`
-          CREATE TABLE ${tableName} AS 
-          SELECT * FROM read_json_auto('${tableName}_import.json')
+          CREATE TABLE ${tableName} AS
+          SELECT * FROM read_json_auto('${tableName}_import.json', normalize_names=true)
         `);
       }
       

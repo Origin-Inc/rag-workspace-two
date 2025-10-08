@@ -14,6 +14,7 @@ import {
   addMessageAtom,
   updateMessageAtom,
   clearMessagesAtom,
+  deleteMessageAtom,
   addDataFileAtom,
   removeDataFileAtom,
   clearDataFilesAtom,
@@ -31,6 +32,7 @@ export function useChatMessages(pageId?: string) {
   const addMessage = useSetAtom(addMessageAtom);
   const updateMessage = useSetAtom(updateMessageAtom);
   const clearMessages = useSetAtom(clearMessagesAtom);
+  const deleteMessage = useSetAtom(deleteMessageAtom);
   const batchAddMessages = useSetAtom(batchAddMessagesAtom);
   
   // Get messages for specific page or current page
@@ -69,6 +71,14 @@ export function useChatMessages(pageId?: string) {
       clearMessages(pageId);
     },
     
+    deleteMessage: (messageId: string) => {
+      if (!pageId) {
+        console.warn('No pageId provided for deleteMessage');
+        return;
+      }
+      deleteMessage({ pageId, messageId });
+    },
+    
     batchAddMessages: (newMessages: Omit<ChatMessage, 'id' | 'timestamp'>[]) => {
       if (!pageId) {
         console.warn('No pageId provided for batchAddMessages');
@@ -76,7 +86,7 @@ export function useChatMessages(pageId?: string) {
       }
       return batchAddMessages({ pageId, messages: newMessages });
     },
-  }), [pageId, addMessage, updateMessage, clearMessages, batchAddMessages]);
+  }), [pageId, addMessage, updateMessage, clearMessages, deleteMessage, batchAddMessages]);
   
   return {
     messages: pageMessages,

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { X, FileText, FileSpreadsheet, File, ChevronRight, Database, Loader2, CloudIcon, CheckCircleIcon, CloudOff, CloudUpload, RefreshCw, AlertCircle } from 'lucide-react';
 import { cn } from '~/utils/cn';
-import { useChatDataFiles } from '~/stores/chat-store';
+import { useChatDataFiles } from '~/hooks/use-chat-atoms';
 import type { FileSchema } from '~/services/file-processing.client';
 
 type SyncStatus = 'synced' | 'syncing' | 'failed' | 'local-only';

@@ -2,7 +2,7 @@ import { useState, useRef, KeyboardEvent } from 'react';
 import { Send, Loader2, Plus } from 'lucide-react';
 import { cn } from '~/utils/cn';
 import { FileReferenceSuggestions } from './FileReferenceSuggestions';
-import { useChatDataFiles } from '~/stores/chat-store';
+import { useChatDataFiles } from '~/hooks/use-chat-atoms';
 
 interface ChatInputProps {
   pageId: string;
@@ -85,6 +85,7 @@ export function ChatInput({
       <div className="flex items-end gap-2 w-full">
         {onFileUpload && (
           <button
+            id="upload-file"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
             className={cn(
@@ -95,7 +96,7 @@ export function ChatInput({
               "flex items-center justify-center"
             )}
             aria-label="Upload file"
-            title="Upload CSV, Excel, or PDF file"
+            title="Upload CSV or Excel file"
           >
             <Plus className="w-5 h-5" />
           </button>
@@ -121,6 +122,7 @@ export function ChatInput({
           style={{ height: '40px' }}
         />
         <button
+          id="send-message"
           onClick={handleSubmit}
           disabled={disabled || !input.trim()}
           className={cn(
@@ -144,7 +146,7 @@ export function ChatInput({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv,.xlsx,.xls,.pdf"
+          accept=".csv,.xlsx,.xls"
           className="hidden"
           onChange={async (e) => {
             const file = e.target.files?.[0];

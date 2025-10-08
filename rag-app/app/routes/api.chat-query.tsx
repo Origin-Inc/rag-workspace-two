@@ -1,27 +1,86 @@
 import { json } from "@remix-run/node";
 import type { ActionFunction } from "@remix-run/node";
+import { eventStream } from "remix-utils/sse/server";
 import { prisma } from "~/utils/prisma.server";
 import { queryIntentAnalyzer } from "~/services/query-intent-analyzer.server";
 import { UnifiedIntelligenceService } from "~/services/unified-intelligence.server";
 import { ResponseComposer } from "~/services/response-composer.server";
+import { ConversationContextManager } from "~/services/conversation-context.server";
 import { createChatCompletion, isOpenAIConfigured } from "~/services/openai.server";
 import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { aiModelConfig } from '~/services/ai-model-config.server';
+import { QueryErrorRecovery } from '~/services/query-error-recovery.server';
+import { FuzzyFileMatcher } from '~/services/fuzzy-file-matcher.server';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 const logger = new DebugLogger('api.chat-query');
 
+/**
+ * Format query results as a markdown table
+ * For narrow/tall chat interfaces, transpose single-row data to show columns vertically
+ */
+function formatQueryResultsAsMarkdown(queryResults: any): string {
+  if (!queryResults?.data || queryResults.data.length === 0) {
+    return '*No results*';
+  }
+
+  const rows = queryResults.data;
+  const columns = Object.keys(rows[0]);
+
+  // For single-row results (like aggregations), display vertically for better UX in chat
+  if (rows.length === 1) {
+    const header = `| Column | Value |`;
+    const separator = `| --- | --- |`;
+
+    const rowsMarkdown = columns.map(col => {
+      const val = rows[0][col];
+      let formattedVal = '';
+      if (val === null || val === undefined) {
+        formattedVal = '';
+      } else if (typeof val === 'number') {
+        formattedVal = val.toLocaleString();
+      } else {
+        formattedVal = String(val);
+      }
+      return `| ${col} | ${formattedVal} |`;
+    }).join('\n');
+
+    return `${header}\n${separator}\n${rowsMarkdown}`;
+  }
+
+  // For multi-row results, use traditional horizontal layout
+  const header = `| ${columns.join(' | ')} |`;
+  const separator = `| ${columns.map(() => '---').join(' | ')} |`;
+
+  const rowsMarkdown = rows.map((row: any) => {
+    const values = columns.map(col => {
+      const val = row[col];
+      if (val === null || val === undefined) return '';
+      if (typeof val === 'number') return val.toLocaleString();
+      return String(val);
+    });
+    return `| ${values.join(' | ')} |`;
+  }).join('\n');
+
+  return `${header}\n${separator}\n${rowsMarkdown}`;
+}
+
 export const action: ActionFunction = async ({ request }) => {
   const startTime = Date.now();
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  
+
+  // Declare variables at top for error handler access
+  let user: any;
+  let query: string = '';
+  let files: any[] = [];
+
   try {
     // Monitor request size
     const contentLength = request.headers.get('content-length');
     const requestSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
-    
-    logger.trace('[Unified] Request started', { 
+
+    logger.trace('[Unified] Request started', {
       requestId,
       userId: 'pending',
       requestSizeMB: requestSizeMB.toFixed(2),
@@ -29,7 +88,7 @@ export const action: ActionFunction = async ({ request }) => {
       isLargePayload: requestSizeMB > 1,
       isCriticalSize: requestSizeMB > 3.5 // Near Vercel limit
     });
-    
+
     // Warn if approaching Vercel limits
     if (requestSizeMB > 3.5) {
       logger.warn('[Unified] LARGE PAYLOAD WARNING', {
@@ -39,12 +98,13 @@ export const action: ActionFunction = async ({ request }) => {
         recommendation: 'Consider implementing compression or chunking'
       });
     }
-    
+
     // Require authentication
-    let user;
+    const authStart = Date.now();
     try {
       user = await requireUser(request);
-      logger.trace('[Unified] User authenticated', { requestId, userId: user.id });
+      const authTime = Date.now() - authStart;
+      logger.error('[TIMING] Authentication', { requestId, authTimeMs: authTime });
     } catch (authError) {
       logger.error('[Unified] Authentication failed', {
         requestId,
@@ -65,8 +125,52 @@ export const action: ActionFunction = async ({ request }) => {
       );
     }
 
+    const parseStart = Date.now();
     const body = await request.json();
-    const { query, files, pageId, workspaceId, conversationHistory } = body;
+    // Extract variables (already declared at top for error handler)
+    query = body.query;
+    files = body.files || [];
+    const { pageId, workspaceId, conversationHistory, sessionId, queryResults, fileMetadata, stream } = body;
+    const parseTime = Date.now() - parseStart;
+    logger.error('[TIMING] Parse request body', { requestId, parseTimeMs: parseTime });
+
+    // CRITICAL DEBUG: Log what client sent
+    logger.error('[REQUEST DEBUG] ⚠️ Request body analysis', {
+      requestId,
+      query: query?.slice(0, 100),
+      filesCount: files?.length || 0,
+      files: files?.map(f => ({
+        filename: f.filename,
+        type: f.type,
+        tableName: f.tableName,
+        hasData: !!f.data,
+        dataIsArray: Array.isArray(f.data),
+        dataLength: Array.isArray(f.data) ? f.data.length : 0,
+        hasContent: !!f.content,
+        contentType: typeof f.content,
+        contentLength: typeof f.content === 'string' ? f.content.length :
+                      Array.isArray(f.content) ? f.content.length : 0,
+        hasParquetUrl: !!f.parquetUrl,
+        hasStorageUrl: !!f.storageUrl,
+        firstDataRow: f.data?.[0] ? Object.keys(f.data[0]) : null
+      })),
+      hasQueryResults: !!queryResults,
+      queryResultsData: queryResults?.data ? `${queryResults.data.length} rows` : 'none'
+    });
+    
+    // Generate session ID if not provided
+    const currentSessionId = sessionId || `session_${user.id}_${Date.now()}`;
+    
+    // Get or create conversation context
+    const context = ConversationContextManager.getContext(
+      currentSessionId,
+      user.id,
+      workspaceId,
+      pageId
+    );
+    
+    // Ensure conversationHistory is always an array
+    const safeConversationHistory = Array.isArray(conversationHistory) ? conversationHistory : [];
     
     // Calculate actual payload size after parsing
     const payloadSize = JSON.stringify(body).length;
@@ -83,7 +187,7 @@ export const action: ActionFunction = async ({ request }) => {
                             Array.isArray(f.content) ? f.content.map((item: any) => typeof item === 'string' ? item : JSON.stringify(item)).join('').length : 0;
         return sum + contentLength;
       }, 0) || 0,
-      conversationHistoryCount: conversationHistory?.length || 0
+      conversationHistoryCount: safeConversationHistory.length
     });
 
     logger.trace('[Unified] Request body parsed', {
@@ -92,7 +196,7 @@ export const action: ActionFunction = async ({ request }) => {
       fileCount: files?.length || 0,
       pageId,
       workspaceId,
-      hasConversationHistory: !!conversationHistory,
+      hasConversationHistory: safeConversationHistory.length > 0,
       firstFile: files?.[0] ? {
         filename: files[0].filename,
         hasData: !!files[0].data,
@@ -101,12 +205,13 @@ export const action: ActionFunction = async ({ request }) => {
         contentLength: files[0].content?.length || 0,
         contentType: Array.isArray(files[0].content) ? 'array' : typeof files[0].content,
         sampleContent: Array.isArray(files[0].content) ? 
-                      (typeof files[0].content[0] === 'string' ? 
-                        files[0].content[0].slice(0, 100) : 
-                        JSON.stringify(files[0].content[0]).slice(0, 100)) || 'No content' :
+                      (files[0].content[0] ? 
+                        (typeof files[0].content[0] === 'string' ? 
+                          files[0].content[0].slice(0, 100) : 
+                          JSON.stringify(files[0].content[0]).slice(0, 100)) : 'No content') :
                       typeof files[0].content === 'string' ?
                       files[0].content.slice(0, 100) : 
-                      JSON.stringify(files[0].content).slice(0, 100),
+                      files[0].content ? JSON.stringify(files[0].content).slice(0, 100) : 'No content',
         isContentEmpty: Array.isArray(files[0].content) ? 
                        files[0].content.length === 0 || files[0].content.every(c => 
                          !c || (typeof c === 'string' ? c.trim().length === 0 : false)
@@ -168,7 +273,7 @@ export const action: ActionFunction = async ({ request }) => {
                            typeof file.content === 'string' ? file.content.length : 0,
           rawContentSample: Array.isArray(file.content) ? 
                            file.content.slice(0, 2).map((chunk: any) => 
-                             typeof chunk === 'string' ? chunk.slice(0, 200) : JSON.stringify(chunk).slice(0, 200)
+                             chunk ? (typeof chunk === 'string' ? chunk.slice(0, 200) : JSON.stringify(chunk).slice(0, 200)) : 'Empty chunk'
                            ).join('\n---\n') :
                            typeof file.content === 'string' ? file.content.slice(0, 500) : 
                            'NO CONTENT DETECTED',
@@ -180,15 +285,20 @@ export const action: ActionFunction = async ({ request }) => {
       });
     }
 
-    if (!query || !files || files.length === 0) {
+    if (!query || !files) {
       logger.warn('[Unified] Missing required fields', { query: !!query, files: !!files });
       return json(
         { 
-          content: "Please provide a query and at least one file to analyze.",
-          metadata: { error: "Missing query or files" }
+          content: "Please provide a query.",
+          metadata: { error: "Missing query or files parameter" }
         },
         { status: 400 }
       );
+    }
+    
+    // Allow empty files array for general queries
+    if (files.length === 0) {
+      logger.trace('[Unified] Processing general query without files', { query });
     }
 
     // Analyze query intent
@@ -200,6 +310,9 @@ export const action: ActionFunction = async ({ request }) => {
       confidence: intent.confidence,
       needsDataAccess: queryIntentAnalyzer.needsDataAccess(intent)
     });
+    
+    // Update context with query and intent
+    ConversationContextManager.updateWithQuery(context, query, intent, files || []);
 
     // Initialize services with extensive logging
     logger.trace('[Unified] Initializing services...');
@@ -235,17 +348,218 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     // Prepare file data based on type
-    logger.trace('[Unified] Preparing file data...', { requestId });
+    logger.trace('[Unified] Preparing file data...', { requestId, hasQueryResults: !!queryResults });
     const fileDataStart = Date.now();
-    const fileData = await prepareFileData(files, pageId, requestId);
+
+    // QUERY-FIRST INTEGRATION (Task 61.1):
+    // If query results are provided, use them instead of preparing full files
+    let fileData;
+    let storedQueryResults = null; // Store for passing to ResponseComposer
+
+    // CRITICAL DEBUG: Check what we received
+    logger.error('[CRITICAL DEBUG] Data path selection', {
+      requestId,
+      hasQueryResults: !!queryResults,
+      queryResultsKeys: queryResults ? Object.keys(queryResults) : [],
+      queryResultsData: queryResults?.data ? `${queryResults.data.length} rows` : 'no data',
+      hasFiles: !!files,
+      filesCount: files?.length || 0,
+      filesPreview: files?.slice(0, 2).map(f => ({
+        filename: f.filename,
+        hasData: !!f.data,
+        dataLength: Array.isArray(f.data) ? f.data.length : 0,
+        hasContent: !!f.content,
+        contentType: typeof f.content,
+        contentLength: typeof f.content === 'string' ? f.content.length :
+                      Array.isArray(f.content) ? f.content.length : 0
+      }))
+    });
+
+    if (queryResults && queryResults.data) {
+      logger.error('[Query-First] ✅ USING QUERY-FIRST PATH', {
+        requestId,
+        resultRows: queryResults.data.length,
+        sql: queryResults.sql,
+        executionTime: queryResults.executionTime
+      });
+
+      fileData = prepareQueryResults(queryResults, fileMetadata, requestId);
+
+      // CRITICAL FIX: Store query results for ResponseComposer
+      storedQueryResults = {
+        success: true,
+        data: queryResults.data,
+        sql: queryResults.sql,
+        columns: queryResults.columns,
+        rowCount: queryResults.rowCount,
+        executionTime: queryResults.executionTime
+      };
+    } else {
+      logger.error('[Traditional] ⚠️ USING TRADITIONAL PATH', {
+        requestId,
+        reason: !queryResults ? 'No queryResults' : 'No queryResults.data',
+        filesCount: files?.length || 0
+      });
+
+      // PHASE 2: Intelligent file filtering with fuzzy matching (84% reduction)
+      let filteredFiles = files;
+      if (files && files.length > 1) {
+        // Use fuzzy matcher to find best matching file
+        const matches = FuzzyFileMatcher.matchFiles(query, files, {
+          confidenceThreshold: 0.3,
+          maxResults: 1,
+          includeSemanticMatch: true,
+          includeTemporalMatch: true,
+        });
+
+        if (matches.length > 0 && matches[0].confidence >= 0.3) {
+          // Found a good match - use it
+          filteredFiles = [matches[0].file];
+          logger.trace('[File Filter] Fuzzy match found', {
+            requestId,
+            originalCount: files.length,
+            filteredCount: 1,
+            selectedFile: matches[0].file.filename,
+            matchType: matches[0].matchType,
+            confidence: matches[0].confidence.toFixed(2),
+            matchedTokens: matches[0].matchedTokens,
+            reason: matches[0].reason,
+            reduction: `${((1 - 1/files.length) * 100).toFixed(0)}%`
+          });
+        } else {
+          // No good match - use most recent file as fallback
+          const latestFile = files[files.length - 1];
+          filteredFiles = [latestFile];
+          logger.trace('[File Filter] No fuzzy match, using latest file', {
+            requestId,
+            originalCount: files.length,
+            filteredCount: 1,
+            selectedFile: latestFile.filename,
+            reduction: `${((1 - 1/files.length) * 100).toFixed(0)}%`
+          });
+        }
+      }
+
+      // Traditional file-based approach with filtered files
+      fileData = await prepareFileData(filteredFiles, pageId, requestId);
+    }
+
     const fileDataTime = Date.now() - fileDataStart;
-    
-    logger.trace('[Unified] File data preparation completed', {
+    logger.error('[TIMING] Data preparation', { requestId, dataPreparationTimeMs: fileDataTime });
+
+    logger.error('[Unified] ⚠️ File data preparation CRITICAL CHECKPOINT', {
       requestId,
       preparationTimeMs: fileDataTime,
-      preparedFiles: fileData.length
+      preparedFiles: fileData.length,
+      approach: queryResults ? 'query-first' : 'traditional',
+      firstFile: fileData[0] ? {
+        filename: fileData[0].filename,
+        type: fileData[0].type,
+        hasContent: !!fileData[0].content,
+        contentType: typeof fileData[0].content,
+        contentPreview: typeof fileData[0].content === 'string' ?
+          fileData[0].content.slice(0, 300) :
+          Array.isArray(fileData[0].content) ?
+            `Array with ${fileData[0].content.length} items` :
+            'NO CONTENT',
+        hasData: !!fileData[0].data,
+        dataLength: Array.isArray(fileData[0].data) ? fileData[0].data.length : 0
+      } : 'NO FILES PREPARED'
     });
-    
+
+    // ========== QUERY-FIRST FAST PATH ==========
+    // If we have query results, skip expensive semantic analysis entirely
+    if (queryResults?.data && queryResults.data.length > 0) {
+      logger.error('[Query-First Fast Path] Using optimized flow - skipping UnifiedIntelligenceService', {
+        requestId,
+        sql: queryResults.sql,
+        rowCount: queryResults.data.length,
+        executionTime: queryResults.executionTime
+      });
+
+      // Format the response directly without semantic analysis
+      const formattedStart = Date.now();
+
+      // Build a simple, clear response with the SQL results
+      const tableMarkdown = formatQueryResultsAsMarkdown(queryResults);
+      const responseText = `### Query Results\n\n${tableMarkdown}\n\n**Query Details:**\n- SQL: \`${queryResults.sql}\`\n- Rows: ${queryResults.data.length}\n- Execution Time: ${queryResults.executionTime}ms`;
+
+      const formattedTime = Date.now() - formattedStart;
+      logger.error('[TIMING] Query-first formatting', { requestId, formattingTimeMs: formattedTime });
+
+      // Skip to streaming
+      const totalProcessingTime = Date.now() - authStart;
+      logger.error('[TIMING] ===== REQUEST TIMING BREAKDOWN (Query-First Fast Path) =====', {
+        requestId,
+        totalProcessingTimeMs: totalProcessingTime,
+        totalProcessingTimeSec: (totalProcessingTime / 1000).toFixed(2),
+        approach: 'query-first-fast-path'
+      });
+
+      // Stream the response
+      const stream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          const streamStart = Date.now();
+          let firstTokenSent = false;
+          let sentWords = 0;
+
+          const words = responseText.split(/(\s+)/);
+
+          for (const word of words) {
+            if (!firstTokenSent && sentWords === 0) {
+              const timeToFirstToken = Date.now() - streamStart;
+              logger.error('[TIMING] Time to first token (fast path)', {
+                requestId,
+                timeToFirstTokenMs: timeToFirstToken
+              });
+              firstTokenSent = true;
+            }
+
+            const event = `event: token\ndata: ${JSON.stringify({ content: word })}\n\n`;
+            controller.enqueue(encoder.encode(event));
+            sentWords++;
+
+            // Small delay between words for streaming effect
+            await new Promise(resolve => setTimeout(resolve, 20));
+          }
+
+          // Send metadata
+          const metadataEvent = `event: metadata\ndata: ${JSON.stringify({
+            metadata: {
+              queryFirst: true,
+              sql: queryResults.sql,
+              rowsAnalyzed: queryResults.data.length,
+              executionTime: queryResults.executionTime,
+              approach: 'fast-path'
+            }
+          })}\n\n`;
+          controller.enqueue(encoder.encode(metadataEvent));
+
+          // Send done
+          const doneEvent = `event: done\ndata: ${JSON.stringify({ complete: true })}\n\n`;
+          controller.enqueue(encoder.encode(doneEvent));
+
+          controller.close();
+
+          logger.error('[TIMING] Total streaming time (fast path)', {
+            requestId,
+            streamingTimeMs: Date.now() - streamStart,
+            wordsSent: sentWords
+          });
+        }
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    }
+    // ========== END QUERY-FIRST FAST PATH ==========
+
     // CRITICAL DEBUG: Log prepared file data
     const preparedContentSize = fileData.reduce((sum, f) => {
       const size = typeof f.content === 'string' ? f.content.length :
@@ -288,7 +602,8 @@ export const action: ActionFunction = async ({ request }) => {
       dataLength: Array.isArray(file.data) ? file.data.length : 0,
       contentSample: typeof file.content === 'string' ? file.content.slice(0, 200) :
                      Array.isArray(file.content) && file.content[0] ? 
-                       (typeof file.content[0] === 'string' ? file.content[0].slice(0, 200) : JSON.stringify(file.content[0]).slice(0, 200)) : 'NO CONTENT'
+                       (typeof file.content[0] === 'string' ? file.content[0].slice(0, 200) : 
+                        file.content[0] ? JSON.stringify(file.content[0]).slice(0, 200) : 'Empty item') : 'NO CONTENT'
     }));
     
     logger.trace('[Unified] Content validation results', {
@@ -335,7 +650,7 @@ export const action: ActionFunction = async ({ request }) => {
         })),
         intentType: intent.queryType,
         intentFormat: intent.formatPreference,
-        hasConversationHistory: conversationHistory && conversationHistory.length > 0
+        hasConversationHistory: safeConversationHistory.length > 0
       });
       
       // Add request ID to track through the pipeline
@@ -344,9 +659,9 @@ export const action: ActionFunction = async ({ request }) => {
         query,
         files: fileData,
         intent,
-        conversationHistory: conversationHistory || [],
+        conversationHistory: safeConversationHistory,
         options: {
-          includeSQL: false,
+          includeSQL: true, // Enable SQL generation for data queries
           includeSemantic: true,
           includeInsights: true,
           includeStatistics: true,
@@ -367,10 +682,10 @@ export const action: ActionFunction = async ({ request }) => {
       });
       
       const analysisTime = Date.now() - analysisStart;
-      logger.trace('[Unified] Analysis completed successfully', {
+      logger.error('[TIMING] UnifiedIntelligenceService.process()', {
         requestId,
-        analysisTimeMs: analysisTime,
-        analysisTimeSec: (analysisTime / 1000).toFixed(2)
+        intelligenceTimeMs: analysisTime,
+        intelligenceTimeSec: (analysisTime / 1000).toFixed(2)
       });
     } catch (analysisError) {
       logger.error('[Unified] Analysis failed', {
@@ -392,7 +707,8 @@ export const action: ActionFunction = async ({ request }) => {
     // Compose natural response using correct parameter structure
     logger.trace('[Unified] Starting response composition...');
     let response;
-    
+
+    const composeStart = Date.now();
     try {
       // CRITICAL DEBUG: Log what we're sending to the response composer
       logger.trace('[Unified] SENDING TO RESPONSE COMPOSER:', {
@@ -407,18 +723,25 @@ export const action: ActionFunction = async ({ request }) => {
           includeTechnicalDetails: false
         }
       });
-      
+
       // ResponseComposer.compose expects: (intent, analysis, queryResult?, options?)
       response = await composer.compose(
         intent,
         analysis,
-        null, // queryResult - we're not providing SQL results here
+        storedQueryResults, // CRITICAL FIX: Pass query results from query-first path
         {
           prioritizeNarrative: true,
           depth: intent.expectedDepth,
           includeTechnicalDetails: false
         }
       );
+
+      const composeTime = Date.now() - composeStart;
+      logger.error('[TIMING] ResponseComposer.compose()', {
+        requestId,
+        composeTimeMs: composeTime,
+        composeTimeSec: (composeTime / 1000).toFixed(2)
+      });
       
       // CRITICAL DEBUG: Log the composed response
       logger.trace('[Unified] RESPONSE COMPOSER OUTPUT:', {
@@ -441,7 +764,15 @@ export const action: ActionFunction = async ({ request }) => {
 
     // Track token usage and performance
     const totalProcessingTime = Date.now() - startTime;
-    
+
+    // Log comprehensive timing breakdown
+    logger.error('[TIMING] ===== REQUEST TIMING BREAKDOWN =====', {
+      requestId,
+      totalProcessingTimeMs: totalProcessingTime,
+      totalProcessingTimeSec: (totalProcessingTime / 1000).toFixed(2),
+      approach: queryResults ? 'query-first' : 'traditional'
+    });
+
     // Get the actual model being used
     const modelName = await aiModelConfig.getModelName(user.id);
     
@@ -504,6 +835,16 @@ export const action: ActionFunction = async ({ request }) => {
     });
     
     // Log performance summary for monitoring
+    // Update context with response
+    const responseType = files && files.length > 0 ? 'data-query' : 'general-chat';
+    ConversationContextManager.updateWithResponse(
+      context,
+      finalResponse.content,
+      responseType,
+      totalProcessingTime,
+      tokenMetadata?.totalTokens
+    );
+    
     logger.trace('[Unified] Request completed', {
       requestId,
       userId: user.id,
@@ -518,28 +859,88 @@ export const action: ActionFunction = async ({ request }) => {
       success: true
     });
 
-    return json(finalResponse);
+    // Check if client requested streaming response
+    if (stream) {
+      const streamStart = Date.now();
+      logger.trace('[Unified] Creating streaming response', { requestId });
+
+      return eventStream(request.signal, function setup(send) {
+        // Stream response word by word for immediate feedback
+        const words = finalResponse.content.split(' ');
+        let sentWords = 0;
+        let firstTokenSent = false;
+
+        const interval = setInterval(() => {
+          if (!firstTokenSent && sentWords === 0) {
+            const timeToFirstToken = Date.now() - streamStart;
+            logger.error('[TIMING] Time to first token', {
+              requestId,
+              timeToFirstTokenMs: timeToFirstToken
+            });
+            firstTokenSent = true;
+          }
+          if (sentWords < words.length) {
+            const chunk = words[sentWords] + (sentWords < words.length - 1 ? ' ' : '');
+            send({
+              event: 'token',
+              data: JSON.stringify({ content: chunk })
+            });
+            sentWords++;
+          } else {
+            // Send metadata when done
+            send({
+              event: 'metadata',
+              data: JSON.stringify({
+                metadata: finalResponse.metadata,
+                sessionId: currentSessionId
+              })
+            });
+            send({
+              event: 'done',
+              data: JSON.stringify({})
+            });
+            clearInterval(interval);
+          }
+        }, 5); // 5ms between chunks for smooth streaming
+
+        return () => {
+          clearInterval(interval);
+        };
+      });
+    }
+
+    // Include session ID in response for client continuity (non-streaming fallback)
+    return json({ ...finalResponse, sessionId: currentSessionId });
 
   } catch (error) {
-    logger.error('[Unified] Request failed', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      type: error instanceof Error ? error.constructor.name : typeof error
+    // Log error with context for monitoring
+    QueryErrorRecovery.logError(error, {
+      requestId,
+      query: query || 'unknown',
+      userId: user?.id,
+      fileCount: files?.length || 0
     });
-    
-    // Provide a helpful error message
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    // Generate user-friendly error response with recovery suggestions
+    const errorResponse = QueryErrorRecovery.generateErrorResponse(
+      error instanceof Error ? error : new Error(String(error))
+    );
+
+    // Determine HTTP status code based on error category
+    const statusCode = errorResponse.metadata.category === 'authentication_error' ? 401 :
+                      errorResponse.metadata.category === 'validation_error' ? 400 :
+                      500;
+
     return json(
       {
-        content: `I encountered an error while processing your request: ${errorMessage}\n\nPlease try rephrasing your query or ensure the files are properly loaded.`,
-        metadata: { 
-          error: errorMessage,
-          stack: process.env.NODE_ENV === 'development' ? 
-            (error instanceof Error ? error.stack : undefined) : undefined,
-          timestamp: new Date().toISOString()
+        content: errorResponse.content,
+        metadata: {
+          ...errorResponse.metadata,
+          stack: process.env.NODE_ENV === 'development' && error instanceof Error ?
+            error.stack : undefined
         }
       },
-      { status: 500 }
+      { status: statusCode }
     );
   }
 };
@@ -550,13 +951,13 @@ export const action: ActionFunction = async ({ request }) => {
  */
 async function prepareFileData(files: any[], pageId: string, requestId?: string) {
   const preparedFiles = [];
-  
+
   logger.trace('[prepareFileData] Starting file preparation', {
     requestId,
     fileCount: files.length,
     pageId
   });
-  
+
   for (const file of files) {
     const fileType = getFileType(file.filename);
     logger.trace('[prepareFileData] Processing file', {
@@ -566,10 +967,62 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
       rowCount: file.rowCount,
       hasContent: !!file.content,
       hasData: !!file.data,
+      hasParquetUrl: !!file.parquetUrl,
+      hasStorageUrl: !!file.storageUrl,
       contentType: Array.isArray(file.content) ? 'array' : typeof file.content,
       dataLength: Array.isArray(file.data) ? file.data.length : 0,
       firstDataRow: file.data?.[0] ? Object.keys(file.data[0]) : null
     });
+
+    // If file doesn't have data/content but has a parquetUrl, fetch it
+    if (!file.data && !file.content && file.parquetUrl) {
+      try {
+        logger.trace('[prepareFileData] Fetching file content from storage', {
+          filename: file.filename,
+          parquetUrl: file.parquetUrl
+        });
+
+        const response = await fetch(file.parquetUrl);
+        if (response.ok) {
+          const contentType = response.headers.get('content-type');
+
+          if (contentType?.includes('application/json')) {
+            const jsonData = await response.json();
+
+            // PDF content stored as JSON
+            if (jsonData.extractedContent) {
+              file.content = jsonData.extractedContent;
+              file.data = jsonData.data;
+              logger.trace('[prepareFileData] Loaded PDF content from JSON', {
+                filename: file.filename,
+                chunkCount: jsonData.extractedContent?.length || 0
+              });
+            }
+            // CSV/Excel data stored as JSON
+            else if (jsonData.data && Array.isArray(jsonData.data)) {
+              file.data = jsonData.data;
+              file.schema = jsonData.schema;
+              logger.trace('[prepareFileData] Loaded CSV/Excel data from JSON', {
+                filename: file.filename,
+                rowCount: jsonData.data.length
+              });
+            }
+          } else {
+            // For Parquet files, we'd need a Parquet reader
+            // For now, log that we need to implement this
+            logger.warn('[prepareFileData] Parquet reading not yet implemented', {
+              filename: file.filename,
+              contentType
+            });
+          }
+        }
+      } catch (error) {
+        logger.error('[prepareFileData] Failed to fetch file content', {
+          filename: file.filename,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
     
     const fileInfo: any = {
       id: file.id || file.filename,
@@ -590,23 +1043,26 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
       };
       
       // If content is provided in the request, use it
-      if (file.content && Array.isArray(file.content)) {
+      if ((file.content && Array.isArray(file.content)) || (file.data && Array.isArray(file.data))) {
         // Content is an array of text chunks or data objects
-        fileInfo.content = file.content.map((item: any) => 
+        // Use file.data if file.content doesn't exist (for new PDF structure)
+        const contentArray = Array.isArray(file.content) ? file.content : 
+                           (file.data && Array.isArray(file.data) ? file.data.map((row: any) => row.text || JSON.stringify(row)) : []);
+        fileInfo.content = contentArray.map((item: any) => 
           typeof item === 'string' ? item : JSON.stringify(item)
         ).join('\n\n');
-        fileInfo.extractedContent = file.content;
-        fileInfo.sample = file.content.slice(0, 5).map((item: any) =>
+        fileInfo.extractedContent = contentArray;
+        fileInfo.sample = contentArray.slice(0, 5).map((item: any) =>
           typeof item === 'string' ? item : JSON.stringify(item)
         ).join('\n\n').slice(0, 2000);
         
         logger.trace('[prepareFileData] PDF content from chunks', {
           filename: file.filename,
-          chunkCount: file.content.length,
+          chunkCount: contentArray.length,
           totalLength: fileInfo.content.length,
           sampleLength: fileInfo.sample.length,
-          firstChunkSample: file.content[0]?.slice(0, 300) || 'Empty first chunk',
-          lastChunkSample: file.content[file.content.length - 1]?.slice(0, 300) || 'Empty last chunk'
+          firstChunkSample: contentArray[0]?.slice(0, 300) || 'Empty first chunk',
+          lastChunkSample: contentArray[contentArray.length - 1]?.slice(0, 300) || 'Empty last chunk'
         });
         
         // CRITICAL: Log actual content being prepared
@@ -682,24 +1138,33 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
       if (file.data && Array.isArray(file.data)) {
         fileInfo.data = file.data;
         fileInfo.sampleData = file.data.slice(0, 100);
-        
+
         // Generate content string for AI analysis
         if (file.data.length > 0) {
           const headers = Object.keys(file.data[0]);
-          const rows = file.data.slice(0, 50).map((row: any) => 
+          const rows = file.data.slice(0, 50).map((row: any) =>
             headers.map(h => row[h]).join(', ')
           );
           fileInfo.content = headers.join(', ') + '\n' + rows.join('\n');
           fileInfo.sample = fileInfo.content.slice(0, 2000);
-          
+
           // CRITICAL: Log the generated content
-          logger.debug('[prepareFileData] CSV content GENERATED from data', {
+          logger.error('[prepareFileData] ✅ CSV CONTENT GENERATED', {
             filename: file.filename,
             headers: headers.length,
+            headersList: headers,
+            totalRows: file.data.length,
             rowsIncluded: rows.length,
             contentLength: fileInfo.content.length,
             contentPreview: fileInfo.content.slice(0, 500),
-            sampleLength: fileInfo.sample.length
+            sampleLength: fileInfo.sample.length,
+            firstDataRow: file.data[0],
+            lastDataRow: file.data[file.data.length - 1]
+          });
+        } else {
+          logger.error('[prepareFileData] ⚠️ CSV HAS EMPTY DATA ARRAY', {
+            filename: file.filename,
+            dataLength: file.data.length
           });
         }
         
@@ -793,6 +1258,103 @@ async function prepareFileData(files: any[], pageId: string, requestId?: string)
   });
   
   return preparedFiles;
+}
+
+/**
+ * Prepare query results for AI analysis (Query-First approach - Task 61.1)
+ *
+ * Instead of sending full datasets, we send SQL query results.
+ * This reduces payload from megabytes to kilobytes.
+ */
+function prepareQueryResults(
+  queryResults: {
+    data: any[];
+    sql?: string;
+    columns?: string[];
+    rowCount?: number;
+    executionTime?: number;
+  },
+  fileMetadata?: Array<{
+    filename: string;
+    type: string;
+    rowCount?: number;
+    schema?: any[];
+  }>,
+  requestId?: string
+): any[] {
+  logger.trace('[prepareQueryResults] START', {
+    requestId,
+    resultRows: queryResults.data?.length || 0,
+    columns: queryResults.columns?.length || 0,
+    sql: queryResults.sql?.slice(0, 200),
+    hasMetadata: !!fileMetadata
+  });
+
+  const results = queryResults.data || [];
+
+  if (results.length === 0) {
+    logger.warn('[prepareQueryResults] No results data provided', { requestId });
+    return [];
+  }
+
+  // Format results as a readable text table
+  const headers = queryResults.columns || Object.keys(results[0] || {});
+
+  // Create CSV-like content for AI to analyze
+  let content = `SQL Query:\n${queryResults.sql || 'Not provided'}\n\n`;
+  content += `Execution Time: ${queryResults.executionTime || 0}ms\n`;
+  content += `Total Rows: ${queryResults.rowCount || results.length}\n`;
+  content += `Showing: Top ${results.length} rows\n\n`;
+  content += `Results:\n`;
+  content += `${headers.join(' | ')}\n`;
+  content += `${headers.map(() => '---').join(' | ')}\n`;
+
+  results.forEach((row, idx) => {
+    const values = headers.map(h => {
+      const val = row[h];
+      if (val === null || val === undefined) return 'NULL';
+      if (typeof val === 'number') return val.toFixed(2);
+      return String(val).slice(0, 50); // Truncate long strings
+    });
+    content += `${values.join(' | ')}\n`;
+  });
+
+  // Add file context if provided
+  let fileContext = '\n\nSource Files:\n';
+  if (fileMetadata && fileMetadata.length > 0) {
+    fileMetadata.forEach(meta => {
+      fileContext += `- ${meta.filename} (${meta.type}, ${meta.rowCount || 0} rows)\n`;
+    });
+  }
+
+  const preparedFile = {
+    id: 'query_results',
+    filename: 'Query Results',
+    type: 'csv',
+    content: content + fileContext,
+    data: results,
+    schema: headers.map((h: string) => ({
+      name: h,
+      type: typeof results[0][h] === 'number' ? 'number' : 'text'
+    })),
+    rowCount: results.length,
+    metadata: {
+      sql: queryResults.sql,
+      executionTime: queryResults.executionTime,
+      totalRows: queryResults.rowCount,
+      isQueryResult: true
+    }
+  };
+
+  logger.trace('[prepareQueryResults] COMPLETE', {
+    requestId,
+    contentLength: content.length,
+    contentPreview: content.slice(0, 500),
+    headers: headers.length,
+    rowsFormatted: results.length
+  });
+
+  return [preparedFile];
 }
 
 /**

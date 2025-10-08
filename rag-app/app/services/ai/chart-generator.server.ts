@@ -4,6 +4,7 @@
  */
 
 import { openai, isOpenAIConfigured } from '../openai.server';
+import { aiModelConfig } from '../ai-model-config.server';
 import type { Block } from '~/components/editor/EnhancedBlockEditor';
 
 export type ChartType = 
@@ -128,8 +129,7 @@ export class ChartGenerator {
     }
 
     try {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+      const apiParams = aiModelConfig.buildAPIParameters({
         messages: [
           {
             role: 'system',
@@ -145,10 +145,11 @@ Return JSON with:
             content: text
           }
         ],
-        response_format: { type: 'json_object' },
-        temperature: 0.3,
-        max_tokens: 1000
+        jsonResponse: true,
+        queryType: 'analysis'
       });
+
+      const response = await openai.chat.completions.create(apiParams);
 
       const result = JSON.parse(response.choices[0].message.content || '{}');
       return result as ExtractedData;

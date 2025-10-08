@@ -2,8 +2,8 @@ import { json, LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useFetcher, Link, NavLink, useLocation } from "@remix-run/react";
 import { EnhancedBlockEditor } from "~/components/editor/EnhancedBlockEditor";
 import { ClientOnly } from "~/components/ClientOnly";
-// Fixed Zustand hooks - using original ChatSidebar
-import { ChatSidebar } from "~/components/chat/ChatSidebar";
+// Using performant ChatSidebar with optimized Jotai atoms
+import { ChatSidebarPerformant as ChatSidebar } from "~/components/chat/ChatSidebarPerformant";
 import { ChatErrorBoundary } from "~/components/error/ChatErrorBoundary";
 import { useLayoutStore, LAYOUT_CONSTANTS } from "~/stores/layout-store";
 import { ResizeHandle } from "~/components/ui/ResizeHandle";
@@ -695,6 +695,16 @@ export default function EditorPage() {
   const maxRetries = 3;
   const retryTimeoutRef = useRef<NodeJS.Timeout>();
 
+  // CRITICAL FIX: Reset state when page changes (navigation to different page)
+  useEffect(() => {
+    setBlocks(initialBlocks);
+    setTempTitle(page.title || '');
+    setLastSaved(null);
+    setSaveError(null);
+    setRetryCount(0);
+    setEditingTitle(false);
+  }, [page.id, initialBlocks, page.title]);
+
   const handleSaveTitle = async () => {
     if (!tempTitle.trim() || tempTitle === page.title) {
       setEditingTitle(false);
@@ -1261,6 +1271,7 @@ export default function EditorPage() {
         <div className="flex-1 overflow-hidden bg-theme-bg-primary">
           <ClientOnly fallback={<div className="h-full bg-theme-bg-primary animate-pulse" />}>
             <EnhancedBlockEditor
+              key={page.id}
               initialBlocks={blocks}
               onChange={handleChange}
               onSave={handleSave}

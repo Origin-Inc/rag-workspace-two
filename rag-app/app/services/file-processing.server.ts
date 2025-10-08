@@ -1,7 +1,6 @@
-import * as Papa from 'papaparse';
+import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import type { ParseResult } from 'papaparse';
-import { PDFProcessingService } from './pdf-processing.server';
 
 export interface ColumnSchema {
   name: string;
@@ -30,23 +29,30 @@ export class FileProcessingService {
   ];
 
   static async parseCSV(file: File): Promise<{ data: any[], schema: FileSchema }> {
-    return new Promise((resolve, reject) => {
-      Papa.parse(file, {
-        header: true,
-        dynamicTyping: true,
-        skipEmptyLines: true,
-        complete: (result: ParseResult<any>) => {
-          if (result.errors.length > 0) {
-            console.warn('CSV parsing warnings:', result.errors);
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Convert File to text for server-side parsing
+        const text = await file.text();
+
+        Papa.parse(text, {
+          header: true,
+          dynamicTyping: true,
+          skipEmptyLines: true,
+          complete: (result: ParseResult<any>) => {
+            if (result.errors.length > 0) {
+              console.warn('CSV parsing warnings:', result.errors);
+            }
+
+            const schema = this.inferSchema(result.data);
+            resolve({ data: result.data, schema });
+          },
+          error: (error) => {
+            reject(new Error(`Failed to parse CSV: ${error.message}`));
           }
-          
-          const schema = this.inferSchema(result.data);
-          resolve({ data: result.data, schema });
-        },
-        error: (error) => {
-          reject(new Error(`Failed to parse CSV: ${error.message}`));
-        }
-      });
+        });
+      } catch (error) {
+        reject(new Error(`Failed to read CSV file: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      }
     });
   }
 
@@ -230,7 +236,6 @@ export class FileProcessingService {
     schema: FileSchema;
     tableName: string;
     sheets?: string[];
-    extractedContent?: any;
   }> {
     console.log(`[FileProcessing] Processing file: ${file.name}`);
     console.log(`[FileProcessing] File size: ${file.size} bytes, Type: ${file.type || 'unknown'}`);
@@ -243,8 +248,7 @@ export class FileProcessingService {
     }
     
     let result;
-    let extractedContent;
-    
+
     try {
       if (file.name.toLowerCase().endsWith('.csv')) {
         console.log(`[FileProcessing] Detected CSV file, parsing...`);
@@ -252,29 +256,17 @@ export class FileProcessingService {
       } else if (file.name.toLowerCase().match(/\.(xlsx?|xls)$/)) {
         console.log(`[FileProcessing] Detected Excel file, parsing...`);
         result = await this.parseExcel(file);
-      } else if (file.name.toLowerCase().endsWith('.pdf')) {
-        console.log(`[FileProcessing] Detected PDF file, processing...`);
-        const pdfResult = await PDFProcessingService.processPDF(file);
-        result = {
-          data: pdfResult.data,
-          schema: pdfResult.schema
-        };
-        extractedContent = pdfResult.extractedContent;
-        console.log(`[FileProcessing] PDF processing complete:`)
-        console.log(`[FileProcessing] - Data rows: ${result.data?.length || 0}`);
-        console.log(`[FileProcessing] - Schema columns: ${result.schema?.columns?.length || 0}`);
       } else {
         console.error(`[FileProcessing] Unsupported file type: ${file.name}`);
-        throw new Error(`Unsupported file type: ${file.name}`);
+        throw new Error(`Unsupported file type: ${file.name}. Only CSV and Excel files are supported.`);
       }
-      
+
       const tableName = this.sanitizeTableName(file.name);
       console.log(`[FileProcessing] Generated table name: ${tableName}`);
-      
+
       return {
         ...result,
-        tableName,
-        extractedContent
+        tableName
       };
     } catch (error) {
       console.error(`[FileProcessing] Failed to process file:`, error);

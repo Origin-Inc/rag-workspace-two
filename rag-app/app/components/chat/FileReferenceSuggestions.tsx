@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { FileText, Database, TrendingUp, Search } from 'lucide-react';
 import { cn } from '~/utils/cn';
-import type { DataFile } from '~/stores/chat-store-ultimate-fix';
+import type { DataFile } from '~/atoms/chat-atoms';
 
 interface FileReferenceSuggestionsProps {
   query: string;

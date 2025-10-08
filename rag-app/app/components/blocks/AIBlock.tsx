@@ -84,7 +84,7 @@ export function AIBlock({
           prompt: userPrompt,
           response: ragFetcher.data.answer,
           status: 'complete' as const,
-          model: 'gpt-4-turbo',
+          model: ragFetcher.data.model || 'gpt-5-mini',
           tokens: Math.floor((ragFetcher.data.answer?.length || 0) / 4),
           citations: ragFetcher.data.citations || []
         };

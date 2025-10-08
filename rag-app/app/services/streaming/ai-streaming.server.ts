@@ -1,5 +1,6 @@
 import { OpenAI } from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat';
+import { aiModelConfig } from '../ai-model-config.server';
 
 export interface StreamingOptions {
   temperature?: number;
@@ -56,18 +57,18 @@ export class AIStreamingService {
       const allMessages: ChatCompletionMessageParam[] = options.systemPrompt
         ? [{ role: 'system', content: options.systemPrompt }, ...messages]
         : messages;
-      
-      // Create streaming completion
-      const stream = await this.openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+
+      // Build API parameters with GPT-5 support
+      const apiParams = aiModelConfig.buildAPIParameters({
         messages: allMessages,
         stream: true,
-        temperature: options.temperature ?? 0.7,
-        max_tokens: options.maxTokens ?? 2000,
-        top_p: options.topP ?? 1,
-        frequency_penalty: options.frequencyPenalty ?? 0,
-        presence_penalty: options.presencePenalty ?? 0,
-        stop: options.stopSequences,
+        queryType: 'complex'
+      });
+
+      // Create streaming completion
+      const stream = await this.openai.chat.completions.create({
+        ...apiParams,
+        stream: true,
       });
       
       // Stream tokens
