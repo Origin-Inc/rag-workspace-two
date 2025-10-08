@@ -247,7 +247,7 @@ function ChatSidebarPerformantBase({
   console.log('[ChatSidebarPerformant] Main component rendering');
   
   // Use optimized hooks
-  const { messages, addMessage, batchAddMessages, clearMessages } = useChatMessagesOptimized(pageId);
+  const { messages, addMessage, batchAddMessages, clearMessages, updateMessage } = useChatMessagesOptimized(pageId);
   const { dataFiles, addDataFile, removeDataFile, setDataFiles } = useChatDataFilesOptimized(pageId);
   const { isLoading, setLoading } = useChatLoadingOptimized(pageId);
   const { 
@@ -454,8 +454,9 @@ function ChatSidebarPerformantBase({
           let streamedContent = '';
           let metadata: any = {};
 
-          // Add placeholder message for streaming
-          addMessage({
+          // CRITICAL FIX: Track message ID for streaming updates
+          // Create placeholder message and get its ID
+          const streamingMessageId = addMessage({
             role: 'assistant',
             content: '',
             metadata: { streaming: true },
@@ -497,21 +498,14 @@ function ChatSidebarPerformantBase({
               })),
               conversationHistory: Array.isArray(messagesRef.current) ? messagesRef.current.slice(-10) : [],
             },
-            // onToken: Append content as it streams
+            // onToken: UPDATE existing message instead of adding new ones
             (token) => {
               streamedContent += token;
-              // Update last message with accumulated content
-              const currentMessages = messagesRef.current;
-              if (currentMessages.length > 0) {
-                const lastMessage = currentMessages[currentMessages.length - 1];
-                if (lastMessage.role === 'assistant') {
-                  addMessage({
-                    role: 'assistant',
-                    content: streamedContent,
-                    metadata: { ...lastMessage.metadata, streaming: true },
-                  });
-                }
-              }
+              // Update the streaming message with accumulated content
+              updateMessage(streamingMessageId, {
+                content: streamedContent,
+                metadata: { streaming: true },
+              });
             },
             // onMetadata: Save metadata for final message
             (meta) => {
@@ -519,8 +513,7 @@ function ChatSidebarPerformantBase({
             },
             // onDone: Finalize message with complete content
             () => {
-              addMessage({
-                role: 'assistant',
+              updateMessage(streamingMessageId, {
                 content: streamedContent,
                 metadata: {
                   ...metadata,
