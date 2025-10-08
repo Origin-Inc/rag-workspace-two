@@ -884,15 +884,15 @@ Return ONLY the SQL query.`;
         queryLength: query.length
       });
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+      const apiParams = aiModelConfig.buildAPIParameters({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.1, // Low temperature for more deterministic SQL
-        max_tokens: 1000
+        queryType: 'simple'
       });
+
+      const completion = await openai.chat.completions.create(apiParams);
 
       const generatedSQL = completion.choices[0]?.message?.content?.trim() || '';
 

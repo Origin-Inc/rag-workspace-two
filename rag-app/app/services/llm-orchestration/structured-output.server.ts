@@ -1,5 +1,6 @@
 import { openai } from '../openai.server';
 import { DebugLogger } from '~/utils/debug-logger';
+import { aiModelConfig } from '../ai-model-config.server';
 import { z } from 'zod';
 import type { QueryResponse } from './route-handlers.server';
 
@@ -106,18 +107,19 @@ export class StructuredOutputGenerator {
       // Build prompt based on response type
       const systemPrompt = this.buildSystemPrompt();
       const userPrompt = this.buildUserPrompt(query, response, context);
-      
-      // Call OpenAI with structured output
-      const completion = await openai!.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+
+      // Build API parameters with GPT-5 support
+      const apiParams = aiModelConfig.buildAPIParameters({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        response_format: { type: 'json_object' },
-        temperature: 0.3,
-        max_tokens: 3000
+        jsonResponse: true,
+        queryType: 'analysis'
       });
+
+      // Call OpenAI with structured output
+      const completion = await openai!.chat.completions.create(apiParams);
       
       const content = completion.choices[0]?.message?.content;
       if (!content) {

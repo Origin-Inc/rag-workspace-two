@@ -110,7 +110,6 @@ export class DuckDBQueryService {
           workspaceId,
           files: tablesWithSamples,
           conversationHistory,
-          model: 'gpt-4-turbo-preview',
         }),
       });
 

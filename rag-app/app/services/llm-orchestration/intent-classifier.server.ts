@@ -1,5 +1,6 @@
 import { openai } from '../openai.server';
 import { DebugLogger } from '~/utils/debug-logger';
+import { aiModelConfig } from '../ai-model-config.server';
 import { z } from 'zod';
 
 // Intent type definitions
@@ -78,17 +79,17 @@ export class IntentClassificationService {
     try {
       const systemPrompt = this.buildSystemPrompt();
       const userPrompt = this.buildUserPrompt(query, context);
-      
-      const completion = await openai!.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+
+      const apiParams = aiModelConfig.buildAPIParameters({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        response_format: { type: 'json_object' },
-        temperature: 0.2,
-        max_tokens: 1000
+        jsonResponse: true,
+        queryType: 'analysis'
       });
+
+      const completion = await openai!.chat.completions.create(apiParams);
       
       const response = completion.choices[0]?.message?.content;
       if (!response) {

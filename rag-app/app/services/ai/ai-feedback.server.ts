@@ -4,6 +4,7 @@
  */
 
 import { openai, isOpenAIConfigured } from '../openai.server';
+import { aiModelConfig } from '../ai-model-config.server';
 import type { ParsedBlockCommand } from './block-commands.server';
 import type { ExecutionResult, BlockChange } from './block-manipulator.server';
 import type { Block } from '~/components/editor/EnhancedBlockEditor';
@@ -100,8 +101,7 @@ export class AIFeedbackService {
     }
     
     try {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+      const apiParams = aiModelConfig.buildAPIParameters({
         messages: [
           {
             role: 'system',
@@ -115,9 +115,10 @@ The error was: ${error}`
             content: 'Explain this error in simple terms and suggest what to do instead.'
           }
         ],
-        temperature: 0.7,
-        max_tokens: 150
+        queryType: 'creative'
       });
+
+      const response = await openai.chat.completions.create(apiParams);
       
       return response.choices[0].message.content || this.generateFallbackError(command, error, options);
     } catch {

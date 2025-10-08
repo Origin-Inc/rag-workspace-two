@@ -154,18 +154,18 @@ export class RAGService {
     });
 
     try {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+      const apiParams = aiModelConfig.buildAPIParameters({
         messages: [
           { role: 'system', content: systemPrompt },
-          { 
-            role: 'user', 
+          {
+            role: 'user',
             content: this.buildRAGPrompt(query, context)
           }
         ],
-        temperature,
-        max_tokens: maxTokens
+        queryType: 'analysis'
       });
+
+      const response = await openai.chat.completions.create(apiParams);
 
       const answer = response.choices[0]?.message?.content || 'Unable to generate answer';
 
@@ -207,21 +207,20 @@ Please provide a comprehensive answer with citations to the relevant passages.`;
         throw new Error('OpenAI client is not configured. Check OPENAI_API_KEY environment variable.');
       }
 
-      this.logger.info('Making OpenAI API call', { 
-        model: 'gpt-4-turbo-preview',
+      this.logger.info('Making OpenAI API call', {
         contextLength: context.text.length,
         userPromptLength: userPrompt.length
       });
 
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+      const apiParams = aiModelConfig.buildAPIParameters({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.7,
-        max_tokens: 1500
+        queryType: 'analysis'
       });
+
+      const response = await openai.chat.completions.create(apiParams);
 
       this.logger.info('OpenAI API response received', {
         hasChoices: !!response.choices?.length,
@@ -331,15 +330,15 @@ Format this as a clear, structured summary that highlights:
 4. Overall workspace organization`;
 
     try {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+      const apiParams = aiModelConfig.buildAPIParameters({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.5,
-        max_tokens: 1000
+        queryType: 'analysis'
       });
+
+      const response = await openai.chat.completions.create(apiParams);
 
       return response.choices[0]?.message?.content || rawSummary;
     } catch (error) {

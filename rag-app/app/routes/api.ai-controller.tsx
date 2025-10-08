@@ -4,6 +4,7 @@ import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { embeddingGenerationService } from '~/services/embedding-generation.server';
 import { ragService } from '~/services/rag.server';
+import { aiModelConfig } from '~/services/ai-model-config.server';
 
 const logger = new DebugLogger('API:AIController');
 
@@ -156,20 +157,20 @@ export async function action({ request }: ActionFunctionArgs) {
             } else {
               // Use direct OpenAI response without document context
               const { openai } = await import('~/services/openai.server');
-              
-              const systemPrompt = isGreeting 
+
+              const systemPrompt = isGreeting
                 ? "You are a helpful AI assistant integrated into a RAG (Retrieval-Augmented Generation) system. Respond to greetings in a friendly, professional manner and briefly explain your capabilities."
                 : "You are a helpful AI assistant. Provide clear, accurate, and helpful responses to user queries.";
-              
-              const response = await openai.chat.completions.create({
-                model: 'gpt-4-turbo-preview',
+
+              const apiParams = aiModelConfig.buildAPIParameters({
                 messages: [
                   { role: 'system', content: systemPrompt },
                   { role: 'user', content: command }
                 ],
-                temperature: 0.7,
-                max_tokens: 500
+                queryType: isGreeting ? 'creative' : 'analysis'
               });
+
+              const response = await openai.chat.completions.create(apiParams);
               
               const answer = response.choices[0]?.message?.content || 'I apologize, but I was unable to generate a response. Please try again.';
               

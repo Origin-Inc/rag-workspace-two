@@ -4,6 +4,7 @@
  */
 
 import { openai, isOpenAIConfigured } from '../openai.server';
+import { aiModelConfig } from '../ai-model-config.server';
 import type { Block } from '~/components/editor/EnhancedBlockEditor';
 import { v4 as uuidv4 } from 'uuid';
 import { blockManipulator } from './block-manipulator.server';
@@ -117,16 +118,19 @@ export class BlockCommandService {
     const functions = this.getCommandFunctions();
 
     try {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+      const apiParams = aiModelConfig.buildAPIParameters({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: command }
         ],
+        customTools: true,
+        queryType: 'analysis'
+      });
+
+      const completion = await openai.chat.completions.create({
+        ...apiParams,
         functions,
-        function_call: { name: 'parse_block_command' },
-        temperature: 0.3,
-        max_tokens: 1000
+        function_call: { name: 'parse_block_command' }
       });
 
       const functionCall = completion.choices[0]?.message?.function_call;
