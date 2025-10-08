@@ -837,7 +837,7 @@
         "description": "Fix the 50K row loading issue and implement smart data querying",
         "details": "Stop sending full datasets to OpenAI. Implement query-first approach where DuckDB queries data locally and only sends relevant results (5-10 rows) to AI. Add progressive data loading for large files.",
         "testStrategy": "",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           60
         ],
@@ -857,7 +857,7 @@
             "title": "Implement progressive data loading",
             "description": "Add chunked loading for large files to prevent memory issues",
             "details": "Update duckdb-service.client.ts to load data in 10K row chunks. Add progress reporting. Yield control between chunks with setTimeout(0) to prevent UI blocking.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "61.1"
             ],
@@ -868,7 +868,7 @@
             "title": "Fix PDF content truncation issue",
             "description": "Remove aggressive 30K character limit that loses relevant content",
             "details": "Update unified-intelligence.server.ts to remove 30K limit. Implement smart content selection based on relevance scoring. Fix 'Lost in Middle' by using full content with proper chunking.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "61.1"
             ],
@@ -954,7 +954,7 @@
         "description": "Build service to convert natural language queries to DuckDB SQL using LLM",
         "details": "Create /app/services/data/sql-generator.server.ts with:\n- generateSQL(query, tableSchema, context): Convert NL to SQL using GPT-4o\n- buildPrompt(): Include table schema, column types, recent query context\n- validateSQL(): Prevent SQL injection, ensure SELECT-only queries\n- System prompt with DuckDB syntax rules\n\nExample: \"What's the average revenue?\" → \"SELECT AVG(revenue) FROM sales_2024\"\n\nSupports: aggregations, filters, GROUP BY, ORDER BY, LIMIT",
         "testStrategy": "",
-        "status": "canceled",
+        "status": "done",
         "dependencies": [
           61
         ],
@@ -967,7 +967,7 @@
         "description": "Build React hook for executing data queries using DuckDB in browser",
         "details": "Create /app/hooks/useDataQuery.ts with:\n- executeQuery(query, context): Full query execution pipeline\n  1. Get active file from context\n  2. Call SQL generator API to convert NL → SQL\n  3. Execute SQL in DuckDB (browser-side)\n  4. Convert Arrow results to JSON\n  5. Return query results (limit 100 rows)\n\n- isExecuting state for loading indicators\n- Error handling for query failures\n\nThis hook integrates DuckDB (client) with SQL generation (server)",
         "testStrategy": "",
-        "status": "canceled",
+        "status": "done",
         "dependencies": [
           68
         ],
@@ -980,7 +980,7 @@
         "description": "Build new /api/chat-query-v2 endpoint that accepts query RESULTS instead of raw data",
         "details": "Create /app/routes/api.chat-query-v2.tsx that:\n- Accepts: query, queryResults (with sql, rows, rowCount), context, pageId\n- Validates: queryResults.rows exists (not raw data)\n- Limits: Only send top 10 rows to LLM (from client's 100)\n- Builds prompt with SQL + results, not full dataset\n- Calls OpenAI for interpretation\n- Saves query to history via contextPersistence\n\nPayload size: 3.5MB → <100KB (97% reduction)\n\nThis replaces prepareFileData() full-data approach",
         "testStrategy": "",
-        "status": "canceled",
+        "status": "done",
         "dependencies": [
           69
         ],
@@ -993,7 +993,7 @@
         "description": "Update chat component to use query-first pipeline instead of sending full datasets",
         "details": "Update ChatSidebarPerformant.tsx to:\n- Use useDataQuery hook\n- Classify intent (data_analysis vs general)\n- For data queries:\n  1. Execute query in DuckDB (client-side)\n  2. Send results to /api/chat-query-v2\n  3. Display answer + metadata (SQL, row count)\n- For general queries: direct to OpenAI (existing flow)\n\nRemove all prepareFileData() calls and full dataset transfers.\n\nThis completes Task 61 integration.",
         "testStrategy": "",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           70
         ],
@@ -1148,7 +1148,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-10-07T00:32:58.499Z",
+      "updated": "2025-10-08T22:07:07.044Z",
       "description": "Tasks for master context"
     }
   }
