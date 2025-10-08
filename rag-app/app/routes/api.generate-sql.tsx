@@ -4,8 +4,21 @@ import type { SQLGenerationResponse } from '~/services/duckdb/duckdb-query.clien
 import { DebugLogger } from '~/utils/debug-logger';
 import { openai } from '~/services/openai.server';
 import { SQLValidator } from '~/services/sql-validator.server';
+import { aiModelConfig } from '~/services/ai-model-config.server';
 
 const logger = new DebugLogger('api:generate-sql');
+
+/**
+ * Normalize column name to match DuckDB's normalize_names behavior
+ */
+function normalizeColumnName(name: string): string {
+  if (!name) return name;
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
 
 /**
  * Request contract for SQL generation
@@ -60,9 +73,10 @@ async function generateSQL(
       const tableName = f.tableName;
       const columns = f.schema?.columns || [];
 
-      // Build column descriptions with type info
+      // Build column descriptions with type info (ensure normalized names)
       const columnDescriptions = columns.map((c: any) => {
-        return `${c.name} (${c.type})`;
+        const normalizedName = normalizeColumnName(c.name);
+        return `${normalizedName} (${c.type})`;
       }).join(', ');
 
       // Get sample data if available
@@ -94,6 +108,13 @@ IMPORTANT RULES:
 7. Limit results to 1000 rows unless specified otherwise
 8. Use CAST() for explicit type conversions when needed
 
+COLUMN NAME FORMAT:
+- ALL column names use lowercase with underscores (snake_case)
+- Spaces are converted to underscores: "Years of Experience" → years_of_experience
+- Special characters are removed: "Salary (USD)" → salary_usd
+- Never use quotes around column names
+- Never use spaces in column names
+
 Available tables and schemas:
 ${schemaContext}`;
 
@@ -107,15 +128,16 @@ Return ONLY the SQL query.`;
       queryLength: query.length
     });
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+    // Build API parameters with GPT-5 support
+    const apiParams = aiModelConfig.buildAPIParameters({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: 0.1, // Low temperature for deterministic SQL
-      max_tokens: 1000
+      queryType: 'simple' // SQL generation is deterministic, uses minimal reasoning for speed
     });
+
+    const completion = await openai.chat.completions.create(apiParams);
 
     const generatedSQL = completion.choices[0]?.message?.content?.trim() || '';
 
