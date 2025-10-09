@@ -1024,9 +1024,9 @@ function ChatSidebarPerformantBase({
   }
   
   return (
-    <div 
+    <div
       className={cn(
-        "fixed right-0 top-0 h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex",
+        "fixed right-0 top-0 h-full bg-theme-bg-primary border-l border-gray-200 dark:border-gray-700 flex",
         "transition-transform duration-300 ease-in-out",
         isChatSidebarOpen ? "translate-x-0" : "translate-x-full",
         className
@@ -1039,10 +1039,10 @@ function ChatSidebarPerformantBase({
         onResize={(delta) => setChatSidebarWidth(Math.max(320, Math.min(600, chatSidebarWidth - delta)))}
         className="absolute left-0 top-0 h-full -translate-x-1/2 z-10"
       />
-      
+
       {/* Sidebar content */}
-      <div 
-        className="flex-1 flex flex-col bg-white dark:bg-gray-900 overflow-hidden w-full"
+      <div
+        className="flex-1 flex flex-col bg-theme-bg-primary overflow-hidden w-full"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -1061,7 +1061,7 @@ function ChatSidebarPerformantBase({
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-white dark:bg-gray-900">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-theme-bg-primary">
           <MessageList
             messages={messages}
             onClarificationResponse={undefined}

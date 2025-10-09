@@ -259,7 +259,7 @@ export function FileContextDisplay({
   return (
     <div className={cn(
       "flex items-center gap-2 px-3 py-2 border-t border-gray-200 dark:border-gray-700",
-      "bg-white dark:bg-gray-900",
+      "bg-theme-bg-primary",
       className
     )}>
       {/* File Context Label - Compact */}
