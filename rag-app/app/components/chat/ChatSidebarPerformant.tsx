@@ -564,63 +564,61 @@ function ChatSidebarPerformantBase({
           return; // Success - exit early
 
           } catch (queryError) {
-            console.error('[Query-First] ❌ QUERY FAILED - FALLING BACK TO TRADITIONAL', {
+            console.error('[Query-First] ❌ QUERY GENERATION/EXECUTION FAILED', {
               error: queryError instanceof Error ? queryError.message : String(queryError),
               errorStack: queryError instanceof Error ? queryError.stack : undefined,
               errorType: queryError instanceof Error ? queryError.constructor.name : typeof queryError
             });
+
+            // Show helpful error message instead of attempting traditional fallback
+            addMessage({
+              role: 'assistant',
+              content: `I couldn't generate or execute a SQL query for your question. Here are some things you can try:
+
+**Suggested queries:**
+- "What's the average of [column name]?"
+- "Show the top 10 rows"
+- "Count how many rows where [column] is [value]"
+- "What's the sum of [column]?"
+
+**Tips:**
+- Make sure the file is fully loaded
+- Use specific column names from your data
+- Try simpler questions first
+
+**Error:** ${queryError instanceof Error ? queryError.message : 'Query execution failed'}`,
+              metadata: {
+                error: 'query_generation_failed',
+                errorDetails: queryError instanceof Error ? queryError.message : String(queryError)
+              }
+            });
+
+            // Save error message
+            await fetch(`/api/chat/messages/${pageId}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                role: 'assistant',
+                content: 'Query generation failed',
+                metadata: { error: 'query_generation_failed' }
+              }),
+            });
+
+            return; // Exit - no fallback to traditional path
           }
         }
       }
 
-      // FALLBACK: Traditional approach for non-structured files or if query-first fails
-      console.error('[Traditional] ⚠️ USING TRADITIONAL FILE-BASED APPROACH', {
-        reason: structuredFiles.length === 0 ? 'No structured files' : 'Query-first failed',
-        filesCount: dataFilesRef.current.length,
-        files: dataFilesRef.current.map(f => ({
-          filename: f.filename,
-          type: f.type,
-          hasData: !!f.data,
-          dataLength: Array.isArray(f.data) ? f.data.length : 0,
-          hasContent: !!f.content,
-          contentLength: typeof f.content === 'string' ? f.content.length :
-                        Array.isArray(f.content) ? f.content.length : 0,
-          hasParquetUrl: !!f.parquetUrl
-        }))
+      // If we reach here, no structured files were available for query-first
+      console.error('[Query-First] No structured data files available', {
+        totalFiles: dataFilesRef.current.length,
+        structuredFilesCount: structuredFiles.length
       });
 
-      const response = await fetch('/api/chat-query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query,
-          pageId,
-          workspaceId,
-          files: dataFilesRef.current,
-          conversationHistory: Array.isArray(messagesRef.current) ? messagesRef.current.slice(-10) : [],
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to get response');
-
-      const result = await response.json();
-
-      // Add assistant response
       addMessage({
         role: 'assistant',
-        content: result.content,
-        metadata: result.metadata,
-      });
-
-      // Save assistant message
-      await fetch(`/api/chat/messages/${pageId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role: 'assistant',
-          content: result.content,
-          metadata: result.metadata,
-        }),
+        content: 'Please upload a CSV or Excel file to analyze data. Only structured data files (CSV, Excel) can be queried.',
+        metadata: { error: 'no_structured_files' }
       });
     } catch (error) {
       console.error('Failed to process query:', error);
