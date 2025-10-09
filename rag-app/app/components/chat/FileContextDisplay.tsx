@@ -24,11 +24,11 @@ interface FileChipProps {
   onRemove: () => void;
 }
 
-function FileChip({ 
-  file, 
+function FileChip({
+  file,
   onRemove
 }: FileChipProps) {
-  
+
   // Determine file icon based on extension
   const getFileIcon = () => {
     const ext = file.filename.toLowerCase().split('.').pop();
@@ -36,23 +36,23 @@ function FileChip({
       case 'csv':
       case 'xlsx':
       case 'xls':
-        return <FileSpreadsheet className="w-4 h-4" />;
+        return <FileSpreadsheet className="w-3.5 h-3.5" />;
       case 'pdf':
-        return <FileText className="w-4 h-4" />;
+        return <FileText className="w-3.5 h-3.5" />;
       default:
-        return <File className="w-4 h-4" />;
+        return <File className="w-3.5 h-3.5" />;
     }
   };
-  
+
   // Format file size
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes}B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
   };
-  
-  // Truncate filename if too long
-  const truncateFilename = (name: string, maxLength: number = 20) => {
+
+  // Truncate filename if too long (shorter for compact display)
+  const truncateFilename = (name: string, maxLength: number = 16) => {
     if (name.length <= maxLength) return name;
     const ext = name.split('.').pop();
     const nameWithoutExt = name.substring(0, name.lastIndexOf('.'));
@@ -152,77 +152,59 @@ function FileChip({
     }
   };
   
+  // Build detailed tooltip text
+  const tooltipText = [
+    file.filename,
+    `Size: ${formatSize(file.sizeBytes)}`,
+    file.rowCount ? `Rows: ${file.rowCount.toLocaleString()}` : null,
+    isPDF && file.pageCount ? `Pages: ${file.pageCount}` : null,
+    getSyncStatusText(),
+  ].filter(Boolean).join('\n');
+
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 px-3 py-1.5 rounded-full",
-        "border-2 transition-all duration-200 select-none",
-        "bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600",
-        hasFailed && "border-red-400 dark:border-red-600 bg-red-50 dark:bg-red-900/30",
-        "relative group"
+        "inline-flex items-center gap-1.5 px-2 py-1 rounded-md",
+        "transition-all duration-200 select-none group",
+        "bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30",
+        "border border-blue-200 dark:border-blue-800",
+        hasFailed && "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800"
       )}
-      title={`${file.filename}\nSize: ${formatSize(file.sizeBytes)}${file.rowCount ? `\nRows: ${file.rowCount.toLocaleString()}` : ''}${isPDF && file.pageCount ? `\nPages: ${file.pageCount}` : ''}`}
+      title={tooltipText}
     >
       {/* File Icon */}
-      <span className="flex-shrink-0 text-gray-500 dark:text-gray-400">
+      <span className="flex-shrink-0 text-blue-600 dark:text-blue-400">
         {isProcessing ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
         ) : (
           getFileIcon()
         )}
       </span>
-      
-      {/* File Name */}
+
+      {/* File Name - Compact */}
       <span className={cn(
-        "text-sm font-medium",
-        "text-gray-700 dark:text-gray-300",
+        "text-xs font-medium truncate max-w-[120px]",
+        "text-blue-700 dark:text-blue-300",
         hasFailed && "text-red-700 dark:text-red-300"
       )}>
         {truncateFilename(file.filename)}
       </span>
-      
-      {/* File Size/Info Badge */}
-      <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-        {formatSize(file.sizeBytes)}
-      </span>
-      
-      {/* Row/Page Count Badge */}
-      {(file.rowCount || file.pageCount) && (
-        <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-          {file.rowCount ? `${file.rowCount.toLocaleString()} rows` : `${file.pageCount} pages`}
-        </span>
-      )}
-      
-      {/* Sync Status Icon with Enhanced Tooltip */}
-      <span 
-        className="flex-shrink-0 flex items-center" 
-        title={getSyncStatusText()}
-      >
-        {getSyncIcon()}
-      </span>
-      
-      {/* Show warning badge for failed syncs */}
-      {(syncStatus === 'failed' || file.cloudSyncFailed || file.restoreFailed) && (
-        <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-          {file.restoreFailed ? 'Re-upload' : 'Retry'}
-        </span>
-      )}
-      
-      {/* Remove Button */}
+
+      {/* Remove Button - Shows on hover */}
       <button
         onClick={(e) => {
           e.stopPropagation();
           onRemove();
         }}
         className={cn(
-          "flex-shrink-0 ml-1 -mr-1 p-1 rounded-full",
+          "flex-shrink-0 p-0.5 rounded-sm",
           "opacity-0 group-hover:opacity-100 transition-opacity",
-          "hover:bg-gray-200 dark:hover:bg-gray-600",
-          "focus:outline-none focus:ring-2 focus:ring-blue-500"
+          "hover:bg-blue-200 dark:hover:bg-blue-800",
+          "focus:outline-none focus:opacity-100"
         )}
         title="Remove file"
       >
-        <X className="w-3 h-3 text-gray-500 dark:text-gray-400" />
+        <X className="w-3 h-3 text-blue-600 dark:text-blue-400" />
       </button>
     </div>
   );
@@ -230,24 +212,34 @@ function FileChip({
 
 interface FileContextDisplayProps {
   pageId: string;
+  dataFiles: any[]; // Pass dataFiles as prop instead of calling hook again
   className?: string;
   maxVisibleFiles?: number;
   onFileRemove?: (fileId: string) => void;
 }
 
-export function FileContextDisplay({ 
-  pageId, 
+export function FileContextDisplay({
+  pageId,
+  dataFiles,
   className,
   maxVisibleFiles = 5,
   onFileRemove
 }: FileContextDisplayProps) {
-  const { dataFiles, removeDataFile } = useChatDataFiles(pageId);
+  const { removeDataFile } = useChatDataFiles(pageId);
   const [expandedView, setExpandedView] = useState(false);
-  
-  // Use dataFiles directly from the hook
+
+  // Use dataFiles from props
   const pageFiles = dataFiles || [];
-  
+
+  console.log('[FileContextDisplay] Component rendering:', {
+    pageId,
+    dataFilesLength: dataFiles?.length,
+    pageFilesLength: pageFiles.length,
+    files: pageFiles
+  });
+
   if (pageFiles.length === 0) {
+    console.log('[FileContextDisplay] No files, returning null');
     return null;
   }
   
@@ -266,18 +258,18 @@ export function FileContextDisplay({
   
   return (
     <div className={cn(
-      "flex items-center gap-2 p-3",
-      "bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700",
+      "flex items-center gap-2 px-3 py-2 border-t border-gray-200 dark:border-gray-700",
+      "bg-theme-bg-primary",
       className
     )}>
-      {/* File Context Label */}
-      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mr-2">
-        <Database className="w-4 h-4" />
-        <span className="font-medium">Context:</span>
+      {/* File Context Label - Compact */}
+      <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+        <Database className="w-3.5 h-3.5" />
+        <span className="font-medium">Files:</span>
       </div>
-      
-      {/* File Chips Container */}
-      <div className="flex-1 flex items-center gap-2 flex-wrap">
+
+      {/* File Chips Container - Horizontal Scroll */}
+      <div className="flex-1 flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
         {visibleFiles.map((file) => (
           <FileChip
             key={file.id}
@@ -285,35 +277,34 @@ export function FileContextDisplay({
             onRemove={() => handleFileRemove(file.id)}
           />
         ))}
-        
+
         {/* Show More Button */}
         {hiddenCount > 0 && !expandedView && (
           <button
             onClick={() => setExpandedView(true)}
             className={cn(
-              "inline-flex items-center gap-1 px-3 py-1.5",
-              "text-sm text-blue-600 dark:text-blue-400",
-              "hover:text-blue-700 dark:hover:text-blue-300",
-              "transition-colors"
+              "inline-flex items-center gap-0.5 px-2 py-1 rounded-md",
+              "text-xs text-gray-600 dark:text-gray-400 font-medium",
+              "hover:bg-gray-100 dark:hover:bg-gray-800",
+              "transition-colors whitespace-nowrap flex-shrink-0"
             )}
           >
-            <span>+{hiddenCount} more</span>
-            <ChevronRight className="w-3 h-3" />
+            <span>+{hiddenCount}</span>
           </button>
         )}
-        
+
         {/* Show Less Button */}
         {expandedView && pageFiles.length > maxVisibleFiles && (
           <button
             onClick={() => setExpandedView(false)}
             className={cn(
-              "inline-flex items-center gap-1 px-3 py-1.5",
-              "text-sm text-gray-600 dark:text-gray-400",
-              "hover:text-gray-700 dark:hover:text-gray-300",
-              "transition-colors"
+              "inline-flex items-center px-2 py-1 rounded-md",
+              "text-xs text-gray-600 dark:text-gray-400",
+              "hover:bg-gray-100 dark:hover:bg-gray-800",
+              "transition-colors whitespace-nowrap flex-shrink-0"
             )}
           >
-            <span>Show less</span>
+            <span>Less</span>
           </button>
         )}
       </div>

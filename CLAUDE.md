@@ -16,12 +16,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Correct Process for ANY Database Change:
 ```bash
 # 1. ALWAYS modify schema.prisma first
-# 2. ALWAYS create migration
-npx prisma migrate dev --name descriptive_name
+# 2. ALWAYS create migration using npm script
+npm run db:migrate -- --name descriptive_name
+# OR: npx prisma migrate dev --name descriptive_name
 # 3. Migration auto-applies locally
 # 4. ALWAYS commit both schema AND migration
 git add prisma/schema.prisma prisma/migrations/
 ```
+
+### Blocked Commands (Enforced):
+- `npm run db:push` - **BLOCKED** by scripts/block-db-push.js
+- `npx prisma db push` - **NOT RECOMMENDED** (use migrations instead)
+- Direct `vercel deploy` - **BLOCKED** by predeploy script
 
 ### Common Scenarios & What to Do:
 - **Adding table/column**: Update schema → Create migration → Commit both
@@ -185,10 +191,20 @@ npm run worker:dev            # Start worker with auto-reload
 
 ### Database
 ```bash
-npx prisma db push            # Apply schema changes (dev)
-npx prisma migrate dev        # Create and apply migrations
-npx prisma studio            # Visual database editor
-npx prisma generate          # Regenerate Prisma client
+# Migration workflow (REQUIRED)
+npm run db:migrate -- --name description  # Create and apply migration
+npm run db:migrate:deploy                 # Deploy migrations (production)
+npm run db:studio                        # Visual database editor
+
+# Direct commands (use npm scripts above instead)
+npx prisma migrate dev --name description # Create migration
+npx prisma migrate deploy                 # Apply migrations
+npx prisma generate                       # Regenerate Prisma client
+npx prisma studio                        # Database GUI
+
+# BLOCKED commands
+npm run db:push                          # ❌ BLOCKED - use migrations
+npx prisma db push                       # ⚠️ NOT RECOMMENDED - bypasses migration system
 ```
 
 ### Supabase (Local Development)

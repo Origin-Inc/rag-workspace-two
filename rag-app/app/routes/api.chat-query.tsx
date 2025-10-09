@@ -11,7 +11,6 @@ import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { aiModelConfig } from '~/services/ai-model-config.server';
 import { QueryErrorRecovery } from '~/services/query-error-recovery.server';
-import { FuzzyFileMatcher } from '~/services/fuzzy-file-matcher.server';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 const logger = new DebugLogger('api.chat-query');
@@ -395,53 +394,27 @@ export const action: ActionFunction = async ({ request }) => {
         executionTime: queryResults.executionTime
       };
     } else {
-      logger.error('[Traditional] ⚠️ USING TRADITIONAL PATH', {
+      // Query-first is required - traditional path removed (Task 77)
+      logger.error('[Query-First Required] ⚠️ Missing query results', {
         requestId,
         reason: !queryResults ? 'No queryResults' : 'No queryResults.data',
-        filesCount: files?.length || 0
+        filesCount: files?.length || 0,
+        query: query?.slice(0, 100)
       });
 
-      // PHASE 2: Intelligent file filtering with fuzzy matching (84% reduction)
-      let filteredFiles = files;
-      if (files && files.length > 1) {
-        // Use fuzzy matcher to find best matching file
-        const matches = FuzzyFileMatcher.matchFiles(query, files, {
-          confidenceThreshold: 0.3,
-          maxResults: 1,
-          includeSemanticMatch: true,
-          includeTemporalMatch: true,
-        });
-
-        if (matches.length > 0 && matches[0].confidence >= 0.3) {
-          // Found a good match - use it
-          filteredFiles = [matches[0].file];
-          logger.trace('[File Filter] Fuzzy match found', {
-            requestId,
-            originalCount: files.length,
-            filteredCount: 1,
-            selectedFile: matches[0].file.filename,
-            matchType: matches[0].matchType,
-            confidence: matches[0].confidence.toFixed(2),
-            matchedTokens: matches[0].matchedTokens,
-            reason: matches[0].reason,
-            reduction: `${((1 - 1/files.length) * 100).toFixed(0)}%`
-          });
-        } else {
-          // No good match - use most recent file as fallback
-          const latestFile = files[files.length - 1];
-          filteredFiles = [latestFile];
-          logger.trace('[File Filter] No fuzzy match, using latest file', {
-            requestId,
-            originalCount: files.length,
-            filteredCount: 1,
-            selectedFile: latestFile.filename,
-            reduction: `${((1 - 1/files.length) * 100).toFixed(0)}%`
-          });
-        }
-      }
-
-      // Traditional file-based approach with filtered files
-      fileData = await prepareFileData(filteredFiles, pageId, requestId);
+      // Return error response - data analysis requires query-first approach
+      return json(
+        {
+          content: "Unable to process data query. Please ensure files are properly loaded and query execution succeeds.",
+          metadata: {
+            error: "missing_query_results",
+            requiresQueryFirst: true,
+            suggestion: "Data analysis requires structured SQL queries. The query may have failed to generate or execute.",
+            requestId
+          }
+        },
+        { status: 400 }
+      );
     }
 
     const fileDataTime = Date.now() - fileDataStart;
@@ -944,321 +917,6 @@ export const action: ActionFunction = async ({ request }) => {
     );
   }
 };
-
-/**
- * Prepare file data for analysis based on file type
- * Simplified version without DuckDB dependency for server-side processing
- */
-async function prepareFileData(files: any[], pageId: string, requestId?: string) {
-  const preparedFiles = [];
-
-  logger.trace('[prepareFileData] Starting file preparation', {
-    requestId,
-    fileCount: files.length,
-    pageId
-  });
-
-  for (const file of files) {
-    const fileType = getFileType(file.filename);
-    logger.trace('[prepareFileData] Processing file', {
-      filename: file.filename,
-      type: fileType,
-      hasSchema: !!file.schema,
-      rowCount: file.rowCount,
-      hasContent: !!file.content,
-      hasData: !!file.data,
-      hasParquetUrl: !!file.parquetUrl,
-      hasStorageUrl: !!file.storageUrl,
-      contentType: Array.isArray(file.content) ? 'array' : typeof file.content,
-      dataLength: Array.isArray(file.data) ? file.data.length : 0,
-      firstDataRow: file.data?.[0] ? Object.keys(file.data[0]) : null
-    });
-
-    // If file doesn't have data/content but has a parquetUrl, fetch it
-    if (!file.data && !file.content && file.parquetUrl) {
-      try {
-        logger.trace('[prepareFileData] Fetching file content from storage', {
-          filename: file.filename,
-          parquetUrl: file.parquetUrl
-        });
-
-        const response = await fetch(file.parquetUrl);
-        if (response.ok) {
-          const contentType = response.headers.get('content-type');
-
-          if (contentType?.includes('application/json')) {
-            const jsonData = await response.json();
-
-            // PDF content stored as JSON
-            if (jsonData.extractedContent) {
-              file.content = jsonData.extractedContent;
-              file.data = jsonData.data;
-              logger.trace('[prepareFileData] Loaded PDF content from JSON', {
-                filename: file.filename,
-                chunkCount: jsonData.extractedContent?.length || 0
-              });
-            }
-            // CSV/Excel data stored as JSON
-            else if (jsonData.data && Array.isArray(jsonData.data)) {
-              file.data = jsonData.data;
-              file.schema = jsonData.schema;
-              logger.trace('[prepareFileData] Loaded CSV/Excel data from JSON', {
-                filename: file.filename,
-                rowCount: jsonData.data.length
-              });
-            }
-          } else {
-            // For Parquet files, we'd need a Parquet reader
-            // For now, log that we need to implement this
-            logger.warn('[prepareFileData] Parquet reading not yet implemented', {
-              filename: file.filename,
-              contentType
-            });
-          }
-        }
-      } catch (error) {
-        logger.error('[prepareFileData] Failed to fetch file content', {
-          filename: file.filename,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    }
-    
-    const fileInfo: any = {
-      id: file.id || file.filename,
-      filename: file.filename,
-      tableName: file.tableName,
-      type: fileType,
-      schema: file.schema,
-      rowCount: file.rowCount
-    };
-
-    // For PDFs, we'll pass basic metadata
-    // The actual content would come from the client or be stored in the database
-    if (fileInfo.type === 'pdf') {
-      // Add PDF-specific metadata if available
-      fileInfo.documentMetadata = {
-        page_count: file.pageCount || 1,
-        chunk_count: file.chunkCount || file.rowCount || 0
-      };
-      
-      // If content is provided in the request, use it
-      if ((file.content && Array.isArray(file.content)) || (file.data && Array.isArray(file.data))) {
-        // Content is an array of text chunks or data objects
-        // Use file.data if file.content doesn't exist (for new PDF structure)
-        const contentArray = Array.isArray(file.content) ? file.content : 
-                           (file.data && Array.isArray(file.data) ? file.data.map((row: any) => row.text || JSON.stringify(row)) : []);
-        fileInfo.content = contentArray.map((item: any) => 
-          typeof item === 'string' ? item : JSON.stringify(item)
-        ).join('\n\n');
-        fileInfo.extractedContent = contentArray;
-        fileInfo.sample = contentArray.slice(0, 5).map((item: any) =>
-          typeof item === 'string' ? item : JSON.stringify(item)
-        ).join('\n\n').slice(0, 2000);
-        
-        logger.trace('[prepareFileData] PDF content from chunks', {
-          filename: file.filename,
-          chunkCount: contentArray.length,
-          totalLength: fileInfo.content.length,
-          sampleLength: fileInfo.sample.length,
-          firstChunkSample: contentArray[0]?.slice(0, 300) || 'Empty first chunk',
-          lastChunkSample: contentArray[contentArray.length - 1]?.slice(0, 300) || 'Empty last chunk'
-        });
-        
-        // CRITICAL: Log actual content being prepared
-        logger.trace('[prepareFileData] ACTUAL PDF CONTENT BEING PREPARED:', {
-          filename: file.filename,
-          fullContentPreview: fileInfo.content.slice(0, 1000),
-          contentStartsWith: fileInfo.content.slice(0, 100),
-          contentEndsWithSample: fileInfo.content.slice(-100),
-          isEmpty: fileInfo.content.trim().length === 0,
-          wordCount: fileInfo.content.split(/\s+/).length
-        });
-      } else if (file.data && Array.isArray(file.data)) {
-        // If data is provided (from DuckDB), extract text content
-        // Check multiple possible column names for PDF text content
-        const textContent = file.data
-          .map((row: any) => {
-            // Try various column names that might contain the PDF text
-            return row.text || row.content || row.chunk_text || row.chunk || 
-                   row.text_content || row.page_content || row.page_text || '';
-          })
-          .filter(Boolean);
-        
-        // Log what columns are actually available for debugging
-        if (file.data.length > 0) {
-          logger.trace('[prepareFileData] PDF data columns available', {
-            filename: file.filename,
-            columns: Object.keys(file.data[0]),
-            sampleRow: file.data[0]
-          });
-        }
-        
-        fileInfo.content = textContent.join('\n\n');
-        fileInfo.data = file.data;
-        fileInfo.extractedContent = textContent;
-        fileInfo.sample = textContent.slice(0, 5).join('\n\n').slice(0, 2000);
-        
-        logger.trace('[prepareFileData] PDF content from data rows', {
-          filename: file.filename,
-          rowCount: file.data.length,
-          textChunks: textContent.length,
-          totalLength: fileInfo.content.length
-        });
-      } else if (typeof file.content === 'string') {
-        // Content is already a string
-        fileInfo.content = file.content;
-        fileInfo.sample = file.content.slice(0, 2000);
-      }
-      
-      logger.trace('[prepareFileData] PDF metadata prepared', {
-        filename: file.filename,
-        hasContent: !!fileInfo.content,
-        contentLength: fileInfo.content?.length || 0,
-        hasData: !!fileInfo.data,
-        pageCount: fileInfo.documentMetadata.page_count
-      });
-    } 
-    // For structured data files (CSV, Excel)
-    else if (fileInfo.type === 'csv' || fileInfo.type === 'excel') {
-      // CRITICAL DEBUG: Log incoming CSV data structure
-      logger.debug('[prepareFileData] CSV/Excel processing START', {
-        filename: file.filename,
-        hasData: !!file.data,
-        dataType: typeof file.data,
-        dataIsArray: Array.isArray(file.data),
-        dataLength: Array.isArray(file.data) ? file.data.length : 0,
-        hasContent: !!file.content,
-        contentType: typeof file.content,
-        hasSampleData: !!file.sampleData,
-        firstDataRow: file.data?.[0] ? Object.keys(file.data[0]).slice(0, 5) : null
-      });
-      
-      // Handle data from client (could be in data, sampleData, or content)
-      if (file.data && Array.isArray(file.data)) {
-        fileInfo.data = file.data;
-        fileInfo.sampleData = file.data.slice(0, 100);
-
-        // Generate content string for AI analysis
-        if (file.data.length > 0) {
-          const headers = Object.keys(file.data[0]);
-          const rows = file.data.slice(0, 50).map((row: any) =>
-            headers.map(h => row[h]).join(', ')
-          );
-          fileInfo.content = headers.join(', ') + '\n' + rows.join('\n');
-          fileInfo.sample = fileInfo.content.slice(0, 2000);
-
-          // CRITICAL: Log the generated content
-          logger.error('[prepareFileData] ✅ CSV CONTENT GENERATED', {
-            filename: file.filename,
-            headers: headers.length,
-            headersList: headers,
-            totalRows: file.data.length,
-            rowsIncluded: rows.length,
-            contentLength: fileInfo.content.length,
-            contentPreview: fileInfo.content.slice(0, 500),
-            sampleLength: fileInfo.sample.length,
-            firstDataRow: file.data[0],
-            lastDataRow: file.data[file.data.length - 1]
-          });
-        } else {
-          logger.error('[prepareFileData] ⚠️ CSV HAS EMPTY DATA ARRAY', {
-            filename: file.filename,
-            dataLength: file.data.length
-          });
-        }
-        
-        logger.debug('[prepareFileData] Structured data from data array', {
-          filename: file.filename,
-          rowCount: file.data.length,
-          hasContent: !!fileInfo.content,
-          contentLength: fileInfo.content?.length || 0
-        });
-      } else if (file.sampleData) {
-        fileInfo.sampleData = file.sampleData;
-        fileInfo.data = file.sampleData;
-        logger.debug('[prepareFileData] Using sampleData field', {
-          filename: file.filename,
-          sampleDataLength: Array.isArray(file.sampleData) ? file.sampleData.length : 0
-        });
-      } else if (file.content) {
-        // If content is provided as array or string
-        logger.debug('[prepareFileData] CSV using content field directly', {
-          filename: file.filename,
-          contentType: typeof file.content,
-          contentIsArray: Array.isArray(file.content),
-          contentLength: Array.isArray(file.content) ? file.content.length : 
-                        typeof file.content === 'string' ? file.content.length : 0
-        });
-        
-        fileInfo.content = Array.isArray(file.content) 
-          ? file.content.map((item: any) => 
-              typeof item === 'string' ? item : JSON.stringify(item)
-            ).join('\n') 
-          : file.content;
-        fileInfo.sample = fileInfo.content.slice(0, 2000);
-        
-        logger.debug('[prepareFileData] CSV content processed', {
-          filename: file.filename,
-          processedContentLength: fileInfo.content.length,
-          samplePreview: fileInfo.sample.slice(0, 200)
-        });
-      }
-      
-      // Add column statistics if provided
-      if (file.columnStats) {
-        fileInfo.columnStats = file.columnStats;
-        fileInfo.metadata = { columnStats: file.columnStats };
-      }
-      
-      // Basic metadata
-      fileInfo.datasetMetadata = {
-        total_rows: file.rowCount || 0,
-        column_count: file.schema?.length || 0
-      };
-      
-      // CRITICAL FINAL CHECK: What are we actually sending?
-      logger.debug('[prepareFileData] CSV FINAL PREPARED STATE', {
-        filename: file.filename,
-        rowCount: fileInfo.datasetMetadata.total_rows,
-        columnCount: fileInfo.datasetMetadata.column_count,
-        hasContent: !!fileInfo.content,
-        contentType: typeof fileInfo.content,
-        contentLength: fileInfo.content?.length || 0,
-        hasData: !!fileInfo.data,
-        dataLength: Array.isArray(fileInfo.data) ? fileInfo.data.length : 0,
-        actualContentPreview: fileInfo.content ? fileInfo.content.slice(0, 500) : 'NO CONTENT SET',
-        willBeSentToAI: !!fileInfo.content && fileInfo.content.length > 0
-      });
-    }
-    // For text files
-    else if (fileInfo.type === 'text' || fileInfo.type === 'markdown') {
-      if (file.content) {
-        fileInfo.content = file.content;
-        fileInfo.sample = file.content.slice(0, 2000);
-        fileInfo.extractedContent = file.content;
-      }
-    }
-    
-    preparedFiles.push(fileInfo);
-  }
-  
-  // CRITICAL: Final validation of all prepared files
-  logger.debug('[prepareFileData] FINAL VALIDATION - All files prepared', {
-    preparedCount: preparedFiles.length,
-    filesWithContent: preparedFiles.filter((f: any) => f.content && f.content.length > 0).length,
-    filesWithoutContent: preparedFiles.filter((f: any) => !f.content || f.content.length === 0).length,
-    preparedFilesSummary: preparedFiles.map((f: any) => ({
-      filename: f.filename,
-      type: f.type,
-      hasContent: !!f.content,
-      contentLength: f.content?.length || 0,
-      hasData: !!f.data
-    }))
-  });
-  
-  return preparedFiles;
-}
 
 /**
  * Prepare query results for AI analysis (Query-First approach - Task 61.1)
