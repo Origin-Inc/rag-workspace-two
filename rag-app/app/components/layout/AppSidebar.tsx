@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, NavLink, useLocation } from '@remix-run/react';
+import { Link, NavLink, useLocation, useNavigate } from '@remix-run/react';
 import {
   HomeIcon,
   MagnifyingGlassIcon,
@@ -65,6 +65,7 @@ export function AppSidebar({
   className,
 }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
   const {
     isMenuCollapsed,
@@ -299,13 +300,47 @@ export function AppSidebar({
                   }
                 }}
                 onDeletePage={async (pageId) => {
+                  // Check if we're deleting the currently active page
+                  const isDeletingCurrentPage = currentPageId === pageId;
+
+                  // If deleting current page, find next available page to navigate to
+                  let nextPageId: string | null = null;
+                  if (isDeletingCurrentPage && pageTree.length > 0) {
+                    // Helper function to flatten page tree
+                    const flattenPages = (pages: PageTreeNode[]): PageTreeNode[] => {
+                      return pages.reduce((acc: PageTreeNode[], page) => {
+                        acc.push(page);
+                        if (page.children && page.children.length > 0) {
+                          acc.push(...flattenPages(page.children));
+                        }
+                        return acc;
+                      }, []);
+                    };
+
+                    // Get all pages in flat list
+                    const allPages = flattenPages(pageTree);
+
+                    // Find the next page that's not the one being deleted
+                    const nextPage = allPages.find(p => p.id !== pageId);
+                    nextPageId = nextPage?.id || null;
+                  }
+
                   // Call API to delete page
                   const response = await fetch(`/api/pages/${pageId}`, {
                     method: 'DELETE'
                   });
-                  
+
                   if (response.ok) {
-                    window.location.reload();
+                    if (isDeletingCurrentPage && nextPageId) {
+                      // Navigate to next available page
+                      navigate(`/editor/${nextPageId}`);
+                    } else if (isDeletingCurrentPage && !nextPageId) {
+                      // No pages left, navigate to pages index
+                      navigate('/app/pages');
+                    } else {
+                      // Not deleting current page, just reload to update sidebar
+                      window.location.reload();
+                    }
                   } else {
                     console.error('Failed to delete page');
                   }

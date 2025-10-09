@@ -1032,7 +1032,7 @@
         "description": "Update chat component to load/save context from database instead of in-memory state",
         "details": "Update ChatSidebarPerformant.tsx to:\n- Load context from /api/context/:pageId on mount\n- Show loading state while context loads\n- Save context updates via API after changes\n- Update context when file uploaded (set activeFileId)\n- Register file uploads with contextPersistence.addFile()\n\nRemove: In-memory context that resets on reload\nAdd: Database-backed context that persists\n\nResult: Conversation continuity across page reloads and sessions",
         "testStrategy": "",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           73
         ],
@@ -1148,7 +1148,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-10-08T22:31:45.351Z",
+      "updated": "2025-10-09T01:49:55.894Z",
       "description": "Tasks for master context"
     }
   }
