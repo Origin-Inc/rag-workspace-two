@@ -1049,15 +1049,7 @@ function ChatSidebarPerformantBase({
       >
         {/* Header */}
         <ChatHeader onClose={handleClose} />
-        
-        {/* File Context Display */}
-        {dataFiles.length > 0 && (
-          <FileContextDisplay 
-            pageId={pageId}
-            onFileRemove={handleFileRemove}
-          />
-        )}
-        
+
         {/* Upload Progress */}
         {uploadProgress && (
           <UploadProgressBar
@@ -1067,21 +1059,29 @@ function ChatSidebarPerformantBase({
             error={uploadProgress.error}
           />
         )}
-        
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-white dark:bg-gray-900">
-          <MessageList 
+          <MessageList
             messages={messages}
             onClarificationResponse={undefined}
             onFileSelect={undefined}
           />
         </div>
-        
+
         {/* Drag Overlay */}
         {isDragging && <DragOverlay />}
-        
+
+        {/* File Context Display - Above Input */}
+        {dataFiles.length > 0 && (
+          <FileContextDisplay
+            pageId={pageId}
+            onFileRemove={handleFileRemove}
+          />
+        )}
+
         {/* Input */}
-        <ChatInput 
+        <ChatInput
           pageId={pageId}
           onSendMessage={handleSendMessage}
           onFileUpload={handleFileUpload}
