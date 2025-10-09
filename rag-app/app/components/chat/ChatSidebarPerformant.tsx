@@ -265,6 +265,8 @@ function ChatSidebarPerformantBase({
     status: string;
     error?: string;
   } | null>(null);
+  const [contextLoading, setContextLoading] = useState(true);
+  const [activeFileId, setActiveFileId] = useState<string | null>(null);
   
   // Refs for stable references
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -761,6 +763,9 @@ function ChatSidebarPerformantBase({
           data: uploadedFile.data, // Store data for client-side queries
         });
 
+        // Update active file in context
+        setActiveFileId(uploadedFile.id);
+
         setUploadProgress({
           filename: file.name,
           progress: 100,
@@ -846,16 +851,54 @@ function ChatSidebarPerformantBase({
   }, [handleFileUpload, addMessage]);
   
   // ============= EFFECTS =============
-  
+
+  // Load context from API on mount
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadContext = async () => {
+      try {
+        setContextLoading(true);
+        const response = await fetch(`/api/context/${pageId}`);
+        if (!response.ok || !isMounted) return;
+
+        const data = await response.json();
+
+        // Set active file if one exists in context
+        if (data.context?.activeFile) {
+          setActiveFileId(data.context.activeFile.id);
+        }
+
+        console.log('[Context] Loaded context:', {
+          hasActiveFile: !!data.context?.activeFile,
+          currentTopic: data.context?.currentTopic,
+          historyCount: data.queryHistory?.length || 0,
+        });
+      } catch (error) {
+        console.error('Failed to load context:', error);
+      } finally {
+        if (isMounted) {
+          setContextLoading(false);
+        }
+      }
+    };
+
+    loadContext();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pageId]);
+
   // Load chat messages on mount
   useEffect(() => {
     let isMounted = true;
-    
+
     const loadMessages = async () => {
       try {
         const response = await fetch(`/api/chat/messages/${pageId}`);
         if (!response.ok || !isMounted) return;
-        
+
         const data = await response.json();
         if (data.messages?.length > 0) {
           batchAddMessages(data.messages);
@@ -864,9 +907,9 @@ function ChatSidebarPerformantBase({
         console.error('Failed to load messages:', error);
       }
     };
-    
+
     loadMessages();
-    
+
     return () => {
       isMounted = false;
     };
@@ -942,6 +985,29 @@ function ChatSidebarPerformantBase({
       isMountedRef.current = false;
     };
   }, []);
+
+  // Save context when activeFileId changes
+  useEffect(() => {
+    const saveContext = async () => {
+      if (contextLoading) return; // Don't save while initial load is happening
+
+      try {
+        await fetch(`/api/context/${pageId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            activeFileId,
+          }),
+        });
+
+        console.log('[Context] Saved activeFileId:', activeFileId);
+      } catch (error) {
+        console.error('Failed to save context:', error);
+      }
+    };
+
+    saveContext();
+  }, [activeFileId, pageId, contextLoading]);
   
   // ============= RENDER =============
   
