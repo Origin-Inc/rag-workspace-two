@@ -24,7 +24,11 @@
     "prestart": "npm run redis:configure",
     "test:async-embeddings": "tsx scripts/test-async-embeddings.ts",
     "prepare": "husky || true",
-    "predeploy": "echo '❌ Direct vercel deploy blocked. Use git push instead.' && exit 1"
+    "predeploy": "echo '❌ Direct vercel deploy blocked. Use git push instead.' && exit 1",
+    "db:push": "node scripts/block-db-push.js",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio"
   },
   "keywords": [],
   "author": "",
