@@ -1078,6 +1078,7 @@ function ChatSidebarPerformantBase({
             {console.log('[FileContextDisplay] Rendering with files:', dataFiles.length, dataFiles)}
             <FileContextDisplay
               pageId={pageId}
+              dataFiles={dataFiles}
               onFileRemove={handleFileRemove}
             />
           </>

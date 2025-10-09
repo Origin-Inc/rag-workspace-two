@@ -212,21 +212,23 @@ function FileChip({
 
 interface FileContextDisplayProps {
   pageId: string;
+  dataFiles: any[]; // Pass dataFiles as prop instead of calling hook again
   className?: string;
   maxVisibleFiles?: number;
   onFileRemove?: (fileId: string) => void;
 }
 
-export function FileContextDisplay({ 
-  pageId, 
+export function FileContextDisplay({
+  pageId,
+  dataFiles,
   className,
   maxVisibleFiles = 5,
   onFileRemove
 }: FileContextDisplayProps) {
-  const { dataFiles, removeDataFile } = useChatDataFiles(pageId);
+  const { removeDataFile } = useChatDataFiles(pageId);
   const [expandedView, setExpandedView] = useState(false);
-  
-  // Use dataFiles directly from the hook
+
+  // Use dataFiles from props
   const pageFiles = dataFiles || [];
 
   console.log('[FileContextDisplay] Component rendering:', {
