@@ -228,8 +228,16 @@ export function FileContextDisplay({
   
   // Use dataFiles directly from the hook
   const pageFiles = dataFiles || [];
-  
+
+  console.log('[FileContextDisplay] Component rendering:', {
+    pageId,
+    dataFilesLength: dataFiles?.length,
+    pageFilesLength: pageFiles.length,
+    files: pageFiles
+  });
+
   if (pageFiles.length === 0) {
+    console.log('[FileContextDisplay] No files, returning null');
     return null;
   }
   

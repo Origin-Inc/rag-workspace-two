@@ -1074,10 +1074,13 @@ function ChatSidebarPerformantBase({
 
         {/* File Context Display - Above Input */}
         {dataFiles.length > 0 && (
-          <FileContextDisplay
-            pageId={pageId}
-            onFileRemove={handleFileRemove}
-          />
+          <>
+            {console.log('[FileContextDisplay] Rendering with files:', dataFiles.length, dataFiles)}
+            <FileContextDisplay
+              pageId={pageId}
+              onFileRemove={handleFileRemove}
+            />
+          </>
         )}
 
         {/* Input */}
