@@ -239,14 +239,14 @@ export class FileProcessingService {
   }> {
     console.log(`[FileProcessing] Processing file: ${file.name}`);
     console.log(`[FileProcessing] File size: ${file.size} bytes, Type: ${file.type || 'unknown'}`);
-    
+
     // Validate file size (50MB limit)
     const MAX_FILE_SIZE = 50 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
       console.error(`[FileProcessing] File too large: ${file.size} bytes (max: ${MAX_FILE_SIZE})`);
       throw new Error(`File "${file.name}" is too large. Maximum size is 50MB.`);
     }
-    
+
     let result;
 
     try {
@@ -271,6 +271,114 @@ export class FileProcessingService {
     } catch (error) {
       console.error(`[FileProcessing] Failed to process file:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * PROGRESSIVE LOADING METHODS
+   * Task #80: Implement Progressive Data Loading
+   *
+   * These methods enable chunked file processing to prevent memory issues
+   * with large datasets (100K+ rows)
+   */
+
+  /**
+   * Process file progressively in chunks
+   * Returns an AsyncGenerator that yields data chunks
+   *
+   * @param file - File to process
+   * @param options - Progressive loading options
+   */
+  static async *processFileProgressive(
+    file: File,
+    options?: {
+      chunkSize?: number;
+      onProgress?: (info: { loadedRows: number; totalRows: number; percentComplete: number }) => void;
+    }
+  ): AsyncGenerator<{
+    chunk: any[];
+    chunkIndex: number;
+    schema?: FileSchema;
+    tableName: string;
+  }> {
+    console.log(`[FileProcessing] Processing file progressively: ${file.name}`);
+
+    const { ProgressiveDataLoader } = await import('~/services/shared/progressive-loader.server');
+    const loader = new ProgressiveDataLoader(options);
+
+    const tableName = this.sanitizeTableName(file.name);
+    let schema: FileSchema | undefined;
+    let chunkIndex = 0;
+
+    try {
+      // Get metadata first for schema
+      const metadata = await loader.getFileMetadata(file);
+      schema = metadata.schema;
+
+      console.log(`[FileProcessing] Progressive loading: ${metadata.totalRows} rows in ~${metadata.estimatedChunks} chunks`);
+
+      // Yield chunks
+      for await (const dataChunk of loader.loadFileInChunks(file)) {
+        yield {
+          chunk: dataChunk.data,
+          chunkIndex: dataChunk.chunkIndex,
+          schema: chunkIndex === 0 ? schema : undefined, // Only send schema with first chunk
+          tableName
+        };
+        chunkIndex++;
+      }
+
+      console.log(`[FileProcessing] Progressive loading complete: ${chunkIndex} chunks processed`);
+    } catch (error) {
+      console.error(`[FileProcessing] Progressive loading failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get file metadata without loading full content
+   * Useful for showing file info before processing
+   */
+  static async getFileMetadata(file: File): Promise<{
+    totalRows: number;
+    schema: FileSchema;
+    estimatedChunks: number;
+    fileSizeBytes: number;
+    tableName: string;
+  }> {
+    const { ProgressiveDataLoader } = await import('~/services/shared/progressive-loader.server');
+    const loader = new ProgressiveDataLoader();
+
+    const metadata = await loader.getFileMetadata(file);
+    const tableName = this.sanitizeTableName(file.name);
+
+    return {
+      ...metadata,
+      tableName
+    };
+  }
+
+  /**
+   * Check if a file should use progressive loading
+   * Based on file size and row count estimates
+   */
+  static async shouldUseProgressiveLoading(file: File): Promise<boolean> {
+    // Files over 10MB should use progressive loading
+    const SIZE_THRESHOLD = 10 * 1024 * 1024; // 10MB
+
+    if (file.size > SIZE_THRESHOLD) {
+      return true;
+    }
+
+    // Try to estimate row count for smaller files
+    try {
+      const metadata = await this.getFileMetadata(file);
+      // Files with over 50K rows should use progressive loading
+      const ROW_THRESHOLD = 50000;
+      return metadata.totalRows > ROW_THRESHOLD;
+    } catch {
+      // If we can't determine, use size-based decision
+      return false;
     }
   }
 }
