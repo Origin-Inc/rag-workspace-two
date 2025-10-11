@@ -1011,13 +1011,17 @@ function ChatSidebarPerformantBase({
         {/* Progressive Upload Indicator */}
         {progressiveUpload.status !== 'idle' && (
           <ProgressiveUploadIndicator
-            status={progressiveUpload.status}
-            progress={progressiveUpload.progress}
-            loadedRows={progressiveUpload.loadedRows}
-            totalRows={progressiveUpload.totalRows}
-            loadedChunks={progressiveUpload.loadedChunks}
-            totalChunks={progressiveUpload.totalChunks}
-            error={progressiveUpload.error}
+            state={{
+              status: progressiveUpload.status,
+              progress: progressiveUpload.progress,
+              loadedRows: progressiveUpload.loadedRows,
+              totalRows: progressiveUpload.totalRows,
+              loadedChunks: progressiveUpload.loadedChunks,
+              totalChunks: progressiveUpload.totalChunks,
+              error: progressiveUpload.error,
+              dataFileId: progressiveUpload.dataFileId,
+              tableName: progressiveUpload.tableName
+            }}
             onCancel={() => progressiveUpload.cancel()}
           />
         )}

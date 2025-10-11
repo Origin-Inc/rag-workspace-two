@@ -291,7 +291,7 @@ export function useProgressiveFileUpload(options: ProgressiveUploadOptions) {
         formData.append('file', file);
 
         const response = await fetch(
-          `/api/data/upload.v2?pageId=${pageId}&workspaceId=${workspaceId}`,
+          `/api/data/upload/v2?pageId=${pageId}&workspaceId=${workspaceId}`,
           {
             method: 'POST',
             body: formData
