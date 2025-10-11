@@ -367,17 +367,21 @@ export class FileProcessingService {
     const SIZE_THRESHOLD = 10 * 1024 * 1024; // 10MB
 
     if (file.size > SIZE_THRESHOLD) {
+      console.log(`[FileProcessing] Progressive loading: YES (file size ${file.size} > ${SIZE_THRESHOLD})`);
       return true;
     }
 
     // Try to estimate row count for smaller files
     try {
       const metadata = await this.getFileMetadata(file);
-      // Files with over 50K rows should use progressive loading
+      // Files with 50K+ rows should use progressive loading
       const ROW_THRESHOLD = 50000;
-      return metadata.totalRows > ROW_THRESHOLD;
-    } catch {
+      const useProgressive = metadata.totalRows >= ROW_THRESHOLD; // Fixed: >= instead of >
+      console.log(`[FileProcessing] Progressive loading: ${useProgressive ? 'YES' : 'NO'} (${metadata.totalRows} rows, threshold: ${ROW_THRESHOLD})`);
+      return useProgressive;
+    } catch (error) {
       // If we can't determine, use size-based decision
+      console.log(`[FileProcessing] Progressive loading: NO (could not determine row count, using size-based decision)`);
       return false;
     }
   }

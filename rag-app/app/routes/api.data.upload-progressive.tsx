@@ -121,33 +121,24 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
     const file = filesToProcess[0];
 
     console.log(`[Progressive Upload] Processing: ${file.name}`);
+    console.log(`[Progressive Upload] File size: ${file.size} bytes (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
+    console.log(`[Progressive Upload] Mode: ${mode}`);
 
-    // Check if file should use progressive loading
-    const useProgressive = await FileUploadService.shouldUseProgressiveLoading(file);
-
-    if (!useProgressive && mode === 'stream') {
-      // File is small, use standard upload
-      console.log(`[Progressive Upload] File is small, using standard upload`);
-      const result = await FileUploadService.upload(file, {
-        pageId,
-        workspaceId,
-        userId: user.id,
-        request,
-        response
-      });
-
-      return new Response(JSON.stringify(result), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Progressive upload
+    // Stream mode ALWAYS uses progressive loading (that's what streaming is for)
+    // Metadata mode can optimize for small files
     const result = await FileUploadService.uploadProgressive(file, {
       pageId,
       workspaceId,
       userId: user.id,
       request,
       response
+    });
+
+    console.log(`[Progressive Upload] Progressive upload result:`, {
+      success: result.success,
+      rowCount: result.dataFile?.rowCount,
+      estimatedChunks: result.dataFile?.estimatedChunks,
+      tableName: result.dataFile?.tableName
     });
 
     if (!result.success || !result.dataFile) {

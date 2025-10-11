@@ -120,6 +120,8 @@ export class ProgressiveDataLoader {
               hasMore: true
             });
 
+            console.log(`[ProgressiveDataLoader] Chunk ${chunkIndex} ready: ${currentChunk.length} rows (${rowCount} total loaded)`);
+
             // Report progress
             if (this.onProgress) {
               this.onProgress({
@@ -146,12 +148,15 @@ export class ProgressiveDataLoader {
               endRow: rowCount - 1,
               hasMore: false
             });
+            console.log(`[ProgressiveDataLoader] Final chunk ${chunkIndex}: ${currentChunk.length} rows`);
           }
 
           // Update all chunks with total count
           chunks.forEach(chunk => {
             chunk.totalChunks = chunks.length;
           });
+
+          console.log(`[ProgressiveDataLoader] CSV parsing complete: ${chunks.length} chunks, ${rowCount} total rows`);
 
           // Report final progress
           if (this.onProgress) {
