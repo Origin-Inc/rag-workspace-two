@@ -481,14 +481,14 @@ export class FileUploadService {
 
   /**
    * Check if file should use progressive loading
-   * Based on file size and row count estimates
+   * Based on file size only (simple and reliable)
    */
   static async shouldUseProgressiveLoading(file: File): Promise<boolean> {
     try {
       return await FileProcessingService.shouldUseProgressiveLoading(file);
     } catch {
-      // Default to progressive for large files
-      const SIZE_THRESHOLD = 10 * 1024 * 1024; // 10MB
+      // Fallback: 3MB threshold to prevent HTTP 413 errors
+      const SIZE_THRESHOLD = 3 * 1024 * 1024; // 3MB
       return file.size > SIZE_THRESHOLD;
     }
   }

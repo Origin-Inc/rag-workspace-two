@@ -259,50 +259,6 @@ export function useProgressiveFileUpload(options: ProgressiveUploadOptions) {
   );
 
   /**
-   * Upload file with smart detection
-   * Automatically uses progressive for large files
-   */
-  const uploadSmart = useCallback(
-    async (file: File) => {
-      // Threshold constants (must match server-side logic)
-      const SIZE_THRESHOLD = 10 * 1024 * 1024; // 10MB
-      const ROW_THRESHOLD = 50000; // 50K rows
-
-      // Fast check: file size
-      if (file.size > SIZE_THRESHOLD) {
-        console.log('[Upload] Using progressive upload (file size > 10MB)');
-        return uploadProgressive(file);
-      }
-
-      // For CSV files, estimate row count to determine if progressive loading is needed
-      if (file.name.toLowerCase().endsWith('.csv')) {
-        try {
-          // Quick estimation: sample first 1MB to estimate row count
-          const sampleSize = Math.min(1024 * 1024, file.size); // 1MB sample
-          const sample = await file.slice(0, sampleSize).text();
-          const lines = sample.split('\n');
-          const estimatedRowsPerMB = lines.length / (sampleSize / (1024 * 1024));
-          const estimatedTotalRows = Math.round(estimatedRowsPerMB * (file.size / (1024 * 1024)));
-
-          console.log(`[Upload] CSV row estimate: ~${estimatedTotalRows.toLocaleString()} rows (threshold: ${ROW_THRESHOLD.toLocaleString()})`);
-
-          if (estimatedTotalRows >= ROW_THRESHOLD) {
-            console.log('[Upload] Using progressive upload (estimated row count >= 50K)');
-            return uploadProgressive(file);
-          }
-        } catch (error) {
-          console.error('[Upload] Failed to estimate row count:', error);
-          // Fall through to standard upload
-        }
-      }
-
-      console.log('[Upload] Using standard upload for small file');
-      return uploadStandard(file);
-    },
-    [uploadProgressive, uploadStandard]
-  );
-
-  /**
    * Standard upload for small files (non-progressive)
    */
   const uploadStandard = useCallback(
@@ -371,6 +327,29 @@ export function useProgressiveFileUpload(options: ProgressiveUploadOptions) {
       }
     },
     [pageId, workspaceId, onComplete, onError]
+  );
+
+  /**
+   * Upload file with smart detection
+   * Automatically uses progressive for large files
+   */
+  const uploadSmart = useCallback(
+    async (file: File) => {
+      // Use 3MB threshold to prevent HTTP 413 errors from standard endpoint
+      // This is a safe buffer below the body size limit (avoids FormData encoding overhead)
+      const SIZE_THRESHOLD = 3 * 1024 * 1024; // 3MB
+
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+
+      if (file.size > SIZE_THRESHOLD) {
+        console.log(`[Upload] Using progressive upload (file size ${sizeMB}MB > 3MB)`);
+        return uploadProgressive(file);
+      }
+
+      console.log(`[Upload] Using standard upload (file size ${sizeMB}MB <= 3MB)`);
+      return uploadStandard(file);
+    },
+    [uploadProgressive, uploadStandard]
   );
 
   /**

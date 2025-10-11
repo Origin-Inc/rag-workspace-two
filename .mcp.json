@@ -8,7 +8,9 @@
 				"--package=task-master-ai",
 				"task-master-ai"
 			],
-			"env": {}
+			"env": {
+				"PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}"
+			}
 		},
 		"supabase": {
 			"type": "stdio",

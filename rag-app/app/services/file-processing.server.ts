@@ -360,29 +360,18 @@ export class FileProcessingService {
 
   /**
    * Check if a file should use progressive loading
-   * Based on file size and row count estimates
+   * Based on file size only (simple and reliable)
    */
   static async shouldUseProgressiveLoading(file: File): Promise<boolean> {
-    // Files over 10MB should use progressive loading
-    const SIZE_THRESHOLD = 10 * 1024 * 1024; // 10MB
+    // Use 3MB threshold to prevent HTTP 413 errors from standard endpoint
+    // This is a safe buffer below the body size limit (avoids FormData encoding overhead)
+    const SIZE_THRESHOLD = 3 * 1024 * 1024; // 3MB
 
-    if (file.size > SIZE_THRESHOLD) {
-      console.log(`[FileProcessing] Progressive loading: YES (file size ${file.size} > ${SIZE_THRESHOLD})`);
-      return true;
-    }
+    const useProgressive = file.size > SIZE_THRESHOLD;
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
 
-    // Try to estimate row count for smaller files
-    try {
-      const metadata = await this.getFileMetadata(file);
-      // Files with 50K+ rows should use progressive loading
-      const ROW_THRESHOLD = 50000;
-      const useProgressive = metadata.totalRows >= ROW_THRESHOLD; // Fixed: >= instead of >
-      console.log(`[FileProcessing] Progressive loading: ${useProgressive ? 'YES' : 'NO'} (${metadata.totalRows} rows, threshold: ${ROW_THRESHOLD})`);
-      return useProgressive;
-    } catch (error) {
-      // If we can't determine, use size-based decision
-      console.log(`[FileProcessing] Progressive loading: NO (could not determine row count, using size-based decision)`);
-      return false;
-    }
+    console.log(`[FileProcessing] Progressive loading: ${useProgressive ? 'YES' : 'NO'} (file size ${sizeMB}MB, threshold: 3MB)`);
+
+    return useProgressive;
   }
 }
