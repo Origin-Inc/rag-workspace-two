@@ -264,19 +264,42 @@ export function useProgressiveFileUpload(options: ProgressiveUploadOptions) {
    */
   const uploadSmart = useCallback(
     async (file: File) => {
-      // Check file size (>10MB uses progressive)
-      const SIZE_THRESHOLD = 10 * 1024 * 1024;
+      // Threshold constants (must match server-side logic)
+      const SIZE_THRESHOLD = 10 * 1024 * 1024; // 10MB
+      const ROW_THRESHOLD = 50000; // 50K rows
 
+      // Fast check: file size
       if (file.size > SIZE_THRESHOLD) {
-        console.log('[Upload] Using progressive upload for large file');
+        console.log('[Upload] Using progressive upload (file size > 10MB)');
         return uploadProgressive(file);
-      } else {
-        console.log('[Upload] Using standard upload for small file');
-        // Use standard upload for small files
-        return uploadStandard(file);
       }
+
+      // For CSV files, estimate row count to determine if progressive loading is needed
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        try {
+          // Quick estimation: sample first 1MB to estimate row count
+          const sampleSize = Math.min(1024 * 1024, file.size); // 1MB sample
+          const sample = await file.slice(0, sampleSize).text();
+          const lines = sample.split('\n');
+          const estimatedRowsPerMB = lines.length / (sampleSize / (1024 * 1024));
+          const estimatedTotalRows = Math.round(estimatedRowsPerMB * (file.size / (1024 * 1024)));
+
+          console.log(`[Upload] CSV row estimate: ~${estimatedTotalRows.toLocaleString()} rows (threshold: ${ROW_THRESHOLD.toLocaleString()})`);
+
+          if (estimatedTotalRows >= ROW_THRESHOLD) {
+            console.log('[Upload] Using progressive upload (estimated row count >= 50K)');
+            return uploadProgressive(file);
+          }
+        } catch (error) {
+          console.error('[Upload] Failed to estimate row count:', error);
+          // Fall through to standard upload
+        }
+      }
+
+      console.log('[Upload] Using standard upload for small file');
+      return uploadStandard(file);
     },
-    [uploadProgressive]
+    [uploadProgressive, uploadStandard]
   );
 
   /**
