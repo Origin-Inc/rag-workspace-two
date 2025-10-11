@@ -335,18 +335,19 @@ export function useProgressiveFileUpload(options: ProgressiveUploadOptions) {
    */
   const uploadSmart = useCallback(
     async (file: File) => {
-      // Use 3MB threshold to prevent HTTP 413 errors from standard endpoint
-      // This is a safe buffer below the body size limit (avoids FormData encoding overhead)
-      const SIZE_THRESHOLD = 3 * 1024 * 1024; // 3MB
+      // Use 2MB threshold to prevent HTTP 413 errors from standard endpoint
+      // Based on real-world test: 1.93MB file with 50K rows hit 413 error
+      // 2MB threshold catches this case and prevents body size limit issues
+      const SIZE_THRESHOLD = 2 * 1024 * 1024; // 2MB
 
       const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
 
       if (file.size > SIZE_THRESHOLD) {
-        console.log(`[Upload] Using progressive upload (file size ${sizeMB}MB > 3MB)`);
+        console.log(`[Upload] Using progressive upload (file size ${sizeMB}MB > 2MB)`);
         return uploadProgressive(file);
       }
 
-      console.log(`[Upload] Using standard upload (file size ${sizeMB}MB <= 3MB)`);
+      console.log(`[Upload] Using standard upload (file size ${sizeMB}MB <= 2MB)`);
       return uploadStandard(file);
     },
     [uploadProgressive, uploadStandard]

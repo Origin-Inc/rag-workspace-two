@@ -487,8 +487,9 @@ export class FileUploadService {
     try {
       return await FileProcessingService.shouldUseProgressiveLoading(file);
     } catch {
-      // Fallback: 3MB threshold to prevent HTTP 413 errors
-      const SIZE_THRESHOLD = 3 * 1024 * 1024; // 3MB
+      // Fallback: 2MB threshold to prevent HTTP 413 errors
+      // Based on real-world test: 1.93MB file with 50K rows hit 413 error
+      const SIZE_THRESHOLD = 2 * 1024 * 1024; // 2MB
       return file.size > SIZE_THRESHOLD;
     }
   }
