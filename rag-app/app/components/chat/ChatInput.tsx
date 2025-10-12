@@ -85,8 +85,16 @@ export function ChatInput({
       <div className="flex items-end gap-2 w-full">
         {onFileUpload && (
           <button
+            type="button"
             id="upload-file"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={(e) => {
+              e.preventDefault();
+              console.log('[ChatInput] Upload button clicked', {
+                fileInputRef: fileInputRef.current,
+                disabled
+              });
+              fileInputRef.current?.click();
+            }}
             disabled={disabled}
             className={cn(
               "p-2 rounded-lg transition-colors flex-shrink-0",
@@ -148,7 +156,11 @@ export function ChatInput({
           type="file"
           accept=".csv,.xlsx,.xls"
           className="hidden"
+          onClick={() => {
+            console.log('[ChatInput] File input clicked');
+          }}
           onChange={async (e) => {
+            console.log('[ChatInput] File input onChange', e.target.files);
             const file = e.target.files?.[0];
             if (file) {
               await onFileUpload(file);
