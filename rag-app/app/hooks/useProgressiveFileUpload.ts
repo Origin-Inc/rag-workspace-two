@@ -85,38 +85,46 @@ export function useProgressiveFileUpload(options: ProgressiveUploadOptions) {
 
         console.log('[Direct Upload] Starting direct Supabase upload:', file.name, file.size);
 
-        // Step 1: Initialize Supabase client
-        const supabaseClient = SupabaseUploadClient.getInstance();
-        const initialized = await supabaseClient.initialize();
-
-        if (!initialized) {
-          throw new Error('Failed to initialize Supabase client');
-        }
-
-        // Step 2: Upload file directly to Supabase Storage
+        // Step 1: Request signed upload URL from server
+        // This bypasses RLS by using service role on server side
         const timestamp = Date.now();
         const sanitizedFilename = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
         const storagePath = `${workspaceId}/${pageId}/${timestamp}_${sanitizedFilename}`;
 
-        console.log('[Direct Upload] Uploading to Supabase:', storagePath);
+        console.log('[Direct Upload] Requesting signed upload URL from server:', storagePath);
 
-        const uploadResult = await supabaseClient.uploadFile(file, storagePath, {
-          bucket: 'user-uploads',
-          onProgress: (percent) => {
-            console.log(`[Direct Upload] Upload progress: ${percent}%`);
-            setState(prev => ({
-              ...prev,
-              progress: Math.round(percent * 0.4) // Upload is 40% of total progress (0-40%)
-            }));
-          },
-          upsert: true
-        });
+        const signedUrlResponse = await fetch(
+          `/api/storage/signed-upload-url?path=${encodeURIComponent(storagePath)}&bucket=user-data-files`,
+          {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
 
-        if (uploadResult.error || !uploadResult.url) {
-          throw new Error(uploadResult.error || 'Upload failed - no URL returned');
+        if (!signedUrlResponse.ok) {
+          const error = await signedUrlResponse.json();
+          throw new Error(error.error || 'Failed to get signed upload URL');
         }
 
-        console.log('[Direct Upload] Upload complete:', uploadResult.url);
+        const { signedUrl, publicUrl } = await signedUrlResponse.json();
+
+        console.log('[Direct Upload] Got signed URL, uploading to Supabase');
+
+        // Step 2: Upload directly to signed URL (bypasses RLS)
+        const uploadResponse = await fetch(signedUrl, {
+          method: 'PUT',
+          body: file,
+          headers: {
+            'Content-Type': file.type || 'application/octet-stream',
+            'x-upsert': 'true'
+          }
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Upload failed: ${uploadResponse.statusText}`);
+        }
+
+        console.log('[Direct Upload] Upload complete:', publicUrl);
 
         // Step 3: Send metadata to Vercel for processing
         setState(prev => ({ ...prev, status: 'processing', progress: 40 }));
@@ -129,8 +137,8 @@ export function useProgressiveFileUpload(options: ProgressiveUploadOptions) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              storageUrl: uploadResult.url,
-              storagePath: uploadResult.path,
+              storageUrl: publicUrl,
+              storagePath: storagePath,
               filename: file.name,
               fileSize: file.size,
               mimeType: file.type
@@ -177,8 +185,8 @@ export function useProgressiveFileUpload(options: ProgressiveUploadOptions) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              storageUrl: uploadResult.url,
-              storagePath: uploadResult.path,
+              storageUrl: publicUrl,
+              storagePath: storagePath,
               filename: file.name,
               fileSize: file.size,
               mimeType: file.type
