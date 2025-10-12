@@ -82,8 +82,9 @@ export class ProgressiveDataLoader {
   async *loadCSVInChunks(file: File): AsyncGenerator<DataChunk> {
     const text = await file.text();
 
-    return yield* new Promise<AsyncGenerator<DataChunk>>((resolve, reject) => {
-      const chunks: DataChunk[] = [];
+    // Parse CSV and collect chunks (Papa.parse is callback-based, not async)
+    const chunks = await new Promise<DataChunk[]>((resolve, reject) => {
+      const collectedChunks: DataChunk[] = [];
       let currentChunk: any[] = [];
       let rowCount = 0;
       let chunkIndex = 0;
@@ -109,9 +110,9 @@ export class ProgressiveDataLoader {
           currentChunk.push(result.data);
           rowCount++;
 
-          // When chunk is full, yield it
+          // When chunk is full, store it
           if (currentChunk.length >= this.chunkSize) {
-            chunks.push({
+            collectedChunks.push({
               data: currentChunk,
               chunkIndex,
               totalChunks: -1, // Unknown until complete
@@ -138,9 +139,9 @@ export class ProgressiveDataLoader {
           }
         },
         complete: () => {
-          // Yield final chunk if any data remains
+          // Store final chunk if any data remains
           if (currentChunk.length > 0) {
-            chunks.push({
+            collectedChunks.push({
               data: currentChunk,
               chunkIndex,
               totalChunks: chunkIndex + 1,
@@ -152,34 +153,35 @@ export class ProgressiveDataLoader {
           }
 
           // Update all chunks with total count
-          chunks.forEach(chunk => {
-            chunk.totalChunks = chunks.length;
+          collectedChunks.forEach(chunk => {
+            chunk.totalChunks = collectedChunks.length;
           });
 
-          console.log(`[ProgressiveDataLoader] CSV parsing complete: ${chunks.length} chunks, ${rowCount} total rows`);
+          console.log(`[ProgressiveDataLoader] CSV parsing complete: ${collectedChunks.length} chunks, ${rowCount} total rows`);
 
           // Report final progress
           if (this.onProgress) {
             this.onProgress({
               loadedRows: rowCount,
               totalRows: rowCount,
-              currentChunk: chunks.length - 1,
-              totalChunks: chunks.length,
+              currentChunk: collectedChunks.length - 1,
+              totalChunks: collectedChunks.length,
               percentComplete: 100
             });
           }
 
-          resolve((async function* () {
-            for (const chunk of chunks) {
-              yield chunk;
-            }
-          })());
+          resolve(collectedChunks);
         },
         error: (error: Error) => {
           reject(new Error(`Failed to parse CSV: ${error.message}`));
         }
       });
     });
+
+    // Now yield each chunk as an async generator
+    for (const chunk of chunks) {
+      yield chunk;
+    }
   }
 
   /**
