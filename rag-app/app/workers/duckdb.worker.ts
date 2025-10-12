@@ -36,35 +36,47 @@ let conn: duckdb.AsyncDuckDBConnection | null = null;
  * Initialize DuckDB WASM instance
  */
 async function initialize(): Promise<void> {
+  console.log('[DuckDB Worker] Starting initialization...');
   try {
+    console.log('[DuckDB Worker] Getting JSDelivr bundles...');
     const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
 
+    console.log('[DuckDB Worker] Selecting bundle...');
     // Select appropriate bundle
     const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+    console.log('[DuckDB Worker] Bundle selected:', bundle);
 
     // Instantiate the worker
+    console.log('[DuckDB Worker] Creating worker URL...');
     const worker_url = URL.createObjectURL(
       new Blob([`importScripts("${bundle.mainWorker}");`], {
         type: 'text/javascript',
       })
     );
+    console.log('[DuckDB Worker] Creating worker...');
     const worker = new Worker(worker_url);
     const logger = new duckdb.ConsoleLogger();
 
+    console.log('[DuckDB Worker] Creating AsyncDuckDB instance...');
     db = new duckdb.AsyncDuckDB(logger, worker);
 
+    console.log('[DuckDB Worker] Instantiating DuckDB with modules...');
     await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+    console.log('[DuckDB Worker] DuckDB instantiated successfully');
     URL.revokeObjectURL(worker_url);
 
     // Get connection
+    console.log('[DuckDB Worker] Getting database connection...');
     conn = await db.connect();
+    console.log('[DuckDB Worker] ✅ Connection established successfully!');
 
+    console.log('[DuckDB Worker] Sending success message to main thread');
     postMessage({
       type: 'initialized',
       success: true,
     } as DuckDBWorkerResponse);
   } catch (error) {
-    console.error('DuckDB initialization failed:', error);
+    console.error('[DuckDB Worker] ❌ Initialization failed:', error);
     postMessage({
       type: 'initialized',
       success: false,
@@ -401,9 +413,11 @@ async function deleteRows(id: string, tableName: string, rowIds: string[]): Prom
  */
 self.onmessage = async (event: MessageEvent<DuckDBWorkerMessage>) => {
   const message = event.data;
+  console.log('[DuckDB Worker] Received message:', message.type);
 
   switch (message.type) {
     case 'initialize':
+      console.log('[DuckDB Worker] Handling initialize message');
       await initialize();
       break;
 

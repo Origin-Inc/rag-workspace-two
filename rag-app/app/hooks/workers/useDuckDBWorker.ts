@@ -48,29 +48,47 @@ export function useDuckDBWorker(): DuckDBWorkerHook {
 
   // Initialize worker
   useEffect(() => {
-    if (workerRef.current || isInitializing) return;
+    console.log('[DuckDBWorker] useEffect triggered', {
+      hasWorker: !!workerRef.current,
+      isInitializing
+    });
 
+    if (workerRef.current || isInitializing) {
+      console.log('[DuckDBWorker] Skipping initialization - already initializing or worker exists');
+      return;
+    }
+
+    console.log('[DuckDBWorker] Starting initialization...');
     setIsInitializing(true);
 
     try {
       // Create worker
+      console.log('[DuckDBWorker] Creating worker with path: ../../workers/duckdb.worker.ts');
       const worker = new Worker(new URL('../../workers/duckdb.worker.ts', import.meta.url), {
         type: 'module',
       });
 
+      console.log('[DuckDBWorker] Worker created successfully');
       workerRef.current = worker;
 
       // Handle messages from worker
       worker.onmessage = (event: MessageEvent<DuckDBWorkerResponse>) => {
         const response = event.data;
+        console.log('[DuckDBWorker] Received message from worker:', response);
 
         switch (response.type) {
           case 'initialized':
+            console.log('[DuckDBWorker] Initialization response:', {
+              success: response.success,
+              error: response.error
+            });
             setIsInitializing(false);
             if (response.success) {
+              console.log('[DuckDBWorker] ✅ Worker initialized successfully!');
               setIsReady(true);
               setError(null);
             } else {
+              console.error('[DuckDBWorker] ❌ Initialization failed:', response.error);
               setError(response.error || 'Initialization failed');
             }
             break;
@@ -135,16 +153,17 @@ export function useDuckDBWorker(): DuckDBWorkerHook {
       };
 
       worker.onerror = (error) => {
-        console.error('DuckDB Worker error:', error);
+        console.error('[DuckDBWorker] ❌ Worker error event:', error);
         setError(`Worker error: ${error.message || 'Unknown error'}`);
         setIsInitializing(false);
         setIsReady(false);
       };
 
       // Initialize worker
+      console.log('[DuckDBWorker] Sending initialize message to worker...');
       worker.postMessage({ type: 'initialize' } as DuckDBWorkerMessage);
     } catch (err) {
-      console.error('Failed to create DuckDB worker:', err);
+      console.error('[DuckDBWorker] ❌ Failed to create DuckDB worker:', err);
       setError(err instanceof Error ? err.message : 'Failed to create worker');
       setIsInitializing(false);
     }

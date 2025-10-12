@@ -45,35 +45,101 @@ export function SpreadsheetView({
   const duckdb = useDuckDBWorker();
   const hyperFormula = useHyperFormulaWorker();
 
+  // Log worker states on mount and changes
+  useEffect(() => {
+    console.log('[SpreadsheetView] Component mounted/updated', {
+      tableName,
+      duckdbReady: duckdb.isReady,
+      duckdbInitializing: duckdb.isInitializing,
+      duckdbError: duckdb.error,
+      hyperFormulaReady: hyperFormula.isReady,
+      hyperFormulaInitializing: hyperFormula.isInitializing,
+      hyperFormulaError: hyperFormula.error,
+      columnsLength: columns.length,
+      initialColumnsLength: initialColumns.length
+    });
+  }, [
+    tableName,
+    duckdb.isReady,
+    duckdb.isInitializing,
+    duckdb.error,
+    hyperFormula.isReady,
+    hyperFormula.isInitializing,
+    hyperFormula.error,
+    columns.length,
+    initialColumns.length
+  ]);
+
   // Page cache for loaded data
   const loadedPagesRef = useState(new Set<number>())[0];
   const pageSize = 100;
 
   // Initialize table in DuckDB if not exists
   useEffect(() => {
-    if (!duckdb.isReady || columns.length === 0) return;
+    console.log('[SpreadsheetView] Table initialization effect triggered', {
+      duckdbReady: duckdb.isReady,
+      columnsLength: columns.length,
+      shouldInitialize: duckdb.isReady && columns.length > 0
+    });
+
+    if (!duckdb.isReady) {
+      console.log('[SpreadsheetView] ⏸️ Waiting for DuckDB to be ready...');
+      return;
+    }
+
+    if (columns.length === 0) {
+      console.log('[SpreadsheetView] ⏸️ Waiting for columns to be set...');
+      return;
+    }
+
+    console.log('[SpreadsheetView] 🚀 Starting table initialization...');
 
     async function initializeTable() {
       try {
+        console.log('[SpreadsheetView] Checking if table exists:', tableName);
         // Check if table exists
-        const countResult = await duckdb.getRowCount(tableName).catch(() => 0);
+        const countResult = await duckdb.getRowCount(tableName).catch((err) => {
+          console.log('[SpreadsheetView] Table does not exist or error getting row count:', err);
+          return 0;
+        });
+
+        console.log('[SpreadsheetView] Row count result:', countResult);
 
         if (countResult === 0 && initialRows.length > 0) {
+          console.log('[SpreadsheetView] Creating table with initial data...');
           // Create table and insert initial data
           const columnDefs = columns.map((col) => ({
             name: col.id,
             type: col.type === 'number' ? 'DOUBLE' : col.type === 'boolean' ? 'BOOLEAN' : 'VARCHAR',
           }));
 
+          console.log('[SpreadsheetView] Column definitions:', columnDefs);
           await duckdb.createTable(tableName, columnDefs);
+          console.log('[SpreadsheetView] ✅ Table created successfully');
+
           await duckdb.insertRows(tableName, initialRows);
+          console.log('[SpreadsheetView] ✅ Initial rows inserted');
 
           setTotalRows(initialRows.length);
+        } else if (countResult === 0) {
+          console.log('[SpreadsheetView] Creating empty table...');
+          const columnDefs = columns.map((col) => ({
+            name: col.id,
+            type: col.type === 'number' ? 'DOUBLE' : col.type === 'boolean' ? 'BOOLEAN' : 'VARCHAR',
+          }));
+
+          console.log('[SpreadsheetView] Column definitions:', columnDefs);
+          await duckdb.createTable(tableName, columnDefs);
+          console.log('[SpreadsheetView] ✅ Empty table created successfully');
+          setTotalRows(0);
         } else {
+          console.log('[SpreadsheetView] Table already exists with', countResult, 'rows');
           setTotalRows(countResult);
         }
+
+        console.log('[SpreadsheetView] ✅ Table initialization complete!');
       } catch (err) {
-        console.error('Failed to initialize table:', err);
+        console.error('[SpreadsheetView] ❌ Failed to initialize table:', err);
         setError(err instanceof Error ? err.message : 'Table initialization failed');
       }
     }
