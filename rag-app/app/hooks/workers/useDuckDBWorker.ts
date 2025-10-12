@@ -152,9 +152,16 @@ export function useDuckDBWorker(): DuckDBWorkerHook {
         }
       };
 
-      worker.onerror = (error) => {
-        console.error('[DuckDBWorker] ❌ Worker error event:', error);
-        setError(`Worker error: ${error.message || 'Unknown error'}`);
+      worker.onerror = (event) => {
+        console.error('[DuckDBWorker] ❌ Worker error event:', event);
+        console.error('[DuckDBWorker] Error details:', {
+          message: event.message,
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+          error: event.error
+        });
+        setError(`Worker error: ${event.message || event.error?.message || 'Unknown error'}`);
         setIsInitializing(false);
         setIsReady(false);
       };

@@ -5,9 +5,14 @@
  * Provides message-based API for query execution, pagination, and table operations.
  */
 
+// TOP LEVEL: Verify worker script loads
+console.log('[DuckDB Worker] 🚀 Worker script loading...');
+
 import * as duckdb from '@duckdb/duckdb-wasm';
 import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url';
 import duckdb_wasm_next from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url';
+
+console.log('[DuckDB Worker] ✅ Imports successful');
 
 // Message types for communication with main thread
 export type DuckDBWorkerMessage =
@@ -411,6 +416,8 @@ async function deleteRows(id: string, tableName: string, rowIds: string[]): Prom
 /**
  * Message handler
  */
+console.log('[DuckDB Worker] 🎯 Setting up message handler...');
+
 self.onmessage = async (event: MessageEvent<DuckDBWorkerMessage>) => {
   const message = event.data;
   console.log('[DuckDB Worker] Received message:', message.type);
@@ -457,6 +464,20 @@ self.onmessage = async (event: MessageEvent<DuckDBWorkerMessage>) => {
       console.warn('Unknown message type:', (message as any).type);
   }
 };
+
+console.log('[DuckDB Worker] ✅ Message handler registered, worker ready');
+
+// Global error handler for the worker
+self.onerror = (error) => {
+  console.error('[DuckDB Worker] ❌ Global error:', error);
+  return false;
+};
+
+self.onunhandledrejection = (event) => {
+  console.error('[DuckDB Worker] ❌ Unhandled rejection:', event.reason);
+};
+
+console.log('[DuckDB Worker] ✅ Error handlers registered');
 
 // Export types for use in main thread
 export type { DuckDBWorkerMessage, DuckDBWorkerResponse };
