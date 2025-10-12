@@ -4,12 +4,13 @@ import { cn } from '~/utils/cn';
 import { DatabaseTableWrapper } from '~/components/database-block/DatabaseTableWrapper';
 import { AIBlock } from '~/components/blocks/AIBlock';
 import { ChartBlock } from '~/components/blocks/ChartBlock';
+import { SpreadsheetView } from '~/components/spreadsheet/SpreadsheetView';
 import { SlashMenu } from './SlashMenu';
 import { CommandBar } from './CommandBar';
 import { AIContextPanel } from './AIContextPanel';
-import { 
-  Plus, 
-  GripVertical, 
+import {
+  Plus,
+  GripVertical,
   ChevronRight,
   ChevronDown,
   Copy,
@@ -25,11 +26,12 @@ import {
   Code,
   CheckSquare,
   Database,
+  Table,
   Sparkles
 } from 'lucide-react';
 
 // Block types
-export type BlockType = 
+export type BlockType =
   | 'paragraph'
   | 'heading1'
   | 'heading2'
@@ -41,6 +43,7 @@ export type BlockType =
   | 'code'
   | 'divider'
   | 'database'
+  | 'spreadsheet'
   | 'ai';
 
 export interface Block {
@@ -337,6 +340,14 @@ const BlockComponent = memo(({
             rows: []
           });
           break;
+        case 'spreadsheet':
+          onTransform(block.id, 'spreadsheet');
+          onUpdate(block.id, {
+            title: 'Spreadsheet',
+            columns: [],
+            rows: []
+          });
+          break;
         case 'ai':
           onTransform(block.id, 'ai');
           onUpdate(block.id, { status: 'idle' });
@@ -536,6 +547,24 @@ const BlockComponent = memo(({
             initialData={block.content || {}}
             onDataChange={(data) => onUpdate(block.id, data)}
             className="w-full"
+          />
+        );
+      case 'spreadsheet':
+        // Parse content if it's a string (from DB storage)
+        let spreadsheetContent = block.content;
+        if (typeof spreadsheetContent === 'string') {
+          try {
+            spreadsheetContent = JSON.parse(spreadsheetContent);
+          } catch {
+            spreadsheetContent = { title: 'Spreadsheet', columns: [], rows: [] };
+          }
+        }
+        return (
+          <SpreadsheetView
+            tableName={`spreadsheet_${block.id.replace(/-/g, '_')}`}
+            initialColumns={spreadsheetContent?.columns || []}
+            initialRows={spreadsheetContent?.rows || []}
+            height={500}
           />
         );
       case 'ai':
@@ -747,6 +776,21 @@ const BlockComponent = memo(({
             </button>
             <button
               onClick={() => {
+                onTransform(block.id, 'spreadsheet');
+                onUpdate(block.id, {
+                  title: 'Spreadsheet',
+                  columns: [],
+                  rows: []
+                });
+                setShowMenu(false);
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
+            >
+              <Table className="w-4 h-4" />
+              Spreadsheet
+            </button>
+            <button
+              onClick={() => {
                 onTransform(block.id, 'ai');
                 onUpdate(block.id, { prompt: '', analysis: '', context: {} });
                 setShowMenu(false);
@@ -936,8 +980,15 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
               analysis: '',
               context: {}
             };
+          } else if (newType === 'spreadsheet') {
+            // Initialize spreadsheet with empty structure
+            newContent = {
+              title: 'Spreadsheet',
+              columns: [],
+              rows: []
+            };
           }
-          
+
           return { ...block, type: newType, content: newContent };
         }
         return block;

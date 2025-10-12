@@ -11,6 +11,7 @@ import {
   Minus,
   Image,
   Table,
+  TableProperties,
   ToggleLeft,
   FileText,
   Calendar,
@@ -201,6 +202,14 @@ const commands: Command[] = [
     description: 'Add a calendar view',
     icon: <Calendar className="w-4 h-4" />,
     keywords: ['calendar', 'date', 'schedule', 'events'],
+  },
+  {
+    id: 'spreadsheet',
+    type: 'spreadsheet',
+    label: 'Spreadsheet',
+    description: 'Add a spreadsheet with formulas and data analysis',
+    icon: <TableProperties className="w-4 h-4" />,
+    keywords: ['spreadsheet', 'excel', 'sheets', 'data', 'formula', 'calculations', 'analysis'],
   },
 ];
 
