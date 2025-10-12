@@ -117,6 +117,7 @@
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^18.3.1",
     "react-dropzone": "^14.3.8",
+    "react-is": "^19.2.0",
     "react-markdown": "^10.1.0",
     "react-virtualized-auto-sizer": "^1.0.26",
     "react-window": "^1.8.11",
