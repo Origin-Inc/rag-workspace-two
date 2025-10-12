@@ -426,8 +426,12 @@ function ChatSidebarPerformantBase({
       // QUERY-FIRST APPROACH: Execute SQL locally first if we have structured data
       if (structuredFiles.length > 0) {
         // CRITICAL: Only query files that have data loaded in DuckDB
-        // Old files uploaded before the fix won't have data in DuckDB
-        const filesWithData = structuredFiles.filter(f => f.data && Array.isArray(f.data) && f.data.length > 0);
+        // Progressive loading stores data in DuckDB tables (check for tableName)
+        // Legacy files may have data in memory (check for f.data)
+        const filesWithData = structuredFiles.filter(f =>
+          (f.tableName && f.tableName.length > 0) || // Progressive loading (DuckDB)
+          (f.data && Array.isArray(f.data) && f.data.length > 0) // Legacy in-memory
+        );
 
         console.error('[Query-First] ⚠️ ATTEMPTING LOCAL DUCKDB QUERY', {
           structuredFilesCount: structuredFiles.length,
@@ -436,6 +440,7 @@ function ChatSidebarPerformantBase({
             filename: f.filename,
             type: f.type,
             tableName: f.tableName,
+            hasTableName: !!f.tableName,
             rowCount: f.rowCount,
             hasSchema: !!f.schema,
             hasData: !!f.data,
@@ -447,8 +452,8 @@ function ChatSidebarPerformantBase({
         // Only proceed with query-first if we have files with data loaded
         if (filesWithData.length === 0) {
           console.error('[Query-First] ⚠️ NO FILES WITH DATA LOADED - SKIPPING QUERY-FIRST', {
-            reason: 'Files uploaded before DuckDB loading was implemented',
-            suggestion: 'Re-upload files or use traditional approach'
+            reason: 'Files missing both tableName (DuckDB) and data (memory)',
+            suggestion: 'File may still be uploading or failed to load'
           });
           // Skip to traditional approach
         } else {
