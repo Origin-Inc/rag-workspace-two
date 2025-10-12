@@ -136,8 +136,9 @@ export function useDuckDBWorker(): DuckDBWorkerHook {
 
       worker.onerror = (error) => {
         console.error('DuckDB Worker error:', error);
-        setError('Worker error occurred');
+        setError(`Worker error: ${error.message || 'Unknown error'}`);
         setIsInitializing(false);
+        setIsReady(false);
       };
 
       // Initialize worker

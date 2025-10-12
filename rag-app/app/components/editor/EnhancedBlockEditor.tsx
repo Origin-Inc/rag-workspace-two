@@ -344,7 +344,11 @@ const BlockComponent = memo(({
           onTransform(block.id, 'spreadsheet');
           onUpdate(block.id, {
             title: 'Spreadsheet',
-            columns: [],
+            columns: [
+              { id: 'col_1', name: 'Column 1', type: 'text', width: 150 },
+              { id: 'col_2', name: 'Column 2', type: 'text', width: 150 },
+              { id: 'col_3', name: 'Column 3', type: 'text', width: 150 },
+            ],
             rows: []
           });
           break;
@@ -779,7 +783,11 @@ const BlockComponent = memo(({
                 onTransform(block.id, 'spreadsheet');
                 onUpdate(block.id, {
                   title: 'Spreadsheet',
-                  columns: [],
+                  columns: [
+                    { id: 'col_1', name: 'Column 1', type: 'text', width: 150 },
+                    { id: 'col_2', name: 'Column 2', type: 'text', width: 150 },
+                    { id: 'col_3', name: 'Column 3', type: 'text', width: 150 },
+                  ],
                   rows: []
                 });
                 setShowMenu(false);
@@ -981,10 +989,14 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
               context: {}
             };
           } else if (newType === 'spreadsheet') {
-            // Initialize spreadsheet with empty structure
+            // Initialize spreadsheet with default columns
             newContent = {
               title: 'Spreadsheet',
-              columns: [],
+              columns: [
+                { id: 'col_1', name: 'Column 1', type: 'text', width: 150 },
+                { id: 'col_2', name: 'Column 2', type: 'text', width: 150 },
+                { id: 'col_3', name: 'Column 3', type: 'text', width: 150 },
+              ],
               rows: []
             };
           }
