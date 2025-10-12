@@ -225,12 +225,6 @@ export const VirtualTable = memo(function VirtualTable({
   // Get virtual items
   const virtualItems = rowVirtualizer.getVirtualItems();
 
-  // Calculate padding for virtual items
-  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
-  const paddingBottom = virtualItems.length > 0
-    ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
-    : 0;
-
   // Handle row click
   const handleRowClick = useCallback((row: VirtualTableRow, index: number) => {
     if (onRowClick) {
@@ -346,9 +340,6 @@ export const VirtualTable = memo(function VirtualTable({
             minWidth: totalWidth
           }}
         >
-          {/* Top padding */}
-          {paddingTop > 0 && <div style={{ height: paddingTop }} />}
-
           {/* Virtual rows */}
           {virtualItems.map((virtualRow) => {
             const row = data[virtualRow.index];
@@ -372,7 +363,7 @@ export const VirtualTable = memo(function VirtualTable({
                   left: 0,
                   width: '100%',
                   height: `${virtualRow.size}px`,
-                  transform: `translateY(${virtualRow.start - paddingTop}px)`,
+                  transform: `translateY(${virtualRow.start}px)`,
                   minWidth: totalWidth
                 }}
                 onClick={() => handleRowClick(row, rowIndex)}
@@ -410,9 +401,6 @@ export const VirtualTable = memo(function VirtualTable({
               </div>
             );
           })}
-
-          {/* Bottom padding */}
-          {paddingBottom > 0 && <div style={{ height: paddingBottom }} />}
         </div>
       </div>
 
