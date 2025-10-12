@@ -42,8 +42,9 @@ async function downloadFileFromSupabaseStorage(
     throw new Error('Missing Supabase credentials');
   }
 
-  // Construct authenticated download URL using service role key
-  const downloadUrl = `${supabaseUrl}/storage/v1/object/${bucket}/${path}`;
+  // Construct authenticated download URL for private bucket
+  // Private buckets require /authenticated/ in the path
+  const downloadUrl = `${supabaseUrl}/storage/v1/object/authenticated/${bucket}/${path}`;
 
   console.log(`[Download] Downloading from:`, downloadUrl);
 
