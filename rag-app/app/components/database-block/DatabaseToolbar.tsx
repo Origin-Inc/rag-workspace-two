@@ -4,12 +4,10 @@ import type {
   DatabaseColumn,
   Filter,
   Sort,
-  DatabaseColumnType,
-  ViewType
+  DatabaseColumnType
 } from '~/types/database-block';
 import { FilterBuilder } from './FilterBuilder';
 import { SortBuilder } from './SortBuilder';
-import { ViewSwitcher } from './ViewSwitcher';
 import { DataImportModal } from '../data-import/DataImportModal';
 import { cn } from '~/utils/cn';
 
@@ -19,13 +17,11 @@ interface DatabaseToolbarProps {
   filters: Filter[];
   sorts: Sort[];
   selectedRows: Set<string>;
-  currentView: ViewType;
   onAddRow: () => void;
   onAddColumn: (column: Partial<DatabaseColumn>) => void;
   onApplyFilters: (filters: Filter[]) => void;
   onApplySorts: (sorts: Sort[]) => void;
   onDeleteSelected: () => void;
-  onViewChange: (view: ViewType) => void;
   onAnalyzeWithAI?: () => void;
 }
 
@@ -35,13 +31,11 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
   filters,
   sorts,
   selectedRows,
-  currentView,
   onAddRow,
   onAddColumn,
   onApplyFilters,
   onApplySorts,
   onDeleteSelected,
-  onViewChange,
   onAnalyzeWithAI
 }: DatabaseToolbarProps) {
   const [showFilters, setShowFilters] = useState(false);
@@ -94,15 +88,9 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
         <div className="flex items-center space-x-3">
           {/* Database name */}
           <h2 className="text-lg font-semibold">
-            {databaseBlock?.name || 'Database'}
+            {databaseBlock?.name || 'Spreadsheet'}
           </h2>
-          
-          {/* View Switcher */}
-          <ViewSwitcher
-            currentView={currentView}
-            onViewChange={onViewChange}
-          />
-          
+
           <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
           
           {/* Row count */}
@@ -216,7 +204,6 @@ export const DatabaseToolbar = memo(function DatabaseToolbar({
           <FilterBuilder
             columns={columns}
             filters={filters}
-            currentView={currentView}
             onApply={(newFilters) => {
               onApplyFilters(newFilters);
               setShowFilters(false);
