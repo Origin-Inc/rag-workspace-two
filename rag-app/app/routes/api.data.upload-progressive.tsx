@@ -2,56 +2,59 @@
  * Progressive File Upload API Endpoint
  * Task #80.3: Create progressive loading API endpoint
  *
+ * ALL files are uploaded directly to Supabase Storage first (bypasses Vercel 4.5MB limit)
+ * This endpoint receives only metadata (storageUrl, filename, size) and downloads the file
+ * from Supabase (server-to-server, no body size limit)
+ *
+ * File size determines processing strategy:
+ * - < 2MB: Parse entire file at once (mode=metadata returns complete data)
+ * - > 2MB: Parse in chunks (mode=stream returns SSE with chunks)
+ *
  * Streams file data in chunks to prevent memory issues with large files.
  * Uses Server-Sent Events (SSE) for real-time progress updates.
  */
 
-import { unstable_parseMultipartFormData, type ActionFunctionArgs } from '@remix-run/node';
+import { type ActionFunctionArgs } from '@remix-run/node';
 import { requireUser } from '~/services/auth/auth.server';
 import { FileUploadService } from '~/services/shared/file-upload.server';
+import { FileProcessingService } from '~/services/file-processing.server';
 import { prisma } from '~/utils/db.server';
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (for validation)
 
-// Upload handler to process file buffer
-async function uploadHandler({
-  data,
-  filename,
-  contentType
-}: {
-  data: AsyncIterable<Uint8Array>;
-  filename?: string;
-  contentType: string;
-}): Promise<File | null> {
-  if (!filename) return null;
+/**
+ * Download file from Supabase Storage URL
+ * Used for direct upload flow where file is already in Supabase
+ */
+async function downloadFileFromSupabase(
+  url: string,
+  filename: string,
+  mimeType: string
+): Promise<File> {
+  console.log(`[Download] Fetching file from Supabase:`, url);
 
-  // Collect the file data
-  const chunks: Uint8Array[] = [];
-  let totalSize = 0;
+  const response = await fetch(url);
 
-  for await (const chunk of data) {
-    totalSize += chunk.length;
-    if (totalSize > MAX_FILE_SIZE) {
-      throw new Error(`File size exceeds 50MB limit`);
-    }
-    chunks.push(chunk);
+  if (!response.ok) {
+    throw new Error(`Failed to download file from Supabase: ${response.statusText}`);
   }
 
-  // Combine chunks into a single buffer
-  const buffer = new Uint8Array(totalSize);
-  let offset = 0;
-  for (const chunk of chunks) {
-    buffer.set(chunk, offset);
-    offset += chunk.length;
-  }
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = new Uint8Array(arrayBuffer);
 
-  // Create a File object
-  return new File([buffer], filename, { type: contentType });
+  console.log(`[Download] Downloaded ${buffer.length} bytes`);
+
+  // Create a File object from the buffer
+  return new File([buffer], filename, { type: mimeType });
 }
 
 /**
  * Progressive upload endpoint
- * Returns metadata immediately, then streams data chunks
+ * Receives metadata (storageUrl, filename, size) and downloads file from Supabase
+ *
+ * Modes:
+ * - metadata: Download file, process, return metadata
+ * - stream: Download file, process in chunks, stream via SSE
  */
 export async function action({ request, response }: ActionFunctionArgs & { response: Response }) {
   console.log(`[Progressive Upload] Request started`);
@@ -99,17 +102,15 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
       );
     }
 
-    // Parse multipart form data
-    const formData = await unstable_parseMultipartFormData(request, uploadHandler);
+    // Parse JSON body to get Supabase storage URL
+    // ALL uploads now go through Supabase first
+    console.log('[Progressive Upload] Parsing JSON body for storageUrl');
+    const body = await request.json();
+    const { storageUrl, filename, fileSize, mimeType } = body;
 
-    const files = formData.getAll('files') as File[];
-    const singleFile = formData.get('file') as File | null;
-
-    const filesToProcess = files.length > 0 ? files : singleFile ? [singleFile] : [];
-
-    if (filesToProcess.length === 0) {
+    if (!storageUrl || !filename) {
       return new Response(
-        JSON.stringify({ error: 'No files uploaded' }),
+        JSON.stringify({ error: 'Missing storageUrl or filename in request body' }),
         {
           status: 400,
           headers: { 'Content-Type': 'application/json' }
@@ -117,8 +118,20 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
       );
     }
 
-    // For now, handle single file (can extend to multiple later)
-    const file = filesToProcess[0];
+    console.log('[Progressive Upload] Downloading file from Supabase:', {
+      url: storageUrl,
+      filename,
+      size: fileSize
+    });
+
+    // Download file from Supabase (server-to-server, no body size limit)
+    const file = await downloadFileFromSupabase(storageUrl, filename, mimeType || 'application/octet-stream');
+
+    console.log('[Progressive Upload] File downloaded successfully:', {
+      filename: file.name,
+      size: file.size,
+      type: file.type
+    });
 
     console.log(`[Progressive Upload] Processing: ${file.name}`);
     console.log(`[Progressive Upload] File size: ${file.size} bytes (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
