@@ -594,7 +594,7 @@
         "description": "Replace all inline file inputs with shared FileUploadButton component",
         "details": "Migration checklist:\n1. Update ChatInput.tsx: Remove inline input (lines 143-160), use FileUploadButton\n2. Update ChatSidebarPerformant.tsx: Remove inline input (lines 637-649), use FileUploadButton\n3. Update FileUploadZone.tsx: Wrap FileUploadButton with drag-drop functionality\n\nVerify:\n- All components use FileUploadService for validation/upload\n- No duplicate validation logic remains\n- Consistent error handling across all upload points\n- PDF removal fix only needs one change going forward\n\nResult: 3 implementations → 1 shared component",
         "testStrategy": "",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           66
         ],
@@ -607,7 +607,7 @@
         "description": "Remove all duplicate chat sidebar implementations and keep only ChatSidebarPerformant",
         "details": "Files to delete:\n1. app/components/chat/ChatSidebar.tsx (original implementation)\n2. app/components/chat/ChatSidebarOptimized.tsx (optimization attempt)\n3. app/components/chat/ChatSidebarStable.tsx (stability attempt)\n4. app/components/chat/ChatSidebarSimple.tsx (simplification attempt)\n\nKeep: ChatSidebarPerformant.tsx (already uses Jotai, most recent)\n\nBefore deletion:\n- Verify no routes import these files\n- Check for unique features that need migration\n- Ensure all functionality exists in ChatSidebarPerformant\n\nAfter deletion:\n- Update any remaining imports\n- Test chat functionality end-to-end\n- Verify performance remains optimal",
         "testStrategy": "",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           75
         ],

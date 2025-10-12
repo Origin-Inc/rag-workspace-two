@@ -56,7 +56,7 @@ export function useParserWorker(): ParserWorkerHook {
 
     try {
       // Create worker
-      const worker = new Worker(new URL('~/workers/parser.worker.ts', import.meta.url), {
+      const worker = new Worker(new URL('../../workers/parser.worker.ts', import.meta.url), {
         type: 'module',
       });
 

@@ -54,7 +54,7 @@ export function useHyperFormulaWorker(config?: any): HyperFormulaWorkerHook {
 
     try {
       // Create worker
-      const worker = new Worker(new URL('~/workers/hyperformula.worker.ts', import.meta.url), {
+      const worker = new Worker(new URL('../../workers/hyperformula.worker.ts', import.meta.url), {
         type: 'module',
       });
 

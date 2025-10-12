@@ -119,6 +119,7 @@
     "react-dropzone": "^14.3.8",
     "react-is": "^19.2.0",
     "react-markdown": "^10.1.0",
+    "react-responsive-carousel": "^3.2.23",
     "react-virtualized-auto-sizer": "^1.0.26",
     "react-window": "^1.8.11",
     "react-window-infinite-loader": "^1.0.10",

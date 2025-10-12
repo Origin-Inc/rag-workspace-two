@@ -54,7 +54,7 @@ export function useDuckDBWorker(): DuckDBWorkerHook {
 
     try {
       // Create worker
-      const worker = new Worker(new URL('~/workers/duckdb.worker.ts', import.meta.url), {
+      const worker = new Worker(new URL('../../workers/duckdb.worker.ts', import.meta.url), {
         type: 'module',
       });
 
