@@ -42,14 +42,16 @@ async function downloadFileFromSupabaseStorage(
     throw new Error('Missing Supabase credentials');
   }
 
-  // Construct authenticated download URL for private bucket
-  // Private buckets require /authenticated/ in the path
-  const downloadUrl = `${supabaseUrl}/storage/v1/object/authenticated/${bucket}/${path}`;
+  // Construct storage download URL for private bucket
+  // Use standard endpoint with apikey header for new Supabase secret key format (sb_secret_...)
+  // Service role key bypasses RLS, so we don't need /authenticated/ path
+  const downloadUrl = `${supabaseUrl}/storage/v1/object/${bucket}/${path}`;
 
   console.log(`[Download] Downloading from:`, downloadUrl);
 
   const response = await fetch(downloadUrl, {
     headers: {
+      'apikey': supabaseServiceKey,
       'Authorization': `Bearer ${supabaseServiceKey}`
     }
   });
