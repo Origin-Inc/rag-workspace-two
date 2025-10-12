@@ -53,16 +53,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
       return json({ error: error.message }, { status: 500 });
     }
 
-    // Get public URL for the file (used after upload)
-    const { data: publicUrlData } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(path);
-
     console.log('[SignedUploadURL] Signed URL created successfully');
 
+    // Return path and bucket for server-side download (not public URL, since bucket is private)
     return json({
       signedUrl: data.signedUrl,
-      publicUrl: publicUrlData.publicUrl,
       path: path,
       bucket: bucket,
       expiresIn: 3600 // 1 hour

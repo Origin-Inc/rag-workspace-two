@@ -106,7 +106,7 @@ export function useProgressiveFileUpload(options: ProgressiveUploadOptions) {
           throw new Error(error.error || 'Failed to get signed upload URL');
         }
 
-        const { signedUrl, publicUrl } = await signedUrlResponse.json();
+        const { signedUrl, path, bucket } = await signedUrlResponse.json();
 
         console.log('[Direct Upload] Got signed URL, uploading to Supabase');
 
@@ -124,7 +124,7 @@ export function useProgressiveFileUpload(options: ProgressiveUploadOptions) {
           throw new Error(`Upload failed: ${uploadResponse.statusText}`);
         }
 
-        console.log('[Direct Upload] Upload complete:', publicUrl);
+        console.log('[Direct Upload] Upload complete to:', bucket, path);
 
         // Step 3: Send metadata to Vercel for processing
         setState(prev => ({ ...prev, status: 'processing', progress: 40 }));
@@ -137,8 +137,8 @@ export function useProgressiveFileUpload(options: ProgressiveUploadOptions) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              storageUrl: publicUrl,
-              storagePath: storagePath,
+              storagePath: path,
+              storageBucket: bucket,
               filename: file.name,
               fileSize: file.size,
               mimeType: file.type
@@ -185,8 +185,8 @@ export function useProgressiveFileUpload(options: ProgressiveUploadOptions) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              storageUrl: publicUrl,
-              storagePath: storagePath,
+              storagePath: path,
+              storageBucket: bucket,
               filename: file.name,
               fileSize: file.size,
               mimeType: file.type

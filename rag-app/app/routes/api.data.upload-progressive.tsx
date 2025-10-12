@@ -23,19 +23,39 @@ import { prisma } from '~/utils/db.server';
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (for validation)
 
 /**
- * Download file from Supabase Storage URL
+ * Download file from Supabase Storage using service role key
  * Used for direct upload flow where file is already in Supabase
+ * Bypasses RLS by using service role authentication
  */
-async function downloadFileFromSupabase(
-  url: string,
+async function downloadFileFromSupabaseStorage(
+  bucket: string,
+  path: string,
   filename: string,
   mimeType: string
 ): Promise<File> {
-  console.log(`[Download] Fetching file from Supabase:`, url);
+  console.log(`[Download] Fetching file from Supabase Storage:`, { bucket, path });
 
-  const response = await fetch(url);
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Missing Supabase credentials');
+  }
+
+  // Construct authenticated download URL using service role key
+  const downloadUrl = `${supabaseUrl}/storage/v1/object/${bucket}/${path}`;
+
+  console.log(`[Download] Downloading from:`, downloadUrl);
+
+  const response = await fetch(downloadUrl, {
+    headers: {
+      'Authorization': `Bearer ${supabaseServiceKey}`
+    }
+  });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[Download] Failed to download:`, response.status, errorText);
     throw new Error(`Failed to download file from Supabase: ${response.statusText}`);
   }
 
@@ -50,7 +70,9 @@ async function downloadFileFromSupabase(
 
 /**
  * Progressive upload endpoint
- * Receives metadata (storageUrl, filename, size) and downloads file from Supabase
+ * Receives metadata (storagePath, storageBucket, filename, size) and downloads file from Supabase
+ *
+ * Uses service role key to download from private bucket (bypasses RLS)
  *
  * Modes:
  * - metadata: Download file, process, return metadata
@@ -102,15 +124,15 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
       );
     }
 
-    // Parse JSON body to get Supabase storage URL
+    // Parse JSON body to get Supabase storage path
     // ALL uploads now go through Supabase first
-    console.log('[Progressive Upload] Parsing JSON body for storageUrl');
+    console.log('[Progressive Upload] Parsing JSON body for storage path');
     const body = await request.json();
-    const { storageUrl, filename, fileSize, mimeType } = body;
+    const { storagePath, storageBucket, filename, fileSize, mimeType } = body;
 
-    if (!storageUrl || !filename) {
+    if (!storagePath || !storageBucket || !filename) {
       return new Response(
-        JSON.stringify({ error: 'Missing storageUrl or filename in request body' }),
+        JSON.stringify({ error: 'Missing storagePath, storageBucket, or filename in request body' }),
         {
           status: 400,
           headers: { 'Content-Type': 'application/json' }
@@ -119,13 +141,14 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
     }
 
     console.log('[Progressive Upload] Downloading file from Supabase:', {
-      url: storageUrl,
+      bucket: storageBucket,
+      path: storagePath,
       filename,
       size: fileSize
     });
 
-    // Download file from Supabase (server-to-server, no body size limit)
-    const file = await downloadFileFromSupabase(storageUrl, filename, mimeType || 'application/octet-stream');
+    // Download file from Supabase using service role (server-to-server, bypasses RLS, no body size limit)
+    const file = await downloadFileFromSupabaseStorage(storageBucket, storagePath, filename, mimeType || 'application/octet-stream');
 
     console.log('[Progressive Upload] File downloaded successfully:', {
       filename: file.name,
