@@ -10,6 +10,8 @@ import { ResizeHandle } from '~/components/ui/ResizeHandle';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { FileContextDisplay } from './FileContextDisplay';
+import { ProgressiveUploadIndicator } from '~/components/shared/ProgressiveUploadIndicator';
+import { useProgressiveFileUpload } from '~/hooks/useProgressiveFileUpload';
 import { cn } from '~/utils/cn';
 import { QueryAnalyzer } from '~/services/query-analyzer.client';
 import { DuckDBQueryService } from '~/services/duckdb/duckdb-query.client';
@@ -267,6 +269,49 @@ function ChatSidebarPerformantBase({
   } | null>(null);
   const [contextLoading, setContextLoading] = useState(true);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
+
+  // Progressive file upload hook
+  const progressiveUpload = useProgressiveFileUpload({
+    pageId,
+    workspaceId: workspaceId || '',
+    onComplete: (result) => {
+      console.log('[Progressive Upload] Complete:', result);
+      // File should already be in database, just add to local state
+      // We'll fetch the full file data from the API
+      fetch(`/api/data/files/${pageId}`)
+        .then(res => res.json())
+        .then(data => {
+          const uploadedFile = data.files?.find((f: any) => f.id === result.dataFileId);
+          if (uploadedFile) {
+            addDataFile({
+              databaseId: uploadedFile.id,
+              filename: uploadedFile.filename,
+              tableName: uploadedFile.tableName,
+              schema: uploadedFile.schema || [],
+              rowCount: uploadedFile.rowCount || 0,
+              type: getFileTypeFromFilename(uploadedFile.filename),
+              data: uploadedFile.data,
+              parquetUrl: uploadedFile.parquetUrl,
+            });
+            setActiveFileId(uploadedFile.id);
+            addMessage({
+              role: 'system',
+              content: `File "${uploadedFile.filename}" uploaded successfully!`,
+            });
+          }
+        })
+        .catch(error => {
+          console.error('[Progressive Upload] Failed to fetch file data:', error);
+        });
+    },
+    onError: (error) => {
+      console.error('[Progressive Upload] Error:', error);
+      addMessage({
+        role: 'system',
+        content: `Upload failed: ${error.message}`,
+      });
+    }
+  });
   
   // Refs for stable references
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -381,8 +426,12 @@ function ChatSidebarPerformantBase({
       // QUERY-FIRST APPROACH: Execute SQL locally first if we have structured data
       if (structuredFiles.length > 0) {
         // CRITICAL: Only query files that have data loaded in DuckDB
-        // Old files uploaded before the fix won't have data in DuckDB
-        const filesWithData = structuredFiles.filter(f => f.data && Array.isArray(f.data) && f.data.length > 0);
+        // Progressive loading stores data in DuckDB tables (check for tableName)
+        // Legacy files may have data in memory (check for f.data)
+        const filesWithData = structuredFiles.filter(f =>
+          (f.tableName && f.tableName.length > 0) || // Progressive loading (DuckDB)
+          (f.data && Array.isArray(f.data) && f.data.length > 0) // Legacy in-memory
+        );
 
         console.error('[Query-First] ⚠️ ATTEMPTING LOCAL DUCKDB QUERY', {
           structuredFilesCount: structuredFiles.length,
@@ -391,6 +440,7 @@ function ChatSidebarPerformantBase({
             filename: f.filename,
             type: f.type,
             tableName: f.tableName,
+            hasTableName: !!f.tableName,
             rowCount: f.rowCount,
             hasSchema: !!f.schema,
             hasData: !!f.data,
@@ -402,8 +452,8 @@ function ChatSidebarPerformantBase({
         // Only proceed with query-first if we have files with data loaded
         if (filesWithData.length === 0) {
           console.error('[Query-First] ⚠️ NO FILES WITH DATA LOADED - SKIPPING QUERY-FIRST', {
-            reason: 'Files uploaded before DuckDB loading was implemented',
-            suggestion: 'Re-upload files or use traditional approach'
+            reason: 'Files missing both tableName (DuckDB) and data (memory)',
+            suggestion: 'File may still be uploading or failed to load'
           });
           // Skip to traditional approach
         } else {
@@ -680,114 +730,19 @@ function ChatSidebarPerformantBase({
   }, [pageId, workspaceId, addMessage, setLoading]);
   
   /**
-   * Handle file upload - memoized
+   * Handle file upload - now uses progressive upload hook
    */
   const handleFileUpload = useCallback(async (file: File) => {
     console.log('[ChatSidebarPerformant] File upload:', file.name);
-    
-    setUploadProgress({
-      filename: file.name,
-      progress: 0,
-      status: 'uploading',
-    });
-    
+
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      // CRITICAL FIX: Add pageId and workspaceId to FormData
-      const params = new URLSearchParams({
-        pageId: pageId,
-        ...(workspaceId && { workspaceId }),
-      });
-      
-      const response = await fetch(`/api/data/upload/v2?${params}`, {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) throw new Error('Upload failed');
-
-      const result = await response.json();
-
-      if (result.success && result.files?.[0]) {
-        const uploadedFile = result.files[0];
-
-        // Check if the file upload had an error
-        if (uploadedFile.error) {
-          setUploadProgress({
-            filename: file.name,
-            progress: 0,
-            status: 'error',
-            error: uploadedFile.error,
-          });
-
-          addMessage({
-            role: 'system',
-            content: `Failed to upload "${file.name}": ${uploadedFile.error}`,
-          });
-
-          setTimeout(() => setUploadProgress(null), 3000);
-          return;
-        }
-
-        // Load data into client-side DuckDB for query-first approach
-        if (uploadedFile.data && Array.isArray(uploadedFile.data) && uploadedFile.data.length > 0) {
-          try {
-            const duckdb = getDuckDB();
-            await duckdb.createTableFromData(
-              uploadedFile.tableName,
-              uploadedFile.data,
-              uploadedFile.schema,
-              pageId
-            );
-            console.log(`[Upload] ✅ Loaded ${uploadedFile.data.length} rows into DuckDB table ${uploadedFile.tableName}`);
-          } catch (duckdbError) {
-            console.error('[Upload] ⚠️ Failed to load data into DuckDB:', duckdbError);
-            // Continue anyway - server-side fallback will work
-          }
-        }
-
-        // Add file to state (including parquetUrl for server-side data fetching)
-        addDataFile({
-          databaseId: uploadedFile.id,
-          filename: uploadedFile.filename,
-          tableName: uploadedFile.tableName,
-          schema: uploadedFile.schema || [],
-          rowCount: uploadedFile.rowCount || 0,
-          sizeBytes: file.size,
-          parquetUrl: uploadedFile.parquetUrl, // CRITICAL: Enables server to fetch actual data
-          type: getFileTypeFromFilename(uploadedFile.filename), // Derive type from filename
-          data: uploadedFile.data, // Store data for client-side queries
-        });
-
-        // Update active file in context
-        setActiveFileId(uploadedFile.id);
-
-        setUploadProgress({
-          filename: file.name,
-          progress: 100,
-          status: 'complete',
-        });
-
-        addMessage({
-          role: 'system',
-          content: `File "${file.name}" uploaded successfully!`,
-        });
-      }
-
-      setTimeout(() => setUploadProgress(null), 2000);
+      // Use smart upload (auto-detects file size and uses progressive for large files)
+      await progressiveUpload.uploadSmart(file);
     } catch (error) {
-      console.error('Upload failed:', error);
-      setUploadProgress({
-        filename: file.name,
-        progress: 0,
-        status: 'error',
-        error: 'Upload failed',
-      });
-      setTimeout(() => setUploadProgress(null), 3000);
+      console.error('[ChatSidebarPerformant] Upload failed:', error);
+      // Error already handled by hook's onError callback
     }
-  }, [pageId, workspaceId, addDataFile, addMessage]);
+  }, [progressiveUpload.uploadSmart]);
   
   /**
    * Handle file removal - memoized
@@ -1055,6 +1010,24 @@ function ChatSidebarPerformantBase({
             progress={uploadProgress.progress}
             status={uploadProgress.status}
             error={uploadProgress.error}
+          />
+        )}
+
+        {/* Progressive Upload Indicator */}
+        {progressiveUpload.status !== 'idle' && (
+          <ProgressiveUploadIndicator
+            state={{
+              status: progressiveUpload.status,
+              progress: progressiveUpload.progress,
+              loadedRows: progressiveUpload.loadedRows,
+              totalRows: progressiveUpload.totalRows,
+              loadedChunks: progressiveUpload.loadedChunks,
+              totalChunks: progressiveUpload.totalChunks,
+              error: progressiveUpload.error,
+              dataFileId: progressiveUpload.dataFileId,
+              tableName: progressiveUpload.tableName
+            }}
+            onCancel={() => progressiveUpload.cancel()}
           />
         )}
 

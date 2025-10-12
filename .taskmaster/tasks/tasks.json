@@ -654,10 +654,66 @@
         "testStrategy": "1. Test chart type selection accuracy\n2. Validate chart rendering with different data types\n3. Test interactive features across browsers\n4. Verify responsive behavior in chat and blocks\n5. Test export functionality for various chart types\n6. Performance test with large datasets\n7. Test error handling for incompatible data",
         "priority": "medium",
         "dependencies": [
-          54
+          54,
+          "79",
+          "80"
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install and Configure Plotly.js for React",
+            "description": "Install plotly.js and react-plotly.js packages and configure them for the React application with proper TypeScript definitions",
+            "dependencies": [],
+            "details": "Install plotly.js and react-plotly.js packages. Add TypeScript definitions. Create initial configuration for responsive charts. Verify compatibility with existing Recharts library used in ChartBlock.tsx. Update package.json dependencies and ensure no conflicts with existing chart dependencies like recharts.",
+            "status": "pending",
+            "testStrategy": "Test package installation and import functionality. Verify TypeScript compilation. Test basic Plotly component rendering."
+          },
+          {
+            "id": 2,
+            "title": "Develop AI-Powered Chart Type Selection Service",
+            "description": "Create an AI service that analyzes data structure and user intent to recommend optimal chart types and configurations",
+            "dependencies": [
+              "55.1"
+            ],
+            "details": "Extend existing chart-generator.server.ts to include Plotly chart type selection. Implement AI prompt for analyzing data columns, sample data, and user questions to recommend chart types (bar, line, scatter, pie, heatmap, 3D surface). Integrate with OpenAI API to provide intelligent chart recommendations based on data characteristics and user intent.",
+            "status": "pending",
+            "testStrategy": "Test chart type selection accuracy with various data types. Validate AI prompt responses. Test fallback mechanisms when AI is unavailable."
+          },
+          {
+            "id": 3,
+            "title": "Build Plotly Chart Generation Service",
+            "description": "Create a service that generates Plotly chart configurations for different chart types with proper data transformation",
+            "dependencies": [
+              "55.2"
+            ],
+            "details": "Extend ChartGenerator class to support Plotly chart types. Implement generatePlotlyConfig method for bar, line, scatter, pie, heatmap, and 3D charts. Create data transformation utilities to convert query results into Plotly data format. Handle responsive sizing, color schemes, and layout options. Support both Chart.js and Plotly backends in the same service.",
+            "status": "pending",
+            "testStrategy": "Test chart generation with different data structures. Validate Plotly configuration objects. Test responsive behavior and color scheme applications."
+          },
+          {
+            "id": 4,
+            "title": "Create Interactive Plotly Chart Component",
+            "description": "Develop a React component that renders Plotly charts with interactive features like zoom, pan, hover tooltips, and export functionality",
+            "dependencies": [
+              "55.3"
+            ],
+            "details": "Create PlotlyChartBlock.tsx component using react-plotly.js. Implement interactive features: zoom, pan, hover tooltips, crossfilter interactions. Add chart export functionality (PNG, SVG, PDF). Handle responsive sizing for chat messages and page blocks. Integrate with existing ChartBlock.tsx patterns and maintain consistent styling with dark mode support.",
+            "status": "pending",
+            "testStrategy": "Test interactive features across browsers. Verify export functionality for various formats. Test responsive behavior in different container sizes. Validate dark mode styling."
+          },
+          {
+            "id": 5,
+            "title": "Integrate Charts into Chat and Page Systems",
+            "description": "Update chat message display and page block systems to support Plotly charts with proper conversion between contexts",
+            "dependencies": [
+              "55.4"
+            ],
+            "details": "Update ChatMessage.tsx to display Plotly charts in chat responses. Modify BlockRenderer.tsx to handle plotly chart blocks. Update the 'Add to Page' functionality to convert Plotly charts from chat to page blocks. Ensure chart interactivity is preserved during conversion. Update database schema if needed to store Plotly configurations alongside existing chart data.",
+            "status": "pending",
+            "testStrategy": "Test chart display in chat interface. Verify 'Add to Page' functionality maintains chart configuration and interactivity. Test chart persistence and loading from database."
+          }
+        ]
       },
       {
         "id": 56,
@@ -882,7 +938,7 @@
         "description": "Add TanStack Virtual for efficient rendering of million-row tables",
         "details": "Replace current table rendering with virtual scrolling to handle large datasets without loading all rows into DOM. Implement progressive loading as user scrolls. Add infinite scrolling support.",
         "testStrategy": "",
-        "status": "pending",
+        "status": "cancelled",
         "dependencies": [
           61
         ],
@@ -893,13 +949,13 @@
         "id": 63,
         "title": "Phase 6: Build Native Spreadsheet Editor Integration",
         "description": "Enable CSV/XLSX files to be converted to editable native database tables in the editor",
-        "details": "Allow users to upload CSV/XLSX files and convert them to native database tables. Implement real-time editing capabilities with optimistic updates. Create spreadsheet-like interface for data manipulation.",
-        "testStrategy": "",
         "status": "pending",
         "dependencies": [
-          62
+          81
         ],
         "priority": "medium",
+        "details": "Allow users to upload CSV/XLSX files and convert them to native database tables. Implement real-time editing capabilities with optimistic updates. Create spreadsheet-like interface for data manipulation. Build upon the virtual scrolling implementation from Task 81 to handle large datasets efficiently.",
+        "testStrategy": "Test file upload and parsing for various CSV/XLSX formats. Verify data type detection and conversion accuracy. Test virtual scrolling performance with large datasets (10k+ rows). Validate real-time editing with optimistic updates and conflict resolution.",
         "subtasks": []
       },
       {
@@ -1164,14 +1220,69 @@
         "id": 80,
         "title": "Phase 5: Implement Progressive Data Loading",
         "description": "Add chunked loading for large files to prevent memory issues and improve initial load times",
-        "details": "Problem: Loading 100K+ row files causes memory spikes and slow initial renders\n\nSolution: Progressive loading in chunks\n\nFile: app/services/shared/progressive-loader.server.ts\n\n```typescript\nexport class ProgressiveDataLoader {\n  private CHUNK_SIZE = 10000; // 10K rows per chunk\n  \n  async *loadFileInChunks(fileId: string): AsyncGenerator<any[]> {\n    const totalRows = await this.getRowCount(fileId);\n    const chunks = Math.ceil(totalRows / this.CHUNK_SIZE);\n    \n    for (let i = 0; i < chunks; i++) {\n      const offset = i * this.CHUNK_SIZE;\n      const query = `SELECT * FROM '${fileId}' LIMIT ${this.CHUNK_SIZE} OFFSET ${offset}`;\n      const chunk = await duckdb.query(query);\n      yield chunk;\n    }\n  }\n  \n  async getRowCount(fileId: string): Promise<number> {\n    const result = await duckdb.query(`SELECT COUNT(*) as count FROM '${fileId}'`);\n    return result[0].count;\n  }\n}\n```\n\nIntegration:\n- FileUploadService uses progressive loading\n- Virtual scrolling receives chunks incrementally\n- Loading indicators show progress\n\nPerformance target:\n- Initial render <500ms for any file size\n- Memory usage <100MB for 1M row files",
-        "testStrategy": "",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           65
         ],
-        "priority": "medium",
-        "subtasks": []
+        "priority": "high",
+        "details": "Problem: Loading 100K+ row files causes memory spikes and slow initial renders\n\nCRITICAL: This is foundational infrastructure required by Task 81 (Virtual Scrolling) and essential for handling large datasets without performance degradation.\n\nSolution: Progressive loading in chunks\n\nFile: app/services/shared/progressive-loader.server.ts\n\n```typescript\nexport class ProgressiveDataLoader {\n  private CHUNK_SIZE = 10000; // 10K rows per chunk\n  \n  async *loadFileInChunks(fileId: string): AsyncGenerator<any[]> {\n    const totalRows = await this.getRowCount(fileId);\n    const chunks = Math.ceil(totalRows / this.CHUNK_SIZE);\n    \n    for (let i = 0; i < chunks; i++) {\n      const offset = i * this.CHUNK_SIZE;\n      const query = `SELECT * FROM '${fileId}' LIMIT ${this.CHUNK_SIZE} OFFSET ${offset}`;\n      const chunk = await duckdb.query(query);\n      yield chunk;\n    }\n  }\n  \n  async getRowCount(fileId: string): Promise<number> {\n    const result = await duckdb.query(`SELECT COUNT(*) as count FROM '${fileId}'`);\n    return result[0].count;\n  }\n}\n```\n\nIntegration:\n- FileUploadService uses progressive loading\n- Virtual scrolling receives chunks incrementally\n- Loading indicators show progress\n- Must be completed before Task 81 can begin implementation\n\nPerformance target:\n- Initial render <500ms for any file size\n- Memory usage <100MB for 1M row files",
+        "testStrategy": "1. Test chunk loading with files of varying sizes (10K, 100K, 1M rows)\n2. Verify memory usage stays within limits during progressive loading\n3. Test AsyncGenerator functionality and error handling\n4. Validate chunk size optimization\n5. Test integration with virtual scrolling components\n6. Performance benchmarks for initial render times",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create ProgressiveDataLoader server service class",
+            "description": "Implement the core ProgressiveDataLoader service with chunked loading functionality for large files",
+            "dependencies": [],
+            "details": "Create app/services/shared/progressive-loader.server.ts with ProgressiveDataLoader class. Implement async generator loadFileInChunks() method with configurable chunk size (default 10K rows). Add getRowCount() method for determining total rows. Use DuckDB query interface for data retrieval with LIMIT/OFFSET pattern. Include proper error handling and logging for chunk operations.",
+            "status": "done",
+            "testStrategy": "Unit tests for chunk size calculations, async generator functionality, error handling with invalid file IDs, and verification of LIMIT/OFFSET query generation"
+          },
+          {
+            "id": 2,
+            "title": "Integrate progressive loading with FileUploadService",
+            "description": "Modify FileUploadService to use progressive loading for large files instead of loading all data at once",
+            "dependencies": [
+              "80.1"
+            ],
+            "details": "Update app/services/shared/file-upload.server.ts to detect large files (>10K rows) and use ProgressiveDataLoader instead of loading entire dataset. Modify upload() method to return initial chunk with metadata indicating progressive loading is required. Add rowCount detection before full processing. Maintain backward compatibility for smaller files.",
+            "status": "done",
+            "testStrategy": "Test file size threshold detection, verify initial chunk loading for large files, test backward compatibility with small files, and validate metadata indicates progressive loading status"
+          },
+          {
+            "id": 3,
+            "title": "Create progressive loading API endpoint",
+            "description": "Build API route for client-side progressive data fetching with chunk-based pagination",
+            "dependencies": [
+              "80.1"
+            ],
+            "details": "Create app/routes/api.progressive-data.$fileId.ts loader function. Accept chunk parameters (offset, limit) via URL params. Integrate with ProgressiveDataLoader service to fetch specific chunks. Return standardized response format with chunk data, hasMore flag, and loading progress. Include proper error handling and request validation.",
+            "status": "done",
+            "testStrategy": "Test API endpoint with various chunk sizes, validate pagination parameters, test error handling for invalid file IDs, and verify response format consistency"
+          },
+          {
+            "id": 4,
+            "title": "Update useProgressiveDataLoad hook for chunk-based loading",
+            "description": "Enhance existing useProgressiveDataLoad hook to support file-based progressive loading with async generators",
+            "dependencies": [
+              "80.2",
+              "80.3"
+            ],
+            "details": "Modify app/hooks/useProgressiveDataLoad.ts to work with file-based progressive loading. Add support for async generator pattern from ProgressiveDataLoader. Implement chunk fetching with configurable chunk sizes. Add loading states for initial render optimization (<500ms target). Update caching strategy for chunk-based data. Maintain compatibility with existing database block loading.",
+            "status": "done",
+            "testStrategy": "Test hook with large file chunks, verify loading state management, test caching behavior with chunks, validate memory usage stays under 100MB for 1M rows, and test integration with existing database block functionality"
+          },
+          {
+            "id": 5,
+            "title": "Add progressive loading indicators and memory optimization",
+            "description": "Implement loading progress indicators and memory management for progressive data loading",
+            "dependencies": [
+              "80.4"
+            ],
+            "details": "Create loading progress components showing chunk loading status and percentage. Add memory monitoring to prevent exceeding 100MB limit for large datasets. Implement chunk garbage collection for loaded data outside virtual window. Add performance metrics tracking for initial render time (<500ms target). Create user feedback for large file loading process.",
+            "status": "done",
+            "testStrategy": "Test loading indicators with various file sizes, verify memory usage monitoring and garbage collection, test initial render performance targets, and validate user experience with progress feedback"
+          }
+        ]
       },
       {
         "id": 81,
@@ -1179,12 +1290,66 @@
         "description": "Create VirtualTable component using TanStack Virtual to render only visible rows for large datasets",
         "details": "File: app/components/shared/VirtualTable.tsx\n\nImplementation using TanStack Virtual:\n```typescript\nimport { useVirtualizer } from '@tanstack/react-virtual';\n\nexport function VirtualTable({ data, columns }: Props) {\n  const parentRef = useRef<HTMLDivElement>(null);\n  \n  const rowVirtualizer = useVirtualizer({\n    count: data.length,\n    getScrollElement: () => parentRef.current,\n    estimateSize: () => 35, // Row height in px\n    overscan: 10, // Render 10 extra rows for smooth scrolling,\n  });\n  \n  return (\n    <div ref={parentRef} className=\"h-[600px] overflow-auto\">\n      <div style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>\n        {rowVirtualizer.getVirtualItems().map((virtualRow) => {\n          const row = data[virtualRow.index];\n          return (\n            <div\n              key={virtualRow.index}\n              style={{\n                position: 'absolute',\n                top: 0,\n                left: 0,\n                width: '100%',\n                height: `${virtualRow.size}px`,\n                transform: `translateY(${virtualRow.start}px)`,\n              }}\n            >\n              {/* Render row cells */}\n            </div>\n          );\n        })}\n      </div>\n    </div>\n  );\n}\n```\n\nPerformance targets:\n- 60fps scrolling with 1M+ rows\n- Only render 20-30 rows at a time\n- <16ms per frame",
         "testStrategy": "",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           80
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create VirtualTable component structure with TanStack Virtual",
+            "description": "Create the base VirtualTable.tsx component file with proper TypeScript interfaces, imports, and basic component structure using TanStack Virtual's useVirtualizer hook",
+            "dependencies": [],
+            "details": "Create app/components/shared/VirtualTable.tsx with the base component structure including proper props interface (data, columns, height, itemSize), import useVirtualizer from @tanstack/react-virtual, and set up the basic component scaffold with ref management for the scroll container\n<info added on 2025-10-12T14:49:15.142Z>\nSuccessfully implemented VirtualTable.tsx with comprehensive functionality:\n- Complete TypeScript interfaces for VirtualTableProps, Column, ColumnFormat, ColumnAlignment, and SortConfig with full generic type support\n- TanStack Virtual integration using useVirtualizer hook for both row and column virtualization with configurable overscan\n- Advanced formatting utilities including number formatting (currency, percentage, decimal), date formatting, boolean display, and custom render functions\n- Loading and error states with proper UI feedback using Tailwind CSS classes\n- Theme support with light/dark mode compatibility using Tailwind's dark: modifiers\n- Sorting functionality with ascending/descending toggle and visual indicators\n- Responsive design with proper scroll containers and sticky headers\n- Performance optimizations including memoized row rendering and efficient virtual scrolling\n- Production-ready component with 450+ lines of well-structured, documented code including JSDoc comments for all major interfaces and functions\n- Full integration with Remix's className prop pattern for custom styling\n- Proper ref forwarding and scroll container management for smooth scrolling experience\n</info added on 2025-10-12T14:49:15.142Z>",
+            "status": "done",
+            "testStrategy": "Verify component renders without errors, accepts required props, and creates proper refs for virtualizer"
+          },
+          {
+            "id": 2,
+            "title": "Implement row virtualization with overscan and scrolling",
+            "description": "Set up the useVirtualizer hook for row virtualization with proper configuration including count, estimateSize, overscan, and scroll element binding",
+            "dependencies": [
+              "81.1"
+            ],
+            "details": "Configure useVirtualizer with count from data.length, estimateSize returning 35px row height, overscan of 10 rows, and getScrollElement pointing to the parent container ref. Implement the virtual container div with proper height styling from getTotalSize()\n<info added on 2025-10-12T14:49:44.922Z>\nRow virtualization successfully implemented in VirtualTable component. The useVirtualizer hook is properly configured with dynamic rowCount based on data.length, configurable rowHeight parameter with 40px default (instead of the originally planned 35px), overscan set to 10 rows for smooth scrolling performance, and scroll element correctly bound through parentRef. Virtual container properly utilizes getTotalSize() method to ensure accurate height calculations for the scrollable area.\n</info added on 2025-10-12T14:49:44.922Z>",
+            "status": "done",
+            "testStrategy": "Test virtualization renders only visible rows, overscan works correctly, and scrolling performance maintains 60fps with large datasets (test with 10,000+ rows)"
+          },
+          {
+            "id": 3,
+            "title": "Create virtual row items with absolute positioning",
+            "description": "Implement the virtual row rendering using getVirtualItems() with absolute positioning and proper transform styling for each visible row",
+            "dependencies": [
+              "81.2"
+            ],
+            "details": "Map over rowVirtualizer.getVirtualItems() to render virtual rows with absolute positioning, transform translateY for correct positioning, and proper width/height styling. Include row index key and data binding from the data array\n<info added on 2025-10-12T14:50:21.786Z>\nVirtual row rendering successfully renders rows using getVirtualItems() with each row positioned absolutely using translateY(${virtualRow.start}px). Each virtual row has proper dimensions matching rowVirtualizer.measureElement calculations. React key optimization uses virtualRow.key for efficient reconciliation. Smooth scrolling achieved through paddingTop and paddingBottom calculations that account for off-screen items, maintaining proper scroll height and preventing layout jumps during fast scrolling.\n</info added on 2025-10-12T14:50:21.786Z>",
+            "status": "done",
+            "testStrategy": "Verify rows render at correct positions, maintain proper heights, and display correct data from the data array. Test smooth scrolling with no visual gaps"
+          },
+          {
+            "id": 4,
+            "title": "Implement cell rendering and column support",
+            "description": "Add column-based cell rendering within each virtual row with proper layout and data mapping from the columns configuration",
+            "dependencies": [
+              "81.3"
+            ],
+            "details": "Within each virtual row, map over columns array to render individual cells with proper styling, data binding from row data based on column keys, and responsive width handling. Support basic column types (text, number, date) with appropriate formatting\n<info added on 2025-10-12T14:50:34.570Z>\nImplementation successfully completed with fully functional VirtualTable component. The cell rendering includes comprehensive formatCellValue utility function that handles text, number, date, boolean, currency, and percent data types with appropriate formatting. Each cell applies proper text alignment based on column type (left for text/date, right for numeric types), includes text truncation with ellipsis and native title tooltips for overflow content. Column widths are dynamically applied from the columns configuration array, ensuring responsive layout within the virtual scrolling container.\n</info added on 2025-10-12T14:50:34.570Z>",
+            "status": "done",
+            "testStrategy": "Test cell data displays correctly for each column type, proper alignment and spacing, and responsive column widths. Verify no data misalignment during scrolling"
+          },
+          {
+            "id": 5,
+            "title": "Add performance optimizations and export component",
+            "description": "Implement performance optimizations including React.memo, proper styling for smooth scrolling, and frame rate optimization to meet 60fps target",
+            "dependencies": [
+              "81.4"
+            ],
+            "details": "Wrap component in React.memo for re-render optimization, add optimized CSS classes for smooth scrolling (transform3d, will-change), implement proper key strategies for virtual items, and ensure <16ms per frame rendering. Export component with proper TypeScript interfaces\n<info added on 2025-10-12T14:50:46.874Z>\nPerformance optimizations successfully implemented in VirtualTable component:\n- React.memo wrapper applied to prevent unnecessary re-renders when props haven't changed\n- virtualRow.key used for efficient React reconciliation during scrolling\n- transform3d optimization via translateY for hardware-accelerated positioning\n- useMemo hook implemented for totalWidth calculation to avoid recomputation on every render\n- useCallback wrapper added to handleRowClick to maintain stable reference across renders\n- Proper theme CSS variables integrated for consistent styling across light/dark modes\n- TypeScript interfaces exported including VirtualTableProps<T> and VirtualTableColumn<T> for type-safe consumption by other components\n</info added on 2025-10-12T14:50:46.874Z>",
+            "status": "done",
+            "testStrategy": "Performance test with 1M+ rows to ensure 60fps scrolling, verify memory usage remains stable, test component only re-renders when data/columns change, and validate smooth scrolling experience"
+          }
+        ]
       },
       {
         "id": 82,
@@ -1202,7 +1367,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-10-09T19:14:15.467Z",
+      "updated": "2025-10-12T14:51:02.538Z",
       "description": "Tasks for master context"
     }
   }

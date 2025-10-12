@@ -396,6 +396,138 @@ export class DuckDBQueryService {
 
     return { valid: true };
   }
+
+  /**
+   * PAGINATION METHODS
+   * For virtual scrolling support with large datasets
+   */
+
+  /**
+   * Execute a paginated query from a table
+   * @param tableName - Name of the table to query
+   * @param offset - Number of rows to skip
+   * @param limit - Number of rows to return
+   * @param orderBy - Optional ORDER BY clause (e.g., "id ASC")
+   */
+  public async executeTablePaginated(
+    tableName: string,
+    offset: number,
+    limit: number,
+    orderBy?: string
+  ): Promise<QueryResult> {
+    const orderClause = orderBy ? ` ORDER BY ${orderBy}` : '';
+    const sql = `SELECT * FROM ${tableName}${orderClause} LIMIT ${limit} OFFSET ${offset}`;
+    return this.executeQuery(sql);
+  }
+
+  /**
+   * Get total row count for a table
+   * @param tableName - Name of the table
+   */
+  public async getTableRowCount(tableName: string): Promise<number> {
+    try {
+      const result = await this.executeQuery(`SELECT COUNT(*) as count FROM ${tableName}`);
+      if (result.success && result.data && result.data.length > 0) {
+        return result.data[0].count;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Failed to get table row count:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Add pagination to an existing SQL query
+   * @param sql - Original SQL query
+   * @param offset - Number of rows to skip
+   * @param limit - Number of rows to return
+   */
+  public addPaginationToSQL(sql: string, offset: number, limit: number): string {
+    // Remove existing LIMIT/OFFSET if present
+    const cleanSQL = sql
+      .replace(/\s+LIMIT\s+\d+/gi, '')
+      .replace(/\s+OFFSET\s+\d+/gi, '');
+
+    return `${cleanSQL} LIMIT ${limit} OFFSET ${offset}`;
+  }
+
+  /**
+   * Execute a paginated query with custom SQL
+   * @param sql - Base SQL query (without LIMIT/OFFSET)
+   * @param offset - Number of rows to skip
+   * @param limit - Number of rows to return
+   */
+  public async executeQueryPaginated(
+    sql: string,
+    offset: number,
+    limit: number
+  ): Promise<QueryResult> {
+    const paginatedSQL = this.addPaginationToSQL(sql, offset, limit);
+    return this.executeQuery(paginatedSQL);
+  }
+
+  /**
+   * Get total row count for a query (counts results before pagination)
+   * @param sql - Base SQL query (without LIMIT/OFFSET)
+   */
+  public async getQueryRowCount(sql: string): Promise<number> {
+    try {
+      // Wrap query in COUNT to get total
+      const countSQL = `SELECT COUNT(*) as count FROM (${sql}) as subquery`;
+      const result = await this.executeQuery(countSQL);
+
+      if (result.success && result.data && result.data.length > 0) {
+        return result.data[0].count;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Failed to get query row count:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Load a page of data for virtual scrolling
+   * Helper method that combines pagination with metadata
+   *
+   * @param tableName - Name of the table
+   * @param page - Page number (0-indexed)
+   * @param pageSize - Number of rows per page
+   * @param orderBy - Optional ORDER BY clause
+   */
+  public async loadPage(
+    tableName: string,
+    page: number,
+    pageSize: number,
+    orderBy?: string
+  ): Promise<{
+    data: any[];
+    page: number;
+    pageSize: number;
+    totalRows: number;
+    totalPages: number;
+    hasMore: boolean;
+  }> {
+    const offset = page * pageSize;
+
+    // Get data and total count in parallel
+    const [queryResult, totalRows] = await Promise.all([
+      this.executeTablePaginated(tableName, offset, pageSize, orderBy),
+      this.getTableRowCount(tableName)
+    ]);
+
+    const totalPages = Math.ceil(totalRows / pageSize);
+
+    return {
+      data: queryResult.data || [],
+      page,
+      pageSize,
+      totalRows,
+      totalPages,
+      hasMore: page < totalPages - 1
+    };
+  }
 }
 
 // Export singleton instance

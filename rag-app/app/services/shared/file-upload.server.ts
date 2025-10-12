@@ -328,4 +328,188 @@ export class FileUploadService {
   static getMaxFileSizeFormatted(): string {
     return this.formatFileSize(MAX_FILE_SIZE);
   }
+
+  /**
+   * PROGRESSIVE LOADING SUPPORT
+   * Task #80: Implement Progressive Data Loading
+   *
+   * These methods enable chunked file uploads to prevent memory issues
+   * with large datasets
+   */
+
+  /**
+   * Upload and process a file progressively
+   * Returns metadata immediately, data is streamed
+   *
+   * Steps:
+   * 1. Validate file
+   * 2. Get metadata without full load
+   * 3. Upload original to Supabase Storage
+   * 4. Return metadata + stream generator
+   *
+   * @param file - File to upload
+   * @param options - Upload options
+   * @returns Promise with metadata and data stream
+   */
+  static async uploadProgressive(
+    file: File,
+    options: UploadOptions
+  ): Promise<{
+    success: boolean;
+    dataFile?: {
+      id: string;
+      filename: string;
+      tableName: string;
+      schema: FileSchema;
+      rowCount: number;
+      sizeBytes: number;
+      storageUrl: string | null;
+      parquetUrl: string | null;
+      // Data stream instead of full array
+      dataStream: AsyncGenerator<any[]>;
+      estimatedChunks: number;
+    };
+    error?: string;
+  }> {
+    const { pageId, workspaceId, userId, request, response } = options;
+
+    try {
+      // 1. Validate file
+      const validation = this.validateFile(file);
+      if (!validation.valid) {
+        return {
+          success: false,
+          error: validation.error
+        };
+      }
+
+      // 2. Verify user has access to workspace
+      const workspace = await prisma.workspace.findFirst({
+        where: {
+          id: workspaceId,
+          userWorkspaces: {
+            some: {
+              userId: userId
+            }
+          }
+        }
+      });
+
+      if (!workspace) {
+        return {
+          success: false,
+          error: 'Workspace not found or access denied'
+        };
+      }
+
+      // 3. Get file metadata without loading full content
+      console.log(`[FileUploadService] Getting metadata for: ${file.name}`);
+      const metadata = await FileProcessingService.getFileMetadata(file);
+      console.log(`[FileUploadService] File has ${metadata.totalRows} rows, ${metadata.estimatedChunks} chunks`);
+
+      let storageUrl: string | null = null;
+      let parquetUrl: string | null = null;
+
+      // 4. Upload to Supabase Storage (if request/response provided)
+      if (request && response) {
+        const storageService = new FileStorageService(request, response);
+
+        // Upload original file
+        const originalPath = `${workspaceId}/${pageId}/${Date.now()}_${file.name}`;
+        await storageService.uploadFile(
+          'user-uploads',
+          originalPath,
+          file,
+          file.type
+        );
+        storageUrl = await storageService.getSignedUrl('user-uploads', originalPath, 86400); // 24 hours
+        console.log(`[FileUploadService] Original file uploaded: ${originalPath}`);
+
+        // Note: We'll save processed data progressively, not here
+        // This avoids loading full dataset into memory
+      }
+
+      // 5. Save metadata to database
+      const dataFile = await prisma.dataFile.create({
+        data: {
+          pageId,
+          workspaceId,
+          filename: file.name,
+          tableName: metadata.tableName,
+          schema: metadata.schema,
+          rowCount: metadata.totalRows,
+          sizeBytes: file.size,
+          storageUrl,
+          parquetUrl // Will be null initially, can be updated after processing
+        }
+      });
+
+      console.log(`[FileUploadService] File uploaded progressively: ${dataFile.id}`);
+
+      // 6. Create data stream generator
+      const dataStream = FileProcessingService.processFileProgressive(file);
+
+      // Return metadata + stream
+      return {
+        success: true,
+        dataFile: {
+          id: dataFile.id,
+          filename: file.name,
+          tableName: metadata.tableName,
+          schema: metadata.schema,
+          rowCount: metadata.totalRows,
+          sizeBytes: file.size,
+          storageUrl,
+          parquetUrl,
+          dataStream: (async function* () {
+            for await (const chunk of dataStream) {
+              yield chunk.chunk;
+            }
+          })(),
+          estimatedChunks: metadata.estimatedChunks
+        }
+      };
+
+    } catch (error) {
+      console.error(`[FileUploadService] Progressive upload failed:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to upload file'
+      };
+    }
+  }
+
+  /**
+   * Check if file should use progressive loading
+   * Based on file size only (simple and reliable)
+   */
+  static async shouldUseProgressiveLoading(file: File): Promise<boolean> {
+    try {
+      return await FileProcessingService.shouldUseProgressiveLoading(file);
+    } catch {
+      // Fallback: 2MB threshold to prevent HTTP 413 errors
+      // Based on real-world test: 1.93MB file with 50K rows hit 413 error
+      const SIZE_THRESHOLD = 2 * 1024 * 1024; // 2MB
+      return file.size > SIZE_THRESHOLD;
+    }
+  }
+
+  /**
+   * Smart upload: automatically chooses progressive or standard upload
+   * based on file size and characteristics
+   */
+  static async uploadSmart(
+    file: File,
+    options: UploadOptions
+  ): Promise<UploadResult | Awaited<ReturnType<typeof FileUploadService.uploadProgressive>>> {
+    const useProgressive = await this.shouldUseProgressiveLoading(file);
+
+    if (useProgressive) {
+      console.log(`[FileUploadService] Using progressive upload for ${file.name}`);
+      return this.uploadProgressive(file, options);
+    } else {
+      console.log(`[FileUploadService] Using standard upload for ${file.name}`);
+      return this.upload(file, options);
+    }
+  }
 }

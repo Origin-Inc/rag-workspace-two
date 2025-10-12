@@ -5,13 +5,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize client-side Supabase client
-const supabaseUrl = typeof window !== 'undefined' 
-  ? window.ENV?.SUPABASE_URL || ''
-  : '';
-const supabaseAnonKey = typeof window !== 'undefined'
-  ? window.ENV?.SUPABASE_ANON_KEY || ''
-  : '';
+// Import the authenticated Supabase client
+import { getSupabaseClient } from '~/utils/supabase.client';
 
 // Debug logging helper
 const log = {
@@ -45,30 +40,18 @@ export class SupabaseUploadClient {
 
   /**
    * Initialize the Supabase client
+   * Uses the authenticated client from supabase.client.ts which has the user session
    */
-  async initialize(url?: string, anonKey?: string): Promise<boolean> {
+  async initialize(): Promise<boolean> {
     try {
-      const finalUrl = url || supabaseUrl;
-      const finalKey = anonKey || supabaseAnonKey;
+      log.info('Initializing Supabase client with auth context');
 
-      log.info('Initializing Supabase client', {
-        url: finalUrl,
-        hasKey: !!finalKey
-      });
-
-      if (!finalUrl || !finalKey) {
-        throw new Error('Supabase URL and anon key are required');
-      }
-
-      this.supabase = createClient(finalUrl, finalKey, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false
-        }
-      });
+      // Use the authenticated Supabase client that has the user's session
+      // This is required for RLS policies that use auth.uid()
+      this.supabase = getSupabaseClient();
 
       this.initialized = true;
-      log.success('Supabase client initialized');
+      log.success('Supabase client initialized with authentication');
       return true;
     } catch (error) {
       log.error('Failed to initialize Supabase client', error);

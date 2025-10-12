@@ -428,6 +428,236 @@ export class DuckDBService {
       console.error('Failed to clear page tables:', error);
     }
   }
+
+  /**
+   * PROGRESSIVE LOADING METHODS
+   * Task #80: Implement Progressive Data Loading
+   *
+   * These methods enable streaming table creation to prevent memory spikes
+   * with large datasets
+   */
+
+  /**
+   * Create table from streaming data chunks
+   * Avoids loading entire dataset into memory at once
+   *
+   * @param tableName - Name of the table to create
+   * @param dataStream - AsyncGenerator yielding data chunks
+   * @param schema - Table schema (from first chunk)
+   * @param pageId - Optional page ID for persistence
+   * @param onProgress - Optional progress callback
+   */
+  public async createTableFromStream(
+    tableName: string,
+    dataStream: AsyncGenerator<any[]>,
+    schema: { columns: Array<{ name: string; type: string }> },
+    pageId?: string,
+    onProgress?: (loaded: number, total?: number) => void
+  ): Promise<void> {
+    try {
+      const conn = await this.getConnection();
+
+      // Drop table if exists
+      await conn.query(`DROP TABLE IF EXISTS ${tableName}`);
+
+      // Process columns: normalize names and handle empty names
+      let unnamedColumnCount = 0;
+      const processedColumns = schema.columns.map(col => {
+        let columnName = col.name ? col.name.trim() : '';
+
+        // If column name is empty, give it a dummy name
+        if (!columnName) {
+          unnamedColumnCount++;
+          columnName = `column_${unnamedColumnCount}`;
+          console.log(`Warning: Empty column name replaced with "${columnName}"`);
+        } else {
+          // Normalize column name to match DuckDB behavior
+          columnName = this.normalizeColumnName(columnName);
+        }
+
+        return {
+          ...col,
+          name: columnName,
+          originalName: col.name || columnName
+        };
+      });
+
+      // Create empty table with schema
+      const columnDefs = processedColumns.map(col => {
+        let duckdbType = 'VARCHAR';
+        switch (col.type.toLowerCase()) {
+          case 'number':
+            duckdbType = 'DOUBLE';
+            break;
+          case 'boolean':
+            duckdbType = 'BOOLEAN';
+            break;
+          case 'date':
+            duckdbType = 'DATE';
+            break;
+          case 'datetime':
+            duckdbType = 'TIMESTAMP';
+            break;
+          default:
+            duckdbType = 'VARCHAR';
+        }
+        return `"${col.name}" ${duckdbType}`;
+      }).join(', ');
+
+      await conn.query(`CREATE TABLE ${tableName} (${columnDefs})`);
+      console.log(`Table ${tableName} created with streaming schema`);
+
+      // Insert chunks as they arrive
+      let totalRowsInserted = 0;
+      let chunkCount = 0;
+
+      for await (const chunk of dataStream) {
+        if (!chunk || chunk.length === 0) continue;
+
+        // Prepare values for insertion
+        const values = chunk.map(row => {
+          const vals = processedColumns.map((col) => {
+            const val = row[col.originalName];
+
+            if (val === null || val === undefined) return 'NULL';
+
+            // Handle different data types
+            if (typeof val === 'string' || col.type === 'string' || col.type === 'VARCHAR') {
+              return `'${String(val).replace(/'/g, "''")}'`;
+            } else if (col.type === 'date' || col.type === 'datetime' || col.type === 'DATE') {
+              if (typeof val === 'number') {
+                const date = new Date(val);
+                if (!isNaN(date.getTime())) {
+                  return `'${date.toISOString().split('T')[0]}'`;
+                }
+              }
+              return `'${String(val).replace(/'/g, "''")}'`;
+            } else if (typeof val === 'boolean') {
+              return val ? 'TRUE' : 'FALSE';
+            }
+
+            return val;
+          }).join(', ');
+          return `(${vals})`;
+        });
+
+        // Insert chunk in batches
+        const batchSize = 1000;
+        for (let i = 0; i < values.length; i += batchSize) {
+          const batch = values.slice(i, i + batchSize).join(', ');
+          await conn.query(`INSERT INTO ${tableName} VALUES ${batch}`);
+        }
+
+        totalRowsInserted += chunk.length;
+        chunkCount++;
+
+        // Report progress
+        if (onProgress) {
+          onProgress(totalRowsInserted);
+        }
+
+        console.log(`Inserted chunk ${chunkCount} (${chunk.length} rows, total: ${totalRowsInserted})`);
+      }
+
+      console.log(`Table ${tableName} created progressively with ${totalRowsInserted} rows in ${chunkCount} chunks`);
+
+      // Persist to IndexedDB if pageId is provided
+      if (pageId) {
+        await duckDBPersistence.persistTable(tableName, pageId, schema, totalRowsInserted);
+      }
+
+    } catch (error) {
+      console.error('Failed to create table from stream:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Insert a single chunk of data into an existing table
+   * Useful for incremental updates
+   */
+  public async insertChunk(
+    tableName: string,
+    chunk: any[],
+    schema: { columns: Array<{ name: string; type: string }> }
+  ): Promise<number> {
+    try {
+      if (!chunk || chunk.length === 0) return 0;
+
+      const conn = await this.getConnection();
+
+      // Process columns
+      const processedColumns = schema.columns.map(col => ({
+        ...col,
+        name: this.normalizeColumnName(col.name),
+        originalName: col.name
+      }));
+
+      // Prepare values
+      const values = chunk.map(row => {
+        const vals = processedColumns.map((col) => {
+          const val = row[col.originalName];
+
+          if (val === null || val === undefined) return 'NULL';
+
+          if (typeof val === 'string') {
+            return `'${String(val).replace(/'/g, "''")}'`;
+          } else if (typeof val === 'boolean') {
+            return val ? 'TRUE' : 'FALSE';
+          }
+
+          return val;
+        }).join(', ');
+        return `(${vals})`;
+      });
+
+      // Insert in batches
+      const batchSize = 1000;
+      let insertedRows = 0;
+
+      for (let i = 0; i < values.length; i += batchSize) {
+        const batch = values.slice(i, i + batchSize).join(', ');
+        await conn.query(`INSERT INTO ${tableName} VALUES ${batch}`);
+        insertedRows += Math.min(batchSize, values.length - i);
+      }
+
+      return insertedRows;
+    } catch (error) {
+      console.error('Failed to insert chunk:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get current memory usage estimate
+   * Useful for monitoring during progressive loading
+   */
+  public async getMemoryUsage(): Promise<{
+    tableCount: number;
+    estimatedMB: number;
+  }> {
+    try {
+      const tables = await this.getTables();
+      let totalRows = 0;
+
+      for (const table of tables) {
+        const count = await this.getTableRowCount(table);
+        totalRows += count;
+      }
+
+      // Rough estimate: assume 1KB per row
+      const estimatedBytes = totalRows * 1024;
+      const estimatedMB = estimatedBytes / (1024 * 1024);
+
+      return {
+        tableCount: tables.length,
+        estimatedMB: Math.round(estimatedMB * 100) / 100
+      };
+    } catch (error) {
+      console.error('Failed to get memory usage:', error);
+      return { tableCount: 0, estimatedMB: 0 };
+    }
+  }
 }
 
 // Export singleton instance getter
