@@ -12,3 +12,6 @@ export type { SpreadsheetGridProps, SpreadsheetColumn, SpreadsheetRow } from './
 
 export { SpreadsheetToolbar } from './SpreadsheetToolbar';
 export type { SpreadsheetToolbarProps } from './SpreadsheetToolbar';
+
+export { FormulaBar } from './FormulaBar';
+export type { FormulaBarProps } from './FormulaBar';

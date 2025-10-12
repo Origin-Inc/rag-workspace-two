@@ -32,6 +32,7 @@ export interface SpreadsheetGridProps {
   rows: SpreadsheetRow[];
   totalRows: number;
   onCellEdit?: (row: number, col: number, value: any) => void;
+  onCellSelected?: (cell: { row: number; col: number } | null) => void;
   onLoadPage?: (page: number, pageSize: number) => Promise<SpreadsheetRow[]>;
   onColumnResize?: (columnId: string, newWidth: number) => void;
   onColumnMove?: (fromIndex: number, toIndex: number) => void;
@@ -114,6 +115,7 @@ export function SpreadsheetGrid({
   rows,
   totalRows,
   onCellEdit,
+  onCellSelected,
   onLoadPage,
   onColumnResize,
   onColumnMove,
@@ -192,10 +194,10 @@ export function SpreadsheetGrid({
     [onColumnResize]
   );
 
-  // Handle row selection
+  // Handle row and cell selection
   const onSelectionChanged = useCallback(
     (gridSelection: DataEditorProps['gridSelection']) => {
-      if (!onRowsSelected || !gridSelection) return;
+      if (!gridSelection) return;
 
       const selectedRows = new Set<number>();
 
@@ -206,14 +208,24 @@ export function SpreadsheetGrid({
         });
       }
 
+      // Handle single cell selection
+      if (gridSelection.current && onCellSelected) {
+        const cell = gridSelection.current.cell;
+        if (cell) {
+          onCellSelected({ row: cell[1], col: cell[0] });
+        }
+      }
+
       setSelection({
         rows: selectedRows,
         columns: new Set(gridSelection.columns || []),
       });
 
-      onRowsSelected(selectedRows);
+      if (onRowsSelected) {
+        onRowsSelected(selectedRows);
+      }
     },
-    [onRowsSelected]
+    [onRowsSelected, onCellSelected]
   );
 
   // Handle infinite scrolling

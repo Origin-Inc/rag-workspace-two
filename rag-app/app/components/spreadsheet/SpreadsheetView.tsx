@@ -8,7 +8,8 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { SpreadsheetGrid, SpreadsheetColumn, SpreadsheetRow } from './SpreadsheetGrid';
 import { SpreadsheetToolbar } from './SpreadsheetToolbar';
-import { useDuckDBWorker } from '~/hooks/workers';
+import { FormulaBar } from './FormulaBar';
+import { useDuckDBWorker, useHyperFormulaWorker } from '~/hooks/workers';
 import { cn } from '~/utils/cn';
 
 export interface SpreadsheetViewProps {
@@ -36,11 +37,13 @@ export function SpreadsheetView({
   const [rows, setRows] = useState<SpreadsheetRow[]>(initialRows);
   const [totalRows, setTotalRows] = useState(initialRows.length);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Workers
   const duckdb = useDuckDBWorker();
+  const hyperFormula = useHyperFormulaWorker();
 
   // Page cache for loaded data
   const loadedPagesRef = useState(new Set<number>())[0];
@@ -118,6 +121,96 @@ export function SpreadsheetView({
     },
     [duckdb.isReady, tableName, loadedPagesRef, duckdb]
   );
+
+  // Get current cell value and formula
+  const currentCellValue = useMemo(() => {
+    if (!selectedCell) return null;
+    const row = rows[selectedCell.row];
+    const column = columns[selectedCell.col];
+    if (!row || !column) return null;
+    return row[column.id];
+  }, [selectedCell, rows, columns]);
+
+  const currentCellFormula = useMemo(() => {
+    if (!selectedCell) return null;
+    const row = rows[selectedCell.row];
+    const column = columns[selectedCell.col];
+    if (!row || !column) return null;
+
+    const value = row[column.id];
+    if (typeof value === 'string' && value.startsWith('=')) {
+      return value;
+    }
+    return null;
+  }, [selectedCell, rows, columns]);
+
+  // Handle formula input
+  const handleFormulaChange = useCallback((formula: string) => {
+    // Live preview could be implemented here
+  }, []);
+
+  // Handle formula submit
+  const handleFormulaSubmit = useCallback(
+    async (formula: string) => {
+      if (!selectedCell || !duckdb.isReady) return;
+
+      const row = selectedCell.row;
+      const col = selectedCell.col;
+
+      try {
+        const column = columns[col];
+        if (!column) return;
+
+        const rowData = rows[row];
+        if (!rowData) return;
+
+        let finalValue = formula;
+
+        // If it's a formula, calculate with HyperFormula
+        if (formula.startsWith('=') && hyperFormula.isReady) {
+          try {
+            // Set formula in HyperFormula
+            await hyperFormula.setCellFormula(0, row, col, formula);
+
+            // Get calculated value
+            const calculatedValue = await hyperFormula.getCellValue(0, row, col);
+
+            // Store both formula and calculated value
+            // For now, we'll store the formula string
+            finalValue = formula;
+          } catch (formulaError) {
+            console.error('Formula calculation error:', formulaError);
+            // Store formula anyway, will show error in cell
+            finalValue = formula;
+          }
+        }
+
+        // Update DuckDB
+        await duckdb.updateCell(tableName, rowData.id || String(row), column.id, finalValue);
+
+        // Update local state
+        setRows((prevRows) => {
+          const newRows = [...prevRows];
+          newRows[row] = {
+            ...newRows[row],
+            [column.id]: finalValue,
+          };
+          return newRows;
+        });
+
+        setError(null);
+      } catch (err) {
+        console.error('Failed to update formula:', err);
+        setError(err instanceof Error ? err.message : 'Formula update failed');
+      }
+    },
+    [selectedCell, duckdb.isReady, hyperFormula.isReady, tableName, columns, rows, duckdb, hyperFormula]
+  );
+
+  // Handle formula cancel
+  const handleFormulaCancel = useCallback(() => {
+    // Nothing to do, formula bar will reset itself
+  }, []);
 
   // Handle cell edits
   const handleCellEdit = useCallback(
@@ -270,6 +363,7 @@ export function SpreadsheetView({
       rows,
       totalRows,
       onCellEdit: handleCellEdit,
+      onCellSelected: setSelectedCell,
       onLoadPage: loadPage,
       onColumnResize: handleColumnResize,
       onColumnMove: handleColumnMove,
@@ -293,6 +387,17 @@ export function SpreadsheetView({
         onDeleteSelected={handleDeleteSelected}
         onAnalyzeWithAI={onAnalyzeWithAI ? handleAnalyzeWithAI : undefined}
         disabled={!duckdb.isReady || isLoading}
+      />
+
+      {/* Formula Bar */}
+      <FormulaBar
+        selectedCell={selectedCell}
+        cellValue={currentCellValue}
+        cellFormula={currentCellFormula}
+        onFormulaChange={handleFormulaChange}
+        onFormulaSubmit={handleFormulaSubmit}
+        onFormulaCancel={handleFormulaCancel}
+        disabled={!duckdb.isReady || isLoading || !hyperFormula.isReady}
       />
 
       {/* Error message */}
