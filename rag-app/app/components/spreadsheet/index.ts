@@ -15,3 +15,6 @@ export type { SpreadsheetToolbarProps } from './SpreadsheetToolbar';
 
 export { FormulaBar } from './FormulaBar';
 export type { FormulaBarProps } from './FormulaBar';
+
+export { DataImportModal } from './DataImportModal';
+export type { DataImportModalProps } from './DataImportModal';

@@ -338,6 +338,62 @@ export function SpreadsheetView({
     });
   }, []);
 
+  // Handle data import
+  const handleImportData = useCallback(
+    async (data: { columns: SpreadsheetColumn[]; rows: any[] }) => {
+      if (!duckdb.isReady) return;
+
+      try {
+        setIsLoading(true);
+
+        // If table is empty, use imported columns
+        if (columns.length === 0) {
+          setColumns(data.columns);
+        }
+
+        // Create column definitions for DuckDB
+        const columnDefs = data.columns.map((col) => ({
+          name: col.id,
+          type: col.type === 'number' ? 'DOUBLE' : col.type === 'boolean' ? 'BOOLEAN' : 'VARCHAR',
+        }));
+
+        // Create table if not exists
+        try {
+          await duckdb.createTable(tableName, columnDefs);
+        } catch (err) {
+          // Table might already exist, that's okay
+          console.log('Table already exists, inserting data...');
+        }
+
+        // Insert rows in batches
+        const batchSize = 1000;
+        for (let i = 0; i < data.rows.length; i += batchSize) {
+          const batch = data.rows.slice(i, i + batchSize);
+          await duckdb.insertRows(tableName, batch);
+        }
+
+        // Refresh row count and data
+        const count = await duckdb.getRowCount(tableName);
+        setTotalRows(count);
+
+        // Clear loaded pages to force reload
+        loadedPagesRef.clear();
+        setRows([]);
+
+        // Load first page
+        await loadPage(0, pageSize);
+
+        setError(null);
+      } catch (err) {
+        console.error('Failed to import data:', err);
+        setError(err instanceof Error ? err.message : 'Data import failed');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [duckdb.isReady, tableName, columns.length, duckdb, loadedPagesRef, loadPage, pageSize]
+  );
+
   // Handle AI analysis
   const handleAnalyzeWithAI = useCallback(() => {
     if (!onAnalyzeWithAI) return;
@@ -385,6 +441,7 @@ export function SpreadsheetView({
         onAddRow={handleAddRow}
         onAddColumn={handleAddColumn}
         onDeleteSelected={handleDeleteSelected}
+        onImportData={handleImportData}
         onAnalyzeWithAI={onAnalyzeWithAI ? handleAnalyzeWithAI : undefined}
         disabled={!duckdb.isReady || isLoading}
       />

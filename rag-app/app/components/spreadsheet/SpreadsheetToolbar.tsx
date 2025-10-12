@@ -6,6 +6,7 @@
 
 import { useState, memo } from 'react';
 import { SpreadsheetColumn } from './SpreadsheetGrid';
+import { DataImportModal } from './DataImportModal';
 import { cn } from '~/utils/cn';
 
 export interface SpreadsheetToolbarProps {
@@ -16,6 +17,7 @@ export interface SpreadsheetToolbarProps {
   onAddRow: () => void;
   onAddColumn: (column: SpreadsheetColumn) => void;
   onDeleteSelected: () => void;
+  onImportData?: (data: { columns: SpreadsheetColumn[]; rows: any[] }) => void;
   onAnalyzeWithAI?: () => void;
   disabled?: boolean;
 }
@@ -28,10 +30,12 @@ export const SpreadsheetToolbar = memo(function SpreadsheetToolbar({
   onAddRow,
   onAddColumn,
   onDeleteSelected,
+  onImportData,
   onAnalyzeWithAI,
   disabled = false,
 }: SpreadsheetToolbarProps) {
   const [showAddColumn, setShowAddColumn] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [newColumnName, setNewColumnName] = useState('');
   const [newColumnType, setNewColumnType] = useState<'text' | 'number' | 'boolean' | 'date'>('text');
 
@@ -89,6 +93,21 @@ export const SpreadsheetToolbar = memo(function SpreadsheetToolbar({
               )}
             >
               Delete Selected
+            </button>
+          )}
+
+          {/* Import data button */}
+          {onImportData && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              disabled={disabled}
+              className={cn(
+                'px-3 py-1 text-sm bg-green-600 text-white hover:bg-green-700 rounded flex items-center space-x-1 transition-colors',
+                disabled && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <span>📁</span>
+              <span>Import</span>
             </button>
           )}
 
@@ -199,6 +218,15 @@ export const SpreadsheetToolbar = memo(function SpreadsheetToolbar({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Import Modal */}
+      {onImportData && (
+        <DataImportModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          onImport={onImportData}
+        />
       )}
     </div>
   );
