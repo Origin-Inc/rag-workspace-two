@@ -381,7 +381,7 @@ export type Database = {
   }
 }
 
-export type BlockType = 
+export type BlockType =
   | 'text'
   | 'heading'
   | 'bullet_list'
@@ -396,6 +396,7 @@ export type BlockType =
   | 'table'
   | 'kanban'
   | 'calendar'
+  | 'spreadsheet'
   | 'embed'
   | 'link'
   | 'toggle'

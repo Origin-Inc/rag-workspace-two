@@ -25,6 +25,7 @@ import { DividerBlock } from "./blocks/DividerBlock";
 import { QuoteBlock } from "./blocks/QuoteBlock";
 import { FileBlock } from "./blocks/FileBlock";
 import { EmbedBlock } from "./blocks/EmbedBlock";
+import { SpreadsheetBlock } from "./blocks/SpreadsheetBlock";
 
 interface BlockRendererProps {
   block: Block;
@@ -54,6 +55,7 @@ const BLOCK_COMPONENTS: Record<string, React.ComponentType<any>> = {
   video: VideoBlock,
   table: TableBlock,
   kanban: KanbanBlock,
+  spreadsheet: SpreadsheetBlock,
   callout: CalloutBlock,
   toggle: ToggleBlock,
   divider: DividerBlock,
