@@ -166,6 +166,16 @@ export function useDuckDBWorker(): DuckDBWorkerHook {
         setIsReady(false);
       };
 
+      // Test if worker can receive messages at all
+      console.log('[DuckDBWorker] Testing worker connectivity...');
+      setTimeout(() => {
+        if (!isReady) {
+          console.error('[DuckDBWorker] ❌ Worker initialization timeout - worker script may not be loading');
+          setError('Worker initialization timeout - the worker script failed to load or execute');
+          setIsInitializing(false);
+        }
+      }, 5000);
+
       // Initialize worker
       console.log('[DuckDBWorker] Sending initialize message to worker...');
       worker.postMessage({ type: 'initialize' } as DuckDBWorkerMessage);

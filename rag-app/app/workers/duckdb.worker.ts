@@ -8,9 +8,8 @@
 // TOP LEVEL: Verify worker script loads
 console.log('[DuckDB Worker] 🚀 Worker script loading...');
 
+// Only import the main DuckDB module - WASM bundles are loaded from JSDelivr at runtime
 import * as duckdb from '@duckdb/duckdb-wasm';
-import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url';
-import duckdb_wasm_next from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url';
 
 console.log('[DuckDB Worker] ✅ Imports successful');
 
