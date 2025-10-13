@@ -5,7 +5,7 @@
  * Integrates DuckDB Worker for data storage and HyperFormula Worker for calculations.
  */
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { SpreadsheetGrid, SpreadsheetColumn, SpreadsheetRow } from './SpreadsheetGrid';
 import { SpreadsheetToolbar } from './SpreadsheetToolbar';
 import { FormulaBar } from './FormulaBar';
@@ -74,12 +74,18 @@ export function SpreadsheetView({
   const loadedPagesRef = useState(new Set<number>())[0];
   const pageSize = 100;
 
+  // Guard to prevent concurrent table initialization
+  const initializingRef = useRef(false);
+  const initializedTablesRef = useRef(new Set<string>());
+
   // Initialize table in DuckDB if not exists
   useEffect(() => {
     console.log('[SpreadsheetView] Table initialization effect triggered', {
       duckdbReady: duckdb.isReady,
       columnsLength: columns.length,
-      shouldInitialize: duckdb.isReady && columns.length > 0
+      shouldInitialize: duckdb.isReady && columns.length > 0,
+      isInitializing: initializingRef.current,
+      alreadyInitialized: initializedTablesRef.current.has(tableName)
     });
 
     if (!duckdb.isReady) {
@@ -92,7 +98,20 @@ export function SpreadsheetView({
       return;
     }
 
+    // Prevent concurrent initialization
+    if (initializingRef.current) {
+      console.log('[SpreadsheetView] ⏸️ Initialization already in progress...');
+      return;
+    }
+
+    // Don't re-initialize already initialized tables
+    if (initializedTablesRef.current.has(tableName)) {
+      console.log('[SpreadsheetView] ✅ Table already initialized:', tableName);
+      return;
+    }
+
     console.log('[SpreadsheetView] 🚀 Starting table initialization...');
+    initializingRef.current = true;
 
     async function initializeTable() {
       try {
@@ -146,14 +165,19 @@ export function SpreadsheetView({
         }
 
         console.log('[SpreadsheetView] ✅ Table initialization complete!');
+        // Mark table as initialized
+        initializedTablesRef.current.add(tableName);
       } catch (err) {
         console.error('[SpreadsheetView] ❌ Failed to initialize table:', err);
         setError(err instanceof Error ? err.message : 'Table initialization failed');
+      } finally {
+        // Reset initialization guard
+        initializingRef.current = false;
       }
     }
 
     initializeTable();
-  }, [duckdb.isReady, tableName, columns, initialRows, duckdb]);
+  }, [duckdb.isReady, duckdb.getRowCount, duckdb.createTable, duckdb.insertRows, tableName, columns]);
 
   // Load page from DuckDB
   const loadPage = useCallback(
