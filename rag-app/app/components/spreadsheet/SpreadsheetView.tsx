@@ -9,7 +9,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { SpreadsheetGrid, SpreadsheetColumn, SpreadsheetRow } from './SpreadsheetGrid';
 import { SpreadsheetToolbar } from './SpreadsheetToolbar';
 import { FormulaBar } from './FormulaBar';
-import { useDuckDBWorker, useHyperFormulaWorker } from '~/hooks/workers';
+import { useDuckDBDirect, useHyperFormulaWorker } from '~/hooks/workers';
 import { cn } from '~/utils/cn';
 
 export interface SpreadsheetViewProps {
@@ -42,7 +42,7 @@ export function SpreadsheetView({
   const [error, setError] = useState<string | null>(null);
 
   // Workers
-  const duckdb = useDuckDBWorker();
+  const duckdb = useDuckDBDirect();
   const hyperFormula = useHyperFormulaWorker();
 
   // Log worker states on mount and changes
