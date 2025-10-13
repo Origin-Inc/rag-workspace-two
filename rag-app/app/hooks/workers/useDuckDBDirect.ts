@@ -140,7 +140,9 @@ export function useDuckDBDirect(): DuckDBWorkerHook {
 
       const result = await connRef.current.query(`SELECT COUNT(*) as count FROM ${tableName}`);
       const data = result.toArray();
-      return data.length > 0 ? data[0].count : 0;
+      const count = data.length > 0 ? data[0].count : 0;
+      // Convert BigInt to Number for JavaScript compatibility
+      return typeof count === 'bigint' ? Number(count) : count;
     },
     [isReady]
   );
@@ -168,7 +170,9 @@ export function useDuckDBDirect(): DuckDBWorkerHook {
 
       const data = dataResult.toArray();
       const countData = countResult.toArray();
-      const totalRows = countData.length > 0 ? countData[0].count : 0;
+      const rawCount = countData.length > 0 ? countData[0].count : 0;
+      // Convert BigInt to Number for JavaScript compatibility
+      const totalRows = typeof rawCount === 'bigint' ? Number(rawCount) : rawCount;
       const totalPages = Math.ceil(totalRows / pageSize);
       const hasMore = page < totalPages - 1;
 

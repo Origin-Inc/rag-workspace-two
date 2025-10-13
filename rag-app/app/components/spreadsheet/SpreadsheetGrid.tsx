@@ -13,6 +13,7 @@ import DataEditor, {
   Item,
   EditableGridCell,
   DataEditorProps,
+  CompactSelection,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
 
@@ -201,11 +202,20 @@ export function SpreadsheetGrid({
 
       const selectedRows = new Set<number>();
 
-      // Handle row selection
+      // Handle row selection - CompactSelection needs special handling
       if (gridSelection.rows) {
-        gridSelection.rows.forEach((rowIndex) => {
-          selectedRows.add(rowIndex);
-        });
+        // CompactSelection is not a regular array, we need to iterate properly
+        if (gridSelection.rows instanceof CompactSelection) {
+          // Use CompactSelection's items() iterator
+          for (const rowIndex of gridSelection.rows) {
+            selectedRows.add(rowIndex);
+          }
+        } else if (Array.isArray(gridSelection.rows)) {
+          // If it's already an array (shouldn't happen but safe fallback)
+          gridSelection.rows.forEach((rowIndex) => {
+            selectedRows.add(rowIndex);
+          });
+        }
       }
 
       // Handle single cell selection
@@ -218,7 +228,7 @@ export function SpreadsheetGrid({
 
       setSelection({
         rows: selectedRows,
-        columns: new Set(gridSelection.columns || []),
+        columns: new Set(gridSelection.columns instanceof CompactSelection ? Array.from(gridSelection.columns) : (gridSelection.columns || [])),
       });
 
       if (onRowsSelected) {
@@ -236,7 +246,7 @@ export function SpreadsheetGrid({
       width: number;
       height: number;
     }) => {
-      if (!onLoadPage) return;
+      if (!onLoadPage || !Array.isArray(rows)) return;
 
       // Calculate which page we need based on visible region
       const startRow = range.y;
@@ -249,7 +259,8 @@ export function SpreadsheetGrid({
         // Check if page is already loaded
         const pageStartRow = page * pageSize;
         const pageEndRow = pageStartRow + pageSize;
-        const hasPageData = rows.slice(pageStartRow, pageEndRow).every((row) => row !== undefined);
+        const pageSlice = rows.slice(pageStartRow, pageEndRow);
+        const hasPageData = pageSlice.length > 0 && pageSlice.every((row) => row !== undefined);
 
         if (!hasPageData) {
           onLoadPage(page, pageSize);

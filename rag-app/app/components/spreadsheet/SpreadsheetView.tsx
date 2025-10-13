@@ -108,10 +108,14 @@ export function SpreadsheetView({
         if (countResult === 0 && initialRows.length > 0) {
           console.log('[SpreadsheetView] Creating table with initial data...');
           // Create table and insert initial data
-          const columnDefs = columns.map((col) => ({
-            name: col.id,
-            type: col.type === 'number' ? 'DOUBLE' : col.type === 'boolean' ? 'BOOLEAN' : 'VARCHAR',
-          }));
+          // Include 'id' column first, then all data columns
+          const columnDefs = [
+            { name: 'id', type: 'VARCHAR' },
+            ...columns.map((col) => ({
+              name: col.id,
+              type: col.type === 'number' ? 'DOUBLE' : col.type === 'boolean' ? 'BOOLEAN' : 'VARCHAR',
+            })),
+          ];
 
           console.log('[SpreadsheetView] Column definitions:', columnDefs);
           await duckdb.createTable(tableName, columnDefs);
@@ -123,10 +127,14 @@ export function SpreadsheetView({
           setTotalRows(initialRows.length);
         } else if (countResult === 0) {
           console.log('[SpreadsheetView] Creating empty table...');
-          const columnDefs = columns.map((col) => ({
-            name: col.id,
-            type: col.type === 'number' ? 'DOUBLE' : col.type === 'boolean' ? 'BOOLEAN' : 'VARCHAR',
-          }));
+          // Include 'id' column first, then all data columns
+          const columnDefs = [
+            { name: 'id', type: 'VARCHAR' },
+            ...columns.map((col) => ({
+              name: col.id,
+              type: col.type === 'number' ? 'DOUBLE' : col.type === 'boolean' ? 'BOOLEAN' : 'VARCHAR',
+            })),
+          ];
 
           console.log('[SpreadsheetView] Column definitions:', columnDefs);
           await duckdb.createTable(tableName, columnDefs);
@@ -418,10 +426,14 @@ export function SpreadsheetView({
         }
 
         // Create column definitions for DuckDB
-        const columnDefs = data.columns.map((col) => ({
-          name: col.id,
-          type: col.type === 'number' ? 'DOUBLE' : col.type === 'boolean' ? 'BOOLEAN' : 'VARCHAR',
-        }));
+        // Include 'id' column first, then all data columns
+        const columnDefs = [
+          { name: 'id', type: 'VARCHAR' },
+          ...data.columns.map((col) => ({
+            name: col.id,
+            type: col.type === 'number' ? 'DOUBLE' : col.type === 'boolean' ? 'BOOLEAN' : 'VARCHAR',
+          })),
+        ];
 
         // Create table if not exists
         try {
