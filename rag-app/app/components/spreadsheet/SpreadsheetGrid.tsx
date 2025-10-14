@@ -126,9 +126,12 @@ export function SpreadsheetGrid({
   pageSize = 100,
 }: SpreadsheetGridProps) {
   const [selection, setSelection] = useState<{
-    rows: Set<number>;
-    columns: Set<number>;
-  }>({ rows: new Set(), columns: new Set() });
+    rows: CompactSelection;
+    columns: CompactSelection;
+  }>({
+    rows: CompactSelection.empty(),
+    columns: CompactSelection.empty()
+  });
 
   // Convert columns to Glide Data Grid format
   const gridColumns: GridColumn[] = useMemo(() => {
@@ -189,7 +192,7 @@ export function SpreadsheetGrid({
   // Handle column resize
   const onColumnResized = useCallback(
     (column: GridColumn, newWidth: number) => {
-      if (!onColumnResize) return;
+      if (!onColumnResize || !column.id) return;
       onColumnResize(column.id, newWidth);
     },
     [onColumnResize]
@@ -200,24 +203,6 @@ export function SpreadsheetGrid({
     (gridSelection: DataEditorProps['gridSelection']) => {
       if (!gridSelection) return;
 
-      const selectedRows = new Set<number>();
-
-      // Handle row selection - CompactSelection needs special handling
-      if (gridSelection.rows) {
-        // CompactSelection is not a regular array, we need to iterate properly
-        if (gridSelection.rows instanceof CompactSelection) {
-          // Use CompactSelection's items() iterator
-          for (const rowIndex of gridSelection.rows) {
-            selectedRows.add(rowIndex);
-          }
-        } else if (Array.isArray(gridSelection.rows)) {
-          // If it's already an array (shouldn't happen but safe fallback)
-          gridSelection.rows.forEach((rowIndex) => {
-            selectedRows.add(rowIndex);
-          });
-        }
-      }
-
       // Handle single cell selection
       if (gridSelection.current && onCellSelected) {
         const cell = gridSelection.current.cell;
@@ -226,13 +211,19 @@ export function SpreadsheetGrid({
         }
       }
 
+      // Update selection state with CompactSelection objects directly
       setSelection({
-        rows: selectedRows,
-        columns: new Set(gridSelection.columns instanceof CompactSelection ? Array.from(gridSelection.columns) : (gridSelection.columns || [])),
+        rows: gridSelection.rows || CompactSelection.empty(),
+        columns: gridSelection.columns || CompactSelection.empty(),
       });
 
-      if (onRowsSelected) {
-        onRowsSelected(selectedRows);
+      // Notify parent of selected rows if callback exists
+      if (onRowsSelected && gridSelection.rows) {
+        const selectedRowsSet = new Set<number>();
+        for (const rowIndex of gridSelection.rows) {
+          selectedRowsSet.add(rowIndex);
+        }
+        onRowsSelected(selectedRowsSet);
       }
     },
     [onRowsSelected, onCellSelected]
@@ -290,9 +281,9 @@ export function SpreadsheetGrid({
         freezeColumns={0}
 
         // Selection
-        gridSelection={selection.rows.size > 0 || selection.columns.size > 0 ? {
-          rows: Array.from(selection.rows),
-          columns: Array.from(selection.columns),
+        gridSelection={selection.rows.length > 0 || selection.columns.length > 0 ? {
+          rows: selection.rows,
+          columns: selection.columns,
         } : undefined}
         onGridSelectionChange={onSelectionChanged}
         rangeSelect="rect"
@@ -305,7 +296,6 @@ export function SpreadsheetGrid({
 
         // Performance
         experimental={{
-          scrollingDelay: 0,
           isSubstrateTransparent: false,
         }}
 
