@@ -40,6 +40,7 @@ export function SpreadsheetView({
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isTableInitialized, setIsTableInitialized] = useState(false);
 
   // Workers
   const duckdb = useDuckDBDirect();
@@ -107,10 +108,12 @@ export function SpreadsheetView({
     // Don't re-initialize already initialized tables
     if (initializedTablesRef.current.has(tableName)) {
       console.log('[SpreadsheetView] ✅ Table already initialized:', tableName);
+      setIsTableInitialized(true);
       return;
     }
 
     console.log('[SpreadsheetView] 🚀 Starting table initialization...');
+    setIsTableInitialized(false);
     initializingRef.current = true;
 
     async function initializeTable() {
@@ -167,9 +170,11 @@ export function SpreadsheetView({
         console.log('[SpreadsheetView] ✅ Table initialization complete!');
         // Mark table as initialized
         initializedTablesRef.current.add(tableName);
+        setIsTableInitialized(true);
       } catch (err) {
         console.error('[SpreadsheetView] ❌ Failed to initialize table:', err);
         setError(err instanceof Error ? err.message : 'Table initialization failed');
+        setIsTableInitialized(false);
       } finally {
         // Reset initialization guard
         initializingRef.current = false;
@@ -182,7 +187,14 @@ export function SpreadsheetView({
   // Load page from DuckDB
   const loadPage = useCallback(
     async (page: number, size: number): Promise<SpreadsheetRow[]> => {
-      if (!duckdb.isReady || loadedPagesRef.has(page)) {
+      // Don't load data until table is initialized
+      if (!duckdb.isReady || !isTableInitialized || loadedPagesRef.has(page)) {
+        console.log('[SpreadsheetView] loadPage skipped:', {
+          duckdbReady: duckdb.isReady,
+          isTableInitialized,
+          pageAlreadyLoaded: loadedPagesRef.has(page),
+          page
+        });
         return [];
       }
 
@@ -217,7 +229,7 @@ export function SpreadsheetView({
         setIsLoading(false);
       }
     },
-    [duckdb.isReady, tableName, loadedPagesRef, duckdb]
+    [duckdb.isReady, isTableInitialized, tableName, loadedPagesRef, duckdb]
   );
 
   // Get current cell value and formula
