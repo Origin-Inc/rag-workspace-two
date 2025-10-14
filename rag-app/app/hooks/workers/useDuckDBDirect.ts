@@ -60,8 +60,14 @@ export function useDuckDBDirect(): DuckDBWorkerHook {
   useEffect(() => {
     console.log('[DuckDB Direct] Starting initialization...');
 
-    if (dbRef.current || isInitializing) {
-      console.log('[DuckDB Direct] Already initialized or initializing');
+    if (dbRef.current) {
+      console.log('[DuckDB Direct] Already initialized, using existing instance');
+      setIsReady(true);
+      return;
+    }
+
+    if (isInitializing) {
+      console.log('[DuckDB Direct] Initialization already in progress');
       return;
     }
 
@@ -95,6 +101,15 @@ export function useDuckDBDirect(): DuckDBWorkerHook {
       } catch (err) {
         console.error('[DuckDB Direct] ❌ Initialization failed:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize DuckDB');
+        // Clean up on error
+        if (dbRef.current) {
+          try {
+            dbRef.current.terminate();
+          } catch (e) {
+            console.error('[DuckDB Direct] Failed to terminate DB after error:', e);
+          }
+          dbRef.current = null;
+        }
       } finally {
         setIsInitializing(false);
       }
@@ -102,18 +117,29 @@ export function useDuckDBDirect(): DuckDBWorkerHook {
 
     initialize();
 
-    // Cleanup
+    // Cleanup only on unmount
     return () => {
+      console.log('[DuckDB Direct] Component unmounting, cleaning up...');
       if (connRef.current) {
-        connRef.current.close();
+        try {
+          connRef.current.close();
+        } catch (e) {
+          console.error('[DuckDB Direct] Error closing connection:', e);
+        }
         connRef.current = null;
       }
       if (dbRef.current) {
-        dbRef.current.terminate();
+        try {
+          dbRef.current.terminate();
+        } catch (e) {
+          console.error('[DuckDB Direct] Error terminating DB:', e);
+        }
         dbRef.current = null;
       }
+      setIsReady(false);
+      setIsInitializing(false);
     };
-  }, [isInitializing]);
+  }, []); // Empty dependency array - only run once on mount
 
   // Execute SQL query
   const query = useCallback(

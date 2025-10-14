@@ -294,11 +294,6 @@ export function SpreadsheetGrid({
         onColumnResize={onColumnResized}
         onColumnMoved={onColumnMove}
 
-        // Performance
-        experimental={{
-          isSubstrateTransparent: false,
-        }}
-
         // Infinite scrolling
         onVisibleRegionChanged={onVisibleRegionChanged}
 
