@@ -4,7 +4,7 @@ import { cn } from '~/utils/cn';
 import { DatabaseTableWrapper } from '~/components/database-block/DatabaseTableWrapper';
 import { AIBlock } from '~/components/blocks/AIBlock';
 import { ChartBlock } from '~/components/blocks/ChartBlock';
-import { SimplifiedSpreadsheetView } from '~/components/spreadsheet/SimplifiedSpreadsheetView';
+import { SpreadsheetBlock } from './blocks/SpreadsheetBlock';
 import { SlashMenu } from './SlashMenu';
 import { CommandBar } from './CommandBar';
 import { AIContextPanel } from './AIContextPanel';
@@ -554,29 +554,18 @@ const BlockComponent = memo(({
           />
         );
       case 'spreadsheet':
-        // Parse content if it's a string (from DB storage)
-        let spreadsheetContent = block.content;
-        if (typeof spreadsheetContent === 'string') {
-          try {
-            spreadsheetContent = JSON.parse(spreadsheetContent);
-          } catch {
-            spreadsheetContent = { title: 'Spreadsheet', columns: [], rows: [] };
-          }
-        }
         return (
-          <SimplifiedSpreadsheetView
-            initialColumns={spreadsheetContent?.columns || []}
-            initialRows={spreadsheetContent?.rows || []}
-            onDataChange={(data) => {
-              // Update block content with new spreadsheet data
-              const newContent = {
-                ...spreadsheetContent,
-                columns: data.columns,
-                rows: data.rows,
-              };
-              onUpdate(block.id, newContent);
+          <SpreadsheetBlock
+            block={block}
+            onChange={(updates) => {
+              // SpreadsheetBlock passes updates as Partial<Block>
+              // We need to merge these with existing block and call onUpdate with just content
+              if (updates.content !== undefined) {
+                onUpdate(block.id, updates.content);
+              }
             }}
-            height={500}
+            isSelected={isSelected}
+            isEditing={isEditing}
           />
         );
       case 'ai':
@@ -900,11 +889,16 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   
   // Sync blocks when initialBlocks changes (e.g., from AI updates or page navigation)
-  // Use JSON.stringify for deep comparison to catch content changes
+  // Use initialBlocks length and first block ID as dependency to avoid infinite loops
+  const initialBlocksKey = initialBlocks.map(b => b.id).join(',');
   useEffect(() => {
-    console.log('[EnhancedBlockEditor] Syncing blocks from props:', initialBlocks);
-    setBlocks(initialBlocks);
-  }, [JSON.stringify(initialBlocks)]);
+    // Only sync if blocks have actually changed (different IDs or length)
+    const currentBlocksKey = blocks.map(b => b.id).join(',');
+    if (initialBlocksKey !== currentBlocksKey && initialBlocks.length > 0) {
+      console.log('[EnhancedBlockEditor] Syncing blocks from props:', initialBlocks);
+      setBlocks(initialBlocks);
+    }
+  }, [initialBlocksKey]);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [dragOverBlockId, setDragOverBlockId] = useState<string | null>(null);
   const [showCommandBar, setShowCommandBar] = useState(false);

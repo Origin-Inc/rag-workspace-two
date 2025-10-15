@@ -14,7 +14,7 @@ export interface SpreadsheetBlockProps {
   block: Block;
   onChange: (updates: Partial<Block>) => void;
   isSelected: boolean;
-  isEditing: boolean;
+  isEditing?: boolean; // Optional, not used internally
 }
 
 interface SpreadsheetBlockContent {
@@ -28,7 +28,6 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
   block,
   onChange,
   isSelected,
-  isEditing,
 }: SpreadsheetBlockProps) {
   // Parse content
   const content: SpreadsheetBlockContent =
@@ -42,7 +41,7 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
   const initialRows = content.rows || [];
   const title = content.title || 'Spreadsheet';
 
-  const [isEditing, setIsEditing] = useState(false);
+  const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [tempTitle, setTempTitle] = useState(title);
 
   // Update content when data changes
@@ -65,7 +64,7 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
     if (tempTitle !== title) {
       handleDataChange({ title: tempTitle });
     }
-    setIsEditing(false);
+    setIsTitleEditing(false);
   }, [tempTitle, title, handleDataChange]);
 
   // Handle AI analysis (optional integration)
@@ -81,7 +80,7 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
     <div className="w-full h-full min-h-[400px] flex flex-col">
       {/* Title bar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-        {isEditing ? (
+        {isTitleEditing ? (
           <input
             type="text"
             value={tempTitle}
@@ -90,7 +89,7 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
               if (e.key === 'Enter') handleTitleChange();
               if (e.key === 'Escape') {
                 setTempTitle(title);
-                setIsEditing(false);
+                setIsTitleEditing(false);
               }
             }}
             onBlur={handleTitleChange}
@@ -100,7 +99,7 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
         ) : (
           <h3
             className="text-lg font-semibold cursor-pointer hover:text-blue-600"
-            onClick={() => setIsEditing(true)}
+            onClick={() => setIsTitleEditing(true)}
             title="Click to edit title"
           >
             {title}
