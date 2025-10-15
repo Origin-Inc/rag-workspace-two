@@ -64,8 +64,18 @@ export function SimplifiedSpreadsheetView({
   // Handle cell edit
   const handleCellEdit = useCallback(
     (rowIndex: number, colIndex: number, value: any) => {
+      console.log('[SimplifiedSpreadsheetView] handleCellEdit called', {
+        rowIndex,
+        colIndex,
+        value,
+        columnsLength: columns.length
+      });
+
       const column = columns[colIndex];
-      if (!column) return;
+      if (!column) {
+        console.warn('[SimplifiedSpreadsheetView] Column not found at index', colIndex);
+        return;
+      }
 
       setRows((prevRows) => {
         const newRows = [...prevRows];
@@ -84,6 +94,13 @@ export function SimplifiedSpreadsheetView({
           ...newRows[rowIndex],
           [column.id]: value,
         };
+
+        console.log('[SimplifiedSpreadsheetView] Cell updated', {
+          rowIndex,
+          columnId: column.id,
+          newValue: value,
+          rowData: newRows[rowIndex]
+        });
 
         // Notify parent (debounced)
         notifyParent(columns, newRows);

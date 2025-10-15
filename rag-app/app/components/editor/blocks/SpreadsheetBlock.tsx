@@ -29,6 +29,8 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
   onChange,
   isSelected,
 }: SpreadsheetBlockProps) {
+  console.log('[SpreadsheetBlock] Rendering', { blockId: block.id, isSelected });
+
   // Parse content
   const content: SpreadsheetBlockContent =
     typeof block.content === 'string'
@@ -40,6 +42,12 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
   const initialColumns = content.columns || [];
   const initialRows = content.rows || [];
   const title = content.title || 'Spreadsheet';
+
+  console.log('[SpreadsheetBlock] Parsed content', {
+    title,
+    columnsCount: initialColumns.length,
+    rowsCount: initialRows.length
+  });
 
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [tempTitle, setTempTitle] = useState(title);

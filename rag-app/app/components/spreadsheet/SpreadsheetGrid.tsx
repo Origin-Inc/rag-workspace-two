@@ -163,10 +163,23 @@ export function SpreadsheetGrid({
   // Handle cell edits
   const onCellEdited = useCallback(
     ([col, row]: Item, newValue: EditableGridCell): void => {
-      if (!onCellEdit) return;
+      console.log('[SpreadsheetGrid] onCellEdited called', {
+        col,
+        row,
+        newValueKind: newValue.kind,
+        hasOnCellEditProp: !!onCellEdit
+      });
+
+      if (!onCellEdit) {
+        console.warn('[SpreadsheetGrid] onCellEdit prop is not provided!');
+        return;
+      }
 
       const column = columns[col];
-      if (!column) return;
+      if (!column) {
+        console.warn('[SpreadsheetGrid] Column not found at index', col);
+        return;
+      }
 
       let value: any;
 
@@ -184,6 +197,7 @@ export function SpreadsheetGrid({
           value = null;
       }
 
+      console.log('[SpreadsheetGrid] Calling onCellEdit with', { row, col, value });
       onCellEdit(row, col, value);
     },
     [columns, onCellEdit]
