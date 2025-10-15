@@ -4,7 +4,7 @@ import { cn } from '~/utils/cn';
 import { DatabaseTableWrapper } from '~/components/database-block/DatabaseTableWrapper';
 import { AIBlock } from '~/components/blocks/AIBlock';
 import { ChartBlock } from '~/components/blocks/ChartBlock';
-import { SpreadsheetView } from '~/components/spreadsheet/SpreadsheetView';
+import { SimplifiedSpreadsheetView } from '~/components/spreadsheet/SimplifiedSpreadsheetView';
 import { SlashMenu } from './SlashMenu';
 import { CommandBar } from './CommandBar';
 import { AIContextPanel } from './AIContextPanel';
@@ -564,10 +564,18 @@ const BlockComponent = memo(({
           }
         }
         return (
-          <SpreadsheetView
-            tableName={`spreadsheet_${block.id.replace(/-/g, '_')}`}
+          <SimplifiedSpreadsheetView
             initialColumns={spreadsheetContent?.columns || []}
             initialRows={spreadsheetContent?.rows || []}
+            onDataChange={(data) => {
+              // Update block content with new spreadsheet data
+              const newContent = {
+                ...spreadsheetContent,
+                columns: data.columns,
+                rows: data.rows,
+              };
+              onUpdate(block.id, newContent);
+            }}
             height={500}
           />
         );

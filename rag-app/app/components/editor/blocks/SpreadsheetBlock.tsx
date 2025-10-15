@@ -6,7 +6,7 @@
  */
 
 import { memo, useCallback, useState, useEffect } from 'react';
-import { SpreadsheetView } from '~/components/spreadsheet';
+import { SimplifiedSpreadsheetView } from '~/components/spreadsheet';
 import type { SpreadsheetColumn } from '~/components/spreadsheet';
 import type { Block } from '~/types/blocks';
 
@@ -113,11 +113,15 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
 
       {/* Spreadsheet */}
       <div className="flex-1">
-        <SpreadsheetView
-          tableName={tableName}
+        <SimplifiedSpreadsheetView
           initialColumns={initialColumns}
           initialRows={initialRows}
-          onAnalyzeWithAI={handleAnalyzeWithAI}
+          onDataChange={(data) => {
+            handleDataChange({
+              columns: data.columns,
+              rows: data.rows,
+            });
+          }}
           height={block.position?.height ? block.position.height * 100 : 600}
         />
       </div>

@@ -1,11 +1,12 @@
 /**
  * Spreadsheet Components
  *
- * High-performance native spreadsheet editor with canvas-based rendering.
+ * Lightweight React state-based spreadsheet editor.
+ * NO DuckDB - just React state + Glide Data Grid for optimal performance.
  */
 
-export { SpreadsheetView } from './SpreadsheetView';
-export type { SpreadsheetViewProps } from './SpreadsheetView';
+export { SimplifiedSpreadsheetView } from './SimplifiedSpreadsheetView';
+export type { SimplifiedSpreadsheetViewProps } from './SimplifiedSpreadsheetView';
 
 export { SpreadsheetGrid } from './SpreadsheetGrid';
 export type { SpreadsheetGridProps, SpreadsheetColumn, SpreadsheetRow } from './SpreadsheetGrid';
