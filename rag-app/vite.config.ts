@@ -28,7 +28,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: [
-      'react', 
+      'react',
       'react-dom',
       '@dnd-kit/core',
       '@dnd-kit/sortable',
@@ -38,8 +38,7 @@ export default defineConfig({
       '@heroicons/react/24/solid'
     ],
     exclude: [
-      '@mapbox/node-pre-gyp',
-      '@duckdb/duckdb-wasm' // Exclude DuckDB WASM from optimization
+      '@mapbox/node-pre-gyp'
     ],
     force: true, // Force re-optimization
   },
