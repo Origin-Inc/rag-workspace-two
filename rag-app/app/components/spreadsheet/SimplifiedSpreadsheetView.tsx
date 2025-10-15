@@ -24,6 +24,12 @@ export function SimplifiedSpreadsheetView({
   onDataChange,
   height = 500,
 }: SimplifiedSpreadsheetViewProps) {
+  console.log('[SimplifiedSpreadsheetView] COMPONENT CALLED', {
+    initialColumnsLength: initialColumns.length,
+    initialRowsLength: initialRows.length,
+    height
+  });
+
   // React state - no DuckDB, no workers, just plain data
   const [columns, setColumns] = useState<SpreadsheetColumn[]>(
     initialColumns.length > 0
@@ -136,8 +142,18 @@ export function SimplifiedSpreadsheetView({
     return Math.max(rows.length, 100);
   }, [rows.length]);
 
+  console.log('[SimplifiedSpreadsheetView] About to return JSX', {
+    columnsLength: columns.length,
+    rowsLength: rows.length,
+    totalRows
+  });
+
   return (
-    <div className="w-full h-full flex flex-col bg-white dark:bg-gray-900">
+    <div
+      className="w-full h-full flex flex-col bg-white dark:bg-gray-900"
+      data-testid="simplified-spreadsheet-view"
+      style={{ border: '3px solid green', backgroundColor: '#ccffcc', minHeight: '200px' }}
+    >
       <SpreadsheetGrid
         columns={columns}
         rows={rows}

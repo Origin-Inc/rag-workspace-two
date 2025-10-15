@@ -84,10 +84,25 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
     []
   );
 
+  console.log('[SpreadsheetBlock] About to render JSX', {
+    blockId: block.id,
+    willRenderHeader: true,
+    willRenderSpreadsheet: true,
+    hasInitialColumns: initialColumns.length > 0
+  });
+
   return (
-    <div className="w-full h-full min-h-[400px] flex flex-col">
+    <div
+      className="w-full h-full min-h-[400px] flex flex-col"
+      data-testid="spreadsheet-block-root"
+      style={{ border: '3px solid red', backgroundColor: '#ffcccc' }}
+    >
       {/* Title bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+      <div
+        className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-yellow-300"
+        data-testid="spreadsheet-block-header"
+        style={{ backgroundColor: '#ffff00', minHeight: '50px' }}
+      >
         {isTitleEditing ? (
           <input
             type="text"
@@ -119,7 +134,11 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
       </div>
 
       {/* Spreadsheet */}
-      <div className="flex-1">
+      <div
+        className="flex-1"
+        data-testid="spreadsheet-container"
+        style={{ border: '3px solid blue', backgroundColor: '#ccccff', minHeight: '300px' }}
+      >
         <SimplifiedSpreadsheetView
           initialColumns={initialColumns}
           initialRows={initialRows}

@@ -125,6 +125,14 @@ export function SpreadsheetGrid({
   height = 600,
   pageSize = 100,
 }: SpreadsheetGridProps) {
+  console.log('[SpreadsheetGrid] COMPONENT CALLED', {
+    columnsLength: columns.length,
+    rowsLength: rows.length,
+    totalRows,
+    height,
+    hasOnCellEdit: !!onCellEdit
+  });
+
   const [selection, setSelection] = useState<{
     rows: CompactSelection;
     columns: CompactSelection;
