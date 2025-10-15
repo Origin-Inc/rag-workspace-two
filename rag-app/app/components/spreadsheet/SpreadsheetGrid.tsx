@@ -58,6 +58,7 @@ function getCellContent(
       data: '',
       displayData: '',
       allowOverlay: true,
+      readonly: false,
     };
   }
 
@@ -68,6 +69,7 @@ function getCellContent(
       data: value,
       displayData: value,
       allowOverlay: true,
+      readonly: false,
       contentAlign: 'left',
     };
   }
@@ -80,13 +82,15 @@ function getCellContent(
         data: typeof value === 'number' ? value : parseFloat(value) || 0,
         displayData: String(value),
         allowOverlay: true,
+        readonly: false,
       };
 
     case 'boolean':
       return {
         kind: GridCellKind.Boolean,
         data: Boolean(value),
-        allowOverlay: false,
+        allowOverlay: true,
+        readonly: false,
       };
 
     case 'date':
@@ -95,6 +99,7 @@ function getCellContent(
         data: value instanceof Date ? value.toISOString() : String(value),
         displayData: value instanceof Date ? value.toLocaleDateString() : String(value),
         allowOverlay: true,
+        readonly: false,
       };
 
     case 'text':
@@ -104,6 +109,7 @@ function getCellContent(
         data: String(value),
         displayData: String(value),
         allowOverlay: true,
+        readonly: false,
       };
   }
 }
@@ -125,14 +131,6 @@ export function SpreadsheetGrid({
   height = 600,
   pageSize = 100,
 }: SpreadsheetGridProps) {
-  console.log('[SpreadsheetGrid] COMPONENT CALLED', {
-    columnsLength: columns.length,
-    rowsLength: rows.length,
-    totalRows,
-    height,
-    hasOnCellEdit: !!onCellEdit
-  });
-
   const [selection, setSelection] = useState<{
     rows: CompactSelection;
     columns: CompactSelection;
@@ -171,23 +169,10 @@ export function SpreadsheetGrid({
   // Handle cell edits
   const onCellEdited = useCallback(
     ([col, row]: Item, newValue: EditableGridCell): void => {
-      console.log('[SpreadsheetGrid] onCellEdited called', {
-        col,
-        row,
-        newValueKind: newValue.kind,
-        hasOnCellEditProp: !!onCellEdit
-      });
-
-      if (!onCellEdit) {
-        console.warn('[SpreadsheetGrid] onCellEdit prop is not provided!');
-        return;
-      }
+      if (!onCellEdit) return;
 
       const column = columns[col];
-      if (!column) {
-        console.warn('[SpreadsheetGrid] Column not found at index', col);
-        return;
-      }
+      if (!column) return;
 
       let value: any;
 
@@ -205,7 +190,6 @@ export function SpreadsheetGrid({
           value = null;
       }
 
-      console.log('[SpreadsheetGrid] Calling onCellEdit with', { row, col, value });
       onCellEdit(row, col, value);
     },
     [columns, onCellEdit]

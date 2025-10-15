@@ -29,8 +29,6 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
   onChange,
   isSelected,
 }: SpreadsheetBlockProps) {
-  console.log('[SpreadsheetBlock] Rendering', { blockId: block.id, isSelected });
-
   // Parse content
   const content: SpreadsheetBlockContent =
     typeof block.content === 'string'
@@ -42,12 +40,6 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
   const initialColumns = content.columns || [];
   const initialRows = content.rows || [];
   const title = content.title || 'Spreadsheet';
-
-  console.log('[SpreadsheetBlock] Parsed content', {
-    title,
-    columnsCount: initialColumns.length,
-    rowsCount: initialRows.length
-  });
 
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [tempTitle, setTempTitle] = useState(title);
@@ -84,24 +76,15 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
     []
   );
 
-  console.log('[SpreadsheetBlock] About to render JSX', {
-    blockId: block.id,
-    willRenderHeader: true,
-    willRenderSpreadsheet: true,
-    hasInitialColumns: initialColumns.length > 0
-  });
-
   return (
     <div
       className="w-full h-full min-h-[400px] flex flex-col"
       data-testid="spreadsheet-block-root"
-      style={{ border: '3px solid red', backgroundColor: '#ffcccc' }}
     >
       {/* Title bar */}
       <div
-        className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-yellow-300"
+        className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
         data-testid="spreadsheet-block-header"
-        style={{ backgroundColor: '#ffff00', minHeight: '50px' }}
       >
         {isTitleEditing ? (
           <input
@@ -137,7 +120,6 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
       <div
         className="flex-1"
         data-testid="spreadsheet-container"
-        style={{ border: '3px solid blue', backgroundColor: '#ccccff', minHeight: '300px' }}
       >
         <SimplifiedSpreadsheetView
           initialColumns={initialColumns}

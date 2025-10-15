@@ -7,8 +7,9 @@
  * Performance: <50ms initialization, <10ms cell edits
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { SpreadsheetGrid } from './SpreadsheetGrid';
+import { SpreadsheetToolbar } from './SpreadsheetToolbar';
 import type { SpreadsheetColumn, SpreadsheetRow } from './SpreadsheetGrid';
 
 export interface SimplifiedSpreadsheetViewProps {
@@ -24,12 +25,6 @@ export function SimplifiedSpreadsheetView({
   onDataChange,
   height = 500,
 }: SimplifiedSpreadsheetViewProps) {
-  console.log('[SimplifiedSpreadsheetView] COMPONENT CALLED', {
-    initialColumnsLength: initialColumns.length,
-    initialRowsLength: initialRows.length,
-    height
-  });
-
   // React state - no DuckDB, no workers, just plain data
   const [columns, setColumns] = useState<SpreadsheetColumn[]>(
     initialColumns.length > 0
@@ -44,7 +39,7 @@ export function SimplifiedSpreadsheetView({
   const [rows, setRows] = useState<SpreadsheetRow[]>(initialRows);
 
   // Debounce timer
-  const debounceTimerRef = useState<NodeJS.Timeout | null>(null)[0];
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Notify parent of changes (debounced)
   const notifyParent = useCallback(
@@ -52,31 +47,21 @@ export function SimplifiedSpreadsheetView({
       if (!onDataChange) return;
 
       // Clear existing timer
-      if (debounceTimerRef) {
-        clearTimeout(debounceTimerRef);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
       }
 
       // Debounce saves (300ms)
-      const timer = setTimeout(() => {
+      debounceTimerRef.current = setTimeout(() => {
         onDataChange({ columns: newColumns, rows: newRows });
       }, 300);
-
-      // Store timer reference
-      Object.assign(debounceTimerRef || {}, timer);
     },
-    [onDataChange, debounceTimerRef]
+    [onDataChange]
   );
 
   // Handle cell edit
   const handleCellEdit = useCallback(
     (rowIndex: number, colIndex: number, value: any) => {
-      console.log('[SimplifiedSpreadsheetView] handleCellEdit called', {
-        rowIndex,
-        colIndex,
-        value,
-        columnsLength: columns.length
-      });
-
       const column = columns[colIndex];
       if (!column) {
         console.warn('[SimplifiedSpreadsheetView] Column not found at index', colIndex);
@@ -100,13 +85,6 @@ export function SimplifiedSpreadsheetView({
           ...newRows[rowIndex],
           [column.id]: value,
         };
-
-        console.log('[SimplifiedSpreadsheetView] Cell updated', {
-          rowIndex,
-          columnId: column.id,
-          newValue: value,
-          rowData: newRows[rowIndex]
-        });
 
         // Notify parent (debounced)
         notifyParent(columns, newRows);
@@ -136,24 +114,59 @@ export function SimplifiedSpreadsheetView({
     [rows, onDataChange]
   );
 
+  // Handle add row
+  const handleAddRow = useCallback(() => {
+    const newRow: SpreadsheetRow = {};
+    columns.forEach((col) => {
+      newRow[col.id] = '';
+    });
+
+    setRows((prevRows) => {
+      const newRows = [...prevRows, newRow];
+      notifyParent(columns, newRows);
+      return newRows;
+    });
+  }, [columns, notifyParent]);
+
+  // Handle add column
+  const handleAddColumn = useCallback((column: SpreadsheetColumn) => {
+    setColumns((prevColumns) => {
+      const newColumns = [...prevColumns, column];
+
+      // Add empty values for new column in all existing rows
+      setRows((prevRows) => {
+        const newRows = prevRows.map(row => ({
+          ...row,
+          [column.id]: ''
+        }));
+        notifyParent(newColumns, newRows);
+        return newRows;
+      });
+
+      return newColumns;
+    });
+  }, [notifyParent]);
+
   // Total rows for virtual scrolling
   const totalRows = useMemo(() => {
     // Always allow at least 100 empty rows for data entry
     return Math.max(rows.length, 100);
   }, [rows.length]);
 
-  console.log('[SimplifiedSpreadsheetView] About to return JSX', {
-    columnsLength: columns.length,
-    rowsLength: rows.length,
-    totalRows
-  });
-
   return (
     <div
       className="w-full h-full flex flex-col bg-white dark:bg-gray-900"
       data-testid="simplified-spreadsheet-view"
-      style={{ border: '3px solid green', backgroundColor: '#ccffcc', minHeight: '200px' }}
     >
+      <SpreadsheetToolbar
+        tableName="Spreadsheet"
+        columnCount={columns.length}
+        rowCount={rows.length}
+        selectedRowCount={0}
+        onAddRow={handleAddRow}
+        onAddColumn={handleAddColumn}
+        onDeleteSelected={() => {}}
+      />
       <SpreadsheetGrid
         columns={columns}
         rows={rows}
