@@ -279,7 +279,11 @@ export function SpreadsheetGrid({
   );
 
   return (
-    <div className={className}>
+    <div
+      className={className}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <DataEditor
         // Core props
         columns={gridColumns}

@@ -157,6 +157,8 @@ export function SimplifiedSpreadsheetView({
     <div
       className="w-full h-full flex flex-col bg-white dark:bg-gray-900"
       data-testid="simplified-spreadsheet-view"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       <SpreadsheetToolbar
         tableName="Spreadsheet"
