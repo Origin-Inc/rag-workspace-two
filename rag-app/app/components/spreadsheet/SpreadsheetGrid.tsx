@@ -152,12 +152,23 @@ export function SpreadsheetGrid({
   const getCellContentCallback = useCallback(
     ([col, row]: Item): GridCell => {
       const column = columns[col];
-      const rowData = rows[row];
 
-      if (!column || !rowData) {
+      if (!column) {
         return {
           kind: GridCellKind.Loading,
           allowOverlay: false,
+        };
+      }
+
+      // If row doesn't exist yet, return an empty editable cell
+      const rowData = rows[row];
+      if (!rowData) {
+        return {
+          kind: GridCellKind.Text,
+          data: '',
+          displayData: '',
+          allowOverlay: true,
+          readonly: false,
         };
       }
 
