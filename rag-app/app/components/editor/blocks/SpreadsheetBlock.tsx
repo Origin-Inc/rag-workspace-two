@@ -120,6 +120,11 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
       <div
         className="flex-1"
         data-testid="spreadsheet-container"
+        onClick={(e) => {
+          // Prevent block selection when clicking inside spreadsheet
+          // This allows Glide Data Grid to receive click events for cell editing
+          e.stopPropagation();
+        }}
       >
         <SimplifiedSpreadsheetView
           initialColumns={initialColumns}
