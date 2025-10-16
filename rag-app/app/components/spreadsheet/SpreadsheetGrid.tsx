@@ -281,8 +281,8 @@ export function SpreadsheetGrid({
   return (
     <div
       className={className}
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
+      onClickCapture={(e) => e.stopPropagation()}
+      onMouseDownCapture={(e) => e.stopPropagation()}
     >
       <DataEditor
         // Core props

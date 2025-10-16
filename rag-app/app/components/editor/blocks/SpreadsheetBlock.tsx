@@ -80,6 +80,8 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
     <div
       className="w-full h-full min-h-[400px] flex flex-col"
       data-testid="spreadsheet-block-root"
+      onClickCapture={(e) => e.stopPropagation()}
+      onMouseDownCapture={(e) => e.stopPropagation()}
     >
       {/* Title bar */}
       <div
@@ -120,11 +122,6 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
       <div
         className="flex-1"
         data-testid="spreadsheet-container"
-        onClick={(e) => {
-          // Prevent block selection when clicking inside spreadsheet
-          // This allows Glide Data Grid to receive click events for cell editing
-          e.stopPropagation();
-        }}
       >
         <SimplifiedSpreadsheetView
           initialColumns={initialColumns}
