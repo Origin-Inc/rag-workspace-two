@@ -155,7 +155,7 @@ export function SimplifiedSpreadsheetView({
 
   return (
     <div
-      className="w-full h-full flex flex-col bg-white dark:bg-gray-900"
+      className="w-full h-full flex flex-col"
       data-testid="simplified-spreadsheet-view"
     >
       <SpreadsheetToolbar

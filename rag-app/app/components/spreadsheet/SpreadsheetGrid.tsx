@@ -5,7 +5,7 @@
  * Supports 100M+ rows at 60fps with canvas-based rendering.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import DataEditor, {
   GridCell,
   GridCellKind,
@@ -131,6 +131,9 @@ export function SpreadsheetGrid({
   height = 600,
   pageSize = 100,
 }: SpreadsheetGridProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [textColor, setTextColor] = useState('#111827');
+
   const [selection, setSelection] = useState<{
     rows: CompactSelection;
     columns: CompactSelection;
@@ -138,6 +141,31 @@ export function SpreadsheetGrid({
     rows: CompactSelection.empty(),
     columns: CompactSelection.empty()
   });
+
+  // Get computed text color from parent element to support light/dark mode
+  useEffect(() => {
+    if (containerRef.current) {
+      const computedColor = window.getComputedStyle(containerRef.current).color;
+      setTextColor(computedColor);
+    }
+
+    // Listen for theme changes
+    const observer = new MutationObserver(() => {
+      if (containerRef.current) {
+        const computedColor = window.getComputedStyle(containerRef.current).color;
+        setTextColor(computedColor);
+      }
+    });
+
+    // Observe dark class changes on html element
+    const htmlElement = document.documentElement;
+    observer.observe(htmlElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   // Convert columns to Glide Data Grid format
   const gridColumns: GridColumn[] = useMemo(() => {
@@ -280,7 +308,8 @@ export function SpreadsheetGrid({
 
   return (
     <div
-      className={className}
+      ref={containerRef}
+      className={`${className} text-theme-text-primary`}
     >
       <DataEditor
         // Core props
@@ -300,23 +329,38 @@ export function SpreadsheetGrid({
         // Infinite scrolling
         onVisibleRegionChanged={onVisibleRegionChanged}
 
-        // Theme
+        // Theme - Transparent backgrounds, dynamic text colors
         theme={{
           accentColor: '#3b82f6',
-          accentLight: '#dbeafe',
-          bgCell: '#ffffff',
-          bgCellMedium: '#f9fafb',
-          bgHeader: '#f3f4f6',
-          bgHeaderHasFocus: '#e5e7eb',
-          bgHeaderHovered: '#e5e7eb',
-          borderColor: '#e5e7eb',
+          accentLight: 'rgba(59, 130, 246, 0.1)',
+          // Transparent backgrounds
+          bgCell: 'transparent',
+          bgCellMedium: 'transparent',
+          bgHeader: 'transparent',
+          bgHeaderHasFocus: 'rgba(59, 130, 246, 0.05)',
+          bgHeaderHovered: 'rgba(59, 130, 246, 0.05)',
+          bgBubble: 'transparent',
+          bgBubbleSelected: 'transparent',
+          bgSearchResult: 'rgba(255, 249, 227, 0.5)',
+          // Subtle borders
+          borderColor: 'rgba(115, 116, 131, 0.16)',
+          horizontalBorderColor: 'rgba(115, 116, 131, 0.16)',
+          drilldownBorder: 'transparent',
+          // Dynamic text colors from theme
+          textDark: textColor,
+          textMedium: textColor,
+          textLight: textColor,
+          textHeader: textColor,
+          textGroupHeader: textColor,
+          textHeaderSelected: '#ffffff',
+          textBubble: textColor,
+          // Font settings
           fontFamily: 'Inter, system-ui, sans-serif',
           headerFontStyle: '600 13px',
           baseFontStyle: '13px',
-          textDark: '#111827',
-          textMedium: '#6b7280',
-          textLight: '#9ca3af',
-          textBubble: '#ffffff',
+          markerFontStyle: '9px',
+          editorFontSize: '13px',
+          linkColor: '#3b82f6',
         }}
       />
     </div>
