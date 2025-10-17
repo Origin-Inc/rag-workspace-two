@@ -80,8 +80,14 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
     <div
       className="w-full h-full min-h-[400px] flex flex-col"
       data-testid="spreadsheet-block-root"
-      onClickCapture={(e) => e.stopPropagation()}
-      onMouseDownCapture={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => {
+        console.log('[SpreadsheetBlock] Double click detected');
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        console.log('[SpreadsheetBlock] Single click detected');
+        e.stopPropagation();
+      }}
     >
       {/* Title bar */}
       <div

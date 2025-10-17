@@ -180,6 +180,7 @@ export function SpreadsheetGrid({
   // Handle cell edits
   const onCellEdited = useCallback(
     ([col, row]: Item, newValue: EditableGridCell): void => {
+      console.log('🎉 CELL EDITED in SpreadsheetGrid!', { col, row, newValue });
       if (!onCellEdit) return;
 
       const column = columns[col];
@@ -281,8 +282,6 @@ export function SpreadsheetGrid({
   return (
     <div
       className={className}
-      onClickCapture={(e) => e.stopPropagation()}
-      onMouseDownCapture={(e) => e.stopPropagation()}
     >
       <DataEditor
         columns={gridColumns}
