@@ -285,57 +285,12 @@ export function SpreadsheetGrid({
       onMouseDownCapture={(e) => e.stopPropagation()}
     >
       <DataEditor
-        // Core props
         columns={gridColumns}
         rows={totalRows}
         getCellContent={getCellContentCallback}
         onCellEdited={onCellEdited}
-
-        // Layout
         width="100%"
         height={height}
-        rowMarkers="both"
-
-        // Features
-        smoothScrollX={true}
-        smoothScrollY={true}
-        freezeColumns={0}
-
-        // Selection - DISABLED to test if this blocks editing
-        // gridSelection={selection.rows.length > 0 || selection.columns.length > 0 ? {
-        //   rows: selection.rows,
-        //   columns: selection.columns,
-        // } : undefined}
-        // onGridSelectionChange={onSelectionChanged}
-        // rangeSelect="rect"
-        // columnSelect="multi"
-        // rowSelect="multi"
-
-        // Column operations
-        onColumnResize={onColumnResized}
-        onColumnMoved={onColumnMove}
-
-        // Infinite scrolling
-        onVisibleRegionChanged={onVisibleRegionChanged}
-
-        // Theme
-        theme={{
-          accentColor: '#3b82f6',
-          accentLight: '#dbeafe',
-          bgCell: '#ffffff',
-          bgCellMedium: '#f9fafb',
-          bgHeader: '#f3f4f6',
-          bgHeaderHasFocus: '#e5e7eb',
-          bgHeaderHovered: '#e5e7eb',
-          borderColor: '#e5e7eb',
-          fontFamily: 'Inter, system-ui, sans-serif',
-          headerFontStyle: '600 13px',
-          baseFontStyle: '13px',
-          textDark: '#111827',
-          textMedium: '#6b7280',
-          textLight: '#9ca3af',
-          textBubble: '#ffffff',
-        }}
       />
     </div>
   );
