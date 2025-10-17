@@ -180,7 +180,6 @@ export function SpreadsheetGrid({
   // Handle cell edits
   const onCellEdited = useCallback(
     ([col, row]: Item, newValue: EditableGridCell): void => {
-      console.log('🎉 CELL EDITED in SpreadsheetGrid!', { col, row, newValue });
       if (!onCellEdit) return;
 
       const column = columns[col];
@@ -284,12 +283,41 @@ export function SpreadsheetGrid({
       className={className}
     >
       <DataEditor
+        // Core props
         columns={gridColumns}
         rows={totalRows}
         getCellContent={getCellContentCallback}
         onCellEdited={onCellEdited}
+
+        // Layout
         width="100%"
         height={height}
+
+        // Column operations
+        onColumnResize={onColumnResized}
+        onColumnMoved={onColumnMove}
+
+        // Infinite scrolling
+        onVisibleRegionChanged={onVisibleRegionChanged}
+
+        // Theme
+        theme={{
+          accentColor: '#3b82f6',
+          accentLight: '#dbeafe',
+          bgCell: '#ffffff',
+          bgCellMedium: '#f9fafb',
+          bgHeader: '#f3f4f6',
+          bgHeaderHasFocus: '#e5e7eb',
+          bgHeaderHovered: '#e5e7eb',
+          borderColor: '#e5e7eb',
+          fontFamily: 'Inter, system-ui, sans-serif',
+          headerFontStyle: '600 13px',
+          baseFontStyle: '13px',
+          textDark: '#111827',
+          textMedium: '#6b7280',
+          textLight: '#9ca3af',
+          textBubble: '#ffffff',
+        }}
       />
     </div>
   );

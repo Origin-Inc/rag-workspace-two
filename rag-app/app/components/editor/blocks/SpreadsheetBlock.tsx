@@ -80,12 +80,8 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
     <div
       className="w-full h-full min-h-[400px] flex flex-col"
       data-testid="spreadsheet-block-root"
-      onDoubleClick={(e) => {
-        console.log('[SpreadsheetBlock] Double click detected');
-        e.stopPropagation();
-      }}
       onClick={(e) => {
-        console.log('[SpreadsheetBlock] Single click detected');
+        // Prevent block selection when clicking inside spreadsheet
         e.stopPropagation();
       }}
     >
