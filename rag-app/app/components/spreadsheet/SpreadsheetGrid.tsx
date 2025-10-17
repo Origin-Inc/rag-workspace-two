@@ -301,15 +301,15 @@ export function SpreadsheetGrid({
         smoothScrollY={true}
         freezeColumns={0}
 
-        // Selection
-        gridSelection={selection.rows.length > 0 || selection.columns.length > 0 ? {
-          rows: selection.rows,
-          columns: selection.columns,
-        } : undefined}
-        onGridSelectionChange={onSelectionChanged}
-        rangeSelect="rect"
-        columnSelect="multi"
-        rowSelect="multi"
+        // Selection - DISABLED to test if this blocks editing
+        // gridSelection={selection.rows.length > 0 || selection.columns.length > 0 ? {
+        //   rows: selection.rows,
+        //   columns: selection.columns,
+        // } : undefined}
+        // onGridSelectionChange={onSelectionChanged}
+        // rangeSelect="rect"
+        // columnSelect="multi"
+        // rowSelect="multi"
 
         // Column operations
         onColumnResize={onColumnResized}
