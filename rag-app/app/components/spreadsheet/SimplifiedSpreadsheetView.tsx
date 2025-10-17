@@ -7,15 +7,16 @@
  * Performance: <50ms initialization, <10ms cell edits
  */
 
-import { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { SpreadsheetGrid } from './SpreadsheetGrid';
-import { SpreadsheetToolbar } from './SpreadsheetToolbar';
 import type { SpreadsheetColumn, SpreadsheetRow } from './SpreadsheetGrid';
 
 export interface SimplifiedSpreadsheetViewProps {
   initialColumns?: SpreadsheetColumn[];
   initialRows?: SpreadsheetRow[];
   onDataChange?: (data: { columns: SpreadsheetColumn[]; rows: SpreadsheetRow[] }) => void;
+  onAddRow?: () => void;
+  onAddColumn?: (column: SpreadsheetColumn) => void;
   height?: number;
 }
 
@@ -23,6 +24,8 @@ export function SimplifiedSpreadsheetView({
   initialColumns = [],
   initialRows = [],
   onDataChange,
+  onAddRow: externalOnAddRow,
+  onAddColumn: externalOnAddColumn,
   height = 500,
 }: SimplifiedSpreadsheetViewProps) {
   // React state - no DuckDB, no workers, just plain data
@@ -126,7 +129,10 @@ export function SimplifiedSpreadsheetView({
       notifyParent(columns, newRows);
       return newRows;
     });
-  }, [columns, notifyParent]);
+
+    // Call external handler if provided
+    externalOnAddRow?.();
+  }, [columns, notifyParent, externalOnAddRow]);
 
   // Handle add column
   const handleAddColumn = useCallback((column: SpreadsheetColumn) => {
@@ -145,7 +151,10 @@ export function SimplifiedSpreadsheetView({
 
       return newColumns;
     });
-  }, [notifyParent]);
+
+    // Call external handler if provided
+    externalOnAddColumn?.(column);
+  }, [notifyParent, externalOnAddColumn]);
 
   // Total rows for virtual scrolling
   const totalRows = useMemo(() => {
@@ -153,20 +162,22 @@ export function SimplifiedSpreadsheetView({
     return Math.max(rows.length, 100);
   }, [rows.length]);
 
+  // Expose handlers for external use
+  // Store them in a ref that parent can access
+  React.useImperativeHandle(
+    React.useRef(null),
+    () => ({
+      addRow: handleAddRow,
+      addColumn: handleAddColumn,
+    }),
+    [handleAddRow, handleAddColumn]
+  );
+
   return (
     <div
       className="w-full h-full flex flex-col"
       data-testid="simplified-spreadsheet-view"
     >
-      <SpreadsheetToolbar
-        tableName="Spreadsheet"
-        columnCount={columns.length}
-        rowCount={rows.length}
-        selectedRowCount={0}
-        onAddRow={handleAddRow}
-        onAddColumn={handleAddColumn}
-        onDeleteSelected={() => {}}
-      />
       <SpreadsheetGrid
         columns={columns}
         rows={rows}

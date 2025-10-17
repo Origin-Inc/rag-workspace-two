@@ -9,6 +9,7 @@ import { memo, useCallback, useState, useEffect } from 'react';
 import { SimplifiedSpreadsheetView } from '~/components/spreadsheet';
 import type { SpreadsheetColumn } from '~/components/spreadsheet';
 import type { Block } from '~/types/blocks';
+import { Plus } from 'lucide-react';
 
 export interface SpreadsheetBlockProps {
   block: Block;
@@ -43,6 +44,9 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
 
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [tempTitle, setTempTitle] = useState(title);
+  const [showAddColumn, setShowAddColumn] = useState(false);
+  const [newColumnName, setNewColumnName] = useState('');
+  const [newColumnType, setNewColumnType] = useState<'text' | 'number' | 'boolean' | 'date'>('text');
 
   // Update content when data changes
   const handleDataChange = useCallback(
@@ -67,14 +71,55 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
     setIsTitleEditing(false);
   }, [tempTitle, title, handleDataChange]);
 
-  // Handle AI analysis (optional integration)
-  const handleAnalyzeWithAI = useCallback(
-    (context: any) => {
-      // Could integrate with AI sidebar here
-      console.log('AI analysis requested for spreadsheet:', context);
-    },
-    []
-  );
+  // Handle add row
+  const handleAddRow = useCallback(() => {
+    const currentColumns = content.columns || [];
+    const currentRows = content.rows || [];
+
+    const newRow: any = {};
+    currentColumns.forEach((col) => {
+      newRow[col.id] = '';
+    });
+
+    handleDataChange({
+      rows: [...currentRows, newRow],
+    });
+  }, [content, handleDataChange]);
+
+  // Handle add column
+  const handleAddColumn = useCallback(() => {
+    if (!newColumnName.trim()) return;
+
+    const columnId = newColumnName
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '');
+
+    const currentColumns = content.columns || [];
+    const currentRows = content.rows || [];
+
+    const newColumn: SpreadsheetColumn = {
+      id: columnId,
+      name: newColumnName,
+      type: newColumnType,
+      width: 150,
+    };
+
+    // Add empty values for new column in all existing rows
+    const updatedRows = currentRows.map(row => ({
+      ...row,
+      [columnId]: ''
+    }));
+
+    handleDataChange({
+      columns: [...currentColumns, newColumn],
+      rows: updatedRows,
+    });
+
+    setNewColumnName('');
+    setNewColumnType('text');
+    setShowAddColumn(false);
+  }, [newColumnName, newColumnType, content, handleDataChange]);
 
   return (
     <div
@@ -85,40 +130,123 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
         e.stopPropagation();
       }}
     >
-      {/* Title bar */}
+      {/* Title bar with action buttons */}
       <div
         className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
         data-testid="spreadsheet-block-header"
       >
-        {isTitleEditing ? (
-          <input
-            type="text"
-            value={tempTitle}
-            onChange={(e) => setTempTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleTitleChange();
-              if (e.key === 'Escape') {
-                setTempTitle(title);
-                setIsTitleEditing(false);
-              }
-            }}
-            onBlur={handleTitleChange}
-            className="text-lg font-semibold bg-transparent border-b-2 border-blue-500 outline-none"
-            autoFocus
-          />
-        ) : (
-          <h3
-            className="text-lg font-semibold cursor-pointer hover:text-blue-600"
-            onClick={() => setIsTitleEditing(true)}
-            title="Click to edit title"
+        <div className="flex-1">
+          {isTitleEditing ? (
+            <input
+              type="text"
+              value={tempTitle}
+              onChange={(e) => setTempTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleTitleChange();
+                if (e.key === 'Escape') {
+                  setTempTitle(title);
+                  setIsTitleEditing(false);
+                }
+              }}
+              onBlur={handleTitleChange}
+              className="text-lg font-semibold bg-transparent border-b-2 border-blue-500 outline-none"
+              autoFocus
+            />
+          ) : (
+            <h3
+              className="text-lg font-semibold cursor-pointer hover:text-blue-600"
+              onClick={() => setIsTitleEditing(true)}
+              title="Click to edit title"
+            >
+              {title}
+            </h3>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAddColumn(!showAddColumn)}
+            className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition-colors flex items-center gap-1"
+            title="Add column"
           >
-            {title}
-          </h3>
-        )}
-        <span className="text-xs text-gray-500">
-          Spreadsheet Block
-        </span>
+            <Plus className="w-4 h-4" />
+            <span>Column</span>
+          </button>
+
+          <button
+            onClick={handleAddRow}
+            className="px-3 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded transition-colors flex items-center gap-1"
+            title="Add row"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Row</span>
+          </button>
+        </div>
       </div>
+
+      {/* Add column form */}
+      {showAddColumn && (
+        <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 bg-gray-100 dark:bg-gray-800">
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Column Name
+              </label>
+              <input
+                type="text"
+                value={newColumnName}
+                onChange={(e) => setNewColumnName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddColumn();
+                  if (e.key === 'Escape') {
+                    setShowAddColumn(false);
+                    setNewColumnName('');
+                  }
+                }}
+                placeholder="Enter column name"
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-900"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Type
+              </label>
+              <select
+                value={newColumnType}
+                onChange={(e) => setNewColumnType(e.target.value as any)}
+                className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-900"
+              >
+                <option value="text">Text</option>
+                <option value="number">Number</option>
+                <option value="boolean">Boolean</option>
+                <option value="date">Date</option>
+              </select>
+            </div>
+
+            <button
+              onClick={handleAddColumn}
+              disabled={!newColumnName}
+              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add
+            </button>
+
+            <button
+              onClick={() => {
+                setShowAddColumn(false);
+                setNewColumnName('');
+                setNewColumnType('text');
+              }}
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Spreadsheet */}
       <div
@@ -134,6 +262,8 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
               rows: data.rows,
             });
           }}
+          onAddRow={handleAddRow}
+          onAddColumn={handleAddColumn}
           height={block.position?.height ? block.position.height * 100 : 600}
         />
       </div>
