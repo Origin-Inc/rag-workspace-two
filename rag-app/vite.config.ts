@@ -44,5 +44,15 @@ export default defineConfig({
   },
   worker: {
     format: 'es', // Use ES modules for workers
+    rollupOptions: {
+      output: {
+        // Ensure worker files are properly named and bundled
+        entryFileNames: 'assets/[name]-[hash].js',
+      },
+    },
+  },
+  // Ensure HyperFormula is included in the build
+  ssr: {
+    noExternal: ['hyperformula'], // Don't externalize HyperFormula in SSR
   },
 });

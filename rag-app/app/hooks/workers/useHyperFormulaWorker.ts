@@ -48,15 +48,24 @@ export function useHyperFormulaWorker(config?: any): HyperFormulaWorkerHook {
 
   // Initialize worker
   useEffect(() => {
+    // Only run in browser (not during SSR)
+    if (typeof window === 'undefined') {
+      console.log('[HyperFormulaWorker] Skipping initialization - running on server');
+      return;
+    }
+
     if (workerRef.current || isInitializing) return;
 
+    console.log('[HyperFormulaWorker] Starting worker initialization in browser');
     setIsInitializing(true);
 
     try {
       // Create worker
+      console.log('[HyperFormulaWorker] Creating Worker instance');
       const worker = new Worker(new URL('../../workers/hyperformula.worker.ts', import.meta.url), {
         type: 'module',
       });
+      console.log('[HyperFormulaWorker] Worker instance created successfully');
 
       workerRef.current = worker;
 
