@@ -307,6 +307,27 @@ export function SpreadsheetGrid({
     [onLoadPage, pageSize, rows]
   );
 
+  // Custom cell drawing to achieve true transparency
+  // By not drawing a background and only rendering content, cells become transparent
+  const drawCell = useCallback(
+    (args: any, drawContent: () => void) => {
+      // Simply call drawContent without drawing any background
+      // This allows the parent background to show through
+      drawContent();
+    },
+    []
+  );
+
+  // Custom header drawing to achieve transparent header backgrounds
+  const drawHeader = useCallback(
+    (args: any, drawContent: () => void) => {
+      // Simply call drawContent without drawing any background
+      // This allows the parent background to show through
+      drawContent();
+    },
+    []
+  );
+
   return (
     <div
       ref={containerRef}
@@ -329,6 +350,10 @@ export function SpreadsheetGrid({
 
         // Infinite scrolling
         onVisibleRegionChanged={onVisibleRegionChanged}
+
+        // Custom cell and header drawing for true transparency
+        drawCell={drawCell}
+        drawHeader={drawHeader}
 
         // Theme - Transparent backgrounds, dynamic text colors
         theme={{
