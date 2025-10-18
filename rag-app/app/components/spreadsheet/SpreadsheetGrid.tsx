@@ -134,6 +134,7 @@ export function SpreadsheetGrid({
 }: SpreadsheetGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [textColor, setTextColor] = useState('#111827');
+  const [bgColor, setBgColor] = useState('#ffffff');
 
   const [selection, setSelection] = useState<{
     rows: CompactSelection;
@@ -143,20 +144,20 @@ export function SpreadsheetGrid({
     columns: CompactSelection.empty()
   });
 
-  // Get computed text color from parent element to support light/dark mode
+  // Get computed text and background colors from parent element to support light/dark mode
   useEffect(() => {
-    if (containerRef.current) {
-      const computedColor = window.getComputedStyle(containerRef.current).color;
-      setTextColor(computedColor);
-    }
+    const updateColors = () => {
+      if (containerRef.current) {
+        const styles = window.getComputedStyle(containerRef.current);
+        setTextColor(styles.color);
+        setBgColor(styles.backgroundColor);
+      }
+    };
+
+    updateColors();
 
     // Listen for theme changes
-    const observer = new MutationObserver(() => {
-      if (containerRef.current) {
-        const computedColor = window.getComputedStyle(containerRef.current).color;
-        setTextColor(computedColor);
-      }
-    });
+    const observer = new MutationObserver(updateColors);
 
     // Observe dark class changes on html element
     const htmlElement = document.documentElement;
@@ -307,31 +308,10 @@ export function SpreadsheetGrid({
     [onLoadPage, pageSize, rows]
   );
 
-  // Custom cell drawing to achieve true transparency
-  // By not drawing a background and only rendering content, cells become transparent
-  const drawCell = useCallback(
-    (args: any, drawContent: () => void) => {
-      // Simply call drawContent without drawing any background
-      // This allows the parent background to show through
-      drawContent();
-    },
-    []
-  );
-
-  // Custom header drawing to achieve transparent header backgrounds
-  const drawHeader = useCallback(
-    (args: any, drawContent: () => void) => {
-      // Simply call drawContent without drawing any background
-      // This allows the parent background to show through
-      drawContent();
-    },
-    []
-  );
-
   return (
     <div
       ref={containerRef}
-      className={`${className} text-theme-text-primary`}
+      className={`${className} text-theme-text-primary bg-theme-bg-primary`}
     >
       <DataEditor
         // Core props
@@ -351,22 +331,18 @@ export function SpreadsheetGrid({
         // Infinite scrolling
         onVisibleRegionChanged={onVisibleRegionChanged}
 
-        // Custom cell and header drawing for true transparency
-        drawCell={drawCell}
-        drawHeader={drawHeader}
-
-        // Theme - Transparent backgrounds, dynamic text colors
+        // Theme - Match editor background using bg-theme-bg-primary, dynamic text colors
         theme={{
           accentColor: '#3b82f6',
           accentLight: 'rgba(59, 130, 246, 0.1)',
-          // Transparent backgrounds using rgba(0,0,0,0) - valid for Canvas fillStyle
-          bgCell: 'rgba(0, 0, 0, 0)',
-          bgCellMedium: 'rgba(0, 0, 0, 0)',
-          bgHeader: 'rgba(0, 0, 0, 0)',
+          // Use the same background color as the editor (bg-theme-bg-primary)
+          bgCell: bgColor,
+          bgCellMedium: bgColor,
+          bgHeader: bgColor,
           bgHeaderHasFocus: 'rgba(59, 130, 246, 0.05)',
           bgHeaderHovered: 'rgba(59, 130, 246, 0.05)',
-          bgBubble: 'rgba(0, 0, 0, 0)',
-          bgBubbleSelected: 'rgba(0, 0, 0, 0)',
+          bgBubble: bgColor,
+          bgBubbleSelected: bgColor,
           bgSearchResult: 'rgba(255, 249, 227, 0.5)',
           // Subtle borders
           borderColor: 'rgba(115, 116, 131, 0.16)',

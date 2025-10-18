@@ -1,58 +1,13 @@
 /**
- * Glide Data Grid Transparent Background Overrides
+ * Glide Data Grid Theme Integration
  *
- * Aggressively forces transparency on all Glide Data Grid elements
- * Using rgba(0,0,0,0) for transparency and !important to override inline styles
+ * Ensures Glide Data Grid uses theme colors from parent container
+ * instead of its own default backgrounds
  */
 
-/* Root grid container - CRITICAL */
-.gdg-wmyidgi,
-.gdg-wmyidgi * {
-  background: transparent !important;
-  background-color: transparent !important;
-}
-
-/* Override CSS variables for backgrounds */
-.gdg-wmyidgi {
-  --gdg-bg-cell: rgba(0, 0, 0, 0) !important;
-  --gdg-bg-cell-medium: rgba(0, 0, 0, 0) !important;
-  --gdg-bg-header: rgba(0, 0, 0, 0) !important;
-  --gdg-bg-header-has-focus: rgba(59, 130, 246, 0.05) !important;
-  --gdg-bg-header-hovered: rgba(59, 130, 246, 0.05) !important;
-  --gdg-bg-bubble: rgba(0, 0, 0, 0) !important;
-  --gdg-bg-bubble-selected: rgba(0, 0, 0, 0) !important;
-}
-
-/* All canvas elements - CRITICAL */
-canvas,
-canvas[data-testid="data-grid-canvas"] {
-  background: transparent !important;
-  background-color: transparent !important;
-}
-
-/* Canvas container layers */
+/* Ensure wrapper containers don't override theme backgrounds */
 .dvn-underlay,
-.dvn-underlay *,
 .dvn-scroller,
-.dvn-scroller *,
-.dvn-stack,
-.dvn-stack *,
-.dvn-scroll-inner,
-.dvn-scroll-inner * {
+.dvn-scroll-inner {
   background: transparent !important;
-  background-color: transparent !important;
-}
-
-/* Header and wrapper containers */
-.gdg-s1dgczr6,
-.gdg-s1dgczr6 * {
-  background: transparent !important;
-  background-color: transparent !important;
-}
-
-/* Any glide data grid wrapper divs */
-div[class*="gdg-"],
-div[class*="dvn-"] {
-  background: transparent !important;
-  background-color: transparent !important;
 }
