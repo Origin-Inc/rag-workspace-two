@@ -54,6 +54,13 @@ export function SimplifiedSpreadsheetView({
     useColumnIndex: true,
   });
 
+  // Queue for formulas entered before HyperFormula is ready
+  const pendingFormulasRef = useRef<Array<{
+    row: number;
+    col: number;
+    formula: string;
+  }>>([]);
+
   // Log HyperFormula state changes
   useEffect(() => {
     console.log('[SimplifiedSpreadsheetView] HyperFormula state:', {
@@ -179,13 +186,24 @@ export function SimplifiedSpreadsheetView({
           });
         }
       } else if (isFormula && !hyperformula.isReady) {
-        // Formula entered but HyperFormula not ready
-        console.warn('[SimplifiedSpreadsheetView] Formula detected but HyperFormula not ready:', {
+        // Formula entered but HyperFormula not ready - queue it for later evaluation
+        console.warn('[SimplifiedSpreadsheetView] Formula detected but HyperFormula not ready - queueing:', {
           formula: value,
+          row: rowIndex,
+          col: colIndex,
           isReady: hyperformula.isReady,
           isInitializing: hyperformula.isInitializing,
           error: hyperformula.error,
         });
+
+        // Add to pending queue
+        pendingFormulasRef.current.push({
+          row: rowIndex,
+          col: colIndex,
+          formula: value,
+        });
+
+        console.log('[SimplifiedSpreadsheetView] Queued formulas:', pendingFormulasRef.current.length);
       } else if (hyperformula.isReady) {
         // Regular value - still send to HyperFormula for dependency tracking
         try {
@@ -359,6 +377,74 @@ export function SimplifiedSpreadsheetView({
 
     initializeData();
   }, [hyperformula.isReady]); // Only run once when ready
+
+  // Process pending formulas when HyperFormula becomes ready
+  useEffect(() => {
+    if (!hyperformula.isReady || pendingFormulasRef.current.length === 0) return;
+
+    console.log('[SimplifiedSpreadsheetView] Processing pending formulas:', pendingFormulasRef.current.length);
+
+    const processPendingFormulas = async () => {
+      const pending = [...pendingFormulasRef.current];
+      pendingFormulasRef.current = []; // Clear queue
+
+      for (const { row, col, formula } of pending) {
+        try {
+          console.log(`[SimplifiedSpreadsheetView] Evaluating queued formula at (${row}, ${col}): ${formula}`);
+
+          await hyperformula.setCellFormula(0, row, col, formula);
+          const computedValue = await hyperformula.getCellValue(0, row, col);
+
+          console.log(`[Formula] ${formula} = ${computedValue}`);
+
+          // Update with computed value
+          setRows((prevRows) => {
+            const newRows = [...prevRows];
+            const column = columns[col];
+            if (newRows[row] && column) {
+              newRows[row] = {
+                ...newRows[row],
+                [column.id]: {
+                  formula,
+                  value: computedValue,
+                  isFormula: true,
+                },
+              };
+            }
+            return newRows;
+          });
+        } catch (error) {
+          console.error('[SimplifiedSpreadsheetView] Error evaluating queued formula:', error);
+
+          // Store error state
+          setRows((prevRows) => {
+            const newRows = [...prevRows];
+            const column = columns[col];
+            if (newRows[row] && column) {
+              newRows[row] = {
+                ...newRows[row],
+                [column.id]: {
+                  formula,
+                  value: '#ERROR',
+                  isFormula: true,
+                  error: error instanceof Error ? error.message : 'Formula error',
+                },
+              };
+            }
+            return newRows;
+          });
+        }
+      }
+
+      // Notify parent after processing all pending formulas
+      setRows((currentRows) => {
+        notifyParent(columns, currentRows);
+        return currentRows;
+      });
+    };
+
+    processPendingFormulas();
+  }, [hyperformula.isReady, columns, notifyParent]);
 
   return (
     <div
