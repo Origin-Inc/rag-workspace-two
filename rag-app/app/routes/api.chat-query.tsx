@@ -11,6 +11,7 @@ import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { aiModelConfig } from '~/services/ai-model-config.server';
 import { QueryErrorRecovery } from '~/services/query-error-recovery.server';
+import { queryResultChartGenerator } from '~/services/ai/query-result-chart-generator.server';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 const logger = new DebugLogger('api.chat-query');
@@ -455,7 +456,45 @@ export const action: ActionFunction = async ({ request }) => {
 
       // Build a simple, clear response with the SQL results
       const tableMarkdown = formatQueryResultsAsMarkdown(queryResults);
-      const responseText = `### Query Results\n\n${tableMarkdown}\n\n**Query Details:**\n- SQL: \`${queryResults.sql}\`\n- Rows: ${queryResults.data.length}\n- Execution Time: ${queryResults.executionTime}ms`;
+      let responseText = `### Query Results\n\n${tableMarkdown}\n\n**Query Details:**\n- SQL: \`${queryResults.sql}\`\n- Rows: ${queryResults.data.length}\n- Execution Time: ${queryResults.executionTime}ms`;
+
+      // AUTO-CHART GENERATION: Check if we should visualize the results
+      try {
+        const chartGenStart = Date.now();
+        const chartResult = await queryResultChartGenerator.generateChartFromQueryResult(
+          query,
+          queryResults
+        );
+
+        if (chartResult.shouldChart && chartResult.chartData && chartResult.chartType) {
+          const chartMarkdown = queryResultChartGenerator.generateChartMarkdown(
+            chartResult.chartData,
+            chartResult.chartType,
+            chartResult.chartTitle,
+            chartResult.chartDescription
+          );
+          responseText += chartMarkdown;
+
+          logger.error('[Auto-Chart] Chart generated successfully', {
+            requestId,
+            chartType: chartResult.chartType,
+            confidence: chartResult.confidence,
+            generationTimeMs: Date.now() - chartGenStart
+          });
+        } else {
+          logger.trace('[Auto-Chart] Skipped visualization', {
+            requestId,
+            reason: chartResult.reasoning,
+            confidence: chartResult.confidence
+          });
+        }
+      } catch (chartError) {
+        logger.warn('[Auto-Chart] Chart generation failed, continuing without chart', {
+          requestId,
+          error: chartError instanceof Error ? chartError.message : 'Unknown error'
+        });
+        // Continue without chart - don't fail the entire request
+      }
 
       const formattedTime = Date.now() - formattedStart;
       logger.error('[TIMING] Query-first formatting', { requestId, formattingTimeMs: formattedTime });
