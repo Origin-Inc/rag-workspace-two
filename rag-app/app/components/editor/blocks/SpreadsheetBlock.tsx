@@ -132,7 +132,7 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
     >
       {/* Title bar with action buttons */}
       <div
-        className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
+        className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-theme-bg-primary"
         data-testid="spreadsheet-block-header"
       >
         <div className="flex-1">
@@ -187,7 +187,7 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
 
       {/* Add column form */}
       {showAddColumn && (
-        <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 bg-gray-100 dark:bg-gray-800">
+        <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 bg-theme-bg-primary">
           <div className="flex items-end gap-2">
             <div className="flex-1">
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
