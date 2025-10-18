@@ -1,9 +1,16 @@
 /**
  * Glide Data Grid Transparent Background Overrides
  *
- * Overrides CSS variables that control backgrounds in Glide Data Grid
- * Using rgba(0,0,0,0) for transparency as it's valid for both CSS and Canvas
+ * Aggressively forces transparency on all Glide Data Grid elements
+ * Using rgba(0,0,0,0) for transparency and !important to override inline styles
  */
+
+/* Root grid container - CRITICAL */
+.gdg-wmyidgi,
+.gdg-wmyidgi * {
+  background: transparent !important;
+  background-color: transparent !important;
+}
 
 /* Override CSS variables for backgrounds */
 .gdg-wmyidgi {
@@ -14,43 +21,38 @@
   --gdg-bg-header-hovered: rgba(59, 130, 246, 0.05) !important;
   --gdg-bg-bubble: rgba(0, 0, 0, 0) !important;
   --gdg-bg-bubble-selected: rgba(0, 0, 0, 0) !important;
-  background: rgba(0, 0, 0, 0) !important;
 }
 
-/* Canvas layers - force transparent */
-.dvn-underlay {
-  background: rgba(0, 0, 0, 0) !important;
-}
-
-.dvn-underlay canvas {
-  background: rgba(0, 0, 0, 0) !important;
-}
-
-/* Scroller background */
-.dvn-scroller {
-  background: rgba(0, 0, 0, 0) !important;
-}
-
-/* Header row */
-.gdg-s1dgczr6 {
-  background: rgba(0, 0, 0, 0) !important;
-}
-
-/* All canvas elements */
+/* All canvas elements - CRITICAL */
+canvas,
 canvas[data-testid="data-grid-canvas"] {
-  background: rgba(0, 0, 0, 0) !important;
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
-/* Stack and scroll containers */
-.dvn-stack {
-  background: rgba(0, 0, 0, 0) !important;
+/* Canvas container layers */
+.dvn-underlay,
+.dvn-underlay *,
+.dvn-scroller,
+.dvn-scroller *,
+.dvn-stack,
+.dvn-stack *,
+.dvn-scroll-inner,
+.dvn-scroll-inner * {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
-.dvn-scroll-inner {
-  background: rgba(0, 0, 0, 0) !important;
+/* Header and wrapper containers */
+.gdg-s1dgczr6,
+.gdg-s1dgczr6 * {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
-/* Any wrapper divs */
-div[class*="gdg-"] {
-  background: rgba(0, 0, 0, 0) !important;
+/* Any glide data grid wrapper divs */
+div[class*="gdg-"],
+div[class*="dvn-"] {
+  background: transparent !important;
+  background-color: transparent !important;
 }
