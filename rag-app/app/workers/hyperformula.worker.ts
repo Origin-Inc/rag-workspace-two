@@ -5,7 +5,14 @@
  * Provides Excel-compatible formula engine with 386+ functions.
  */
 
+console.log('[HyperFormulaWorker] Worker script loading...');
+
 import { HyperFormula, DetailedCellError, SimpleCellAddress } from 'hyperformula';
+
+console.log('[HyperFormulaWorker] HyperFormula imported successfully:', {
+  HyperFormulaAvailable: typeof HyperFormula !== 'undefined',
+  buildEmptyAvailable: typeof HyperFormula?.buildEmpty === 'function',
+});
 
 // Message types for communication with main thread
 export type HyperFormulaWorkerMessage =
@@ -40,6 +47,8 @@ let hf: HyperFormula | null = null;
  * Initialize HyperFormula engine
  */
 function initialize(config?: any): void {
+  console.log('[HyperFormulaWorker] Initialize function called with config:', config);
+
   try {
     const defaultConfig = {
       licenseKey: 'gpl-v3',
@@ -52,20 +61,27 @@ function initialize(config?: any): void {
       localeLang: 'en-US',
     };
 
+    console.log('[HyperFormulaWorker] Building HyperFormula instance...');
     hf = HyperFormula.buildEmpty({
       ...defaultConfig,
       ...config,
     });
 
+    console.log('[HyperFormulaWorker] HyperFormula instance created, adding default sheet...');
     // Add default sheet
     hf.addSheet('Sheet1');
 
+    console.log('[HyperFormulaWorker] Initialization successful, sending success message');
     postMessage({
       type: 'initialized',
       success: true,
     } as HyperFormulaWorkerResponse);
   } catch (error) {
-    console.error('HyperFormula initialization failed:', error);
+    console.error('[HyperFormulaWorker] Initialization failed:', {
+      error,
+      message: error instanceof Error ? error.message : 'Unknown',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     postMessage({
       type: 'initialized',
       success: false,
@@ -522,11 +538,15 @@ async function batch(id: string, operations: Array<Omit<HyperFormulaWorkerMessag
 /**
  * Message handler
  */
+console.log('[HyperFormulaWorker] Setting up message handler');
+
 self.onmessage = async (event: MessageEvent<HyperFormulaWorkerMessage>) => {
   const message = event.data;
+  console.log('[HyperFormulaWorker] Received message:', { type: message.type });
 
   switch (message.type) {
     case 'initialize':
+      console.log('[HyperFormulaWorker] Handling initialize message');
       initialize(message.config);
       break;
 

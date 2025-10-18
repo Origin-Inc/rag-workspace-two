@@ -8,6 +8,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { HyperFormulaWorkerMessage, HyperFormulaWorkerResponse } from '~/workers/hyperformula.worker';
 import type { DetailedCellError } from 'hyperformula';
+// Import worker as an inline module - bundles worker code directly in main bundle
+import HyperFormulaWorker from '~/workers/hyperformula.worker?worker&inline';
 
 export interface HyperFormulaWorkerHook {
   isReady: boolean;
@@ -48,15 +50,22 @@ export function useHyperFormulaWorker(config?: any): HyperFormulaWorkerHook {
 
   // Initialize worker
   useEffect(() => {
+    // Only run in browser (not during SSR)
+    if (typeof window === 'undefined') {
+      console.log('[HyperFormulaWorker] Skipping initialization - running on server');
+      return;
+    }
+
     if (workerRef.current || isInitializing) return;
 
+    console.log('[HyperFormulaWorker] Starting worker initialization in browser');
     setIsInitializing(true);
 
     try {
-      // Create worker
-      const worker = new Worker(new URL('../../workers/hyperformula.worker.ts', import.meta.url), {
-        type: 'module',
-      });
+      // Create worker using inline import (bundles worker code in main bundle)
+      console.log('[HyperFormulaWorker] Creating inline Worker instance');
+      const worker = new HyperFormulaWorker();
+      console.log('[HyperFormulaWorker] Inline Worker instance created successfully');
 
       workerRef.current = worker;
 
@@ -156,15 +165,35 @@ export function useHyperFormulaWorker(config?: any): HyperFormulaWorkerHook {
       };
 
       worker.onerror = (error) => {
-        console.error('HyperFormula Worker error:', error);
-        setError('Worker error occurred');
+        console.error('[HyperFormulaWorker] Worker error:', {
+          error,
+          message: error.message,
+          filename: error.filename,
+          lineno: error.lineno,
+          colno: error.colno,
+        });
+        setError(`Worker error: ${error.message || 'Unknown error'}`);
         setIsInitializing(false);
       };
 
-      // Initialize worker
+      // Initialize worker with timeout
+      console.log('[HyperFormulaWorker] Sending initialize message to worker');
       worker.postMessage({ type: 'initialize', config } as HyperFormulaWorkerMessage);
+
+      // Add initialization timeout (30 seconds)
+      setTimeout(() => {
+        if (isInitializing && !isReady) {
+          console.error('[HyperFormulaWorker] Worker initialization timeout after 30s');
+          setError('Worker initialization timeout - worker may not be loading correctly');
+          setIsInitializing(false);
+        }
+      }, 30000);
     } catch (err) {
-      console.error('Failed to create HyperFormula worker:', err);
+      console.error('[HyperFormulaWorker] Failed to create worker:', {
+        error: err,
+        message: err instanceof Error ? err.message : 'Unknown',
+        stack: err instanceof Error ? err.stack : undefined,
+      });
       setError(err instanceof Error ? err.message : 'Failed to create worker');
       setIsInitializing(false);
     }

@@ -7,6 +7,7 @@
 
 import { useState, useCallback, useEffect, useRef, memo } from 'react';
 import { cn } from '~/utils/cn';
+import { indicesToA1 } from '~/utils/spreadsheet-notation';
 
 export interface FormulaBarProps {
   selectedCell: { row: number; col: number } | null;
@@ -211,10 +212,8 @@ export const FormulaBar = memo(function FormulaBar({
     ]
   );
 
-  // Cell reference display
-  const cellReference = selectedCell
-    ? `${String.fromCharCode(65 + selectedCell.col)}${selectedCell.row + 1}`
-    : '';
+  // Cell reference display using A1 notation
+  const cellReference = selectedCell ? indicesToA1(selectedCell.row, selectedCell.col) : '';
 
   return (
     <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-[rgba(33,33,33,1)]">
