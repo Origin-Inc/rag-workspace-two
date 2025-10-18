@@ -10,6 +10,7 @@ import { SimplifiedSpreadsheetView } from '~/components/spreadsheet';
 import type { SpreadsheetColumn } from '~/components/spreadsheet';
 import type { Block } from '~/types/blocks';
 import { Plus } from 'lucide-react';
+import { getColumnLetter } from '~/utils/spreadsheet-notation';
 
 export interface SpreadsheetBlockProps {
   block: Block;
@@ -25,6 +26,27 @@ interface SpreadsheetBlockContent {
   title?: string;
 }
 
+/**
+ * Migrate legacy column names to A1 notation
+ * Converts "Column 1" -> "A", "Column 2" -> "B", etc.
+ */
+function migrateColumnsToA1Notation(columns: SpreadsheetColumn[]): SpreadsheetColumn[] {
+  return columns.map((col, index) => {
+    // Check if column name matches legacy format "Column N" or "Column N (type)"
+    const legacyPattern = /^Column\s+\d+/i;
+
+    if (legacyPattern.test(col.name)) {
+      return {
+        ...col,
+        name: getColumnLetter(index), // Convert to A1 notation based on position
+      };
+    }
+
+    // If column name is already A1 notation or custom, keep it
+    return col;
+  });
+}
+
 export const SpreadsheetBlock = memo(function SpreadsheetBlock({
   block,
   onChange,
@@ -38,7 +60,12 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
 
   // Generate table name from block ID
   const tableName = content.tableName || `spreadsheet_${block.id.replace(/-/g, '_')}`;
-  const initialColumns = content.columns || [];
+
+  // Migrate legacy column names to A1 notation
+  const initialColumns = content.columns
+    ? migrateColumnsToA1Notation(content.columns)
+    : [];
+
   const initialRows = content.rows || [];
   const title = content.title || 'Spreadsheet';
 

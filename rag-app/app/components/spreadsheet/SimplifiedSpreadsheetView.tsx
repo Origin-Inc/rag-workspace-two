@@ -54,6 +54,15 @@ export function SimplifiedSpreadsheetView({
     useColumnIndex: true,
   });
 
+  // Log HyperFormula state changes
+  useEffect(() => {
+    console.log('[SimplifiedSpreadsheetView] HyperFormula state:', {
+      isReady: hyperformula.isReady,
+      isInitializing: hyperformula.isInitializing,
+      error: hyperformula.error,
+    });
+  }, [hyperformula.isReady, hyperformula.isInitializing, hyperformula.error]);
+
   // Debounce timer
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -78,6 +87,15 @@ export function SimplifiedSpreadsheetView({
   // Handle cell edit with formula support
   const handleCellEdit = useCallback(
     async (rowIndex: number, colIndex: number, value: any) => {
+      console.log('[SimplifiedSpreadsheetView] handleCellEdit called:', {
+        row: rowIndex,
+        col: colIndex,
+        value,
+        hyperformulaReady: hyperformula.isReady,
+        hyperformulaInitializing: hyperformula.isInitializing,
+        hyperformulaError: hyperformula.error,
+      });
+
       const column = columns[colIndex];
       if (!column) {
         console.warn('[SimplifiedSpreadsheetView] Column not found at index', colIndex);
@@ -85,6 +103,11 @@ export function SimplifiedSpreadsheetView({
       }
 
       const isFormula = typeof value === 'string' && value.startsWith('=');
+      console.log('[SimplifiedSpreadsheetView] Formula detection:', {
+        isFormula,
+        valueType: typeof value,
+        startsWithEquals: typeof value === 'string' ? value.startsWith('=') : 'N/A',
+      });
 
       // Optimistic update: show raw value immediately
       setRows((prevRows) => {
@@ -110,6 +133,7 @@ export function SimplifiedSpreadsheetView({
 
       // If it's a formula, evaluate it with HyperFormula
       if (isFormula && hyperformula.isReady) {
+        console.log('[SimplifiedSpreadsheetView] Evaluating formula with HyperFormula...');
         try {
           // Send formula to worker for evaluation
           await hyperformula.setCellFormula(0, rowIndex, colIndex, value);
@@ -154,6 +178,14 @@ export function SimplifiedSpreadsheetView({
             return newRows;
           });
         }
+      } else if (isFormula && !hyperformula.isReady) {
+        // Formula entered but HyperFormula not ready
+        console.warn('[SimplifiedSpreadsheetView] Formula detected but HyperFormula not ready:', {
+          formula: value,
+          isReady: hyperformula.isReady,
+          isInitializing: hyperformula.isInitializing,
+          error: hyperformula.error,
+        });
       } else if (hyperformula.isReady) {
         // Regular value - still send to HyperFormula for dependency tracking
         try {
