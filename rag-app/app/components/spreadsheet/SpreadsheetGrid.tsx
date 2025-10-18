@@ -46,14 +46,15 @@ export interface SpreadsheetGridProps {
 
 /**
  * Convert spreadsheet cell value to Glide Data Grid cell
+ * Now supports enhanced cell state with formulas
  */
 function getCellContent(
   row: SpreadsheetRow,
   column: SpreadsheetColumn
 ): GridCell {
-  const value = row[column.id];
+  const cellData = row[column.id];
 
-  if (value === null || value === undefined) {
+  if (cellData === null || cellData === undefined) {
     return {
       kind: GridCellKind.Text,
       data: '',
@@ -63,24 +64,54 @@ function getCellContent(
     };
   }
 
-  // Handle formulas
-  if (typeof value === 'string' && value.startsWith('=')) {
+  // Handle enhanced cell state (formula cells)
+  if (typeof cellData === 'object' && cellData !== null && 'isFormula' in cellData) {
+    const formulaCell = cellData as {
+      formula: string;
+      value: any;
+      isFormula: boolean;
+      error?: string;
+    };
+
+    // Display computed value but keep formula in data
     return {
       kind: GridCellKind.Text,
-      data: value,
-      displayData: value,
+      data: formulaCell.formula,           // Raw formula for editing
+      displayData: String(formulaCell.value ?? ''), // Computed value for display
       allowOverlay: true,
       readonly: false,
       contentAlign: 'left',
+      themeOverride: {
+        textColor: formulaCell.error ? '#dc2626' : '#3b82f6', // Red for errors, blue for formulas
+        bgCell: formulaCell.error ? 'rgba(220, 38, 38, 0.05)' : undefined,
+      },
     };
   }
+
+  // Legacy handling: raw formula strings (backward compatibility)
+  if (typeof cellData === 'string' && cellData.startsWith('=')) {
+    return {
+      kind: GridCellKind.Text,
+      data: cellData,
+      displayData: cellData, // Will show formula until evaluated
+      allowOverlay: true,
+      readonly: false,
+      contentAlign: 'left',
+      themeOverride: {
+        textColor: '#9ca3af', // Gray for unevaluated formulas
+      },
+    };
+  }
+
+  // Extract primitive value for regular cells
+  const value = cellData;
 
   // Handle by column type
   switch (column.type) {
     case 'number':
       return {
         kind: GridCellKind.Number,
-        data: typeof value === 'number' ? value : parseFloat(value) || 0,
+        data: typeof value === 'number' ? value : parseFloat(String(value)) || 0,
         displayData: String(value),
         allowOverlay: true,
         readonly: false,
