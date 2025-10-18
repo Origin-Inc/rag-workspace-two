@@ -40,6 +40,24 @@ export class DuckDBQueryService {
     console.warn('[DuckDB Stub] getTableSchema called on stub');
     return [];
   }
+
+  public async processNaturalLanguageQuery(
+    query: string,
+    files: any[],
+    pageId: string,
+    workspaceId: string
+  ): Promise<any> {
+    console.warn('[DuckDB Stub] processNaturalLanguageQuery called on stub');
+    return {
+      queryResult: {
+        success: false,
+        error: 'DuckDB functionality is not available',
+        rowCount: 0,
+        executionTime: 0
+      },
+      formattedResult: null
+    };
+  }
 }
 
 export const getDuckDBQuery = () => DuckDBQueryService.getInstance();
