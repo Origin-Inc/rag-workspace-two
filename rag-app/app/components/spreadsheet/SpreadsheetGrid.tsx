@@ -16,6 +16,7 @@ import DataEditor, {
   CompactSelection,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
+import './spreadsheet-transparent.css';
 
 export interface SpreadsheetColumn {
   id: string;

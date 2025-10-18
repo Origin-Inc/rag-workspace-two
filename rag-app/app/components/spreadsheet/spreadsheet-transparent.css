@@ -1,0 +1,49 @@
+/**
+ * Glide Data Grid Transparent Background Overrides
+ *
+ * Forces transparent backgrounds for cells and headers
+ * since theme properties alone don't always override canvas rendering
+ */
+
+/* Main grid container */
+.gdg-wmyidgi {
+  background: transparent !important;
+}
+
+/* Canvas layers - force transparent */
+.dvn-underlay {
+  background: transparent !important;
+}
+
+.dvn-underlay canvas {
+  background: transparent !important;
+}
+
+/* Scroller background */
+.dvn-scroller {
+  background: transparent !important;
+}
+
+/* Header row */
+.gdg-s1dgczr6 {
+  background: transparent !important;
+}
+
+/* All canvas elements */
+canvas[data-testid="data-grid-canvas"] {
+  background: transparent !important;
+}
+
+/* Stack and scroll containers */
+.dvn-stack {
+  background: transparent !important;
+}
+
+.dvn-scroll-inner {
+  background: transparent !important;
+}
+
+/* Any wrapper divs */
+div[class*="gdg-"] {
+  background: transparent !important;
+}
