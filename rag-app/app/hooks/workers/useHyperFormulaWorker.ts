@@ -8,6 +8,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { HyperFormulaWorkerMessage, HyperFormulaWorkerResponse } from '~/workers/hyperformula.worker';
 import type { DetailedCellError } from 'hyperformula';
+// Import worker as an inline module - bundles worker code directly in main bundle
+import HyperFormulaWorker from '~/workers/hyperformula.worker?worker&inline';
 
 export interface HyperFormulaWorkerHook {
   isReady: boolean;
@@ -60,12 +62,10 @@ export function useHyperFormulaWorker(config?: any): HyperFormulaWorkerHook {
     setIsInitializing(true);
 
     try {
-      // Create worker
-      console.log('[HyperFormulaWorker] Creating Worker instance');
-      const worker = new Worker(new URL('../../workers/hyperformula.worker.ts', import.meta.url), {
-        type: 'module',
-      });
-      console.log('[HyperFormulaWorker] Worker instance created successfully');
+      // Create worker using inline import (bundles worker code in main bundle)
+      console.log('[HyperFormulaWorker] Creating inline Worker instance');
+      const worker = new HyperFormulaWorker();
+      console.log('[HyperFormulaWorker] Inline Worker instance created successfully');
 
       workerRef.current = worker;
 
