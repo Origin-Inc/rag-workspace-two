@@ -156,15 +156,35 @@ export function useHyperFormulaWorker(config?: any): HyperFormulaWorkerHook {
       };
 
       worker.onerror = (error) => {
-        console.error('HyperFormula Worker error:', error);
-        setError('Worker error occurred');
+        console.error('[HyperFormulaWorker] Worker error:', {
+          error,
+          message: error.message,
+          filename: error.filename,
+          lineno: error.lineno,
+          colno: error.colno,
+        });
+        setError(`Worker error: ${error.message || 'Unknown error'}`);
         setIsInitializing(false);
       };
 
-      // Initialize worker
+      // Initialize worker with timeout
+      console.log('[HyperFormulaWorker] Sending initialize message to worker');
       worker.postMessage({ type: 'initialize', config } as HyperFormulaWorkerMessage);
+
+      // Add initialization timeout (30 seconds)
+      setTimeout(() => {
+        if (isInitializing && !isReady) {
+          console.error('[HyperFormulaWorker] Worker initialization timeout after 30s');
+          setError('Worker initialization timeout - worker may not be loading correctly');
+          setIsInitializing(false);
+        }
+      }, 30000);
     } catch (err) {
-      console.error('Failed to create HyperFormula worker:', err);
+      console.error('[HyperFormulaWorker] Failed to create worker:', {
+        error: err,
+        message: err instanceof Error ? err.message : 'Unknown',
+        stack: err instanceof Error ? err.stack : undefined,
+      });
       setError(err instanceof Error ? err.message : 'Failed to create worker');
       setIsInitializing(false);
     }
