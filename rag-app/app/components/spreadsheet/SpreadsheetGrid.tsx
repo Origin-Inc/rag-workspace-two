@@ -73,6 +73,16 @@ function getCellContent(
       error?: string;
     };
 
+    // Build theme override - avoid setting undefined values
+    const themeOverride: any = {
+      textColor: formulaCell.error ? '#dc2626' : '#3b82f6', // Red for errors, blue for formulas
+    };
+
+    // Only add bgCell if there's an error (avoid undefined which crashes color parser)
+    if (formulaCell.error) {
+      themeOverride.bgCell = 'rgba(220, 38, 38, 0.05)';
+    }
+
     // Display computed value but keep formula in data
     return {
       kind: GridCellKind.Text,
@@ -81,10 +91,7 @@ function getCellContent(
       allowOverlay: true,
       readonly: false,
       contentAlign: 'left',
-      themeOverride: {
-        textColor: formulaCell.error ? '#dc2626' : '#3b82f6', // Red for errors, blue for formulas
-        bgCell: formulaCell.error ? 'rgba(220, 38, 38, 0.05)' : undefined,
-      },
+      themeOverride,
     };
   }
 
