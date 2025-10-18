@@ -334,19 +334,19 @@ export function SpreadsheetGrid({
         theme={{
           accentColor: '#3b82f6',
           accentLight: 'rgba(59, 130, 246, 0.1)',
-          // Transparent backgrounds
-          bgCell: 'transparent',
-          bgCellMedium: 'transparent',
-          bgHeader: 'transparent',
+          // Transparent backgrounds using rgba(0,0,0,0) - valid for Canvas fillStyle
+          bgCell: 'rgba(0, 0, 0, 0)',
+          bgCellMedium: 'rgba(0, 0, 0, 0)',
+          bgHeader: 'rgba(0, 0, 0, 0)',
           bgHeaderHasFocus: 'rgba(59, 130, 246, 0.05)',
           bgHeaderHovered: 'rgba(59, 130, 246, 0.05)',
-          bgBubble: 'transparent',
-          bgBubbleSelected: 'transparent',
+          bgBubble: 'rgba(0, 0, 0, 0)',
+          bgBubbleSelected: 'rgba(0, 0, 0, 0)',
           bgSearchResult: 'rgba(255, 249, 227, 0.5)',
           // Subtle borders
           borderColor: 'rgba(115, 116, 131, 0.16)',
           horizontalBorderColor: 'rgba(115, 116, 131, 0.16)',
-          drilldownBorder: 'transparent',
+          drilldownBorder: 'rgba(0, 0, 0, 0)',
           // Dynamic text colors from theme
           textDark: textColor,
           textMedium: textColor,

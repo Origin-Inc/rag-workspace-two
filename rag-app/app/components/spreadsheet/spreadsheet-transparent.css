@@ -2,55 +2,55 @@
  * Glide Data Grid Transparent Background Overrides
  *
  * Overrides CSS variables that control backgrounds in Glide Data Grid
- * The grid uses CSS variables for theming which need to be overridden
+ * Using rgba(0,0,0,0) for transparency as it's valid for both CSS and Canvas
  */
 
 /* Override CSS variables for backgrounds */
 .gdg-wmyidgi {
-  --gdg-bg-cell: transparent !important;
-  --gdg-bg-cell-medium: transparent !important;
-  --gdg-bg-header: transparent !important;
+  --gdg-bg-cell: rgba(0, 0, 0, 0) !important;
+  --gdg-bg-cell-medium: rgba(0, 0, 0, 0) !important;
+  --gdg-bg-header: rgba(0, 0, 0, 0) !important;
   --gdg-bg-header-has-focus: rgba(59, 130, 246, 0.05) !important;
   --gdg-bg-header-hovered: rgba(59, 130, 246, 0.05) !important;
-  --gdg-bg-bubble: transparent !important;
-  --gdg-bg-bubble-selected: transparent !important;
-  background: transparent !important;
+  --gdg-bg-bubble: rgba(0, 0, 0, 0) !important;
+  --gdg-bg-bubble-selected: rgba(0, 0, 0, 0) !important;
+  background: rgba(0, 0, 0, 0) !important;
 }
 
 /* Canvas layers - force transparent */
 .dvn-underlay {
-  background: transparent !important;
+  background: rgba(0, 0, 0, 0) !important;
 }
 
 .dvn-underlay canvas {
-  background: transparent !important;
+  background: rgba(0, 0, 0, 0) !important;
 }
 
 /* Scroller background */
 .dvn-scroller {
-  background: transparent !important;
+  background: rgba(0, 0, 0, 0) !important;
 }
 
 /* Header row */
 .gdg-s1dgczr6 {
-  background: transparent !important;
+  background: rgba(0, 0, 0, 0) !important;
 }
 
 /* All canvas elements */
 canvas[data-testid="data-grid-canvas"] {
-  background: transparent !important;
+  background: rgba(0, 0, 0, 0) !important;
 }
 
 /* Stack and scroll containers */
 .dvn-stack {
-  background: transparent !important;
+  background: rgba(0, 0, 0, 0) !important;
 }
 
 .dvn-scroll-inner {
-  background: transparent !important;
+  background: rgba(0, 0, 0, 0) !important;
 }
 
 /* Any wrapper divs */
 div[class*="gdg-"] {
-  background: transparent !important;
+  background: rgba(0, 0, 0, 0) !important;
 }
