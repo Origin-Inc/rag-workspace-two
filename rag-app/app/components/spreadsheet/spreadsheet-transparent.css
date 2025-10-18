@@ -1,12 +1,19 @@
 /**
  * Glide Data Grid Transparent Background Overrides
  *
- * Forces transparent backgrounds for cells and headers
- * since theme properties alone don't always override canvas rendering
+ * Overrides CSS variables that control backgrounds in Glide Data Grid
+ * The grid uses CSS variables for theming which need to be overridden
  */
 
-/* Main grid container */
+/* Override CSS variables for backgrounds */
 .gdg-wmyidgi {
+  --gdg-bg-cell: transparent !important;
+  --gdg-bg-cell-medium: transparent !important;
+  --gdg-bg-header: transparent !important;
+  --gdg-bg-header-has-focus: rgba(59, 130, 246, 0.05) !important;
+  --gdg-bg-header-hovered: rgba(59, 130, 246, 0.05) !important;
+  --gdg-bg-bubble: transparent !important;
+  --gdg-bg-bubble-selected: transparent !important;
   background: transparent !important;
 }
 
