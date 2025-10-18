@@ -369,7 +369,7 @@ export class UltraLightIndexingServiceV2 {
       const embeddings = chunks.map(chunk => ({
         pageId,
         workspaceId,
-        content: chunk.text,
+        chunkText: chunk.text,
         chunkIndex: chunk.index,
         metadata: {
           indexed_at: new Date().toISOString(),

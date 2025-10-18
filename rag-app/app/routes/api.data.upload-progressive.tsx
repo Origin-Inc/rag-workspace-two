@@ -43,16 +43,18 @@ async function downloadFileFromSupabaseStorage(
   }
 
   // Construct storage download URL for private bucket
-  // Use standard endpoint with apikey header for new Supabase secret key format (sb_secret_...)
-  // Service role key bypasses RLS, so we don't need /authenticated/ path
+  // NEW Supabase API keys (sb_secret_...) are NOT JWT tokens
+  // They go in the apikey header, NOT the Authorization header
+  // Service role bypasses RLS for full access to private buckets
   const downloadUrl = `${supabaseUrl}/storage/v1/object/${bucket}/${path}`;
 
   console.log(`[Download] Downloading from:`, downloadUrl);
+  console.log(`[Download] Using service role key format:`, supabaseServiceKey.substring(0, 15) + '...');
 
   const response = await fetch(downloadUrl, {
     headers: {
-      'apikey': supabaseServiceKey,
-      'Authorization': `Bearer ${supabaseServiceKey}`
+      'apikey': supabaseServiceKey
+      // Note: No Authorization header - new secret keys are NOT JWT tokens
     }
   });
 

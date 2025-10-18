@@ -186,6 +186,18 @@ export interface AIBlockContent {
   }>;
 }
 
+export interface SpreadsheetBlockContent {
+  tableName?: string;
+  title?: string;
+  columns?: Array<{
+    id: string;
+    name: string;
+    type: 'text' | 'number' | 'boolean' | 'date';
+    width?: number;
+  }>;
+  rows?: any[];
+}
+
 // Union type for all block contents
 export type BlockContent =
   | TextBlockContent
@@ -199,6 +211,7 @@ export type BlockContent =
   | TableBlockContent
   | KanbanBlockContent
   | CalendarBlockContent
+  | SpreadsheetBlockContent
   | EmbedBlockContent
   | LinkBlockContent
   | ToggleBlockContent
@@ -432,6 +445,16 @@ export const BLOCK_CONFIGS: Record<BlockType, Partial<BlockRenderConfig>> = {
     maxWidth: 12,
     minHeight: 6,
   },
+  spreadsheet: {
+    editable: true,
+    resizable: true,
+    draggable: true,
+    deletable: true,
+    duplicatable: true,
+    minWidth: 8,
+    maxWidth: 12,
+    minHeight: 6,
+  },
   embed: {
     editable: false,
     resizable: true,
@@ -524,6 +547,8 @@ export function getDefaultContent(type: BlockType): BlockContent {
       return { columns: [], cards: [] };
     case 'calendar':
       return { view: 'month', events: [] };
+    case 'spreadsheet':
+      return { title: 'Spreadsheet', columns: [], rows: [] };
     case 'embed':
       return { url: '', type: 'iframe' };
     case 'link':

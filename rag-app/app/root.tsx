@@ -96,6 +96,8 @@ function Document({
         />
         <ScrollRestoration />
         <Scripts />
+        {/* Portal for Glide Data Grid overlay editor */}
+        <div id="portal" />
       </body>
     </html>
   );

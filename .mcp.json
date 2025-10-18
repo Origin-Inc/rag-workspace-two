@@ -1,28 +1,14 @@
 {
-	"mcpServers": {
-		"taskmaster-ai": {
-			"type": "stdio",
-			"command": "npx",
-			"args": [
-				"-y",
-				"--package=task-master-ai",
-				"task-master-ai"
-			],
-			"env": {
-				"PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}"
-			}
-		},
-		"supabase": {
-			"type": "stdio",
-			"command": "npx",
-			"args": [
-				"-y",
-				"@supabase/mcp-server-supabase@latest",
-				"--project-ref=PROJECT-REDACTED"
-			],
-			"env": {
-				"SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
-			}
-		}
-	}
+  "mcpServers": {
+    "taskmaster-ai": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "--package=task-master-ai",
+        "task-master-ai"
+      ],
+      "env": {}
+    }
+  }
 }

@@ -20,6 +20,7 @@ import {
   SparklesIcon,
   CalendarDaysIcon,
   AtSymbolIcon,
+  CalculatorIcon,
 } from "@heroicons/react/24/outline";
 
 interface SlashCommand {
@@ -192,7 +193,17 @@ const SLASH_COMMANDS: SlashCommand[] = [
     action: { type: "insert_block", data: { type: "calendar" } },
     keywords: ["date", "schedule"],
   },
-  
+  {
+    id: "spreadsheet",
+    command: "/spreadsheet",
+    label: "Spreadsheet",
+    description: "Add a spreadsheet with formulas",
+    icon: CalculatorIcon,
+    category: "data",
+    action: { type: "insert_block", data: { type: "spreadsheet" } },
+    keywords: ["excel", "sheets", "data", "formula", "calculations"],
+  },
+
   // Advanced
   {
     id: "toggle",

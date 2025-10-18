@@ -12,7 +12,6 @@ import { DatabaseCell } from './DatabaseCell';
 import { ColumnHeader } from './ColumnHeader';
 import { DatabaseToolbar } from './DatabaseToolbar';
 import { RowContextMenu } from './RowContextMenu';
-import { DatabaseAnalytics } from './DatabaseAnalytics';
 import { cn } from '~/utils/cn';
 
 interface DatabaseTableProps {
@@ -202,7 +201,6 @@ export const DatabaseTable = memo(function DatabaseTable({
         filters={filters}
         sorts={sorts}
         selectedRows={selectedRows}
-        currentView="table"
         onAddRow={() => addRow()}
         onAddColumn={addColumn}
         onApplyFilters={applyFilters}
@@ -211,7 +209,6 @@ export const DatabaseTable = memo(function DatabaseTable({
           selectedRows.forEach(rowId => deleteRow(rowId));
           setSelectedRows(new Set());
         }}
-        onViewChange={() => {}}
         onAnalyzeWithAI={handleAnalyzeWithAI}
       />
 
@@ -400,17 +397,6 @@ export const DatabaseTable = memo(function DatabaseTable({
           </div>
         )}
       </div>
-
-      {/* Analytics Panel */}
-      <DatabaseAnalytics
-        databaseBlockId={databaseBlockId}
-        columns={columns.map(col => ({
-          id: col.columnId,
-          name: col.name,
-          type: col.type
-        }))}
-        rows={rows.map(row => row.data)}
-      />
 
       {/* Context menu */}
       {contextMenu && (

@@ -1,0 +1,13 @@
+/**
+ * Glide Data Grid Theme Integration
+ *
+ * Ensures Glide Data Grid uses theme colors from parent container
+ * instead of its own default backgrounds
+ */
+
+/* Ensure wrapper containers don't override theme backgrounds */
+.dvn-underlay,
+.dvn-scroller,
+.dvn-scroll-inner {
+  background: transparent !important;
+}

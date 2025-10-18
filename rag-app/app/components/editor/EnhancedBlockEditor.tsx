@@ -4,12 +4,13 @@ import { cn } from '~/utils/cn';
 import { DatabaseTableWrapper } from '~/components/database-block/DatabaseTableWrapper';
 import { AIBlock } from '~/components/blocks/AIBlock';
 import { ChartBlock } from '~/components/blocks/ChartBlock';
+import { SpreadsheetBlock } from './blocks/SpreadsheetBlock';
 import { SlashMenu } from './SlashMenu';
 import { CommandBar } from './CommandBar';
 import { AIContextPanel } from './AIContextPanel';
-import { 
-  Plus, 
-  GripVertical, 
+import {
+  Plus,
+  GripVertical,
   ChevronRight,
   ChevronDown,
   Copy,
@@ -25,11 +26,12 @@ import {
   Code,
   CheckSquare,
   Database,
+  Table,
   Sparkles
 } from 'lucide-react';
 
 // Block types
-export type BlockType = 
+export type BlockType =
   | 'paragraph'
   | 'heading1'
   | 'heading2'
@@ -41,6 +43,7 @@ export type BlockType =
   | 'code'
   | 'divider'
   | 'database'
+  | 'spreadsheet'
   | 'ai';
 
 export interface Block {
@@ -337,6 +340,18 @@ const BlockComponent = memo(({
             rows: []
           });
           break;
+        case 'spreadsheet':
+          onTransform(block.id, 'spreadsheet');
+          onUpdate(block.id, {
+            title: 'Spreadsheet',
+            columns: [
+              { id: 'col_1', name: 'Column 1', type: 'text', width: 150 },
+              { id: 'col_2', name: 'Column 2', type: 'text', width: 150 },
+              { id: 'col_3', name: 'Column 3', type: 'text', width: 150 },
+            ],
+            rows: []
+          });
+          break;
         case 'ai':
           onTransform(block.id, 'ai');
           onUpdate(block.id, { status: 'idle' });
@@ -536,6 +551,21 @@ const BlockComponent = memo(({
             initialData={block.content || {}}
             onDataChange={(data) => onUpdate(block.id, data)}
             className="w-full"
+          />
+        );
+      case 'spreadsheet':
+        return (
+          <SpreadsheetBlock
+            block={block}
+            onChange={(updates) => {
+              // SpreadsheetBlock passes updates as Partial<Block>
+              // We need to merge these with existing block and call onUpdate with just content
+              if (updates.content !== undefined) {
+                onUpdate(block.id, updates.content);
+              }
+            }}
+            isSelected={isSelected}
+            isEditing={isEditing}
           />
         );
       case 'ai':
@@ -747,6 +777,25 @@ const BlockComponent = memo(({
             </button>
             <button
               onClick={() => {
+                onTransform(block.id, 'spreadsheet');
+                onUpdate(block.id, {
+                  title: 'Spreadsheet',
+                  columns: [
+                    { id: 'col_1', name: 'Column 1', type: 'text', width: 150 },
+                    { id: 'col_2', name: 'Column 2', type: 'text', width: 150 },
+                    { id: 'col_3', name: 'Column 3', type: 'text', width: 150 },
+                  ],
+                  rows: []
+                });
+                setShowMenu(false);
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm w-full text-left"
+            >
+              <Table className="w-4 h-4" />
+              Spreadsheet
+            </button>
+            <button
+              onClick={() => {
                 onTransform(block.id, 'ai');
                 onUpdate(block.id, { prompt: '', analysis: '', context: {} });
                 setShowMenu(false);
@@ -840,11 +889,16 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   
   // Sync blocks when initialBlocks changes (e.g., from AI updates or page navigation)
-  // Use JSON.stringify for deep comparison to catch content changes
+  // Use initialBlocks length and first block ID as dependency to avoid infinite loops
+  const initialBlocksKey = initialBlocks.map(b => b.id).join(',');
   useEffect(() => {
-    console.log('[EnhancedBlockEditor] Syncing blocks from props:', initialBlocks);
-    setBlocks(initialBlocks);
-  }, [JSON.stringify(initialBlocks)]);
+    // Only sync if blocks have actually changed (different IDs or length)
+    const currentBlocksKey = blocks.map(b => b.id).join(',');
+    if (initialBlocksKey !== currentBlocksKey && initialBlocks.length > 0) {
+      console.log('[EnhancedBlockEditor] Syncing blocks from props:', initialBlocks);
+      setBlocks(initialBlocks);
+    }
+  }, [initialBlocksKey]);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [dragOverBlockId, setDragOverBlockId] = useState<string | null>(null);
   const [showCommandBar, setShowCommandBar] = useState(false);
@@ -936,8 +990,19 @@ export const EnhancedBlockEditor = memo(function EnhancedBlockEditor({
               analysis: '',
               context: {}
             };
+          } else if (newType === 'spreadsheet') {
+            // Initialize spreadsheet with default columns
+            newContent = {
+              title: 'Spreadsheet',
+              columns: [
+                { id: 'col_1', name: 'Column 1', type: 'text', width: 150 },
+                { id: 'col_2', name: 'Column 2', type: 'text', width: 150 },
+                { id: 'col_3', name: 'Column 3', type: 'text', width: 150 },
+              ],
+              rows: []
+            };
           }
-          
+
           return { ...block, type: newType, content: newContent };
         }
         return block;
