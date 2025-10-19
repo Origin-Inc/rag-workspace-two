@@ -97,6 +97,36 @@ export class EnhancedChartSelector {
     query: string,
     metadata: QueryResultMetadata
   ): Promise<ChartRecommendation> {
+    // PERFORMANCE OPTIMIZATION: Check for explicit chart type mentions first
+    // This avoids the slow OpenAI API call (11s+) when user explicitly requests a chart type
+    const queryLower = query.toLowerCase();
+    const explicitChartTypes: Array<{ keywords: string[]; type: ChartType }> = [
+      { keywords: ['bar chart', 'bar graph', 'column chart'], type: 'bar' },
+      { keywords: ['line chart', 'line graph', 'trend line'], type: 'line' },
+      { keywords: ['pie chart', 'pie graph', 'donut chart'], type: 'pie' },
+      { keywords: ['scatter plot', 'scatter chart', 'scatter graph'], type: 'scatter' },
+      { keywords: ['area chart', 'area graph'], type: 'area' },
+      { keywords: ['radar chart', 'radar graph', 'spider chart'], type: 'radar' }
+    ];
+
+    for (const { keywords, type } of explicitChartTypes) {
+      if (keywords.some(keyword => queryLower.includes(keyword))) {
+        logger.trace('Explicit chart type detected in query, skipping AI call', {
+          query: query.slice(0, 100),
+          detectedType: type
+        });
+
+        // Use fast fallback logic but override the chart type
+        const fallback = this.fallbackSelection(metadata);
+        return {
+          ...fallback,
+          chartType: type,
+          confidence: 0.95, // High confidence since user explicitly requested it
+          reasoning: `User explicitly requested a ${type} chart`
+        };
+      }
+    }
+
     if (!isOpenAIConfigured()) {
       return this.fallbackSelection(metadata);
     }
@@ -137,7 +167,8 @@ Respond in JSON format with:
             content: prompt
           }
         ],
-        response_format: { type: 'json_object' }
+        response_format: { type: 'json_object' },
+        temperature: 0.3 // Lower temperature for more deterministic recommendations
       });
 
       const result = JSON.parse(response.choices[0].message.content || '{}');
