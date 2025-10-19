@@ -137,8 +137,7 @@ Respond in JSON format with:
             content: prompt
           }
         ],
-        response_format: { type: 'json_object' },
-        temperature: 0.3 // Lower temperature for more deterministic recommendations
+        response_format: { type: 'json_object' }
       });
 
       const result = JSON.parse(response.choices[0].message.content || '{}');
