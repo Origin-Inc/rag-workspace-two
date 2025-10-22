@@ -49,7 +49,9 @@ export class QueryAnalyzer {
     'from', 'where', 'select', 'data', 'table', 'file', 'csv',
     'explain', 'describe', 'tell', 'contain', 'specific',
     'content', 'information', 'details', 'overview', 'insights', 'pdf',
-    'notion', 'coda', 'document', 'page', 'deep', 'detailed', 'depth'
+    'notion', 'coda', 'document', 'page', 'deep', 'detailed', 'depth',
+    // Visualization keywords (Task 55)
+    'visualize', 'chart', 'graph', 'plot', 'diagram'
   ];
   
   // File content query patterns - NEW
@@ -159,9 +161,23 @@ export class QueryAnalyzer {
       };
     }
     
+    // Check for visualization intent when files are available (Task 55)
+    const isVisualizationQuery = availableFiles.length > 0 &&
+      /visualize|chart|graph|plot|show.*graph|create.*chart|display.*graph/i.test(normalizedQuery);
+
+    if (isVisualizationQuery) {
+      return {
+        intent: 'query-data',
+        confidence: 0.95,
+        clarificationNeeded: false,
+        mentionsFile: true,
+        fileReference: availableFiles[0].filename
+      };
+    }
+
     // Check for explicit file content requests using enhanced patterns
     const isExplicitFileQuery = this.FILE_CONTENT_PATTERNS.some(pattern => pattern.test(normalizedQuery));
-    
+
     // Also check for contextual file queries when files are available
     const isContextualFileQuery = availableFiles.length > 0 && (
       /^(summarize|explain|analyze|describe|show)\s+(it|this|that)$/i.test(normalizedQuery) ||

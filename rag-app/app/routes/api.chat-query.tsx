@@ -11,9 +11,33 @@ import { requireUser } from '~/services/auth/auth.server';
 import { DebugLogger } from '~/utils/debug-logger';
 import { aiModelConfig } from '~/services/ai-model-config.server';
 import { QueryErrorRecovery } from '~/services/query-error-recovery.server';
+import { queryResultChartGenerator } from '~/services/ai/query-result-chart-generator.server';
+import { sqlGenerator } from '~/services/ai/sql-generator.server';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 const logger = new DebugLogger('api.chat-query');
+
+/**
+ * Detect if query requires data access/visualization
+ * Used to determine if we should auto-generate SQL
+ */
+function detectDataAccessIntent(query: string): boolean {
+  const queryLower = query.toLowerCase();
+
+  // Keywords that indicate the user wants to query/visualize data
+  const dataAccessKeywords = [
+    'visualize', 'chart', 'graph', 'plot', 'show',
+    'what', 'how many', 'count', 'sum', 'average', 'mean',
+    'top', 'bottom', 'highest', 'lowest', 'best', 'worst',
+    'trend', 'over time', 'growth', 'change',
+    'distribution', 'breakdown', 'by', 'per',
+    'compare', 'comparison', 'versus', 'vs',
+    'total', 'min', 'max', 'median',
+    'list', 'all', 'find', 'search', 'filter'
+  ];
+
+  return dataAccessKeywords.some(keyword => queryLower.includes(keyword));
+}
 
 /**
  * Format query results as a markdown table
@@ -393,13 +417,100 @@ export const action: ActionFunction = async ({ request }) => {
         rowCount: queryResults.rowCount,
         executionTime: queryResults.executionTime
       };
-    } else {
-      // Query-first is required - traditional path removed (Task 77)
+    } else if (files && files.length > 0) {
+      // AUTO-SQL GENERATION (Task 55.7)
+      // No query results provided, attempt automatic SQL generation
+      logger.trace('[Auto-SQL] No queryResults provided, checking if SQL generation needed', {
+        requestId,
+        filesCount: files.length,
+        query: query?.slice(0, 100)
+      });
+
+      // Check if the query implies data access
+      const needsSQL = detectDataAccessIntent(query);
+
+      if (needsSQL) {
+        logger.trace('[Auto-SQL] Data access intent detected, generating SQL', {
+          requestId,
+          query: query.slice(0, 100)
+        });
+
+        try {
+          // Prepare file context for SQL generation
+          const fileContext = files.map(f => ({
+            id: f.id,
+            filename: f.filename,
+            tableName: f.tableName || f.filename.replace(/[^a-z0-9_]/gi, '_'),
+            schema: f.schema || {
+              columns: Object.keys(f.data?.[0] || {}).map(col => ({
+                name: col,
+                type: 'text' // Will be inferred by SQL generator
+              }))
+            },
+            rowCount: f.rowCount || (f.data?.length) || 0,
+            data: f.data?.slice(0, 5) // Send sample data for context
+          }));
+
+          // Generate SQL using the new service
+          const sqlGenStart = Date.now();
+          const sqlResult = await sqlGenerator.generate(query, fileContext, requestId);
+          const sqlGenTime = Date.now() - sqlGenStart;
+
+          logger.trace('[Auto-SQL] SQL generation completed', {
+            requestId,
+            hasSql: !!sqlResult.sql,
+            confidence: sqlResult.confidence,
+            generationTimeMs: sqlGenTime
+          });
+
+          if (sqlResult.sql && sqlResult.confidence > 0.7) {
+            // SQL generated successfully!
+            // Note: We don't execute it server-side because DuckDB runs client-side
+            // Instead, we return an informative message telling the client to execute the SQL
+            logger.error('[Auto-SQL] ✅ SQL generated, but execution should happen client-side', {
+              requestId,
+              sql: sqlResult.sql.slice(0, 200),
+              confidence: sqlResult.confidence,
+              suggestion: 'Client should execute this SQL in DuckDB and resend with queryResults'
+            });
+
+            return json(
+              {
+                content: `I can help you with that! Here's the SQL query I generated:\n\n\`\`\`sql\n${sqlResult.sql}\n\`\`\`\n\n**Note**: To see the results with a chart, the SQL needs to be executed client-side in DuckDB. Please execute this query and send the results back.`,
+                metadata: {
+                  sqlGenerated: true,
+                  sql: sqlResult.sql,
+                  confidence: sqlResult.confidence,
+                  explanation: sqlResult.explanation,
+                  tables: sqlResult.tables,
+                  requiresClientExecution: true,
+                  suggestion: 'Execute SQL in DuckDB client-side and resend with queryResults',
+                  requestId
+                }
+              },
+              { status: 200 }
+            );
+          } else {
+            throw new Error(`SQL generation failed: low confidence (${sqlResult.confidence}) or no SQL generated`);
+          }
+        } catch (autoSQLError) {
+          logger.error('[Auto-SQL] Automatic SQL generation failed', {
+            requestId,
+            error: autoSQLError instanceof Error ? autoSQLError.message : 'Unknown error',
+            stack: autoSQLError instanceof Error ? autoSQLError.stack : undefined
+          });
+
+          // Fall through to original error response
+        }
+      }
+
+      // If we reach here, either no SQL intent detected or SQL generation failed
       logger.error('[Query-First Required] ⚠️ Missing query results', {
         requestId,
         reason: !queryResults ? 'No queryResults' : 'No queryResults.data',
         filesCount: files?.length || 0,
-        query: query?.slice(0, 100)
+        query: query?.slice(0, 100),
+        hadSQLIntent: needsSQL
       });
 
       // Return error response - data analysis requires query-first approach
@@ -410,6 +521,24 @@ export const action: ActionFunction = async ({ request }) => {
             error: "missing_query_results",
             requiresQueryFirst: true,
             suggestion: "Data analysis requires structured SQL queries. The query may have failed to generate or execute.",
+            requestId
+          }
+        },
+        { status: 400 }
+      );
+    } else {
+      // No files provided at all
+      logger.error('[Query-First Required] ⚠️ No files provided', {
+        requestId,
+        query: query?.slice(0, 100)
+      });
+
+      return json(
+        {
+          content: "Please upload data files to analyze.",
+          metadata: {
+            error: "no_files",
+            suggestion: "Upload CSV, Excel, or other data files to get started",
             requestId
           }
         },
@@ -453,9 +582,71 @@ export const action: ActionFunction = async ({ request }) => {
       // Format the response directly without semantic analysis
       const formattedStart = Date.now();
 
-      // Build a simple, clear response with the SQL results
-      const tableMarkdown = formatQueryResultsAsMarkdown(queryResults);
-      const responseText = `### Query Results\n\n${tableMarkdown}\n\n**Query Details:**\n- SQL: \`${queryResults.sql}\`\n- Rows: ${queryResults.data.length}\n- Execution Time: ${queryResults.executionTime}ms`;
+      // Detect if this is an explicit visualization request
+      const visualizationKeywords = /\b(visualize|chart|graph|plot|show.*chart|show.*graph)\b/i;
+      const isExplicitVisualization = visualizationKeywords.test(query);
+
+      let responseText = '';
+      let chartGenerated = false;
+
+      // AUTO-CHART GENERATION: Check if we should visualize the results
+      try {
+        const chartGenStart = Date.now();
+        const chartResult = await queryResultChartGenerator.generateChartFromQueryResult(
+          query,
+          queryResults
+        );
+
+        if (chartResult.shouldChart && chartResult.chartData && chartResult.chartType) {
+          const chartMarkdown = queryResultChartGenerator.generateChartMarkdown(
+            chartResult.chartData,
+            chartResult.chartType,
+            chartResult.chartTitle,
+            chartResult.chartDescription
+          );
+
+          // For explicit visualization requests, show chart FIRST
+          if (isExplicitVisualization) {
+            responseText = chartMarkdown;
+            chartGenerated = true;
+          } else {
+            // For implicit requests, build table first and add chart after
+            const tableMarkdown = formatQueryResultsAsMarkdown(queryResults);
+            responseText = `### Query Results\n\n${tableMarkdown}\n\n**Query Details:**\n- SQL: \`${queryResults.sql}\`\n- Rows: ${queryResults.data.length}\n- Execution Time: ${queryResults.executionTime}ms`;
+            responseText += chartMarkdown;
+            chartGenerated = true;
+          }
+
+          logger.error('[Auto-Chart] Chart generated successfully', {
+            requestId,
+            chartType: chartResult.chartType,
+            confidence: chartResult.confidence,
+            generationTimeMs: Date.now() - chartGenStart,
+            isExplicitVisualization
+          });
+        } else {
+          logger.trace('[Auto-Chart] Skipped visualization', {
+            requestId,
+            reason: chartResult.reasoning,
+            confidence: chartResult.confidence
+          });
+        }
+      } catch (chartError) {
+        logger.warn('[Auto-Chart] Chart generation failed, continuing without chart', {
+          requestId,
+          error: chartError instanceof Error ? chartError.message : 'Unknown error'
+        });
+        // Continue without chart - don't fail the entire request
+      }
+
+      // If no chart was generated, show table with query details
+      if (!chartGenerated) {
+        const tableMarkdown = formatQueryResultsAsMarkdown(queryResults);
+        responseText = `### Query Results\n\n${tableMarkdown}\n\n**Query Details:**\n- SQL: \`${queryResults.sql}\`\n- Rows: ${queryResults.data.length}\n- Execution Time: ${queryResults.executionTime}ms`;
+      } else if (isExplicitVisualization) {
+        // For explicit visualization with chart, add query details as a collapsible section
+        responseText += `\n\n<details>\n<summary>Query Details</summary>\n\n- **SQL**: \`${queryResults.sql}\`\n- **Rows**: ${queryResults.data.length}\n- **Execution Time**: ${queryResults.executionTime}ms\n\n</details>`;
+      }
 
       const formattedTime = Date.now() - formattedStart;
       logger.error('[TIMING] Query-first formatting', { requestId, formattingTimeMs: formattedTime });

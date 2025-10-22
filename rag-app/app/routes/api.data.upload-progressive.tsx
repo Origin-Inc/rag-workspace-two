@@ -18,6 +18,7 @@ import { type ActionFunctionArgs } from '@remix-run/node';
 import { requireUser } from '~/services/auth/auth.server';
 import { FileUploadService } from '~/services/shared/file-upload.server';
 import { FileProcessingService } from '~/services/file-processing.server';
+import { FileStorageService } from '~/services/storage/file-storage.server';
 import { prisma } from '~/utils/db.server';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (for validation)
@@ -233,9 +234,10 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
             })}\n\n`;
             controller.enqueue(encoder.encode(metadataEvent));
 
-            // Stream data chunks
+            // Stream data chunks and collect them for persistence
             let chunkIndex = 0;
             let totalRowsStreamed = 0;
+            const allChunks: any[] = []; // Collect all chunks for later persistence
 
             for await (const chunk of result.dataFile!.dataStream) {
               const chunkEvent = `event: chunk\ndata: ${JSON.stringify({
@@ -248,10 +250,48 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
 
               controller.enqueue(encoder.encode(chunkEvent));
 
+              // Collect chunk for persistence
+              allChunks.push(...chunk);
+
               totalRowsStreamed += chunk.length;
               chunkIndex++;
 
               console.log(`[Progressive Upload] Streamed chunk ${chunkIndex} (${chunk.length} rows)`);
+            }
+
+            // After streaming completes, persist data to Supabase Storage for re-loading
+            try {
+              console.log(`[Progressive Upload] Persisting ${allChunks.length} rows to storage for re-loading`);
+
+              const storageService = new FileStorageService(request, response);
+
+              // Create JSON file with all data
+              const jsonData = {
+                data: allChunks,
+                schema: result.dataFile!.schema
+              };
+              const jsonBuffer = Buffer.from(JSON.stringify(jsonData));
+              const jsonPath = `${workspaceId}/${pageId}/${result.dataFile!.tableName}.json`;
+
+              await storageService.uploadFile(
+                'duckdb-tables',
+                jsonPath,
+                jsonBuffer,
+                'application/json'
+              );
+
+              const parquetUrl = await storageService.getSignedUrl('duckdb-tables', jsonPath, 86400);
+
+              // Update dataFile with parquetUrl so it can be reloaded after refresh
+              await prisma.dataFile.update({
+                where: { id: result.dataFile!.id },
+                data: { parquetUrl }
+              });
+
+              console.log(`[Progressive Upload] ✅ Data persisted with parquetUrl for future reloading`);
+            } catch (persistError) {
+              console.error(`[Progressive Upload] ⚠️ Failed to persist data (non-fatal):`, persistError);
+              // Continue - streaming already succeeded, persistence is for future reloads
             }
 
             // Send completion event

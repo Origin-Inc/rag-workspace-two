@@ -8,6 +8,8 @@ import { ChatCitation } from './ChatCitation';
 import { FileClarificationPrompt } from './FileClarificationPrompt';
 import { FileNotFoundPrompt } from './FileNotFoundPrompt';
 import { SmartClarificationPrompt } from './SmartClarificationPrompt';
+import { ChartOutputBlock } from '~/components/blocks/ChartOutputBlock';
+import type { ChartType } from '~/components/blocks/ChartOutputBlock';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -153,7 +155,49 @@ export function ChatMessage({ message, onAddToPage, onClarificationResponse, onF
                 ),
                 code: ({children, ...props}: React.HTMLAttributes<HTMLElement> & {className?: string}) => {
                   const inline = !props.className?.includes('language-');
-                  return inline ? 
+
+                  // Check if this is a chart code block (e.g., language-chart:bar)
+                  const isChartBlock = props.className?.includes('language-chart:');
+
+                  if (isChartBlock && !inline) {
+                    try {
+                      // Extract chart type from className (e.g., "language-chart:bar" -> "bar")
+                      const chartTypeMatch = props.className?.match(/language-chart:(\w+)/);
+                      const chartType = chartTypeMatch?.[1] as ChartType;
+
+                      // Parse the JSON chart data
+                      const chartDataStr = String(children).trim();
+                      const chartConfig = JSON.parse(chartDataStr);
+
+                      // Render the ChartOutputBlock component
+                      return (
+                        <div className="my-4 w-full">
+                          <ChartOutputBlock
+                            id={chartConfig.id}
+                            type={chartType || chartConfig.type}
+                            data={chartConfig.data}
+                            title={chartConfig.title}
+                            description={chartConfig.description}
+                            provenance={{
+                              isAIGenerated: true,
+                              confidence: chartConfig.confidence || 0.95,
+                              source: 'AI Chart Generator',
+                            }}
+                          />
+                        </div>
+                      );
+                    } catch (error) {
+                      console.error('[ChatMessage] Failed to parse chart data:', error);
+                      // Fall back to showing the raw JSON if parsing fails
+                      return (
+                        <code className="block p-2 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded text-xs overflow-x-auto max-w-full" {...props}>
+                          Error rendering chart: {String(children)}
+                        </code>
+                      );
+                    }
+                  }
+
+                  return inline ?
                     <code className="px-1 py-0.5 bg-theme-text-code rounded text-xs break-words" {...props}>{children}</code> :
                     <code className="block p-2 bg-theme-text-code text-theme-text-primary rounded text-xs overflow-x-auto max-w-full" {...props}>{children}</code>
                 },

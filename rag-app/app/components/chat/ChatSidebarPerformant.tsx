@@ -989,7 +989,7 @@ function ChatSidebarPerformantBase({
       {/* Resize handle */}
       <ResizeHandle
         orientation="vertical"
-        onResize={(delta) => setChatSidebarWidth(Math.max(320, Math.min(600, chatSidebarWidth - delta)))}
+        onResize={(delta) => setChatSidebarWidth(Math.max(320, Math.min(900, chatSidebarWidth - delta)))}
         className="absolute left-0 top-0 h-full -translate-x-1/2 z-10"
       />
 
