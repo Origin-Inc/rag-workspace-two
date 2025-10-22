@@ -18,7 +18,7 @@ import { type ActionFunctionArgs } from '@remix-run/node';
 import { requireUser } from '~/services/auth/auth.server';
 import { FileUploadService } from '~/services/shared/file-upload.server';
 import { FileProcessingService } from '~/services/file-processing.server';
-import { FileStorageService } from '~/services/file-storage.server';
+import { FileStorageService } from '~/services/storage/file-storage.server';
 import { prisma } from '~/utils/db.server';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (for validation)
