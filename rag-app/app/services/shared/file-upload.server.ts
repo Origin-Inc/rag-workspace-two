@@ -429,38 +429,63 @@ export class FileUploadService {
         // This avoids loading full dataset into memory
       }
 
-      // 5. Save metadata to database
-      const dataFile = await prisma.dataFile.create({
-        data: {
+      // 5. Save metadata to database (or reuse existing record)
+      // Check if a dataFile was recently created for this exact file to prevent duplicates
+      // This handles the case where both 'metadata' and 'stream' modes are called
+      const recentCutoff = new Date(Date.now() - 60000); // Last 60 seconds
+      const existingDataFile = await prisma.dataFile.findFirst({
+        where: {
           pageId,
           workspaceId,
           filename: file.name,
-          tableName: metadata.tableName,
-          schema: metadata.schema,
-          rowCount: metadata.totalRows,
           sizeBytes: file.size,
-          storageUrl,
-          parquetUrl // Will be null initially, can be updated after processing
+          createdAt: {
+            gte: recentCutoff
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
         }
       });
+
+      let dataFile;
+      if (existingDataFile) {
+        console.log(`[FileUploadService] Reusing existing dataFile record: ${existingDataFile.id}`);
+        dataFile = existingDataFile;
+      } else {
+        dataFile = await prisma.dataFile.create({
+          data: {
+            pageId,
+            workspaceId,
+            filename: file.name,
+            tableName: metadata.tableName,
+            schema: metadata.schema,
+            rowCount: metadata.totalRows,
+            sizeBytes: file.size,
+            storageUrl,
+            parquetUrl // Will be null initially, can be updated after processing
+          }
+        });
+        console.log(`[FileUploadService] Created new dataFile record: ${dataFile.id}`);
+      }
 
       console.log(`[FileUploadService] File uploaded progressively: ${dataFile.id}`);
 
       // 6. Create data stream generator
       const dataStream = FileProcessingService.processFileProgressive(file);
 
-      // Return metadata + stream
+      // Return metadata + stream (use dataFile properties to ensure consistency when reusing records)
       return {
         success: true,
         dataFile: {
           id: dataFile.id,
-          filename: file.name,
-          tableName: metadata.tableName,
-          schema: metadata.schema,
-          rowCount: metadata.totalRows,
-          sizeBytes: file.size,
-          storageUrl,
-          parquetUrl,
+          filename: dataFile.filename,
+          tableName: dataFile.tableName, // Use tableName from database to ensure consistency
+          schema: dataFile.schema as FileSchema,
+          rowCount: dataFile.rowCount,
+          sizeBytes: dataFile.sizeBytes,
+          storageUrl: dataFile.storageUrl,
+          parquetUrl: dataFile.parquetUrl,
           dataStream: (async function* () {
             for await (const chunk of dataStream) {
               yield chunk.chunk;
