@@ -18,6 +18,7 @@ import { type ActionFunctionArgs } from '@remix-run/node';
 import { requireUser } from '~/services/auth/auth.server';
 import { FileUploadService } from '~/services/shared/file-upload.server';
 import { FileProcessingService } from '~/services/file-processing.server';
+import { FileStorageService } from '~/services/file-storage.server';
 import { prisma } from '~/utils/db.server';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (for validation)
@@ -262,7 +263,6 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
             try {
               console.log(`[Progressive Upload] Persisting ${allChunks.length} rows to storage for re-loading`);
 
-              const { FileStorageService } = await import('~/services/file-storage.server');
               const storageService = new FileStorageService(request, response);
 
               // Create JSON file with all data
