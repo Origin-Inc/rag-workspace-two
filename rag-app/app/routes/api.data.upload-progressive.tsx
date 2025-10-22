@@ -233,9 +233,10 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
             })}\n\n`;
             controller.enqueue(encoder.encode(metadataEvent));
 
-            // Stream data chunks
+            // Stream data chunks and collect them for persistence
             let chunkIndex = 0;
             let totalRowsStreamed = 0;
+            const allChunks: any[] = []; // Collect all chunks for later persistence
 
             for await (const chunk of result.dataFile!.dataStream) {
               const chunkEvent = `event: chunk\ndata: ${JSON.stringify({
@@ -248,10 +249,49 @@ export async function action({ request, response }: ActionFunctionArgs & { respo
 
               controller.enqueue(encoder.encode(chunkEvent));
 
+              // Collect chunk for persistence
+              allChunks.push(...chunk);
+
               totalRowsStreamed += chunk.length;
               chunkIndex++;
 
               console.log(`[Progressive Upload] Streamed chunk ${chunkIndex} (${chunk.length} rows)`);
+            }
+
+            // After streaming completes, persist data to Supabase Storage for re-loading
+            try {
+              console.log(`[Progressive Upload] Persisting ${allChunks.length} rows to storage for re-loading`);
+
+              const { FileStorageService } = await import('~/services/file-storage.server');
+              const storageService = new FileStorageService(request, response);
+
+              // Create JSON file with all data
+              const jsonData = {
+                data: allChunks,
+                schema: result.dataFile!.schema
+              };
+              const jsonBuffer = Buffer.from(JSON.stringify(jsonData));
+              const jsonPath = `${workspaceId}/${pageId}/${result.dataFile!.tableName}.json`;
+
+              await storageService.uploadFile(
+                'duckdb-tables',
+                jsonPath,
+                jsonBuffer,
+                'application/json'
+              );
+
+              const parquetUrl = await storageService.getSignedUrl('duckdb-tables', jsonPath, 86400);
+
+              // Update dataFile with parquetUrl so it can be reloaded after refresh
+              await prisma.dataFile.update({
+                where: { id: result.dataFile!.id },
+                data: { parquetUrl }
+              });
+
+              console.log(`[Progressive Upload] ✅ Data persisted with parquetUrl for future reloading`);
+            } catch (persistError) {
+              console.error(`[Progressive Upload] ⚠️ Failed to persist data (non-fatal):`, persistError);
+              // Continue - streaming already succeeded, persistence is for future reloads
             }
 
             // Send completion event

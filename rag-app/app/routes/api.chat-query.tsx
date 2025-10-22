@@ -582,9 +582,12 @@ export const action: ActionFunction = async ({ request }) => {
       // Format the response directly without semantic analysis
       const formattedStart = Date.now();
 
-      // Build a simple, clear response with the SQL results
-      const tableMarkdown = formatQueryResultsAsMarkdown(queryResults);
-      let responseText = `### Query Results\n\n${tableMarkdown}\n\n**Query Details:**\n- SQL: \`${queryResults.sql}\`\n- Rows: ${queryResults.data.length}\n- Execution Time: ${queryResults.executionTime}ms`;
+      // Detect if this is an explicit visualization request
+      const visualizationKeywords = /\b(visualize|chart|graph|plot|show.*chart|show.*graph)\b/i;
+      const isExplicitVisualization = visualizationKeywords.test(query);
+
+      let responseText = '';
+      let chartGenerated = false;
 
       // AUTO-CHART GENERATION: Check if we should visualize the results
       try {
@@ -601,13 +604,25 @@ export const action: ActionFunction = async ({ request }) => {
             chartResult.chartTitle,
             chartResult.chartDescription
           );
-          responseText += chartMarkdown;
+
+          // For explicit visualization requests, show chart FIRST
+          if (isExplicitVisualization) {
+            responseText = chartMarkdown;
+            chartGenerated = true;
+          } else {
+            // For implicit requests, build table first and add chart after
+            const tableMarkdown = formatQueryResultsAsMarkdown(queryResults);
+            responseText = `### Query Results\n\n${tableMarkdown}\n\n**Query Details:**\n- SQL: \`${queryResults.sql}\`\n- Rows: ${queryResults.data.length}\n- Execution Time: ${queryResults.executionTime}ms`;
+            responseText += chartMarkdown;
+            chartGenerated = true;
+          }
 
           logger.error('[Auto-Chart] Chart generated successfully', {
             requestId,
             chartType: chartResult.chartType,
             confidence: chartResult.confidence,
-            generationTimeMs: Date.now() - chartGenStart
+            generationTimeMs: Date.now() - chartGenStart,
+            isExplicitVisualization
           });
         } else {
           logger.trace('[Auto-Chart] Skipped visualization', {
@@ -622,6 +637,15 @@ export const action: ActionFunction = async ({ request }) => {
           error: chartError instanceof Error ? chartError.message : 'Unknown error'
         });
         // Continue without chart - don't fail the entire request
+      }
+
+      // If no chart was generated, show table with query details
+      if (!chartGenerated) {
+        const tableMarkdown = formatQueryResultsAsMarkdown(queryResults);
+        responseText = `### Query Results\n\n${tableMarkdown}\n\n**Query Details:**\n- SQL: \`${queryResults.sql}\`\n- Rows: ${queryResults.data.length}\n- Execution Time: ${queryResults.executionTime}ms`;
+      } else if (isExplicitVisualization) {
+        // For explicit visualization with chart, add query details as a collapsible section
+        responseText += `\n\n<details>\n<summary>Query Details</summary>\n\n- **SQL**: \`${queryResults.sql}\`\n- **Rows**: ${queryResults.data.length}\n- **Execution Time**: ${queryResults.executionTime}ms\n\n</details>`;
       }
 
       const formattedTime = Date.now() - formattedStart;
