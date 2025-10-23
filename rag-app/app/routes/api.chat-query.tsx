@@ -949,9 +949,10 @@ export const action: ActionFunction = async ({ request }) => {
             await new Promise(resolve => setTimeout(resolve, 20));
           }
 
-          // Send metadata
+          // Send metadata (including database message ID for block creation)
           const metadataEvent = `event: metadata\ndata: ${JSON.stringify({
             metadata: {
+              messageId: messageId, // Task 56.2 fix: Include database UUID for "Add to Page" functionality
               queryFirst: true,
               sql: queryResults.sql,
               rowsAnalyzed: queryResults.data.length,

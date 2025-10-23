@@ -7,6 +7,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system' | 'clarification' | 'not-found';
   content: string;
   metadata?: {
+    messageId?: string; // Task 56.2 fix: Database UUID for "Add to Page" functionality
     sql?: string;
     chartType?: string;
     blockId?: string;

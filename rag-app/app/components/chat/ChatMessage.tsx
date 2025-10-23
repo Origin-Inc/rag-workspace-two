@@ -42,13 +42,26 @@ export function ChatMessage({ message, onClarificationResponse, onFileSelect }: 
 
   // Handle add to page action
   const handleAddToPage = () => {
-    if (!message.id) return;
+    // Task 56.2 fix: Use database UUID from metadata instead of client-side ID
+    const databaseMessageId = message.metadata?.messageId || message.id;
+
+    if (!databaseMessageId) {
+      console.error('[ChatMessage] No message ID available for block creation');
+      return;
+    }
+
+    console.log('[ChatMessage] Creating block from message:', {
+      clientId: message.id,
+      databaseId: databaseMessageId,
+      hasChart: !!message.metadata?.generatedChart,
+      hasTable: !!message.metadata?.generatedTable,
+    });
 
     fetcher.submit(
       {},
       {
         method: 'POST',
-        action: `/api/chat-message/${message.id}/create-block`,
+        action: `/api/chat-message/${databaseMessageId}/create-block`,
       }
     );
   };
@@ -188,6 +201,22 @@ export function ChatMessage({ message, onClarificationResponse, onFileSelect }: 
                   const isChartBlock = props.className?.includes('language-chart:');
 
                   if (isChartBlock && !inline) {
+                    // Skip rendering chart during streaming to avoid JSON parse errors
+                    if (message.isStreaming) {
+                      return (
+                        <div className="my-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                            <div className="flex gap-1">
+                              <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                            <span>Generating chart...</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     try {
                       // Extract chart type from className (e.g., "language-chart:bar" -> "bar")
                       const chartTypeMatch = props.className?.match(/language-chart:(\w+)/);
@@ -215,7 +244,10 @@ export function ChatMessage({ message, onClarificationResponse, onFileSelect }: 
                         </div>
                       );
                     } catch (error) {
-                      console.error('[ChatMessage] Failed to parse chart data:', error);
+                      // Only log error if not streaming (streaming errors are expected)
+                      if (!message.isStreaming) {
+                        console.error('[ChatMessage] Failed to parse chart data:', error);
+                      }
                       // Fall back to showing the raw JSON if parsing fails
                       return (
                         <code className="block p-2 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded text-xs overflow-x-auto max-w-full" {...props}>
