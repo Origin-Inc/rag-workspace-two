@@ -1,7 +1,7 @@
 import { json } from "@remix-run/node";
 import type { ActionFunction } from "@remix-run/node";
 import { eventStream } from "remix-utils/sse/server";
-import { prisma } from "~/utils/prisma.server";
+import { prisma } from "~/utils/db.server";
 import { queryIntentAnalyzer } from "~/services/query-intent-analyzer.server";
 import { UnifiedIntelligenceService } from "~/services/unified-intelligence.server";
 import { ResponseComposer } from "~/services/response-composer.server";
