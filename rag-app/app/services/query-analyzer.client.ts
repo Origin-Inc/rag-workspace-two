@@ -50,8 +50,11 @@ export class QueryAnalyzer {
     'explain', 'describe', 'tell', 'contain', 'specific',
     'content', 'information', 'details', 'overview', 'insights', 'pdf',
     'notion', 'coda', 'document', 'page', 'deep', 'detailed', 'depth',
-    // Visualization keywords (Task 55)
-    'visualize', 'chart', 'graph', 'plot', 'diagram'
+    // Visualization keywords (Task 55) - support both US/UK spellings
+    'visualize', 'visualise', 'chart', 'graph', 'plot', 'diagram',
+    // Superlatives and comparatives (implicit data queries)
+    'top', 'bottom', 'highest', 'lowest', 'most', 'least', 'best', 'worst',
+    'largest', 'smallest', 'maximum', 'minimum', 'first', 'last'
   ];
   
   // File content query patterns - NEW
@@ -162,8 +165,9 @@ export class QueryAnalyzer {
     }
     
     // Check for visualization intent when files are available (Task 55)
+    // Support both US (visualize) and UK (visualise) spellings
     const isVisualizationQuery = availableFiles.length > 0 &&
-      /visualize|chart|graph|plot|show.*graph|create.*chart|display.*graph/i.test(normalizedQuery);
+      /visuali[sz]e|chart|graph|plot|show.*graph|create.*chart|display.*graph|bar chart|line chart|pie chart/i.test(normalizedQuery);
 
     if (isVisualizationQuery) {
       return {
@@ -185,8 +189,8 @@ export class QueryAnalyzer {
       /^(the|this|my)\s+file$/i.test(normalizedQuery)
     );
     
-    // Analyze for data query intent
-    const dataQueryScore = this.calculateDataQueryScore(normalizedQuery);
+    // Analyze for data query intent (pass whether files are available for implicit query detection)
+    const dataQueryScore = this.calculateDataQueryScore(normalizedQuery, availableFiles.length > 0);
     const mentionsFile = this.checkForFileReference(normalizedQuery, availableFiles);
     
     // If explicitly asking about file content, treat as data query
@@ -259,25 +263,36 @@ export class QueryAnalyzer {
   
   /**
    * Calculate how likely the query is asking for data analysis
+   * Now supports implicit data queries (e.g., "top 3 most expensive") when files are available
    */
-  private static calculateDataQueryScore(query: string): number {
+  private static calculateDataQueryScore(query: string, hasFiles: boolean = false): number {
     let score = 0;
     const words = query.toLowerCase().split(/\s+/);
-    
-    // Must have context about files to be a data query
+
+    // Check for explicit file context
     const hasFileContext = /file|data|csv|pdf|excel|document|table|database/i.test(query);
-    if (!hasFileContext) {
-      // Check for strong data indicators without file context
+
+    // Check for superlatives and comparatives (implicit data queries)
+    const hasSuperlative = /top|bottom|highest|lowest|most|least|best|worst|largest|smallest|maximum|minimum|first|last/i.test(query);
+    const hasQuantifier = /\b\d+\b|few|many|several|all|some/i.test(query);
+
+    // If files are available and query has superlatives/comparatives, it's likely a data query
+    if (hasFiles && hasSuperlative && hasQuantifier) {
+      score += 0.6; // Strong signal for implicit data query
+    }
+
+    if (!hasFileContext && !hasFiles) {
+      // No file context and no files available - check for strong data indicators
       for (const word of words) {
         if (['analyze', 'summarize', 'calculate', 'average', 'sum', 'count'].includes(word)) {
           score += 0.15;
         }
       }
     } else {
-      // Has file context, weight indicators higher
+      // Has file context OR files are available - weight indicators higher
       for (const word of words) {
         if (this.DATA_QUERY_INDICATORS.includes(word)) {
-          score += 0.25;
+          score += hasFiles ? 0.3 : 0.25; // Higher score when files are available
         }
       }
     }
