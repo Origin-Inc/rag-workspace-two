@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { User, Bot, ChevronDown, ChevronUp, Code, BarChart, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, Code, BarChart, Plus, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { useFetcher } from '@remix-run/react';
 import type { ChatMessage as ChatMessageType } from '~/atoms/chat-atoms';
 import { cn } from '~/utils/cn';
 import { ChatCitation } from './ChatCitation';
@@ -18,12 +19,39 @@ interface ChatMessageProps {
   onFileSelect?: (file: any) => void;
 }
 
-export function ChatMessage({ message, onAddToPage, onClarificationResponse, onFileSelect }: ChatMessageProps) {
+// Task 56.3: Type definition for block creation response
+interface CreateBlockResponse {
+  success?: boolean;
+  error?: string;
+  block?: any;
+}
+
+export function ChatMessage({ message, onClarificationResponse, onFileSelect }: ChatMessageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const fetcher = useFetcher<CreateBlockResponse>();
+
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
   const isClarification = message.role === 'clarification';
   const isNotFound = message.role === 'not-found';
+
+  // Task 56.3: Track add-to-page status
+  const isAddingToPage = fetcher.state === 'submitting' || fetcher.state === 'loading';
+  const addToPageSuccess = fetcher.data?.success === true;
+  const addToPageError = fetcher.data?.error;
+
+  // Handle add to page action
+  const handleAddToPage = () => {
+    if (!message.id) return;
+
+    fetcher.submit(
+      {},
+      {
+        method: 'POST',
+        action: `/api/chat-message/${message.id}/create-block`,
+      }
+    );
+  };
   
   const formatTime = (date: Date) => {
     return new Date(date).toLocaleTimeString('en-US', {
@@ -281,15 +309,57 @@ export function ChatMessage({ message, onAddToPage, onClarificationResponse, onF
         )}>
           <span>{formatTime(message.timestamp)}</span>
           
-          {/* Add to Page Button */}
-          {!isUser && !isSystem && message.metadata && (message.metadata.sql || message.metadata.chartType) && onAddToPage && (
-            <button
-              onClick={() => onAddToPage(message)}
-              className="flex items-center gap-1 px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-300"
-            >
-              <Plus className="w-3 h-3" />
-              <span>Add to Page</span>
-            </button>
+          {/* Add to Page Button - Task 56.3 */}
+          {!isUser && !isSystem && message.metadata && (message.metadata.generatedChart || message.metadata.generatedTable) && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleAddToPage}
+                disabled={isAddingToPage || addToPageSuccess}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors",
+                  addToPageSuccess
+                    ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 cursor-default"
+                    : addToPageError
+                    ? "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/30"
+                    : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300",
+                  isAddingToPage && "opacity-50 cursor-wait"
+                )}
+              >
+                {isAddingToPage ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Adding...</span>
+                  </>
+                ) : addToPageSuccess ? (
+                  <>
+                    <Check className="w-3 h-3" />
+                    <span>Added to Page</span>
+                  </>
+                ) : addToPageError ? (
+                  <>
+                    <AlertCircle className="w-3 h-3" />
+                    <span>Failed - Retry</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-3 h-3" />
+                    <span>Add to Page</span>
+                  </>
+                )}
+              </button>
+
+              {/* Success/Error Toast */}
+              {addToPageSuccess && (
+                <span className="text-xs text-green-600 dark:text-green-400 animate-fade-in">
+                  Block created successfully!
+                </span>
+              )}
+              {addToPageError && (
+                <span className="text-xs text-red-600 dark:text-red-400 animate-fade-in">
+                  {typeof addToPageError === 'string' ? addToPageError : 'Failed to create block'}
+                </span>
+              )}
+            </div>
           )}
         </div>
         

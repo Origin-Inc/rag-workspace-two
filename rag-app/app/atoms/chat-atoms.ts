@@ -19,6 +19,31 @@ export interface ChatMessage {
       columnsUsed?: string[];
       rowsAccessed?: number;
     }>;
+    // Task 56.1: New metadata fields for block generation
+    queryIntent?: 'data_visualization' | 'general_chat';
+    generatedSQL?: string;
+    queryResultsSummary?: {
+      rowCount: number;
+      columns: string[];
+      sampleRows: any[];
+    };
+    generatedChart?: {
+      type: string;
+      data: any;
+      title: string;
+      confidence: number;
+      description?: string;
+    };
+    generatedTable?: {
+      columns: string[];
+      rows: any[];
+      title: string;
+    };
+    queryExecution?: {
+      executionTime: number;
+      rowsReturned: number;
+      timestamp: string;
+    };
     // For clarification messages
     clarificationData?: {
       match?: any; // FileMatchResult - optional for smart clarifications
@@ -30,7 +55,7 @@ export interface ChatMessage {
       message: string;
       suggestions?: string[];
     };
-    // For not-found messages  
+    // For not-found messages
     notFoundData?: {
       query: string;
       availableFiles: DataFile[];

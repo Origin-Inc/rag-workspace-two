@@ -4,6 +4,7 @@ import { cn } from '~/utils/cn';
 import { DatabaseTableWrapper } from '~/components/database-block/DatabaseTableWrapper';
 import { AIBlock } from '~/components/blocks/AIBlock';
 import { ChartBlock } from '~/components/blocks/ChartBlock';
+import { TableOutputBlock } from '~/components/blocks/TableOutputBlock';
 import { SpreadsheetBlock } from './blocks/SpreadsheetBlock';
 import { SlashMenu } from './SlashMenu';
 import { CommandBar } from './CommandBar';
@@ -44,7 +45,9 @@ export type BlockType =
   | 'divider'
   | 'database'
   | 'spreadsheet'
-  | 'ai';
+  | 'ai'
+  | 'chart'
+  | 'table';
 
 export interface Block {
   id: string;
@@ -66,6 +69,170 @@ interface EnhancedBlockEditorProps {
   workspaceId?: string;
   className?: string;
 }
+
+// TASK 56.5: External data fetching components for large results
+const ExternalDataChartBlock = ({ id, externalStorage, preview, onDelete }: {
+  id: string;
+  externalStorage: any;
+  preview?: any;
+  onDelete: () => void;
+}) => {
+  const [data, setData] = useState<any>(preview || null);
+  const [loading, setLoading] = useState(!preview);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!externalStorage?.url) return;
+
+    // Fetch full data from external storage
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(externalStorage.url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const fullData = await response.json();
+        setData(fullData);
+        setError(null);
+      } catch (err) {
+        console.error('[ExternalDataChartBlock] Fetch error:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load chart data');
+        // Keep showing preview if fetch fails
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [externalStorage?.url]);
+
+  if (error && !data) {
+    return (
+      <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+        <p className="text-red-700 dark:text-red-400">Failed to load chart: {error}</p>
+      </div>
+    );
+  }
+
+  if (loading && !data) {
+    return (
+      <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 animate-pulse">
+        <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      {loading && (
+        <div className="absolute top-2 right-2 px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs rounded">
+          Loading full data...
+        </div>
+      )}
+      <ChartBlock
+        id={id}
+        content={data || {}}
+        onUpdate={() => {}}
+        onDelete={onDelete}
+      />
+    </div>
+  );
+};
+
+const ExternalDataTableBlock = ({ id, externalStorage, preview }: {
+  id: string;
+  externalStorage: any;
+  preview?: any;
+}) => {
+  const [data, setData] = useState<any>(preview || null);
+  const [loading, setLoading] = useState(!preview);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!externalStorage?.url) return;
+
+    // Fetch full data from external storage
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(externalStorage.url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const fullData = await response.json();
+        setData(fullData);
+        setError(null);
+      } catch (err) {
+        console.error('[ExternalDataTableBlock] Fetch error:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load table data');
+        // Keep showing preview if fetch fails
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [externalStorage?.url]);
+
+  if (error && !data) {
+    return (
+      <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+        <p className="text-red-700 dark:text-red-400">Failed to load table: {error}</p>
+      </div>
+    );
+  }
+
+  if (loading && !data) {
+    return (
+      <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 animate-pulse">
+        <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
+      </div>
+    );
+  }
+
+  // Transform columns for TableOutputBlock
+  const tableColumns = Array.isArray(data?.columns)
+    ? data.columns.map((col: string | { id?: string; name: string }, index: number) => {
+        if (typeof col === 'string') {
+          return {
+            id: `col_${index}`,
+            name: col,
+            type: 'text' as const,
+            sortable: true,
+            filterable: true,
+          };
+        }
+        return {
+          id: col.id || `col_${index}`,
+          name: col.name,
+          type: 'text' as const,
+          sortable: true,
+          filterable: true,
+        };
+      })
+    : [];
+
+  return (
+    <div className="relative">
+      {loading && (
+        <div className="absolute top-2 right-2 px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs rounded z-10">
+          Loading full data... ({data?.totalRows || data?.rows?.length || 0} rows)
+        </div>
+      )}
+      <TableOutputBlock
+        id={id}
+        columns={tableColumns}
+        rows={data?.rows || []}
+        title={data?.title || 'Table'}
+        options={{
+          sortable: true,
+          filterable: true,
+          searchable: true,
+          exportable: true,
+          paginated: true,
+          pageSize: 50,
+        }}
+      />
+    </div>
+  );
+};
 
 // Individual block component
 const BlockComponent = memo(({ 
@@ -601,12 +768,85 @@ const BlockComponent = memo(({
             chartContent = {};
           }
         }
+
+        // TASK 56.5: Handle external storage for large chart data
+        if (chartContent?.externalStorage) {
+          return (
+            <ExternalDataChartBlock
+              id={block.id}
+              externalStorage={chartContent.externalStorage}
+              preview={chartContent.preview}
+              onDelete={() => onDelete(block.id)}
+            />
+          );
+        }
+
         return (
           <ChartBlock
             id={block.id}
             content={chartContent || {}}
             onUpdate={(content) => onUpdate(block.id, content)}
             onDelete={() => onDelete(block.id)}
+          />
+        );
+      case 'table':
+        // Parse content if it's a string (from DB storage)
+        let tableContent = block.content;
+        if (typeof tableContent === 'string') {
+          try {
+            tableContent = JSON.parse(tableContent);
+          } catch {
+            tableContent = {};
+          }
+        }
+
+        // TASK 56.5: Handle external storage for large table data
+        if (tableContent?.externalStorage) {
+          return (
+            <ExternalDataTableBlock
+              id={block.id}
+              externalStorage={tableContent.externalStorage}
+              preview={tableContent.preview}
+            />
+          );
+        }
+
+        // Transform columns from string[] to TableColumn[] format
+        const tableColumns = Array.isArray(tableContent?.columns)
+          ? tableContent.columns.map((col: string | { id?: string; name: string }, index: number) => {
+              if (typeof col === 'string') {
+                return {
+                  id: `col_${index}`,
+                  name: col,
+                  type: 'text' as const,
+                  sortable: true,
+                  filterable: true,
+                };
+              }
+              return {
+                id: col.id || `col_${index}`,
+                name: col.name,
+                type: 'text' as const,
+                sortable: true,
+                filterable: true,
+              };
+            })
+          : [];
+
+        return (
+          <TableOutputBlock
+            id={block.id}
+            columns={tableColumns}
+            rows={tableContent?.rows || []}
+            title={tableContent?.title || 'Table'}
+            options={{
+              sortable: true,
+              filterable: true,
+              searchable: true,
+              exportable: true,
+              paginated: true,
+              pageSize: 50,
+            }}
           />
         );
       default:

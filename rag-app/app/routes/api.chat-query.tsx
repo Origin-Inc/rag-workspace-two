@@ -14,6 +14,7 @@ import { QueryErrorRecovery } from '~/services/query-error-recovery.server';
 import { queryResultChartGenerator } from '~/services/ai/query-result-chart-generator.server';
 import { sqlGenerator } from '~/services/ai/sql-generator.server';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import { FileStorageService } from '~/services/storage/file-storage.server';
 
 const logger = new DebugLogger('api.chat-query');
 
@@ -87,6 +88,117 @@ function formatQueryResultsAsMarkdown(queryResults: any): string {
   }).join('\n');
 
   return `${header}\n${separator}\n${rowsMarkdown}`;
+}
+
+/**
+ * TASK 56.5: Handle large result storage
+ * Uploads results >100KB to external storage and returns reference metadata
+ */
+async function handleLargeResultStorage(
+  data: any,
+  type: 'chart' | 'table',
+  workspaceId: string,
+  pageId: string,
+  messageId: string,
+  request: Request
+): Promise<{
+  useExternalStorage: boolean;
+  externalStorage?: {
+    url: string;
+    bucket: string;
+    path: string;
+    sizeBytes: number;
+    expiresAt: string;
+    type: 'chart' | 'table';
+  };
+  preview?: any;
+}> {
+  const dataJson = JSON.stringify(data);
+  const sizeBytes = new Blob([dataJson]).size;
+  const SIZE_THRESHOLD = 100 * 1024; // 100KB
+
+  logger.info('[Task 56.5] Checking result size', {
+    type,
+    sizeBytes,
+    sizeKB: (sizeBytes / 1024).toFixed(2),
+    exceedsThreshold: sizeBytes > SIZE_THRESHOLD,
+  });
+
+  // If under 100KB, store inline
+  if (sizeBytes <= SIZE_THRESHOLD) {
+    return { useExternalStorage: false };
+  }
+
+  // Upload to external storage
+  try {
+    const bucket = 'query-results';
+    const path = `${workspaceId}/${pageId}/${messageId}-${type}.json`;
+
+    // Use FileStorageService for upload
+    // Note: FileStorageService requires Request/Response for auth
+    const response = new Response();
+    const storage = new FileStorageService(request, response);
+
+    await storage.uploadFile(
+      bucket,
+      path,
+      Buffer.from(dataJson, 'utf-8'),
+      'application/json'
+    );
+
+    // Generate signed URL (valid for 7 days)
+    const expiresInSeconds = 7 * 24 * 60 * 60; // 7 days
+    const signedUrl = await storage.getSignedUrl(bucket, path, expiresInSeconds);
+    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+
+    // Create preview (first 10 rows for tables, summary for charts)
+    let preview: any;
+    if (type === 'table' && data.rows) {
+      preview = {
+        columns: data.columns,
+        rows: data.rows.slice(0, 10),
+        totalRows: data.rows.length,
+        title: data.title,
+      };
+    } else if (type === 'chart' && data.data) {
+      preview = {
+        type: data.type,
+        title: data.title,
+        description: data.description,
+        sampleDataPoints: Array.isArray(data.data) ? data.data.slice(0, 10).length : 'N/A',
+      };
+    }
+
+    logger.info('[Task 56.5] Large result uploaded to external storage', {
+      type,
+      bucket,
+      path,
+      sizeKB: (sizeBytes / 1024).toFixed(2),
+      expiresAt,
+    });
+
+    return {
+      useExternalStorage: true,
+      externalStorage: {
+        url: signedUrl,
+        bucket,
+        path,
+        sizeBytes,
+        expiresAt,
+        type,
+      },
+      preview,
+    };
+  } catch (error) {
+    logger.error('[Task 56.5] Failed to upload to external storage, falling back to inline', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      type,
+      sizeBytes,
+    });
+
+    // Fallback to inline storage with reduced data
+    return { useExternalStorage: false };
+  }
 }
 
 export const action: ActionFunction = async ({ request }) => {
@@ -588,11 +700,12 @@ export const action: ActionFunction = async ({ request }) => {
 
       let responseText = '';
       let chartGenerated = false;
+      let chartResult: any = null; // Declare outside try-catch for metadata access
 
       // AUTO-CHART GENERATION: Check if we should visualize the results
       try {
         const chartGenStart = Date.now();
-        const chartResult = await queryResultChartGenerator.generateChartFromQueryResult(
+        chartResult = await queryResultChartGenerator.generateChartFromQueryResult(
           query,
           queryResults
         );
@@ -650,6 +763,154 @@ export const action: ActionFunction = async ({ request }) => {
 
       const formattedTime = Date.now() - formattedStart;
       logger.error('[TIMING] Query-first formatting', { requestId, formattingTimeMs: formattedTime });
+
+      // ========== TASK 56.1 & 56.5: SAVE ASSISTANT MESSAGE WITH METADATA ==========
+      // Save the assistant response to database with rich metadata for block generation
+      // Task 56.5: Handle large results (>100KB) with external storage
+      try {
+        const saveStart = Date.now();
+
+        // Generate message ID upfront (needed for external storage path)
+        const messageId = crypto.randomUUID();
+
+        // TASK 56.5: Check and handle large chart data
+        let chartMetadata: any = undefined;
+        if (chartGenerated && chartResult?.shouldChart) {
+          const chartData = {
+            type: chartResult.chartType,
+            data: chartResult.chartData,
+            title: chartResult.chartTitle || `Results for: ${query.slice(0, 50)}...`,
+            confidence: chartResult.confidence,
+            description: chartResult.chartDescription,
+          };
+
+          const storageResult = await handleLargeResultStorage(
+            chartData,
+            'chart',
+            workspaceId,
+            pageId,
+            messageId,
+            request
+          );
+
+          if (storageResult.useExternalStorage) {
+            // Store external reference + preview
+            chartMetadata = {
+              externalStorage: storageResult.externalStorage,
+              preview: storageResult.preview,
+            };
+          } else {
+            // Store inline
+            chartMetadata = chartData;
+          }
+        }
+
+        // TASK 56.5: Check and handle large table data
+        let tableMetadata: any = undefined;
+        if (!chartGenerated && queryResults.data.length > 0) {
+          const tableData = {
+            columns: queryResults.columns || Object.keys(queryResults.data[0] || {}),
+            rows: queryResults.data,
+            title: `Query Results: ${query.slice(0, 50)}${query.length > 50 ? '...' : ''}`,
+          };
+
+          const storageResult = await handleLargeResultStorage(
+            tableData,
+            'table',
+            workspaceId,
+            pageId,
+            messageId,
+            request
+          );
+
+          if (storageResult.useExternalStorage) {
+            // Store external reference + preview
+            tableMetadata = {
+              externalStorage: storageResult.externalStorage,
+              preview: storageResult.preview,
+            };
+          } else {
+            // Store inline (limit to 100 rows)
+            tableMetadata = {
+              ...tableData,
+              rows: tableData.rows.slice(0, 100),
+            };
+          }
+        }
+
+        // Prepare metadata structure following Task 56 specifications
+        const assistantMetadata = {
+          queryIntent: isExplicitVisualization ? 'data_visualization' : 'general_chat',
+          generatedSQL: queryResults.sql,
+          queryResultsSummary: {
+            rowCount: queryResults.data.length,
+            columns: queryResults.columns || Object.keys(queryResults.data[0] || {}),
+            sampleRows: queryResults.data.slice(0, 10), // First 10 rows for preview
+          },
+          // Include chart config (inline or external reference)
+          generatedChart: chartMetadata,
+          // Include table config (inline or external reference)
+          generatedTable: tableMetadata,
+          // Include query execution metadata
+          queryExecution: {
+            executionTime: queryResults.executionTime,
+            rowsReturned: queryResults.data.length,
+            timestamp: new Date().toISOString(),
+          },
+        };
+
+        // Calculate metadata size to ensure it's under 10KB
+        const metadataSize = new Blob([JSON.stringify(assistantMetadata)]).size;
+        logger.trace('[Task 56.1 & 56.5] Metadata size check', {
+          requestId,
+          metadataSizeBytes: metadataSize,
+          metadataSizeKB: (metadataSize / 1024).toFixed(2),
+          isUnder10KB: metadataSize < 10000,
+          usesExternalStorage: !!(chartMetadata?.externalStorage || tableMetadata?.externalStorage),
+        });
+
+        // If metadata is still too large, reduce sample rows
+        if (metadataSize > 10000) {
+          logger.warn('[Task 56.1 & 56.5] Metadata exceeds 10KB, reducing sample size', {
+            requestId,
+            originalSize: metadataSize,
+          });
+          assistantMetadata.queryResultsSummary.sampleRows = queryResults.data.slice(0, 3);
+        }
+
+        // Save assistant message to database with pre-generated ID
+        await prisma.chatMessage.create({
+          data: {
+            id: messageId, // Use pre-generated ID for external storage consistency
+            pageId: pageId,
+            workspaceId: workspaceId,
+            userId: user.id,
+            role: 'assistant',
+            content: responseText,
+            metadata: assistantMetadata,
+          },
+        });
+
+        const saveTime = Date.now() - saveStart;
+        logger.trace('[Task 56.1 & 56.5] Assistant message saved with metadata', {
+          requestId,
+          saveTimeMs: saveTime,
+          metadataSizeKB: (metadataSize / 1024).toFixed(2),
+          hasChart: !!assistantMetadata.generatedChart,
+          hasTable: !!assistantMetadata.generatedTable,
+          chartUsesExternalStorage: !!chartMetadata?.externalStorage,
+          tableUsesExternalStorage: !!tableMetadata?.externalStorage,
+          sampleRowCount: assistantMetadata.queryResultsSummary.sampleRows.length,
+        });
+      } catch (saveError) {
+        // Log error but don't fail the request - user still gets response
+        logger.error('[Task 56.1 & 56.5] Failed to save assistant message', {
+          requestId,
+          error: saveError instanceof Error ? saveError.message : 'Unknown error',
+          stack: saveError instanceof Error ? saveError.stack : undefined,
+        });
+      }
+      // ========== END TASK 56.1 & 56.5 ==========
 
       // Skip to streaming
       const totalProcessingTime = Date.now() - authStart;

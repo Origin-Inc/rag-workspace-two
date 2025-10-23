@@ -166,15 +166,69 @@
       {
         "id": 56,
         "title": "Create Block Generation and Page Integration",
-        "description": "Implement functionality to convert chat messages and results into page blocks with proper formatting and editability",
-        "details": "1. Create 'Add to Page' button component for chat messages\n2. Implement block type detection based on content\n3. Build POST /api/blocks/from-chat endpoint\n4. Create block generation logic for text, tables, and charts\n5. Maintain formatting and interactivity when converting\n6. Track chat message to block relationships\n7. Ensure blocks are fully editable after creation\n8. Update Block model to include chatMessageId reference\n\nBlock generation logic:\n```\nfunction createBlockFromMessage(message, pageId) {\n  let blockType, content;\n  \n  if (message.type === 'visualization') {\n    blockType = 'chart';\n    content = {\n      plotlyConfig: message.chartConfig,\n      data: message.data\n    };\n  } else if (message.type === 'query_result') {\n    blockType = 'data_table';\n    content = {\n      columns: message.columns,\n      rows: message.rows\n    };\n  } else {\n    blockType = 'text';\n    content = { text: message.content };\n  }\n  \n  return {\n    pageId,\n    type: blockType,\n    content,\n    position: getNextPosition(pageId),\n    chatMessageId: message.id\n  };\n}\n```",
-        "testStrategy": "1. Test block creation from different message types\n2. Verify formatting preservation during conversion\n3. Test block editability after creation\n4. Validate position calculation for new blocks\n5. Test relationship tracking between messages and blocks\n6. Verify chart interactivity in page blocks\n7. Test undo/redo functionality with generated blocks",
-        "priority": "medium",
+        "description": "Implement functionality to convert chat messages and results into page blocks using existing JSONB fields without database migrations",
+        "status": "done",
         "dependencies": [
           55
         ],
-        "status": "pending",
-        "subtasks": []
+        "priority": "medium",
+        "details": "Phase 1 (Core Implementation - 1 week):\n1. Extend /app/routes/api.chat-query.tsx to populate ChatMessage.metadata with:\n   - queryIntent, generatedSQL, queryResultsSummary\n   - generatedChart/generatedTable configurations\n2. Create NEW /app/routes/api.chat-message.$messageId.create-block.tsx endpoint\n3. Add 'Add to Page' button in ChatMessage.tsx using useFetcher for optimistic UI\n4. Verify EnhancedBlockEditor renders blocks from Page.blocks JSONB field\n\nPhase 2 (Polish - 1 week):\n5. Implement large result handling (>100KB to external storage)\n6. Add AI provenance tracking (model, confidence, source)\n7. Add optimistic UI updates and analytics tracking\n\nPhase 3 (Advanced Features - 2+ weeks):\n8. Block refresh capability (re-run original query)\n9. Undo/redo with command pattern\n10. Block templates and batch creation\n\nMetadata Structure:\n```typescript\n// ChatMessage.metadata\n{\n  queryIntent: 'data_visualization' | 'general_chat',\n  generatedSQL: string,\n  queryResultsSummary: { rowCount, columns, sampleRows },\n  generatedChart?: { type, data, title, confidence },\n  generatedTable?: { columns, rows, title }\n}\n\n// Block metadata in Page.blocks\n{\n  sourceMessageId: string,\n  provenance: {\n    generatedBy: { model, version, provider },\n    generatedAt: ISO_timestamp,\n    source: { type: 'chat_query', sourceId, originalQuery },\n    confidence: number,\n    dataProvenance: { database, tables, queryHash }\n  }\n}\n```\n\nPerformance Considerations:\n- Keep metadata < 10KB for sub-100ms queries\n- Results > 2KB trigger TOAST storage (2-10x slower)\n- Use fetch-update-save pattern for Prisma JSONB updates\n- Simple block positioning: nextY = max(blocks.map(b => b.y + b.height))",
+        "testStrategy": "1. Test metadata population in ChatMessage for different query types\n2. Verify block creation from messages with various result sizes (<10KB, 10KB-1MB, >1MB)\n3. Test Prisma JSONB update patterns (fetch-update-save)\n4. Validate block positioning algorithm with existing blocks\n5. Test optimistic UI updates with useFetcher\n6. Verify AI provenance tracking in block metadata\n7. Performance test JSONB queries with different payload sizes\n8. Test concurrent updates with optimistic locking\n9. Verify existing chart/table components render correctly\n10. Test external storage fallback for large results",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Extend api.chat-query.tsx to populate ChatMessage.metadata",
+            "description": "Modify the existing /app/routes/api.chat-query.tsx endpoint to populate ChatMessage.metadata field with queryIntent, generatedSQL, queryResultsSummary, and chart/table configurations when processing chat messages",
+            "dependencies": [],
+            "details": "Update the chat query handler to set metadata when saving ChatMessage to database. Include queryIntent classification, generated SQL queries, summary of query results (rowCount, columns, sampleRows), and any generated chart or table configurations. Ensure metadata stays under 10KB for performance.\n<info added on 2025-10-23T00:07:29.480Z>\nIMPLEMENTATION COMPLETED\n\nSuccessfully implemented metadata population for ChatMessage in api.chat-query.tsx (Query-First Fast Path):\n\nCHANGES MADE:\n1. Added assistant message persistence at line 654-730\n2. Metadata structure includes:\n   - queryIntent: 'data_visualization' | 'general_chat'\n   - generatedSQL: SQL query executed\n   - queryResultsSummary: { rowCount, columns, sampleRows (first 10) }\n   - generatedChart: Chart config if visualization was created\n   - generatedTable: Table config if no chart (first 100 rows)\n   - queryExecution: { executionTime, rowsReturned, timestamp }\n\n3. Implemented size check to keep metadata under 10KB\n4. Error handling prevents request failure\n5. Performance monitoring with timing logs\n\nFILES MODIFIED:\n- /rag-app/app/routes/api.chat-query.tsx\n\nREADY FOR TESTING\n</info added on 2025-10-23T00:07:29.480Z>",
+            "status": "done",
+            "testStrategy": "Test metadata population with different query types (data_visualization vs general_chat), verify metadata structure matches specification, test with various result sizes"
+          },
+          {
+            "id": 2,
+            "title": "Create api.chat-message.$messageId.create-block.tsx endpoint",
+            "description": "Create a new API endpoint at /app/routes/api.chat-message.$messageId.create-block.tsx that converts chat messages into page blocks using the existing Page.blocks JSONB field structure",
+            "dependencies": [
+              "56.1"
+            ],
+            "details": "Implement endpoint that: 1) Retrieves ChatMessage by messageId, 2) Extracts relevant content and metadata, 3) Creates new block object with proper positioning using nextY = max(blocks.map(b => b.y + b.height)), 4) Updates Page.blocks JSONB field using fetch-update-save pattern. Include block provenance metadata linking back to source message.\n<info added on 2025-10-23T00:19:03.569Z>\nIMPLEMENTATION COMPLETED Successfully\n\nCreated block generation endpoint with all required functionality.\n\nKEY IMPLEMENTATIONS:\n1. Full authentication and workspace authorization\n2. Extract chart/table data from ChatMessage.metadata\n3. Position calculation using stacking algorithm\n4. Complete AI provenance tracking (2024 standards)\n5. Fetch-update-save pattern for Page.blocks\n6. Comprehensive error handling and logging\n\nFIXES APPLIED:\n- Fixed logger method calls (trace→info)\n- Fixed workspace access query (users→userWorkspaces)\n- Fixed crypto imports (default→named imports)\n\nFILE CREATED:\n/rag-app/app/routes/api.chat-message.$messageId.create-block.tsx (275 lines)\n\nREADY FOR: Integration with UI (subtask 56.3)\n</info added on 2025-10-23T00:19:03.569Z>",
+            "status": "done",
+            "testStrategy": "Test block creation from various message types, verify JSONB update performance, test concurrent block creation, validate block positioning algorithm"
+          },
+          {
+            "id": 3,
+            "title": "Add 'Add to Page' button to ChatMessage.tsx component",
+            "description": "Modify the existing /app/components/chat/ChatMessage.tsx component to include an 'Add to Page' button that uses useFetcher for optimistic UI updates when converting messages to blocks",
+            "dependencies": [
+              "56.2"
+            ],
+            "details": "Add button next to existing metadata display (lines 284-294). Use Remix useFetcher to call the new create-block endpoint. Implement optimistic UI showing 'Adding...' state and success/error feedback. Only show button for assistant messages with chart/table metadata.\n<info added on 2025-10-23T00:33:59.513Z>\nIMPLEMENTATION COMPLETED\n\nAdded 'Add to Page' button to ChatMessage component with full Remix useFetcher integration.\n\nFEATURES IMPLEMENTED:\n✅ Remix useFetcher for non-blocking API calls\n✅ Loading state with spinner animation\n✅ Success state with checkmark and confirmation\n✅ Error state with retry capability\n✅ Success/error toast messages\n✅ Proper TypeScript typing\n✅ Smart visibility (only for messages with chart/table data)\n\nFIXED:\n- Removed unused imports (User, Bot, onAddToPage param)\n- Added CreateBlockResponse type definition\n- Fixed type safety with useFetcher<CreateBlockResponse>()\n\nFILE MODIFIED:\n/rag-app/app/components/chat/ChatMessage.tsx\n\nREADY FOR: Subtask 56.4\n</info added on 2025-10-23T00:33:59.513Z>",
+            "status": "done",
+            "testStrategy": "Test optimistic UI updates, verify error handling, test button visibility logic, ensure proper loading states"
+          },
+          {
+            "id": 4,
+            "title": "Verify EnhancedBlockEditor renders blocks from Page.blocks JSONB",
+            "description": "Ensure the existing /app/components/editor/EnhancedBlockEditor.tsx correctly loads and displays blocks from the Page.blocks JSONB field, particularly blocks created from chat messages",
+            "dependencies": [
+              "56.3"
+            ],
+            "details": "Verify blocks created via chat message conversion appear correctly in the editor. Test that the initialBlocks prop properly loads from Page.blocks JSONB field. Ensure block positioning, content rendering, and metadata display work correctly for chat-generated blocks.",
+            "status": "done",
+            "testStrategy": "Test block rendering from JSONB data, verify metadata preservation, test editor functionality with chat-generated blocks, validate block positioning"
+          },
+          {
+            "id": 5,
+            "title": "Implement large result handling and external storage",
+            "description": "Add support for handling query results larger than 100KB by storing them in external storage and referencing them in block metadata",
+            "dependencies": [
+              "56.4"
+            ],
+            "details": "Implement logic to detect large results (>100KB), store them in Supabase storage, and reference the storage URL in block metadata. Update block rendering to fetch and display large results on demand. Include proper loading states and error handling for external data retrieval.",
+            "status": "done",
+            "testStrategy": "Test with results of various sizes (10KB, 100KB, 1MB+), verify storage upload/retrieval, test loading states, validate performance impact"
+          }
+        ]
       },
       {
         "id": 57,
@@ -923,7 +977,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-10-19T00:04:49.510Z",
+      "updated": "2025-10-23T00:49:02.551Z",
       "description": "Tasks for master context"
     }
   }
