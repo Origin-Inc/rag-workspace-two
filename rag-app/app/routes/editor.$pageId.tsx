@@ -185,10 +185,11 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
       if (block.content === '{}' || block.content === '[]' || block.content === 'null') {
         block.content = '';
       }
-      
+
       // If content is a JSON string of an object, parse it
-      if (typeof block.content === 'string' && 
-          (block.type === 'database' || block.type === 'ai') &&
+      // TASK 56 FIX: Include 'chart' and 'table' blocks for proper JSON parsing
+      if (typeof block.content === 'string' &&
+          (block.type === 'database' || block.type === 'ai' || block.type === 'chart' || block.type === 'table') &&
           (block.content.startsWith('{') || block.content.startsWith('['))) {
         try {
           return {
