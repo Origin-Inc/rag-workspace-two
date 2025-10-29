@@ -957,7 +957,15 @@ export const action: ActionFunction = async ({ request }) => {
               sql: queryResults.sql,
               rowsAnalyzed: queryResults.data.length,
               executionTime: queryResults.executionTime,
-              approach: 'fast-path'
+              approach: 'fast-path',
+              // Task 56: Include chart/table metadata for "Add to Page" button
+              generatedChart: chartMetadata,
+              generatedTable: tableMetadata,
+              queryResultsSummary: {
+                rowCount: queryResults.data.length,
+                columns: queryResults.columns || Object.keys(queryResults.data[0] || {}),
+                sampleRows: queryResults.data.slice(0, 3), // Preview rows
+              }
             }
           })}\n\n`;
           controller.enqueue(encoder.encode(metadataEvent));
