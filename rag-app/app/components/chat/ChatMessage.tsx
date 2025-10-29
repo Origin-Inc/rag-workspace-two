@@ -201,8 +201,12 @@ export function ChatMessage({ message, onClarificationResponse, onFileSelect }: 
                   const isChartBlock = props.className?.includes('language-chart:');
 
                   if (isChartBlock && !inline) {
-                    // Skip rendering chart during streaming to avoid JSON parse errors
-                    if (message.isStreaming) {
+                    // Check if JSON is complete before attempting to parse
+                    const chartDataStr = String(children).trim();
+                    const isJsonComplete = chartDataStr.startsWith('{') && chartDataStr.endsWith('}');
+
+                    // Skip rendering chart during streaming or if JSON is incomplete
+                    if (message.isStreaming || !isJsonComplete) {
                       return (
                         <div className="my-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
                           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -223,7 +227,6 @@ export function ChatMessage({ message, onClarificationResponse, onFileSelect }: 
                       const chartType = chartTypeMatch?.[1] as ChartType;
 
                       // Parse the JSON chart data
-                      const chartDataStr = String(children).trim();
                       const chartConfig = JSON.parse(chartDataStr);
 
                       // Render the ChartOutputBlock component
@@ -244,15 +247,20 @@ export function ChatMessage({ message, onClarificationResponse, onFileSelect }: 
                         </div>
                       );
                     } catch (error) {
-                      // Only log error if not streaming (streaming errors are expected)
-                      if (!message.isStreaming) {
-                        console.error('[ChatMessage] Failed to parse chart data:', error);
-                      }
-                      // Fall back to showing the raw JSON if parsing fails
+                      // Log parse errors (incomplete JSON already filtered above)
+                      console.error('[ChatMessage] Failed to parse chart data:', error);
+                      // Fall back to showing loading state
                       return (
-                        <code className="block p-2 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded text-xs overflow-x-auto max-w-full" {...props}>
-                          Error rendering chart: {String(children)}
-                        </code>
+                        <div className="my-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                            <div className="flex gap-1">
+                              <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                            <span>Processing chart data...</span>
+                          </div>
+                        </div>
                       );
                     }
                   }
