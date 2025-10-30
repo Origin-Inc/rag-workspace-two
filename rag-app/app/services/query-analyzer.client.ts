@@ -54,7 +54,11 @@ export class QueryAnalyzer {
     'visualize', 'visualise', 'chart', 'graph', 'plot', 'diagram',
     // Superlatives and comparatives (implicit data queries)
     'top', 'bottom', 'highest', 'lowest', 'most', 'least', 'best', 'worst',
-    'largest', 'smallest', 'maximum', 'minimum', 'first', 'last'
+    'largest', 'smallest', 'maximum', 'minimum', 'first', 'last',
+    // Common comparative/superlative adjectives for data queries
+    'cheap', 'expensive', 'cheapest', 'fastest', 'slowest', 'oldest', 'newest',
+    'bigger', 'smaller', 'older', 'newer', 'faster', 'slower', 'higher', 'lower',
+    'earlier', 'later', 'recent', 'old', 'new', 'quick', 'price', 'cost', 'value'
   ];
   
   // File content query patterns - NEW
@@ -203,8 +207,9 @@ export class QueryAnalyzer {
         fileReference: mentionsFile.reference || availableFiles[0].filename
       };
     }
-    
-    if (dataQueryScore > 0.6 || mentionsFile.mentioned) {
+
+    // Use >= instead of > to include queries with exactly 0.6 score
+    if (dataQueryScore >= 0.6 || mentionsFile.mentioned) {
       return {
         intent: 'query-data',
         confidence: dataQueryScore,
@@ -274,7 +279,8 @@ export class QueryAnalyzer {
 
     // Check for superlatives and comparatives (implicit data queries)
     const hasSuperlative = /top|bottom|highest|lowest|most|least|best|worst|largest|smallest|maximum|minimum|first|last/i.test(query);
-    const hasQuantifier = /\b\d+\b|few|many|several|all|some/i.test(query);
+    // Include spelled-out numbers (one, two, three, etc.) in addition to digits
+    const hasQuantifier = /\b\d+\b|one|two|three|four|five|six|seven|eight|nine|ten|few|many|several|all|some/i.test(query);
 
     // If files are available and query has superlatives/comparatives, it's likely a data query
     if (hasFiles && hasSuperlative && hasQuantifier) {
