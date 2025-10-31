@@ -968,6 +968,9 @@ export const action: ActionFunction = async ({ request }) => {
               }
             }
           })}\n\n`;
+
+          console.log('[API] Sending metadata event with messageId:', messageId);
+          console.log('[API] Metadata event format check - first 200 chars:', metadataEvent.substring(0, 200));
           controller.enqueue(encoder.encode(metadataEvent));
 
           // Send done

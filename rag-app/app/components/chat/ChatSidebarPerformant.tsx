@@ -52,11 +52,19 @@ async function handleStreamingResponse(
       const lines = buffer.split('\n\n');
       buffer = lines.pop() || '';
 
+      console.log('[Streaming Parser] Lines array length:', lines.length);
+
       for (const line of lines) {
+        console.log('[Streaming Parser] Processing line:', line.substring(0, 100));
+
         if (line.startsWith('event:')) {
+          console.log('[Streaming Parser] Line starts with event:');
           const eventMatch = line.match(/event: (\w+)\ndata: (.+)/s);
+          console.log('[Streaming Parser] Regex match result:', !!eventMatch);
+
           if (eventMatch) {
             const [, event, data] = eventMatch;
+            console.log('[Streaming Parser] Event type:', event);
             const parsedData = JSON.parse(data);
 
             switch (event) {
@@ -64,6 +72,7 @@ async function handleStreamingResponse(
                 onToken(parsedData.content || '');
                 break;
               case 'metadata':
+                console.log('[Streaming Parser] METADATA EVENT RECEIVED:', parsedData);
                 onMetadata(parsedData.metadata || {});
                 break;
               case 'done':
@@ -73,6 +82,8 @@ async function handleStreamingResponse(
                 onError(new Error(parsedData.error || 'Stream error'));
                 return;
             }
+          } else {
+            console.warn('[Streaming Parser] Failed to match event regex for line:', line);
           }
         }
       }
