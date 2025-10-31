@@ -111,7 +111,6 @@ function getFileTypeFromFilename(filename: string): string {
  * Memoized header component - only re-renders when sidebar state changes
  */
 const ChatHeader = memo(({ onClose }: { onClose: () => void }) => {
-  console.log('[ChatHeader] Rendering');
   return (
     <div className="flex items-center justify-between p-4 border-b border-theme-border-primary bg-theme-bg-primary">
       <div>
@@ -141,7 +140,6 @@ const MessageList = memo(({
   onClarificationResponse?: (action: string, data?: any) => void;
   onFileSelect?: (file: DataFile) => void;
 }) => {
-  console.log('[MessageList] Rendering with', messages.length, 'messages');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
@@ -188,7 +186,6 @@ const UploadProgressBar = memo(({
   status: string;
   error?: string;
 }) => {
-  console.log('[UploadProgressBar] Rendering');
   return (
     <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-theme-border-primary">
       <div className="flex items-center justify-between mb-1">
@@ -220,7 +217,6 @@ UploadProgressBar.displayName = 'UploadProgressBar';
  * Memoized drag overlay component
  */
 const DragOverlay = memo(() => {
-  console.log('[DragOverlay] Rendering');
   return (
     <div className="absolute inset-0 bg-blue-50 dark:bg-blue-900/20 bg-opacity-90 flex items-center justify-center z-60">
       <div className="text-center">
@@ -244,10 +240,8 @@ interface ChatSidebarPerformantProps {
 function ChatSidebarPerformantBase({ 
   pageId, 
   workspaceId,
-  className 
+  className
 }: ChatSidebarPerformantProps) {
-  console.log('[ChatSidebarPerformant] Main component rendering');
-  
   // Use optimized hooks
   const { messages, addMessage, batchAddMessages, clearMessages, updateMessage } = useChatMessagesOptimized(pageId);
   const { dataFiles, addDataFile, removeDataFile, setDataFiles } = useChatDataFilesOptimized(pageId);
@@ -275,7 +269,6 @@ function ChatSidebarPerformantBase({
     pageId,
     workspaceId: workspaceId || '',
     onComplete: (result) => {
-      console.log('[Progressive Upload] Complete:', result);
       // File should already be in database, just add to local state
       // We'll fetch the full file data from the API
       fetch(`/api/data/files/${pageId}`)
@@ -327,12 +320,7 @@ function ChatSidebarPerformantBase({
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
-  
-  // Track render count for debugging
-  const renderCountRef = useRef(0);
-  renderCountRef.current += 1;
-  console.log('[ChatSidebarPerformant] Render count:', renderCountRef.current);
-  
+
   // Memoized query analyzer to prevent recreation
   const queryAnalyzer = useMemo(() => QueryAnalyzer, []);
   
@@ -373,8 +361,7 @@ function ChatSidebarPerformantBase({
     
     // Analyze query intent
     const analysis = queryAnalyzer.analyzeQuery(content, dataFilesRef.current);
-    console.log('[ChatSidebarPerformant] Query analysis:', analysis);
-    
+
     // Process based on intent
     if (analysis.intent === 'query-data' && dataFilesRef.current.length > 0) {
       await processDataQuery(content);
@@ -564,7 +551,6 @@ function ChatSidebarPerformantBase({
             (token) => {
               streamedContent += token;
               // Update the streaming message with accumulated content
-              console.log('[Streaming] Token received, updating message', streamingMessageId, 'content length:', streamedContent.length);
               updateMessage(streamingMessageId, {
                 content: streamedContent,
                 metadata: { streaming: true },
@@ -1050,14 +1036,11 @@ function ChatSidebarPerformantBase({
 
         {/* File Context Display - Above Input */}
         {dataFiles.length > 0 && (
-          <>
-            {console.log('[FileContextDisplay] Rendering with files:', dataFiles.length, dataFiles)}
-            <FileContextDisplay
-              pageId={pageId}
-              dataFiles={dataFiles}
-              onFileRemove={handleFileRemove}
-            />
-          </>
+          <FileContextDisplay
+            pageId={pageId}
+            dataFiles={dataFiles}
+            onFileRemove={handleFileRemove}
+          />
         )}
 
         {/* Input */}
