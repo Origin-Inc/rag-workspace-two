@@ -949,29 +949,44 @@ export const action: ActionFunction = async ({ request }) => {
             await new Promise(resolve => setTimeout(resolve, 20));
           }
 
-          // Send metadata (including database message ID for block creation)
-          const metadataEvent = `event: metadata\ndata: ${JSON.stringify({
-            metadata: {
-              messageId: messageId, // Task 56.2 fix: Include database UUID for "Add to Page" functionality
-              queryFirst: true,
-              sql: queryResults.sql,
-              rowsAnalyzed: queryResults.data.length,
-              executionTime: queryResults.executionTime,
-              approach: 'fast-path',
-              // Task 56: Include chart/table metadata for "Add to Page" button
-              generatedChart: chartMetadata,
-              generatedTable: tableMetadata,
-              queryResultsSummary: {
-                rowCount: queryResults.data.length,
-                columns: queryResults.columns || Object.keys(queryResults.data[0] || {}),
-                sampleRows: queryResults.data.slice(0, 3), // Preview rows
-              }
-            }
-          })}\n\n`;
+          console.log('[API] Token loop complete, preparing metadata event...');
+          console.log('[API] Variables in scope - messageId:', messageId, 'hasChartMetadata:', !!chartMetadata, 'hasTableMetadata:', !!tableMetadata);
 
-          console.log('[API] Sending metadata event with messageId:', messageId);
-          console.log('[API] Metadata event format check - first 200 chars:', metadataEvent.substring(0, 200));
-          controller.enqueue(encoder.encode(metadataEvent));
+          // Send metadata (including database message ID for block creation)
+          try {
+            console.log('[API] About to build metadata event...');
+            const metadataEvent = `event: metadata\ndata: ${JSON.stringify({
+              metadata: {
+                messageId: messageId, // Task 56.2 fix: Include database UUID for "Add to Page" functionality
+                queryFirst: true,
+                sql: queryResults.sql,
+                rowsAnalyzed: queryResults.data.length,
+                executionTime: queryResults.executionTime,
+                approach: 'fast-path',
+                // Task 56: Include chart/table metadata for "Add to Page" button
+                generatedChart: chartMetadata,
+                generatedTable: tableMetadata,
+                queryResultsSummary: {
+                  rowCount: queryResults.data.length,
+                  columns: queryResults.columns || Object.keys(queryResults.data[0] || {}),
+                  sampleRows: queryResults.data.slice(0, 3), // Preview rows
+                }
+              }
+            })}\n\n`;
+
+            console.log('[API] Metadata event built successfully');
+            console.log('[API] Sending metadata event with messageId:', messageId);
+            console.log('[API] Metadata event format check - first 200 chars:', metadataEvent.substring(0, 200));
+            controller.enqueue(encoder.encode(metadataEvent));
+            console.log('[API] Metadata event enqueued successfully');
+          } catch (metadataError) {
+            console.error('[API] ERROR building/sending metadata event:', metadataError);
+            logger.error('[API] Metadata event error', {
+              requestId,
+              error: metadataError instanceof Error ? metadataError.message : 'Unknown error',
+              stack: metadataError instanceof Error ? metadataError.stack : undefined
+            });
+          }
 
           // Send done
           const doneEvent = `event: done\ndata: ${JSON.stringify({ complete: true })}\n\n`;
