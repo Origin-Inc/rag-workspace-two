@@ -115,11 +115,25 @@ export const action: ActionFunction = async ({ request, params }) => {
     if (metadata.generatedChart) {
       // Create chart block
       blockType = 'chart';
+
+      // DEBUG: Log the full chart metadata structure
+      logger.info('[Task 56.2] DEBUG: Full chart metadata', {
+        requestId,
+        chartMetadata: JSON.stringify(metadata.generatedChart, null, 2),
+        hasType: !!metadata.generatedChart.type,
+        hasData: !!metadata.generatedChart.data,
+        hasTitle: !!metadata.generatedChart.title,
+        dataKeys: metadata.generatedChart.data ? Object.keys(metadata.generatedChart.data) : [],
+      });
+
+      // Match ChartBlock component's expected structure
       blockContent = {
-        chartType: metadata.generatedChart.type,
-        chartData: metadata.generatedChart.data,
         title: metadata.generatedChart.title,
         description: metadata.generatedChart.description,
+        config: {
+          type: metadata.generatedChart.type,
+          data: metadata.generatedChart.data,
+        },
       };
       blockHeight = 4; // Chart blocks: 4 rows
 
@@ -127,6 +141,10 @@ export const action: ActionFunction = async ({ request, params }) => {
         requestId,
         chartType: metadata.generatedChart.type,
         confidence: metadata.generatedChart.confidence,
+        blockContentKeys: Object.keys(blockContent),
+        hasConfig: !!blockContent.config,
+        configType: blockContent.config?.type,
+        hasConfigData: !!blockContent.config?.data,
       });
     } else if (metadata.generatedTable) {
       // Create table block
@@ -228,6 +246,12 @@ export const action: ActionFunction = async ({ request, params }) => {
       blockId,
       blockType,
       hasProvenance: !!newBlock.metadata.provenance,
+      contentKeys: Object.keys(blockContent),
+      contentPreview: blockType === 'chart' ? {
+        hasConfig: !!blockContent.config,
+        hasConfigData: !!blockContent.config?.data,
+        configType: blockContent.config?.type,
+      } : null,
     });
 
     // 5. Update Page.blocks using fetch-update-save pattern
