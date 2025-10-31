@@ -765,16 +765,18 @@ export const action: ActionFunction = async ({ request }) => {
       logger.error('[TIMING] Query-first formatting', { requestId, formattingTimeMs: formattedTime });
 
       // ========== TASK 56.1 & 56.5: SAVE ASSISTANT MESSAGE WITH METADATA ==========
+      // CRITICAL: Declare these variables OUTSIDE try-catch so streaming code can access them
+      // Generate message ID upfront (needed for external storage path)
+      const messageId = crypto.randomUUID();
+      let chartMetadata: any = undefined;
+      let tableMetadata: any = undefined;
+
       // Save the assistant response to database with rich metadata for block generation
       // Task 56.5: Handle large results (>100KB) with external storage
       try {
         const saveStart = Date.now();
 
-        // Generate message ID upfront (needed for external storage path)
-        const messageId = crypto.randomUUID();
-
         // TASK 56.5: Check and handle large chart data
-        let chartMetadata: any = undefined;
         if (chartGenerated && chartResult?.shouldChart) {
           const chartData = {
             type: chartResult.chartType,
@@ -806,7 +808,6 @@ export const action: ActionFunction = async ({ request }) => {
         }
 
         // TASK 56.5: Check and handle large table data
-        let tableMetadata: any = undefined;
         if (!chartGenerated && queryResults.data.length > 0) {
           const tableData = {
             columns: queryResults.columns || Object.keys(queryResults.data[0] || {}),
