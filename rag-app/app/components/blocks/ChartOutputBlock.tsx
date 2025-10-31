@@ -377,7 +377,7 @@ export const ChartOutputBlock: React.FC<ChartOutputBlockProps> = ({
   return (
     <div
       className={`
-        chart-output-block rounded-xl border bg-white dark:bg-gray-900 shadow-sm
+        chart-output-block rounded-xl border bg-white dark:bg-gray-900 shadow-sm max-w-full
         ${isFullscreen ? 'fixed inset-4 z-50' : ''}
         ${className}
       `}
@@ -476,8 +476,8 @@ export const ChartOutputBlock: React.FC<ChartOutputBlockProps> = ({
       </div>
       
       {/* Chart Container */}
-      <div className="p-6">
-        <ResponsiveContainer width="100%" height={isFullscreen ? 500 : 400}>
+      <div className="p-4">
+        <ResponsiveContainer width="100%" height={isFullscreen ? 500 : 350}>
           {renderChart()}
         </ResponsiveContainer>
       </div>

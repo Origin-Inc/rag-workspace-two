@@ -144,14 +144,21 @@ export const action: ActionFunction = async ({ request, params }) => {
         rowCount: metadata.generatedTable.rows?.length || 0,
       });
     } else {
-      logger.error('[Task 56.2] No chart or table data found', {
+      // Create text/markdown block from message content
+      blockType = 'text';
+      blockContent = {
+        text: message.content,
+        format: 'markdown', // The content may contain markdown formatting
+      };
+      // Calculate height based on content length (roughly 2 rows per 200 chars, min 2, max 10)
+      const estimatedRows = Math.max(2, Math.min(10, Math.ceil(message.content.length / 200)));
+      blockHeight = estimatedRows;
+
+      logger.info('[Task 56.2] Creating text block from message content', {
         requestId,
-        metadataKeys: Object.keys(metadata),
+        contentLength: message.content.length,
+        estimatedHeight: blockHeight,
       });
-      return json(
-        { error: 'Message does not contain chart or table data' },
-        { status: 400 }
-      );
     }
 
     // 3. Get existing blocks and calculate position

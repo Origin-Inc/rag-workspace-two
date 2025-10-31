@@ -5,7 +5,7 @@ import {
   useChatDataFilesOptimized,
   useChatLoadingOptimized,
 } from '~/hooks/use-chat-atoms-optimized';
-import { useLayoutStore } from '~/stores/layout-store';
+import { useLayoutStore, MIN_CHAT_WIDTH, MAX_CHAT_WIDTH } from '~/stores/layout-store';
 import { ResizeHandle } from '~/components/ui/ResizeHandle';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
@@ -572,22 +572,27 @@ function ChatSidebarPerformantBase({
             },
             // onMetadata: Save metadata for final message
             (meta) => {
+              console.log('[Streaming] Metadata received from API:', meta);
               metadata = meta;
             },
             // onDone: Finalize message with complete content
             () => {
               console.log('[Streaming] Done, finalizing message', streamingMessageId, 'final content length:', streamedContent.length);
+              const finalMetadata = {
+                ...metadata,
+                queryFirst: true,
+                sql: queryResult.sqlGeneration.sql,
+                rowsAnalyzed: queryResult.queryResult.data?.slice(0, 20).length || 0,
+                totalRows: queryResult.queryResult.rowCount,
+                executionTime: queryResult.queryResult.executionTime,
+                streaming: false,
+              };
+              console.log('[Streaming] Final metadata being set:', finalMetadata);
+              console.log('[Streaming] Has generatedChart?', !!finalMetadata.generatedChart);
+              console.log('[Streaming] Has generatedTable?', !!finalMetadata.generatedTable);
               updateMessage(streamingMessageId, {
                 content: streamedContent,
-                metadata: {
-                  ...metadata,
-                  queryFirst: true,
-                  sql: queryResult.sqlGeneration.sql,
-                  rowsAnalyzed: queryResult.queryResult.data?.slice(0, 20).length || 0,
-                  totalRows: queryResult.queryResult.rowCount,
-                  executionTime: queryResult.queryResult.executionTime,
-                  streaming: false,
-                },
+                metadata: finalMetadata,
               });
             },
             // onError: Fall back to traditional approach
@@ -989,7 +994,7 @@ function ChatSidebarPerformantBase({
       {/* Resize handle */}
       <ResizeHandle
         orientation="vertical"
-        onResize={(delta) => setChatSidebarWidth(Math.max(320, Math.min(900, chatSidebarWidth - delta)))}
+        onResize={(delta) => setChatSidebarWidth(Math.max(MIN_CHAT_WIDTH, Math.min(MAX_CHAT_WIDTH, chatSidebarWidth - delta)))}
         className="absolute left-0 top-0 h-full -translate-x-1/2 z-10"
       />
 

@@ -231,7 +231,7 @@ export function ChatMessage({ message, onClarificationResponse, onFileSelect }: 
 
                       // Render the ChartOutputBlock component
                       return (
-                        <div className="my-4 w-full">
+                        <div className="my-4 w-full max-w-full overflow-hidden">
                           <ChartOutputBlock
                             id={chartConfig.id}
                             type={chartType || chartConfig.type}
@@ -349,8 +349,8 @@ export function ChatMessage({ message, onClarificationResponse, onFileSelect }: 
         )}>
           <span>{formatTime(message.timestamp)}</span>
           
-          {/* Add to Page Button - Task 56.3 */}
-          {!isUser && !isSystem && message.metadata && (message.metadata.generatedChart || message.metadata.generatedTable) && (
+          {/* Add to Page Button - Task 56.3 - Now available for ALL assistant messages */}
+          {!isUser && !isSystem && (
             <div className="flex items-center gap-2">
               <button
                 onClick={handleAddToPage}

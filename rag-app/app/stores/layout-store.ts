@@ -30,10 +30,13 @@ interface LayoutState {
 const DEFAULT_CHAT_WIDTH = 400;
 const DEFAULT_MENU_WIDTH = 256;
 const MIN_CHAT_WIDTH = 320;
-const MAX_CHAT_WIDTH = 600;
+const MAX_CHAT_WIDTH = 800; // Increased from 600 to better accommodate charts
 const MIN_MENU_WIDTH = 200;
 const MAX_MENU_WIDTH = 400;
 const COLLAPSED_MENU_WIDTH = 64;
+
+// Export constants for use in other components
+export { DEFAULT_CHAT_WIDTH, MIN_CHAT_WIDTH, MAX_CHAT_WIDTH };
 
 export const useLayoutStore = create<LayoutState>()(
   persist(
