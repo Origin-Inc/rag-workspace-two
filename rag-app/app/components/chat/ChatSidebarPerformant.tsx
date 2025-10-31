@@ -559,6 +559,8 @@ function ChatSidebarPerformantBase({
             // onMetadata: Save metadata for final message
             (meta) => {
               console.log('[Streaming] Metadata received from API:', meta);
+              console.log('[Streaming] Has messageId in metadata?', !!meta.messageId);
+              console.log('[Streaming] messageId value:', meta.messageId);
               metadata = meta;
             },
             // onDone: Finalize message with complete content
@@ -576,6 +578,7 @@ function ChatSidebarPerformantBase({
               console.log('[Streaming] Final metadata being set:', finalMetadata);
               console.log('[Streaming] Has generatedChart?', !!finalMetadata.generatedChart);
               console.log('[Streaming] Has generatedTable?', !!finalMetadata.generatedTable);
+              console.log('[Streaming] Database messageId in finalMetadata:', finalMetadata.messageId);
               updateMessage(streamingMessageId, {
                 content: streamedContent,
                 metadata: finalMetadata,
@@ -588,19 +591,8 @@ function ChatSidebarPerformantBase({
             }
           );
 
-          // Save assistant message
-          await fetch(`/api/chat/messages/${pageId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              role: 'assistant',
-              content: streamedContent,
-              metadata: {
-                ...metadata,
-                sql: queryResult.sqlGeneration.sql,
-              },
-            }),
-          });
+          // NOTE: Message already saved by api.chat-query endpoint with proper UUID
+          // No need to save again here - that would create a duplicate
 
           return; // Success - exit early
 
