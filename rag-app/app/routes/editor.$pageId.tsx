@@ -1633,7 +1633,6 @@ export default function EditorPage() {
                     progress: 0,
                     status: 'uploading',
                   });
-                  showToast('info', `Uploading ${filename}...`);
                 }}
                 onUploadProgress={(progress, status) => {
                   setUploadingFile((prev) =>
@@ -1643,14 +1642,20 @@ export default function EditorPage() {
                 onUploadComplete={(block) => {
                   console.log('[FileUpload] Upload complete, new block:', block);
                   setUploadingFile(null);
-                  showToast('success', 'File uploaded successfully!');
                   // Refresh the page to show the new block
                   setTimeout(() => window.location.reload(), 500);
                 }}
                 onUploadError={(error) => {
                   console.error('[FileUpload] Upload error:', error);
-                  setUploadingFile(null);
-                  showToast('error', error);
+                  setUploadingFile((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          status: 'error',
+                          error: error,
+                        }
+                      : null
+                  );
                 }}
               />
             </div>
