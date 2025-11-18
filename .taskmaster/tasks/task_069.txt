@@ -1,0 +1,22 @@
+# Task ID: 69
+# Title: Phase 2: Create useDataQuery Hook
+# Status: done
+# Dependencies: 68
+# Priority: high
+# Description: Build React hook for executing data queries using DuckDB in browser
+# Details:
+Create /app/hooks/useDataQuery.ts with:
+- executeQuery(query, context): Full query execution pipeline
+  1. Get active file from context
+  2. Call SQL generator API to convert NL → SQL
+  3. Execute SQL in DuckDB (browser-side)
+  4. Convert Arrow results to JSON
+  5. Return query results (limit 100 rows)
+
+- isExecuting state for loading indicators
+- Error handling for query failures
+
+This hook integrates DuckDB (client) with SQL generation (server)
+
+# Test Strategy:
+

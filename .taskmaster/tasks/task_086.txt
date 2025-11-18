@@ -1,0 +1,196 @@
+# Task ID: 86
+# Title: Enable Direct File Upload to Editor with Automatic SpreadsheetBlock Creation
+# Status: pending
+# Dependencies: 65, 66
+# Priority: medium
+# Description: Implement direct CSV/Excel file upload functionality on the editor page that automatically creates editable SpreadsheetBlocks through toolbar button, drag-and-drop, or slash command.
+# Details:
+Create a comprehensive file upload system leveraging existing infrastructure:
+
+1. **File Upload UI Integration**:
+   - Add 'Upload Spreadsheet' button to editor toolbar
+   - Implement drag-and-drop zone overlay on editor
+   - Add /upload slash command to SlashMenu component
+   - Use FileUploadService for validation and Supabase Storage uploads
+
+2. **Server-Side Processing Pipeline**:
+   - Create file-parser.server.ts using PapaParse (CSV) and SheetJS (Excel)
+   - Build file-to-spreadsheet-block.server.ts for data transformation
+   - Implement upload action handler in editor.$pageId.tsx using unstable_parseMultipartFormData
+   - Create DataFile record and transform to SpreadsheetBlockContent format
+
+3. **Client-Side Optimization**:
+   - Implement Web Worker parsing for files >5MB via file-parser.client.ts
+   - Add optimistic UI with skeleton SpreadsheetBlock appearance
+   - Use useProgressiveFileUpload hook for progress indicators
+   - Handle files <2MB on server, >2MB with Web Worker to prevent UI freezing
+
+4. **Block Integration**:
+   - Insert SpreadsheetBlock into Page.blocks JSONB using established patterns
+   - Ensure proper column type detection (text/number/boolean/date)
+   - Implement block stacking below existing content
+   - Return block data for immediate editor update
+
+5. **Error Handling & Performance**:
+   - Validate file types (.csv, .xlsx, .xls only) and size limits
+   - Show descriptive error messages for failures
+   - Target <2s for small files, <5s for medium files, <15s for large files
+   - Ensure skeleton appears in <100ms for instant feedback
+
+Technical approach follows 'Upload First, Parse Smart, Create Fast' pattern to bypass Vercel 4.5MB limits while maintaining responsive UX.
+
+# Test Strategy:
+1. **File Upload Testing**:
+   - Verify toolbar button opens file picker with correct file type filters
+   - Test drag-and-drop functionality across different browser environments
+   - Validate /upload slash command triggers file picker correctly
+   - Test file size validation (reject >50MB files)
+
+2. **Data Processing Verification**:
+   - Upload various CSV formats (comma, semicolon, tab delimited)
+   - Test Excel files (.xlsx, .xls) with multiple sheets
+   - Verify column type detection accuracy for numbers, dates, booleans
+   - Test parsing of files with special characters and Unicode content
+
+3. **Performance Testing**:
+   - Measure upload times for small (<1MB), medium (1-5MB), and large (5-10MB) files
+   - Verify Web Worker parsing prevents UI freezing on large files
+   - Test optimistic UI skeleton appears within 100ms
+   - Validate progress indicators show accurate upload/processing status
+
+4. **Block Integration Testing**:
+   - Verify SpreadsheetBlock creation with correct data structure
+   - Test block positioning below existing content
+   - Validate JSONB update in Page.blocks field
+   - Ensure blocks are immediately editable after creation
+
+5. **Error Handling Testing**:
+   - Test unsupported file types show appropriate error messages
+   - Verify network failure recovery during upload
+   - Test malformed file handling (corrupted CSV/Excel files)
+   - Validate Supabase Storage upload failures are handled gracefully
+
+6. **Cross-Browser Compatibility**:
+   - Test drag-and-drop in Chrome, Firefox, Safari, Edge
+   - Verify Web Worker support across browsers
+   - Test file picker functionality on mobile devices
+
+# Subtasks:
+## 1. Add File Upload UI to Editor Toolbar [pending]
+### Dependencies: None
+### Description: Add FileUploadButton component to editor.$pageId.tsx with toolbar positioning, loading states, and progress indicators
+### Details:
+- Add FileUploadButton component to editor.$pageId.tsx
+- Position in toolbar above EnhancedBlockEditor
+- Use useFetcher for non-navigating form submission
+- Add loading states and progress text
+- Files: app/routes/editor.$pageId.tsx
+- Time estimate: 30 minutes
+
+## 2. Create File Parser Service [pending]
+### Dependencies: None
+### Description: Build centralized file parsing service with CSV and Excel support
+### Details:
+- Create app/services/file-parser.server.ts
+- Implement parseFile(file) returning data and schema
+- Support CSV parsing with PapaParse
+- Support Excel parsing with SheetJS
+- Implement inferSchema() for type detection
+- Files: app/services/file-parser.server.ts (NEW)
+- Time estimate: 1 hour
+
+## 3. Implement Upload Action Handler [pending]
+### Dependencies: None
+### Description: Add server-side action to handle file upload and block creation
+### Details:
+- Modify editor.$pageId.tsx action function
+- Add intent='upload-file' handler
+- Use unstable_parseMultipartFormData
+- Upload to Supabase Storage
+- Parse file and create DataFile record
+- Transform to SpreadsheetBlock and update Page.blocks
+- Files: app/routes/editor.$pageId.tsx
+- Time estimate: 1 hour
+
+## 4. Create File-to-SpreadsheetBlock Converter Service [pending]
+### Dependencies: None
+### Description: Build service to transform parsed file data into SpreadsheetBlock format
+### Details:
+- Create app/services/blocks/file-to-spreadsheet-block.server.ts
+- Implement FileToSpreadsheetBlockConverter class
+- Methods: convertToSpreadsheetBlock(), calculateNextPosition(), mapDataTypeToColumnType()
+- Transform schema columns and rows to SpreadsheetBlockContent format
+- Files: app/services/blocks/file-to-spreadsheet-block.server.ts (NEW)
+- Time estimate: 45 minutes
+
+## 5. Add Optimistic UI with Skeleton Blocks [pending]
+### Dependencies: None
+### Description: Implement immediate visual feedback with skeleton loading states
+### Details:
+- Add skeleton block immediately on upload
+- Use useFetcher state for loading indication
+- Replace skeleton with real block on success
+- Handle errors with toast messages
+- Files: app/routes/editor.$pageId.tsx
+- Time estimate: 30 minutes
+
+## 6. Add Drag-and-Drop File Upload Zone [pending]
+### Dependencies: None
+### Description: Implement drag-and-drop functionality for file uploads
+### Details:
+- Add drag event handlers to editor wrapper
+- Handle onDragOver, onDragLeave, onDrop
+- Add visual feedback (border highlight, overlay)
+- Filter to CSV/Excel files only
+- Files: app/routes/editor.$pageId.tsx
+- Time estimate: 30 minutes
+
+## 7. Add Slash Command for File Upload [pending]
+### Dependencies: None
+### Description: Integrate file upload into SlashMenu for keyboard-driven workflow
+### Details:
+- Modify app/components/editor/SlashMenu.tsx
+- Add 'uploadFile' command with Upload icon
+- Add keywords for search
+- Trigger hidden file input on select
+- Files: app/components/editor/SlashMenu.tsx
+- Time estimate: 20 minutes
+
+## 8. Add Web Worker Parsing for Large Files [pending]
+### Dependencies: None
+### Description: Implement client-side parsing for large files to prevent UI freezing
+### Details:
+- Create app/services/file-parser.client.ts
+- Implement parseFileInWorker() using PapaParse worker mode
+- Use for files >5MB
+- Add chunk callback for progress
+- Fallback to server parsing if needed
+- Files: app/services/file-parser.client.ts (NEW)
+- Time estimate: 45 minutes
+
+## 9. Add Progress Indicators and Error Handling [pending]
+### Dependencies: None
+### Description: Implement comprehensive progress tracking and error management
+### Details:
+- Add progress bar component
+- Show upload/processing status
+- Display descriptive error messages
+- Add validation for file size and type
+- Add error toast with retry button
+- Files: app/routes/editor.$pageId.tsx
+- Time estimate: 45 minutes
+
+## 10. Testing and Edge Cases [pending]
+### Dependencies: None
+### Description: Comprehensive testing of all file upload functionality
+### Details:
+- Test CSV files with various formats
+- Test Excel files (single/multiple sheets)
+- Test large files (1MB, 5MB, 10MB, 50MB)
+- Test error cases (corrupted, wrong type, empty)
+- Test concurrent uploads
+- Test position calculation
+- Test column sanitization
+- Document test checklist
+- Time estimate: 1.5 hours
+

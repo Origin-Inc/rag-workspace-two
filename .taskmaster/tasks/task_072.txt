@@ -1,0 +1,21 @@
+# Task ID: 72
+# Title: Phase 3: Create Database Schema for Context Persistence
+# Status: done
+# Dependencies: 67
+# Priority: high
+# Description: Add Prisma schema and migration for chat_contexts and query_history tables
+# Details:
+Update prisma/schema.prisma with:
+- ChatContext model: pageId (unique), activeFileId, currentTopic, entities (JSONB), preferences (JSONB)
+- QueryHistory model: pageId, contextId, query, intent, sql, results (JSONB), responseId
+
+Create migration: prisma/migrations/[timestamp]_add_chat_context/migration.sql
+
+Add indexes:
+- chat_contexts.pageId (unique)
+- query_history.pageId + createdAt (for efficient history queries)
+
+Run: npx prisma migrate dev --name add_chat_context
+
+# Test Strategy:
+

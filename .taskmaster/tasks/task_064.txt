@@ -1,0 +1,17 @@
+# Task ID: 64
+# Title: Phase 0: Create Architectural Decision Records
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Create ADRs documenting key architectural decisions for the refactor in /docs/architecture/ directory
+# Details:
+Create 4 ADR documents:
+- ADR-001: Query-First Architecture (why execute queries locally, send results to LLM)
+- ADR-002: Shared Services Layer (preventing code duplication, single source of truth)
+- ADR-003: Context Persistence Strategy (database-backed conversation memory)
+- ADR-004: Component Composition Patterns (reusable components, custom hooks)
+
+Each ADR should include: Context, Decision, Consequences, Alternatives Considered
+
+# Test Strategy:
+

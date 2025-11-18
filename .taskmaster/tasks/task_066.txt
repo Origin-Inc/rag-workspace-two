@@ -1,0 +1,23 @@
+# Task ID: 66
+# Title: Phase 1: Create FileUploadButton Component (Shared)
+# Status: done
+# Dependencies: 65
+# Priority: high
+# Description: Build reusable FileUploadButton component to replace 3 inline file inputs
+# Details:
+Create /app/components/shared/FileUploadButton.tsx with:
+- Hidden file input with ref
+- Upload button trigger
+- Loading state handling
+- Props: onUpload, accept, multiple, disabled
+- Uses FileUploadService for validation/upload
+
+Then migrate existing components:
+- ChatInput.tsx: Replace inline file input (lines 143-160)
+- ChatSidebarPerformant.tsx: Replace inline file input (lines 637-649)
+- FileUploadZone.tsx: Use FileUploadButton + drag-drop wrapper
+
+Result: Single source of truth for file upload UI
+
+# Test Strategy:
+

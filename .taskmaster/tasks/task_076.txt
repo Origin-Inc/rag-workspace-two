@@ -1,0 +1,27 @@
+# Task ID: 76
+# Title: Phase 4: Delete Duplicate Chat Sidebar Components
+# Status: done
+# Dependencies: 75
+# Priority: medium
+# Description: Remove all duplicate chat sidebar implementations and keep only ChatSidebarPerformant
+# Details:
+Files to delete:
+1. app/components/chat/ChatSidebar.tsx (original implementation)
+2. app/components/chat/ChatSidebarOptimized.tsx (optimization attempt)
+3. app/components/chat/ChatSidebarStable.tsx (stability attempt)
+4. app/components/chat/ChatSidebarSimple.tsx (simplification attempt)
+
+Keep: ChatSidebarPerformant.tsx (already uses Jotai, most recent)
+
+Before deletion:
+- Verify no routes import these files
+- Check for unique features that need migration
+- Ensure all functionality exists in ChatSidebarPerformant
+
+After deletion:
+- Update any remaining imports
+- Test chat functionality end-to-end
+- Verify performance remains optimal
+
+# Test Strategy:
+

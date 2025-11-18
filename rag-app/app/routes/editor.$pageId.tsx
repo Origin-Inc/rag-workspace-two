@@ -1,6 +1,9 @@
-import { json, LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
+import { json, LoaderFunctionArgs, ActionFunctionArgs, unstable_parseMultipartFormData } from "@remix-run/node";
 import { useLoaderData, useFetcher, Link, NavLink, useLocation } from "@remix-run/react";
 import { EnhancedBlockEditor } from "~/components/editor/EnhancedBlockEditor";
+import { FileUploadButton } from "~/components/editor/FileUploadButton";
+import { SpreadsheetSkeleton } from "~/components/blocks/SpreadsheetSkeleton";
+import { FileUploadProgress } from "~/components/ui/FileUploadProgress";
 import { ClientOnly } from "~/components/ClientOnly";
 // Using performant ChatSidebar with optimized Jotai atoms
 import { ChatSidebarPerformant as ChatSidebar } from "~/components/chat/ChatSidebarPerformant";
@@ -20,6 +23,10 @@ import { ultraLightIndexingService } from "~/services/rag/ultra-light-indexing.s
 // Legacy AI services - disabled for data analytics pivot
 // import { blockManipulationIntegration } from "~/services/ai/block-manipulation-integration.server";
 import { pageHierarchyService } from "~/services/page-hierarchy.server";
+import { parseFile, validateFile } from "~/services/file-parser.server";
+import { fileToSpreadsheetBlockConverter } from "~/services/blocks/file-to-spreadsheet-block.server";
+import { BlockService } from "~/services/block.server";
+import { createSupabaseAdmin } from "~/utils/supabase.server";
 // import { AIBlockService } from "~/services/ai-block-service.server";
 import { PageTreeNavigation } from "~/components/navigation/PageTreeNavigation";
 import type { PageTreeNode } from "~/components/navigation/PageTreeNavigation";
@@ -658,6 +665,174 @@ export async function action({ params, request }: ActionFunctionArgs) {
     return json({ success: true });
   }
 
+  // Handle pre-parsed data from web worker (large files)
+  if (intent === "upload-parsed-data") {
+    console.log('[File Upload] Received pre-parsed data from client');
+
+    const filename = formData.get("filename") as string;
+    const parsedDataString = formData.get("parsedData") as string;
+
+    if (!filename || !parsedDataString) {
+      return json({ error: "Missing filename or parsed data" }, { status: 400 });
+    }
+
+    try {
+      // Parse the JSON data
+      const parsedData = JSON.parse(parsedDataString);
+
+      // Get existing blocks for position calculation
+      const existingBlocks = await prisma.block.findMany({
+        where: { pageId },
+        select: { id: true, position: true }
+      });
+
+      // Convert to SpreadsheetBlock
+      const spreadsheetBlock = await fileToSpreadsheetBlockConverter.convertToSpreadsheetBlock(
+        parsedData,
+        {
+          pageId,
+          userId: user.id,
+          filename,
+          existingBlocks
+        }
+      );
+
+      // Create the block in database
+      const blockService = new BlockService();
+      const createdBlock = await blockService.createBlock(spreadsheetBlock);
+
+      console.log('[File Upload] Pre-parsed data converted to SpreadsheetBlock:', createdBlock.id);
+
+      return json({
+        success: true,
+        block: createdBlock,
+        message: `Successfully imported ${parsedData.rowCount} rows from ${filename}`
+      });
+    } catch (error) {
+      console.error('[File Upload] Error processing pre-parsed data:', error);
+      return json({
+        error: `Failed to process data: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }, { status: 500 });
+    }
+  }
+
+  if (intent === "upload-file") {
+    console.log('[File Upload] Received file upload request');
+
+    try {
+      // Parse multipart form data
+      const uploadHandler = async ({ name, data, filename }: any) => {
+        if (name !== "file") {
+          return undefined;
+        }
+
+        // Collect file data
+        const chunks: Buffer[] = [];
+        for await (const chunk of data) {
+          chunks.push(Buffer.from(chunk));
+        }
+        const buffer = Buffer.concat(chunks);
+
+        return { buffer, filename, mimetype: 'application/octet-stream' };
+      };
+
+      const formData = await unstable_parseMultipartFormData(request, uploadHandler);
+      const fileData = formData.get("file") as any;
+
+      if (!fileData || !fileData.buffer) {
+        return json({ error: "No file provided" }, { status: 400 });
+      }
+
+      const { buffer, filename } = fileData;
+
+      // Validate file
+      const validation = validateFile(filename, buffer.length);
+      if (!validation.valid) {
+        return json({ error: validation.error }, { status: 400 });
+      }
+
+      console.log('[File Upload] Validated file:', filename, 'Size:', buffer.length, 'bytes');
+
+      // Parse file
+      console.log('[File Upload] Parsing file...');
+      const parsedData = await parseFile({
+        buffer,
+        filename,
+        mimetype: 'application/octet-stream',
+      });
+
+      console.log('[File Upload] Parsed', parsedData.rowCount, 'rows and', parsedData.columnCount, 'columns');
+
+      // Validate parsed data
+      const dataValidation = fileToSpreadsheetBlockConverter.validateParsedData(parsedData);
+      if (!dataValidation.valid) {
+        return json({ error: dataValidation.error }, { status: 400 });
+      }
+
+      // Get existing blocks for position calculation
+      const blockService = new BlockService();
+      const existingBlocks = await blockService.getPageBlocks(pageId);
+
+      // Convert to SpreadsheetBlock
+      console.log('[File Upload] Converting to SpreadsheetBlock...');
+      const spreadsheetBlock = await fileToSpreadsheetBlockConverter.convertToSpreadsheetBlock(
+        parsedData,
+        {
+          pageId,
+          userId: user.id,
+          filename,
+          existingBlocks,
+        }
+      );
+
+      console.log('[File Upload] SpreadsheetBlock created:', spreadsheetBlock.id);
+
+      // Optionally upload file to Supabase Storage for backup
+      try {
+        const supabase = createSupabaseAdmin();
+        const fileExtension = filename.split('.').pop();
+        const storagePath = `uploads/${user.id}/${Date.now()}_${filename}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('files')
+          .upload(storagePath, buffer, {
+            contentType: 'application/octet-stream',
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.warn('[File Upload] Storage upload failed (non-critical):', uploadError);
+        } else {
+          console.log('[File Upload] File backed up to storage:', storagePath);
+        }
+      } catch (storageError) {
+        console.warn('[File Upload] Storage backup failed (non-critical):', storageError);
+      }
+
+      // Queue for indexing
+      try {
+        await indexingCoordinator.indexPage(pageId, {
+          immediate: true,
+          source: 'file-upload',
+        });
+      } catch (indexError) {
+        console.warn('[File Upload] Indexing failed (non-critical):', indexError);
+      }
+
+      return json({
+        success: true,
+        block: spreadsheetBlock,
+        message: `Successfully imported ${parsedData.rowCount} rows from ${filename}`,
+      });
+    } catch (error) {
+      console.error('[File Upload Error]', error);
+      return json({
+        success: false,
+        error: error instanceof Error ? error.message : 'File upload failed',
+      }, { status: 500 });
+    }
+  }
+
   return json({ error: "Invalid intent" }, { status: 400 });
 }
 
@@ -693,8 +868,25 @@ export default function EditorPage() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(page.title || '');
+
+  // File upload state for optimistic UI
+  const [uploadingFile, setUploadingFile] = useState<{
+    filename: string;
+    progress: number;
+    status: 'uploading' | 'parsing' | 'processing' | 'complete' | 'error';
+    error?: string;
+    fileSize?: number;
+    file?: File; // Keep reference for retry
+  } | null>(null);
+
+  // Drag and drop state
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const maxRetries = 3;
   const retryTimeoutRef = useRef<NodeJS.Timeout>();
+  const uploadAbortController = useRef<AbortController | null>(null);
 
   // CRITICAL FIX: Reset state when page changes (navigation to different page)
   useEffect(() => {
@@ -732,6 +924,7 @@ export default function EditorPage() {
     
     setEditingTitle(false);
   };
+
 
   // Main navigation items
   const navigation: NavigationItem[] = [
@@ -848,8 +1041,26 @@ export default function EditorPage() {
       console.log('[editor.$pageId] Fetcher response:', fetcher.data);
       setIsSaving(false);
       // Finished processing
-      
+
       if (fetcher.data.success) {
+        // Handle file upload success
+        if (fetcher.data.block) {
+          setUploadingFile(prev => prev ? {
+            ...prev,
+            progress: 100,
+            status: 'complete'
+          } : null);
+
+          // Refresh blocks to show new spreadsheet
+          const newBlock = fetcher.data.block;
+          setBlocks(prevBlocks => [...prevBlocks, newBlock]);
+
+          // Clear upload state after delay
+          setTimeout(() => {
+            setUploadingFile(null);
+          }, 3000);
+        }
+
         // Handle AI command success
         if (fetcher.data.blocks) {
           console.log('[editor.$pageId] Updating blocks from AI response:', fetcher.data.blocks);
@@ -857,16 +1068,25 @@ export default function EditorPage() {
           console.log('[editor.$pageId] Block[0] content type:', typeof fetcher.data.blocks[0]?.content);
           setBlocks(fetcher.data.blocks);
         }
-        
+
         setLastSaved(new Date());
         setSaveError(null);
         setRetryCount(0);
-        
+
         // Clear any pending retries
         if (retryTimeoutRef.current) {
           clearTimeout(retryTimeoutRef.current);
         }
       } else if (fetcher.data.error) {
+        // Handle file upload error
+        if (uploadingFile) {
+          setUploadingFile(prev => prev ? {
+            ...prev,
+            progress: 0,
+            status: 'error',
+            error: fetcher.data.error
+          } : null);
+        }
         // Handle save errors with retry logic
         const isConnectionError = fetcher.data.connectionLost || 
                                  fetcher.data.error.includes('connection') ||
@@ -901,14 +1121,146 @@ export default function EditorPage() {
   }, []);
 
   // Get layout state
-  const { 
-    isChatSidebarOpen, 
+  const {
+    isChatSidebarOpen,
     chatSidebarWidth,
     isMenuCollapsed,
     setMenuCollapsed,
     menuSidebarWidth,
     setMenuSidebarWidth
   } = useLayoutStore();
+
+  // Handle file upload (shared by drag-and-drop and file input)
+  const handleFileUpload = useCallback((file: File) => {
+    console.log('[FileUpload] Processing file:', file.name);
+
+    // Start optimistic UI
+    setUploadingFile({
+      filename: file.name,
+      progress: 0,
+      status: 'uploading',
+      fileSize: file.size,
+      file: file // Keep reference for retry
+    });
+
+    // Simulate progress
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += Math.random() * 20;
+      if (progress >= 90) {
+        clearInterval(progressInterval);
+        progress = 90;
+      }
+
+      const status: 'uploading' | 'parsing' | 'processing' =
+        progress < 30 ? 'uploading' : progress < 60 ? 'parsing' : 'processing';
+
+      setUploadingFile(prev => prev && prev.status !== 'error' ? {
+        ...prev,
+        progress,
+        status
+      } : prev);
+    }, 300);
+
+    // Create form data for upload
+    const formData = new FormData();
+    formData.append('intent', 'upload-file');
+    formData.append('file', file);
+
+    // Create abort controller for cancellation
+    uploadAbortController.current = new AbortController();
+
+    // Submit via fetcher
+    fetcher.submit(formData, {
+      method: 'post',
+      action: `/editor/${page.id}`,
+      encType: 'multipart/form-data',
+    });
+
+    // Cleanup interval on success/error
+    setTimeout(() => {
+      clearInterval(progressInterval);
+    }, 10000); // Safety timeout
+  }, [fetcher, page.id]);
+
+  // Drag and drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+
+    // Check if dragging files
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      const hasFile = Array.from(e.dataTransfer.items).some(item => item.kind === 'file');
+      if (hasFile) {
+        setIsDragging(true);
+      }
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+
+    // Get dropped files
+    const files = Array.from(e.dataTransfer.files);
+
+    if (files.length === 0) {
+      return;
+    }
+
+    // Filter for CSV/Excel files
+    const validExtensions = ['.csv', '.xlsx', '.xls'];
+    const validFile = files.find(file => {
+      const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+      return validExtensions.includes(extension);
+    });
+
+    if (!validFile) {
+      setUploadingFile({
+        filename: files[0].name,
+        progress: 0,
+        status: 'error',
+        error: 'Please drop a CSV or Excel file (.csv, .xlsx, .xls)',
+        fileSize: files[0].size
+      });
+      return;
+    }
+
+    // Check file size (50MB limit)
+    const maxSize = 50 * 1024 * 1024;
+    if (validFile.size > maxSize) {
+      setUploadingFile({
+        filename: validFile.name,
+        progress: 0,
+        status: 'error',
+        error: 'File too large. Maximum size is 50MB.',
+        fileSize: validFile.size
+      });
+      return;
+    }
+
+    // Trigger file upload
+    handleFileUpload(validFile);
+  }, [handleFileUpload]);
 
   return (
     <div className="h-full flex">
@@ -1268,8 +1620,88 @@ export default function EditorPage() {
           </div>
         </header>
 
+        {/* Editor Toolbar */}
+        <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileUploadButton
+                pageId={page.id}
+                onUploadStart={(filename) => {
+                  console.log('[FileUpload] Upload started:', filename);
+                  setUploadingFile({
+                    filename,
+                    progress: 0,
+                    status: 'uploading',
+                  });
+                  showToast('info', `Uploading ${filename}...`);
+                }}
+                onUploadProgress={(progress, status) => {
+                  setUploadingFile((prev) =>
+                    prev ? { ...prev, progress, status } : null
+                  );
+                }}
+                onUploadComplete={(block) => {
+                  console.log('[FileUpload] Upload complete, new block:', block);
+                  setUploadingFile(null);
+                  showToast('success', 'File uploaded successfully!');
+                  // Refresh the page to show the new block
+                  setTimeout(() => window.location.reload(), 500);
+                }}
+                onUploadError={(error) => {
+                  console.error('[FileUpload] Upload error:', error);
+                  setUploadingFile(null);
+                  showToast('error', error);
+                }}
+              />
+            </div>
+            <div className="text-xs text-gray-500">
+              Supports CSV and Excel files up to 50MB
+            </div>
+          </div>
+        </div>
+
         {/* Editor */}
-        <div className="flex-1 overflow-hidden bg-theme-bg-primary">
+        <div
+          className={cn(
+            "flex-1 overflow-hidden bg-theme-bg-primary relative transition-all duration-200",
+            isDragging && "ring-4 ring-blue-400 ring-opacity-50 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-10"
+          )}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {/* Drag overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-8 border-2 border-blue-400">
+                <div className="flex flex-col items-center space-y-4">
+                  <svg
+                    className="w-16 h-16 text-blue-500 animate-bounce"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                  <div className="text-center">
+                    <p className="text-xl font-semibold text-gray-900 dark:text-white">
+                      Drop your spreadsheet here
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                      Supports CSV and Excel files (.csv, .xlsx, .xls)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <ClientOnly fallback={<div className="h-full bg-theme-bg-primary animate-pulse" />}>
             <EnhancedBlockEditor
               key={page.id}
@@ -1296,11 +1728,38 @@ export default function EditorPage() {
       
       {/* Command Palette - rendered as modal */}
       <ClientOnly fallback={null}>
-        <CommandPalette 
-          open={commandPaletteOpen} 
-          onClose={() => setCommandPaletteOpen(false)} 
+        <CommandPalette
+          open={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
         />
       </ClientOnly>
+
+      {/* File Upload Progress */}
+      {uploadingFile && (
+        <FileUploadProgress
+          filename={uploadingFile.filename}
+          progress={uploadingFile.progress}
+          status={uploadingFile.status}
+          error={uploadingFile.error}
+          fileSize={uploadingFile.fileSize}
+          onCancel={() => {
+            // Cancel upload
+            if (uploadAbortController.current) {
+              uploadAbortController.current.abort();
+            }
+            setUploadingFile(null);
+          }}
+          onRetry={() => {
+            // Retry with stored file reference
+            if (uploadingFile.file) {
+              handleFileUpload(uploadingFile.file);
+            }
+          }}
+          onDismiss={() => {
+            setUploadingFile(null);
+          }}
+        />
+      )}
     </div>
   );
 }

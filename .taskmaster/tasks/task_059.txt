@@ -1,6 +1,6 @@
 # Task ID: 59
 # Title: Phase 2: Implement Intent Router and Conversation Context
-# Status: pending
+# Status: done
 # Dependencies: 58
 # Priority: high
 # Description: Build ChatGPT-style conversational AI with intent classification and context management
@@ -11,19 +11,19 @@ Create an intent router that can handle general chat, data queries, and hybrid q
 
 
 # Subtasks:
-## 1. Create Intent Classification Service [pending]
+## 1. Create Intent Classification Service [done]
 ### Dependencies: None
 ### Description: Build service to classify user queries into general_chat, data_query, or hybrid intents
 ### Details:
 Create app/services/intent-classifier.server.ts with pattern matching for query types. Implement confidence scoring. Add fallback to hybrid for uncertain classification.
 
-## 2. Build Conversation Context Manager [pending]
+## 2. Build Conversation Context Manager [done]
 ### Dependencies: 59.1
 ### Description: Create service to maintain conversation history with U-shaped attention pattern
 ### Details:
 Create app/services/conversation-context.server.ts. Implement sliding window of last 10 exchanges. Add context summarization for middle messages to prevent 'Lost in Middle' issue.
 
-## 3. Integrate Intent Router with API endpoint [pending]
+## 3. Integrate Intent Router with API endpoint [done]
 ### Dependencies: 59.1, 59.2
 ### Description: Update api.chat-query.tsx to use intent classification for routing
 ### Details:

@@ -1,0 +1,272 @@
+# Task ID: 85
+# Title: Phase 4: HyperFormula Performance Optimization
+# Status: pending
+# Dependencies: 84
+# Priority: medium
+# Description: Optimize formula evaluation for large datasets through lazy evaluation, virtual scrolling optimization, batch recalculation, worker pool parallelization, and smart caching to achieve sub-500ms evaluation for 10K formulas
+# Details:
+Performance optimization implementation for HyperFormula integration:
+
+1. **Implement Viewport-Based Lazy Evaluation**
+   ```typescript
+   // app/services/spreadsheet/viewport-calculator.ts
+   export class ViewportCalculator {
+     private visibleRange: CellRange;
+     private evaluationQueue: PriorityQueue<CellReference>;
+     private pendingCalculations: Set<string>;
+     
+     calculateVisibleCells(scrollTop: number, scrollLeft: number) {
+       const visibleCells = this.getVisibleCellRange(scrollTop, scrollLeft);
+       // Queue only visible cells for immediate calculation
+       this.queueCellsForEvaluation(visibleCells, Priority.IMMEDIATE);
+       // Queue nearby cells with lower priority
+       const nearbyRange = this.expandRange(visibleCells, 50);
+       this.queueCellsForEvaluation(nearbyRange, Priority.DEFERRED);
+     }
+   }
+   ```
+
+2. **Create Web Workers Pool for Parallel Evaluation**
+   ```typescript
+   // app/workers/formula-worker-pool.ts
+   export class FormulaWorkerPool {
+     private workers: Worker[] = [];
+     private taskQueue: FormulaTask[] = [];
+     private activeJobs: Map<string, WorkerJob> = new Map();
+     
+     constructor(poolSize = 4) {
+       for (let i = 0; i < poolSize; i++) {
+         const worker = new Worker('/workers/hyperformula-worker.js');
+         this.workers.push(worker);
+       }
+     }
+     
+     async evaluateBatch(formulas: Formula[]): Promise<EvaluationResult[]> {
+       // Distribute formulas across workers
+       const chunks = this.chunkFormulas(formulas, this.workers.length);
+       const promises = chunks.map((chunk, i) => 
+         this.executeOnWorker(this.workers[i], chunk)
+       );
+       return Promise.all(promises);
+     }
+   }
+   ```
+
+3. **Implement Smart Formula Result Cache**
+   ```typescript
+   // app/services/spreadsheet/formula-cache.ts
+   export class FormulaCache {
+     private cache: LRUCache<string, CachedResult>;
+     private dependencyGraph: Map<string, Set<string>>;
+     
+     constructor(maxSize = 10000) {
+       this.cache = new LRUCache({ max: maxSize });
+     }
+     
+     get(cellRef: string): CachedResult | null {
+       const cached = this.cache.get(cellRef);
+       if (cached && !this.isInvalidated(cellRef)) {
+         return cached;
+       }
+       return null;
+     }
+     
+     invalidateDependents(cellRef: string) {
+       const dependents = this.dependencyGraph.get(cellRef) || new Set();
+       for (const dependent of dependents) {
+         this.cache.delete(dependent);
+         this.invalidateDependents(dependent); // Recursive invalidation
+       }
+     }
+   }
+   ```
+
+4. **Optimize State Updates with Immer.js**
+   ```typescript
+   // app/hooks/useSpreadsheetState.ts
+   import produce from 'immer';
+   
+   export function useSpreadsheetState() {
+     const [state, setState] = useState(initialState);
+     
+     const updateCells = useCallback((updates: CellUpdate[]) => {
+       setState(produce(draft => {
+         // Batch multiple cell updates in single state change
+         updates.forEach(({ row, col, value }) => {
+           if (!draft.cells[row]) draft.cells[row] = {};
+           draft.cells[row][col] = value;
+         });
+       }));
+     }, []);
+     
+     // Debounce rapid updates
+     const debouncedUpdate = useMemo(
+       () => debounce(updateCells, 16), // 60fps
+       [updateCells]
+     );
+   }
+   ```
+
+5. **Add Performance Monitoring Dashboard**
+   ```typescript
+   // app/components/spreadsheet/PerformanceMonitor.tsx
+   export function PerformanceMonitor() {
+     const metrics = usePerformanceMetrics();
+     
+     return (
+       <div className="performance-monitor">
+         <MetricDisplay 
+           label="Formula Eval Time"
+           value={metrics.avgEvalTime}
+           target={50}
+           unit="ms"
+         />
+         <MetricDisplay 
+           label="Cache Hit Rate"
+           value={metrics.cacheHitRate}
+           target={80}
+           unit="%"
+         />
+         <MetricDisplay 
+           label="Worker Utilization"
+           value={metrics.workerUtilization}
+           target={75}
+           unit="%"
+         />
+         <MetricDisplay 
+           label="Memory Usage"
+           value={metrics.memoryUsage}
+           target={100}
+           unit="MB"
+         />
+       </div>
+     );
+   }
+   ```
+
+6. **Implement Incremental Recalculation**
+   ```typescript
+   // app/services/spreadsheet/incremental-calculator.ts
+   export class IncrementalCalculator {
+     private dirtySet: Set<string> = new Set();
+     private calculationOrder: string[] = [];
+     
+     markDirty(cellRef: string) {
+       this.dirtySet.add(cellRef);
+       // Mark all dependents as dirty
+       const dependents = this.getDependents(cellRef);
+       dependents.forEach(dep => this.dirtySet.add(dep));
+     }
+     
+     async recalculate(): Promise<void> {
+       // Sort dirty cells by dependency order
+       const sortedCells = this.topologicalSort(this.dirtySet);
+       
+       // Calculate in batches for efficiency
+       const batchSize = 100;
+       for (let i = 0; i < sortedCells.length; i += batchSize) {
+         const batch = sortedCells.slice(i, i + batchSize);
+         await this.evaluateBatch(batch);
+       }
+       
+       this.dirtySet.clear();
+     }
+   }
+   ```
+
+7. **Memory Optimization for Large Datasets**
+   ```typescript
+   // app/services/spreadsheet/memory-manager.ts
+   export class MemoryManager {
+     private cellStorage: Map<string, CompressedCell>;
+     private compressionThreshold = 1000; // Compress cells with >1KB data
+     
+     storeCell(ref: string, value: any) {
+       const size = this.calculateSize(value);
+       if (size > this.compressionThreshold) {
+         // Compress large values
+         const compressed = this.compress(value);
+         this.cellStorage.set(ref, { compressed: true, data: compressed });
+       } else {
+         this.cellStorage.set(ref, { compressed: false, data: value });
+       }
+     }
+     
+     // Implement virtual memory paging for cells not in viewport
+     pageOutInactiveCells() {
+       const inactiveCells = this.getInactiveCells();
+       for (const cell of inactiveCells) {
+         this.pageToIndexedDB(cell);
+         this.cellStorage.delete(cell);
+       }
+     }
+   }
+   ```
+
+# Test Strategy:
+Performance testing and validation strategy:
+
+1. **Formula Evaluation Performance Tests**
+   - Create sheet with 10,000 formula cells (mix of SUM, AVERAGE, IF, VLOOKUP)
+   - Measure total evaluation time, must be <500ms
+   - Test with different formula complexity levels
+   - Verify parallel worker utilization reaches >70%
+   - Monitor CPU usage stays below 80% during evaluation
+
+2. **Scrolling Performance Tests**
+   - Create sheet with 1000+ visible formula cells
+   - Scroll continuously for 30 seconds
+   - Monitor FPS using Chrome DevTools Performance tab
+   - Verify maintains 60fps (16ms frame time)
+   - Check no janking or stuttering during scroll
+   - Test with both vertical and horizontal scrolling
+
+3. **Memory Usage Tests**
+   - Load spreadsheet with 100K cells containing formulas
+   - Monitor memory using Chrome Memory Profiler
+   - Verify total memory usage <100MB
+   - Test memory cleanup after clearing cells
+   - Check for memory leaks during extended use (1 hour)
+   - Verify virtual memory paging works for off-screen cells
+
+4. **Initial Load Time Tests**
+   - Create sheet with 10K formulas of varying complexity
+   - Measure time from file open to first render
+   - Must complete in <2 seconds
+   - Test with cold cache and warm cache scenarios
+   - Verify progressive loading shows data incrementally
+
+5. **Cache Effectiveness Tests**
+   - Monitor cache hit/miss ratio during typical usage
+   - Target >80% cache hit rate for repeated calculations
+   - Test cache invalidation correctness when cells change
+   - Verify LRU eviction works properly at capacity
+   - Test cache size limits (10K entries max)
+
+6. **Worker Pool Tests**
+   - Verify all 4 workers are utilized during batch evaluation
+   - Test worker crash recovery and restart
+   - Monitor worker message passing overhead
+   - Test load balancing across workers
+   - Verify no deadlocks or race conditions
+
+7. **Incremental Recalculation Tests**
+   - Change single cell with 1000+ dependents
+   - Verify only affected cells recalculate
+   - Test cascading updates complete correctly
+   - Monitor recalculation time <100ms for typical changes
+   - Test with circular reference detection
+
+8. **Stress Testing**
+   - Load 1M+ cell dataset
+   - Perform rapid cell edits (100+ per second)
+   - Run for 1 hour continuously
+   - Monitor for performance degradation
+   - Check error recovery and stability
+
+9. **Performance Monitoring Dashboard Tests**
+   - Verify all metrics update in real-time
+   - Test metric accuracy against manual measurements
+   - Check dashboard doesn't impact performance (<1% overhead)
+   - Validate metric persistence and history tracking
+   - Test alert thresholds for performance issues

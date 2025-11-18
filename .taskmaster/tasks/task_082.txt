@@ -1,0 +1,70 @@
+# Task ID: 82
+# Title: Phase 5: Implement Performance Monitoring Service
+# Status: pending
+# Dependencies: 79
+# Priority: low
+# Description: Create PerformanceMonitor service to track query execution times, payload sizes, and cache hit rates
+# Details:
+File: app/services/shared/performance-monitor.server.ts
+
+```typescript
+export class PerformanceMonitor {
+  private metrics: Map<string, Metric[]> = new Map();
+  
+  startTiming(operation: string): Timer {
+    const startTime = performance.now();
+    return {
+      end: (metadata?: Record<string, any>) => {
+        const duration = performance.now() - startTime;
+        this.recordMetric({
+          operation,
+          duration,
+          timestamp: Date.now(),
+          ...metadata,
+        });
+      }
+    };
+  }
+  
+  recordMetric(metric: Metric): void {
+    const key = metric.operation;
+    if (!this.metrics.has(key)) {
+      this.metrics.set(key, []);
+    }
+    this.metrics.get(key)!.push(metric);
+    
+    // Log to console in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[PERF] ${metric.operation}: ${metric.duration.toFixed(2)}ms`);
+    }
+  }
+  
+  getStats(operation: string): Stats {
+    const metrics = this.metrics.get(operation) || [];
+    return {
+      count: metrics.length,
+      avg: average(metrics.map(m => m.duration)),
+      p50: percentile(metrics, 50),
+      p95: percentile(metrics, 95),
+      p99: percentile(metrics, 99),
+    };
+  }
+}
+```
+
+Monitoring points:
+- SQL query execution time
+- LLM response time
+- Cache hit/miss rates
+- Payload sizes
+- Memory usage
+
+Dashboard endpoint: /api/performance-metrics
+
+Success criteria:
+- Query execution <1s (p95)
+- Cache hit rate >80%
+- Payload sizes <100KB (p99)
+
+# Test Strategy:
+

@@ -23,6 +23,7 @@ import {
   Music,
   Link2,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 
 interface Command {
@@ -210,6 +211,14 @@ const commands: Command[] = [
     description: 'Add a spreadsheet with formulas and data analysis',
     icon: <TableProperties className="w-4 h-4" />,
     keywords: ['spreadsheet', 'excel', 'sheets', 'data', 'formula', 'calculations', 'analysis'],
+  },
+  {
+    id: 'uploadFile',
+    type: 'uploadFile',
+    label: 'Upload Spreadsheet',
+    description: 'Import CSV or Excel file as a spreadsheet',
+    icon: <Upload className="w-4 h-4" />,
+    keywords: ['upload', 'import', 'csv', 'excel', 'file', 'data', 'spreadsheet'],
   },
 ];
 

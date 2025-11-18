@@ -1,0 +1,18 @@
+# Task ID: 65
+# Title: Phase 1: Create File Upload Service (Shared)
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Build centralized FileUploadService to replace 3 duplicate implementations
+# Details:
+Create /app/services/shared/file-upload.server.ts with:
+- validateFile(file): Check size (50MB limit), type (.csv, .xlsx, .xls only)
+- upload(file, pageId): Parse file, store to Supabase, create DB record
+- parseCSV(file): PapaParse integration
+- parseExcel(file): xlsx library integration
+- storeFile(): Supabase storage logic
+
+Replace duplicate validation/upload logic currently in ChatInput.tsx, ChatSidebarPerformant.tsx, and FileUploadZone.tsx
+
+# Test Strategy:
+

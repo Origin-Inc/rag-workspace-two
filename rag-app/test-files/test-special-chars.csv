@@ -1,0 +1,7 @@
+Name,Email!@#,Phone/Number,2024-Date,Is*Active
+"John, Jr.",john@email.com,555-1234,2024-01-15,true
+"Mary \"The Boss\" Smith",mary@corp.org,555-5678,2024-02-20,false
+"O'Connor, Patrick","pat+test@email.io",555-9012,2024-03-25,true
+"Test & Co.",test&co@biz.net,555-3456,2024-04-30,true
+"Line
+Break",multiline@test.com,555-7890,2024-05-10,false

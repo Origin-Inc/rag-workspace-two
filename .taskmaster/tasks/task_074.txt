@@ -1,0 +1,21 @@
+# Task ID: 74
+# Title: Phase 3: Update ChatSidebarPerformant for Context Persistence
+# Status: done
+# Dependencies: 73
+# Priority: high
+# Description: Update chat component to load/save context from database instead of in-memory state
+# Details:
+Update ChatSidebarPerformant.tsx to:
+- Load context from /api/context/:pageId on mount
+- Show loading state while context loads
+- Save context updates via API after changes
+- Update context when file uploaded (set activeFileId)
+- Register file uploads with contextPersistence.addFile()
+
+Remove: In-memory context that resets on reload
+Add: Database-backed context that persists
+
+Result: Conversation continuity across page reloads and sessions
+
+# Test Strategy:
+

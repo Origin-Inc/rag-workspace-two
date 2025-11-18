@@ -1,0 +1,282 @@
+# Task ID: 84
+# Title: Phase 3: Advanced HyperFormula Features
+# Status: pending
+# Dependencies: 83
+# Priority: medium
+# Description: Implement advanced formula capabilities including column-level formulas, computed columns, undo/redo integration, named ranges support, and formula import/export functionality
+# Details:
+Implement advanced formula capabilities:
+- Column-level formulas (=A:A+B:B for entire columns)
+- Computed columns that auto-populate for new rows
+- Undo/redo stack integration for formula changes
+- Named ranges support (define 'TaxRate' and use in formulas)
+- Formula audit trails and history
+- Import/export formulas with spreadsheet data
+
+Technical implementation:
+1. Extend cell state to support column formulas:
+```typescript
+interface ColumnFormula {
+  columnId: string;
+  formula: string;
+  autoApplyToNewRows: boolean;
+  lastEvaluated: Date;
+  affectedRows: Set<number>;
+}
+
+class FormulaEngine {
+  private columnFormulas: Map<string, ColumnFormula> = new Map();
+  
+  applyColumnFormula(column: string, formula: string) {
+    // Parse formula and apply to all existing rows
+    const parsed = this.hyperformula.parse(formula);
+    // Store as column-level formula
+    this.columnFormulas.set(column, {
+      columnId: column,
+      formula,
+      autoApplyToNewRows: true,
+      lastEvaluated: new Date(),
+      affectedRows: new Set()
+    });
+  }
+}
+```
+
+2. Add undo/redo hooks to formula evaluation:
+```typescript
+interface FormulaChange {
+  type: 'cell' | 'column' | 'named_range';
+  previous: string | null;
+  current: string;
+  affectedCells: CellReference[];
+  timestamp: Date;
+}
+
+class UndoRedoStack {
+  private undoStack: FormulaChange[] = [];
+  private redoStack: FormulaChange[] = [];
+  
+  pushChange(change: FormulaChange) {
+    this.undoStack.push(change);
+    this.redoStack = []; // Clear redo on new change
+  }
+  
+  undo(): FormulaChange | null {
+    const change = this.undoStack.pop();
+    if (change) {
+      this.redoStack.push(change);
+      return this.reverseChange(change);
+    }
+    return null;
+  }
+}
+```
+
+3. Implement named range registry:
+```typescript
+interface NamedRange {
+  name: string;
+  range: string; // e.g., 'A1:B10' or 'Sheet1!A:A'
+  description?: string;
+  createdBy: string;
+  createdAt: Date;
+  usedInFormulas: Set<string>;
+}
+
+class NamedRangeManager {
+  private ranges: Map<string, NamedRange> = new Map();
+  
+  defineRange(name: string, range: string) {
+    // Validate name (no spaces, valid identifier)
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+      throw new Error('Invalid range name');
+    }
+    
+    this.ranges.set(name, {
+      name,
+      range,
+      createdAt: new Date(),
+      usedInFormulas: new Set()
+    });
+    
+    // Update HyperFormula instance
+    this.hyperformula.addNamedExpression(name, range);
+  }
+}
+```
+
+4. Create formula versioning system:
+```typescript
+interface FormulaVersion {
+  id: string;
+  cellRef: string;
+  formula: string;
+  version: number;
+  timestamp: Date;
+  userId: string;
+  changeReason?: string;
+}
+
+class FormulaHistory {
+  private history: Map<string, FormulaVersion[]> = new Map();
+  
+  recordChange(cellRef: string, formula: string, userId: string) {
+    const versions = this.history.get(cellRef) || [];
+    const newVersion: FormulaVersion = {
+      id: generateId(),
+      cellRef,
+      formula,
+      version: versions.length + 1,
+      timestamp: new Date(),
+      userId
+    };
+    versions.push(newVersion);
+    this.history.set(cellRef, versions);
+  }
+  
+  getHistory(cellRef: string): FormulaVersion[] {
+    return this.history.get(cellRef) || [];
+  }
+}
+```
+
+User features implementation:
+1. Right-click menu to 'Apply formula to column':
+```typescript
+const ColumnFormulaMenu = ({ column, onApply }) => {
+  const [formula, setFormula] = useState('');
+  
+  return (
+    <ContextMenu>
+      <MenuItem onClick={() => setShowFormulaDialog(true)}>
+        Apply Formula to Column
+      </MenuItem>
+      <Dialog open={showFormulaDialog}>
+        <FormulaEditor 
+          value={formula}
+          onChange={setFormula}
+          columnContext={column}
+        />
+        <Button onClick={() => onApply(column, formula)}>
+          Apply to All Rows
+        </Button>
+      </Dialog>
+    </ContextMenu>
+  );
+};
+```
+
+2. Named range manager UI:
+```typescript
+const NamedRangeManager = () => {
+  const [ranges, setRanges] = useState<NamedRange[]>([]);
+  
+  return (
+    <Panel title="Named Ranges">
+      <Button onClick={openAddDialog}>Add Named Range</Button>
+      <List>
+        {ranges.map(range => (
+          <ListItem key={range.name}>
+            <span>{range.name}</span>
+            <span>{range.range}</span>
+            <Button onClick={() => editRange(range)}>Edit</Button>
+            <Button onClick={() => deleteRange(range)}>Delete</Button>
+          </ListItem>
+        ))}
+      </List>
+    </Panel>
+  );
+};
+```
+
+3. Formula history sidebar:
+```typescript
+const FormulaHistorySidebar = ({ cellRef }) => {
+  const history = useFormulaHistory(cellRef);
+  
+  return (
+    <Sidebar title="Formula History">
+      {history.map(version => (
+        <HistoryItem key={version.id}>
+          <div>Version {version.version}</div>
+          <div>{version.formula}</div>
+          <div>{formatDate(version.timestamp)}</div>
+          <Button onClick={() => revertToVersion(version)}>
+            Revert
+          </Button>
+        </HistoryItem>
+      ))}
+    </Sidebar>
+  );
+};
+```
+
+4. Keyboard shortcuts for undo/redo:
+```typescript
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      undoFormulaChange();
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+      e.preventDefault();
+      redoFormulaChange();
+    }
+  };
+  
+  document.addEventListener('keydown', handleKeyDown);
+  return () => document.removeEventListener('keydown', handleKeyDown);
+}, []);
+```
+
+# Test Strategy:
+1. Test column-level formulas:
+   - Apply =A:A+B:B formula and verify all rows calculate correctly
+   - Add new row and verify formula auto-applies
+   - Test with empty cells and verify proper handling
+   - Test performance with 10K+ rows
+
+2. Test computed columns:
+   - Create computed column with formula
+   - Add new rows and verify auto-population
+   - Test formula dependencies between computed columns
+   - Verify recalculation on dependent data changes
+
+3. Test undo/redo functionality:
+   - Make formula change and undo with Ctrl+Z
+   - Verify previous formula is restored
+   - Test redo with Ctrl+Y
+   - Test undo/redo stack limits (e.g., 50 operations)
+   - Verify undo/redo works for column formulas
+
+4. Test named ranges:
+   - Define named range 'TaxRate' pointing to cell
+   - Use in formula =Price*TaxRate
+   - Update range definition and verify formulas update
+   - Test invalid range names (spaces, special chars)
+   - Test circular reference detection with named ranges
+
+5. Test formula audit trails:
+   - Make multiple formula changes to same cell
+   - Verify history records all versions
+   - Test reverting to previous version
+   - Verify timestamp and user tracking
+
+6. Test import/export:
+   - Export spreadsheet with formulas to JSON/CSV
+   - Verify formula preservation in export
+   - Import spreadsheet with formulas
+   - Test formula recalculation after import
+   - Test named ranges export/import
+
+7. Performance testing:
+   - Apply column formula to 50K rows
+   - Measure recalculation time
+   - Test memory usage with formula history
+   - Verify UI responsiveness during formula operations
+
+8. Integration testing:
+   - Test formula features with virtual scrolling
+   - Verify undo/redo with collaborative editing
+   - Test formula evaluation with real-time updates
+   - Verify named ranges across multiple sheets

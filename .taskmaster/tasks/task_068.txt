@@ -1,0 +1,19 @@
+# Task ID: 68
+# Title: Phase 2: Create SQL Generator Service
+# Status: done
+# Dependencies: 61
+# Priority: high
+# Description: Build service to convert natural language queries to DuckDB SQL using LLM
+# Details:
+Create /app/services/data/sql-generator.server.ts with:
+- generateSQL(query, tableSchema, context): Convert NL to SQL using GPT-4o
+- buildPrompt(): Include table schema, column types, recent query context
+- validateSQL(): Prevent SQL injection, ensure SELECT-only queries
+- System prompt with DuckDB syntax rules
+
+Example: "What's the average revenue?" → "SELECT AVG(revenue) FROM sales_2024"
+
+Supports: aggregations, filters, GROUP BY, ORDER BY, LIMIT
+
+# Test Strategy:
+

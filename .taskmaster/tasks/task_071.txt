@@ -1,0 +1,22 @@
+# Task ID: 71
+# Title: Phase 2: Integrate Query-First Flow in ChatSidebarPerformant
+# Status: done
+# Dependencies: 70
+# Priority: high
+# Description: Update chat component to use query-first pipeline instead of sending full datasets
+# Details:
+Update ChatSidebarPerformant.tsx to:
+- Use useDataQuery hook
+- Classify intent (data_analysis vs general)
+- For data queries:
+  1. Execute query in DuckDB (client-side)
+  2. Send results to /api/chat-query-v2
+  3. Display answer + metadata (SQL, row count)
+- For general queries: direct to OpenAI (existing flow)
+
+Remove all prepareFileData() calls and full dataset transfers.
+
+This completes Task 61 integration.
+
+# Test Strategy:
+

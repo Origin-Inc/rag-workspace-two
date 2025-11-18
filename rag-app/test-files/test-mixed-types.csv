@@ -1,0 +1,11 @@
+ID,Name,Score,IsActive,Date,Amount,Notes
+1,Alice Johnson,95.5,true,2024-01-15,1234.56,First entry
+2,Bob Smith,87.2,false,2024-02-20,2500.00,Second entry
+3,Charlie Brown,,true,2024-03-25,999.99,
+4,Diana Prince,92.8,true,2024-04-30,,Has score but no amount
+5,Eve Wilson,88.5,false,,3500.50,Missing date
+,Frank Miller,76.3,true,2024-06-10,1750.25,Missing ID
+7,,90.0,false,2024-07-15,2200.75,Missing name
+8,Grace Lee,TRUE,yes,invalid-date,not-a-number,Invalid data types
+9,Henry Ford,85.5,1,2024-09-20,4000,Boolean as number
+10,Iris Chen,91.2,0,2024-10-31,5555.55,Zero as false

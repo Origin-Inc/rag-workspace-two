@@ -1,0 +1,22 @@
+# Task ID: 73
+# Title: Phase 3: Create Context API Endpoints
+# Status: done
+# Dependencies: 72
+# Priority: high
+# Description: Build REST API endpoints for loading and saving conversation context
+# Details:
+Create /app/routes/api.context.$pageId.tsx with:
+
+Loader (GET /api/context/:pageId):
+- Load context from database via contextPersistence.loadContext()
+- Return context with files, queryHistory, activeFileId, etc.
+
+Action (POST /api/context/:pageId):
+- Accept context updates in body
+- Save via contextPersistence.saveContext()
+- Return success response
+
+Used by chat component to persist/restore context across page reloads
+
+# Test Strategy:
+

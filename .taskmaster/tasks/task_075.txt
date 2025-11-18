@@ -1,0 +1,22 @@
+# Task ID: 75
+# Title: Phase 4: Consolidate File Upload Components
+# Status: done
+# Dependencies: 66
+# Priority: medium
+# Description: Replace all inline file inputs with shared FileUploadButton component
+# Details:
+Migration checklist:
+1. Update ChatInput.tsx: Remove inline input (lines 143-160), use FileUploadButton
+2. Update ChatSidebarPerformant.tsx: Remove inline input (lines 637-649), use FileUploadButton
+3. Update FileUploadZone.tsx: Wrap FileUploadButton with drag-drop functionality
+
+Verify:
+- All components use FileUploadService for validation/upload
+- No duplicate validation logic remains
+- Consistent error handling across all upload points
+- PDF removal fix only needs one change going forward
+
+Result: 3 implementations → 1 shared component
+
+# Test Strategy:
+

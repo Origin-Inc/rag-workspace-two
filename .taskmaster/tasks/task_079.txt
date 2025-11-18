@@ -1,0 +1,50 @@
+# Task ID: 79
+# Title: Phase 5: Implement Query Result Caching Service
+# Status: pending
+# Dependencies: 69
+# Priority: medium
+# Description: Build QueryCacheService using Redis to cache query results and reduce duplicate computations
+# Details:
+File: app/services/shared/query-cache.server.ts
+
+Implementation:
+```typescript
+export class QueryCacheService {
+  private redis: RedisClient;
+  private TTL = 3600; // 1 hour
+  
+  async getCachedResult(query: string, fileId: string): Promise<any[] | null> {
+    const key = this.generateKey(query, fileId);
+    const cached = await this.redis.get(key);
+    return cached ? JSON.parse(cached) : null;
+  }
+  
+  async setCachedResult(query: string, fileId: string, results: any[]): Promise<void> {
+    const key = this.generateKey(query, fileId);
+    await this.redis.setex(key, this.TTL, JSON.stringify(results));
+  }
+  
+  async invalidateFile(fileId: string): Promise<void> {
+    const pattern = `query:${fileId}:*`;
+    const keys = await this.redis.keys(pattern);
+    if (keys.length > 0) {
+      await this.redis.del(...keys);
+    }
+  }
+  
+  private generateKey(query: string, fileId: string): string {
+    const hash = createHash('sha256').update(query).digest('hex');
+    return `query:${fileId}:${hash}`;
+  }
+}
+```
+
+Integration points:
+- useDataQuery hook checks cache before execution
+- Cache invalidation on file upload/modification
+- Monitoring for cache hit rates
+
+Performance target: 80%+ cache hit rate for repeated queries
+
+# Test Strategy:
+

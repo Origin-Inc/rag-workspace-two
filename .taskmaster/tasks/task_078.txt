@@ -1,0 +1,38 @@
+# Task ID: 78
+# Title: Phase 4: Verify Shared Services Integration
+# Status: pending
+# Dependencies: 75, 76, 77
+# Priority: medium
+# Description: Audit all components to ensure they use shared services instead of inline implementations
+# Details:
+Verification checklist:
+
+File Upload:
+- All file uploads use FileUploadService (Task 65)
+- All UI uses FileUploadButton component (Task 66)
+- No inline file parsing logic remains
+- CSV/Excel validation centralized
+
+Context Management:
+- All context operations use ContextPersistenceService (Task 67)
+- No in-memory context storage
+- Database persistence verified
+
+Data Queries:
+- All data queries use useDataQuery hook (Task 69)
+- SQL generation via SQLGeneratorService (Task 68)
+- No direct DuckDB calls outside services
+
+Testing:
+- Upload CSV file
+- Run data query
+- Verify context persists across sessions
+- Check no duplicate code exists
+
+Success criteria:
+- Zero inline implementations
+- All features use shared services
+- Code coverage >80% for shared services
+
+# Test Strategy:
+

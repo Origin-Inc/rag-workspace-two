@@ -1,0 +1,21 @@
+# Task ID: 70
+# Title: Phase 2: Create Query-First API Endpoint
+# Status: done
+# Dependencies: 69
+# Priority: high
+# Description: Build new /api/chat-query-v2 endpoint that accepts query RESULTS instead of raw data
+# Details:
+Create /app/routes/api.chat-query-v2.tsx that:
+- Accepts: query, queryResults (with sql, rows, rowCount), context, pageId
+- Validates: queryResults.rows exists (not raw data)
+- Limits: Only send top 10 rows to LLM (from client's 100)
+- Builds prompt with SQL + results, not full dataset
+- Calls OpenAI for interpretation
+- Saves query to history via contextPersistence
+
+Payload size: 3.5MB → <100KB (97% reduction)
+
+This replaces prepareFileData() full-data approach
+
+# Test Strategy:
+

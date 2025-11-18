@@ -1,0 +1,8 @@
+Name,Email,Age
+John,john@email.com,25
+"This is not properly closed,jane@email.com,30
+Bob,bob@,35
+,missing@email.com
+Extra column here,test@test.com,40,unexpected
+"Multiline
+without proper escape,multi@test.com,45

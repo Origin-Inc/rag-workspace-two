@@ -1,0 +1,19 @@
+# Task ID: 67
+# Title: Phase 1: Create Context Persistence Service
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Build database-backed context persistence service to replace in-memory ConversationContextManager
+# Details:
+Create /app/services/shared/context-persistence.server.ts with:
+- loadContext(pageId): Load conversation context from database
+- saveContext(pageId, updates): Persist context updates
+- addQueryToHistory(pageId, query): Store query with intent, SQL, results
+- addFile(pageId, fileId): Register file upload in context
+
+Include context caching in Redis for hot contexts to avoid database hits on every request.
+
+This replaces the current in-memory storage that loses context on page reload/server restart.
+
+# Test Strategy:
+

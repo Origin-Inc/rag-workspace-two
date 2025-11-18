@@ -1,0 +1,132 @@
+# Task ID: 83
+# Title: Implement HyperFormula Dependency Tracking
+# Status: pending
+# Dependencies: 63.5
+# Priority: medium
+# Description: Implement automatic cascade updates for cell changes using HyperFormula's dependency graph to track and update dependent cells in real-time
+# Details:
+Implementation approach for dependency tracking and cascade updates:
+
+1. **Set up dependency tracking infrastructure**
+   - Create DependencyTracker service to interface with HyperFormula's dependency graph
+   - Implement getCellDependents() and getCellPrecedents() wrappers
+   - Build dependency visualization data structure for UI indicators
+
+2. **Implement change event subscription system**
+   ```typescript
+   // In HyperFormulaWorker
+   hyperformula.on('valuesUpdated', (changes) => {
+     const affectedCells = changes.map(change => ({
+       address: change.address,
+       newValue: change.newValue,
+       dependents: hyperformula.getCellDependents(change.address)
+     }));
+     
+     postMessage({
+       type: 'CASCADE_UPDATE',
+       payload: { affectedCells }
+     });
+   });
+   ```
+
+3. **Build cascade update mechanism**
+   - Track cell dependencies using hyperformula.getCellDependencies()
+   - Subscribe to 'valuesUpdated' and 'sheetContentChanged' events from worker
+   - Batch updates for cells in dependency chain
+   - Implement intelligent diffing to update only changed cells
+
+4. **Circular reference detection and prevention**
+   ```typescript
+   class CircularReferenceDetector {
+     detectCircular(formula: string, cellAddress: SimpleCellAddress): boolean {
+       try {
+         // HyperFormula handles this internally
+         const result = hyperformula.validateFormula(formula, cellAddress);
+         return result.errors?.some(e => e.type === 'CYCLE');
+       } catch (error) {
+         if (error.message.includes('Circular')) {
+           return true;
+         }
+       }
+       return false;
+     }
+   }
+   ```
+
+5. **React state synchronization**
+   - Create updateCellBatch() method for bulk state updates
+   - Implement debouncing for rapid sequential changes (50ms threshold)
+   - Use React.memo() and useMemo() to prevent unnecessary re-renders
+   - Queue updates and flush on requestAnimationFrame
+
+6. **Visual dependency indicators**
+   ```typescript
+   interface DependencyIndicator {
+     cell: string;
+     dependsOn: string[];
+     dependents: string[];
+     hasCircularReference: boolean;
+   }
+   
+   // Add CSS classes for visual feedback
+   .cell-has-dependents { border-right: 2px solid #4CAF50; }
+   .cell-has-precedents { border-left: 2px solid #2196F3; }
+   .cell-circular-reference { background-color: #ffebee; }
+   ```
+
+7. **Performance optimizations**
+   - Implement dependency caching with TTL
+   - Use Set for tracking visited cells in dependency traversal
+   - Batch DOM updates using DocumentFragment
+   - Throttle dependency graph recalculation to every 100ms
+
+8. **Integration with existing SpreadsheetGrid**
+   - Extend handleCellEdit to trigger cascade updates
+   - Add getDependencyInfo() method to cell context menu
+   - Show dependency arrows on hover (optional enhancement)
+   - Display dependency count in cell tooltip
+
+# Test Strategy:
+Comprehensive test suite for dependency tracking:
+
+1. **Basic cascade update testing**
+   - Create formula chain: A1=5, B1=A1*2, C1=B1+10
+   - Update A1 to 10, verify B1=20, C1=30
+   - Test with 10+ chained dependencies
+   - Verify all cells update within 100ms
+
+2. **Circular reference detection**
+   - Test direct circular: A1=B1, B1=A1
+   - Test indirect circular: A1=B1, B1=C1, C1=A1
+   - Verify error message displays and prevents formula save
+   - Test recovery when circular reference is fixed
+
+3. **Performance testing with 100+ dependent cells**
+   - Create grid with 10x10 dependent formulas
+   - Measure update propagation time < 200ms
+   - Test memory usage remains stable
+   - Verify no UI freezing during updates
+
+4. **Complex dependency scenarios**
+   - Test cross-sheet references (if implemented)
+   - Test array formulas with dependencies
+   - Test volatile functions (NOW(), RAND()) updates
+   - Test mixed formula types (math, text, logical)
+
+5. **State synchronization testing**
+   - Verify React state matches HyperFormula state
+   - Test rapid sequential updates (10 updates/second)
+   - Verify debouncing prevents excessive renders
+   - Test undo/redo with dependency chains
+
+6. **Visual indicator testing**
+   - Verify correct CSS classes applied to dependent cells
+   - Test indicator updates when dependencies change
+   - Verify circular reference visual warning
+   - Test accessibility of dependency indicators
+
+7. **Edge cases and error handling**
+   - Test deletion of cells with dependents
+   - Test insertion of rows/columns affecting formulas
+   - Test copy/paste of cells with dependencies
+   - Verify graceful handling of worker errors
