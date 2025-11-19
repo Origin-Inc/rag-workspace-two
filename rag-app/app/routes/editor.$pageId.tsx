@@ -245,6 +245,117 @@ export async function action({ params, request }: ActionFunctionArgs) {
 
   // Get authenticated user
   const user = await requireUser(request);
+
+  // Check if this is a multipart/form-data request (file upload)
+  const contentType = request.headers.get("content-type");
+  const isMultipartUpload = contentType?.includes("multipart/form-data");
+
+  // Handle file uploads differently to avoid ReadableStream locked error
+  if (isMultipartUpload) {
+    console.log('[File Upload] Detected multipart form data');
+
+    try {
+      // Use composite upload handler for multipart data
+      const uploadHandler = async ({ name, data, filename }: any) => {
+        if (name !== "file") {
+          // For non-file fields, return the value as a string
+          const chunks: Uint8Array[] = [];
+          for await (const chunk of data) {
+            chunks.push(chunk);
+          }
+          const buffer = Buffer.concat(chunks);
+          return buffer.toString('utf-8');
+        }
+
+        // For file fields, collect the data
+        const chunks: Buffer[] = [];
+        for await (const chunk of data) {
+          chunks.push(Buffer.from(chunk));
+        }
+        const buffer = Buffer.concat(chunks);
+        return { buffer, filename, mimetype: 'application/octet-stream' };
+      };
+
+      const formData = await unstable_parseMultipartFormData(request, uploadHandler);
+      const intent = formData.get("intent");
+
+      // Handle file upload intent
+      if (intent === "upload-file") {
+        console.log('[File Upload] Processing file upload');
+        const fileData = formData.get("file") as any;
+
+        if (!fileData || !fileData.buffer) {
+          return json({ error: "No file provided" }, { status: 400 });
+        }
+
+        const { buffer, filename } = fileData;
+
+        // Validate file
+        const validation = validateFile(filename, buffer.length);
+        if (!validation.valid) {
+          return json({ error: validation.error }, { status: 400 });
+        }
+
+        console.log('[File Upload] Validated file:', filename, 'Size:', buffer.length, 'bytes');
+
+        // Parse file
+        console.log('[File Upload] Parsing file...');
+        const parsedData = await parseFile({
+          buffer,
+          filename,
+          mimeType: fileData.mimetype || 'application/octet-stream',
+        });
+
+        if (!parsedData) {
+          return json({ error: "Failed to parse file" }, { status: 500 });
+        }
+
+        console.log('[File Upload] Parsed successfully:', {
+          rowCount: parsedData.rowCount,
+          columnCount: parsedData.columnCount
+        });
+
+        // Get existing blocks for position calculation
+        const existingBlocks = await prisma.block.findMany({
+          where: { pageId },
+          select: { id: true, position: true }
+        });
+
+        // Convert to SpreadsheetBlock
+        const spreadsheetBlock = await fileToSpreadsheetBlockConverter.convertToSpreadsheetBlock(
+          parsedData,
+          {
+            pageId,
+            userId: user.id,
+            filename,
+            existingBlocks
+          }
+        );
+
+        // Create the block in database
+        const blockService = new BlockService();
+        const createdBlock = await blockService.createBlock(spreadsheetBlock);
+
+        console.log('[File Upload] Created SpreadsheetBlock:', createdBlock.id);
+
+        return json({
+          success: true,
+          block: createdBlock,
+          message: `Successfully imported ${parsedData.rowCount} rows from ${filename}`
+        });
+      }
+
+      // Handle other intents that might use multipart (shouldn't happen normally)
+      return json({ error: "Invalid intent for multipart request" }, { status: 400 });
+
+    } catch (error) {
+      console.error('[File Upload Error]', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return json({ error: errorMessage }, { status: 500 });
+    }
+  }
+
+  // For non-multipart requests, use regular formData
   const formData = await request.formData();
   const intent = formData.get("intent");
 
@@ -716,122 +827,8 @@ export async function action({ params, request }: ActionFunctionArgs) {
     }
   }
 
-  if (intent === "upload-file") {
-    console.log('[File Upload] Received file upload request');
-
-    try {
-      // Parse multipart form data
-      const uploadHandler = async ({ name, data, filename }: any) => {
-        if (name !== "file") {
-          return undefined;
-        }
-
-        // Collect file data
-        const chunks: Buffer[] = [];
-        for await (const chunk of data) {
-          chunks.push(Buffer.from(chunk));
-        }
-        const buffer = Buffer.concat(chunks);
-
-        return { buffer, filename, mimetype: 'application/octet-stream' };
-      };
-
-      const formData = await unstable_parseMultipartFormData(request, uploadHandler);
-      const fileData = formData.get("file") as any;
-
-      if (!fileData || !fileData.buffer) {
-        return json({ error: "No file provided" }, { status: 400 });
-      }
-
-      const { buffer, filename } = fileData;
-
-      // Validate file
-      const validation = validateFile(filename, buffer.length);
-      if (!validation.valid) {
-        return json({ error: validation.error }, { status: 400 });
-      }
-
-      console.log('[File Upload] Validated file:', filename, 'Size:', buffer.length, 'bytes');
-
-      // Parse file
-      console.log('[File Upload] Parsing file...');
-      const parsedData = await parseFile({
-        buffer,
-        filename,
-        mimetype: 'application/octet-stream',
-      });
-
-      console.log('[File Upload] Parsed', parsedData.rowCount, 'rows and', parsedData.columnCount, 'columns');
-
-      // Validate parsed data
-      const dataValidation = fileToSpreadsheetBlockConverter.validateParsedData(parsedData);
-      if (!dataValidation.valid) {
-        return json({ error: dataValidation.error }, { status: 400 });
-      }
-
-      // Get existing blocks for position calculation
-      const blockService = new BlockService();
-      const existingBlocks = await blockService.getPageBlocks(pageId);
-
-      // Convert to SpreadsheetBlock
-      console.log('[File Upload] Converting to SpreadsheetBlock...');
-      const spreadsheetBlock = await fileToSpreadsheetBlockConverter.convertToSpreadsheetBlock(
-        parsedData,
-        {
-          pageId,
-          userId: user.id,
-          filename,
-          existingBlocks,
-        }
-      );
-
-      console.log('[File Upload] SpreadsheetBlock created:', spreadsheetBlock.id);
-
-      // Optionally upload file to Supabase Storage for backup
-      try {
-        const supabase = createSupabaseAdmin();
-        const fileExtension = filename.split('.').pop();
-        const storagePath = `uploads/${user.id}/${Date.now()}_${filename}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('files')
-          .upload(storagePath, buffer, {
-            contentType: 'application/octet-stream',
-            upsert: false,
-          });
-
-        if (uploadError) {
-          console.warn('[File Upload] Storage upload failed (non-critical):', uploadError);
-        } else {
-          console.log('[File Upload] File backed up to storage:', storagePath);
-        }
-      } catch (storageError) {
-        console.warn('[File Upload] Storage backup failed (non-critical):', storageError);
-      }
-
-      // Queue for indexing
-      try {
-        await indexingCoordinator.indexPage(pageId, {
-          immediate: true,
-          source: 'file-upload',
-        });
-      } catch (indexError) {
-        console.warn('[File Upload] Indexing failed (non-critical):', indexError);
-      }
-
-      return json({
-        success: true,
-        block: spreadsheetBlock,
-        message: `Successfully imported ${parsedData.rowCount} rows from ${filename}`,
-      });
-    } catch (error) {
-      console.error('[File Upload Error]', error);
-      return json({
-        success: false,
-        error: error instanceof Error ? error.message : 'File upload failed',
-      }, { status: 500 });
-    }
-  }
+  // The upload-file intent is now handled in the multipart section above
+  // to avoid ReadableStream locked errors
 
   return json({ error: "Invalid intent" }, { status: 400 });
 }
