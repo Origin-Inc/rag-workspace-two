@@ -1,4 +1,11 @@
-import { json, LoaderFunctionArgs, ActionFunctionArgs, unstable_parseMultipartFormData } from "@remix-run/node";
+import {
+  json,
+  LoaderFunctionArgs,
+  ActionFunctionArgs,
+  unstable_parseMultipartFormData,
+  unstable_createMemoryUploadHandler,
+  unstable_composeUploadHandlers
+} from "@remix-run/node";
 import { useLoaderData, useFetcher, Link, NavLink, useLocation } from "@remix-run/react";
 import { EnhancedBlockEditor } from "~/components/editor/EnhancedBlockEditor";
 import { FileUploadButton } from "~/components/editor/FileUploadButton";
@@ -255,26 +262,10 @@ export async function action({ params, request }: ActionFunctionArgs) {
     console.log('[File Upload] Detected multipart form data');
 
     try {
-      // Use composite upload handler for multipart data
-      const uploadHandler = async ({ name, data, filename }: any) => {
-        if (name !== "file") {
-          // For non-file fields, return the value as a string
-          const chunks: Uint8Array[] = [];
-          for await (const chunk of data) {
-            chunks.push(chunk);
-          }
-          const buffer = Buffer.concat(chunks);
-          return buffer.toString('utf-8');
-        }
-
-        // For file fields, collect the data
-        const chunks: Buffer[] = [];
-        for await (const chunk of data) {
-          chunks.push(Buffer.from(chunk));
-        }
-        const buffer = Buffer.concat(chunks);
-        return { buffer, filename, mimetype: 'application/octet-stream' };
-      };
+      // Use Remix's built-in memory upload handler
+      const uploadHandler = unstable_composeUploadHandlers(
+        unstable_createMemoryUploadHandler()
+      );
 
       const formData = await unstable_parseMultipartFormData(request, uploadHandler);
       const intent = formData.get("intent");
@@ -282,13 +273,19 @@ export async function action({ params, request }: ActionFunctionArgs) {
       // Handle file upload intent
       if (intent === "upload-file") {
         console.log('[File Upload] Processing file upload');
-        const fileData = formData.get("file") as any;
+        const file = formData.get("file") as File | null;
 
-        if (!fileData || !fileData.buffer) {
+        if (!file) {
+          console.error('[File Upload] No file in form data');
           return json({ error: "No file provided" }, { status: 400 });
         }
 
-        const { buffer, filename } = fileData;
+        console.log('[File Upload] Got file:', file.name, 'Size:', file.size, 'Type:', file.type);
+
+        // Convert File to Buffer for processing
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const filename = file.name;
 
         // Validate file
         const validation = validateFile(filename, buffer.length);
@@ -303,7 +300,7 @@ export async function action({ params, request }: ActionFunctionArgs) {
         const parsedData = await parseFile({
           buffer,
           filename,
-          mimeType: fileData.mimetype || 'application/octet-stream',
+          mimeType: file.type || 'application/octet-stream',
         });
 
         if (!parsedData) {
