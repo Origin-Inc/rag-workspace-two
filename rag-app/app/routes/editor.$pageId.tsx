@@ -332,15 +332,19 @@ export async function action({ params, request }: ActionFunctionArgs) {
           }
         );
 
-        // Create the block in database
-        const blockService = new BlockService();
-        const createdBlock = await blockService.createBlock(spreadsheetBlock);
+        // Save block to Page.blocks array (blocks are stored as JSON, not in separate table)
+        const updatedBlocks = [...existingBlocks, spreadsheetBlock];
 
-        console.log('[File Upload] Created SpreadsheetBlock:', createdBlock.id);
+        await prisma.page.update({
+          where: { id: pageId },
+          data: { blocks: updatedBlocks as any }
+        });
+
+        console.log('[File Upload] Created SpreadsheetBlock:', spreadsheetBlock.id);
 
         return json({
           success: true,
-          block: createdBlock,
+          block: spreadsheetBlock,
           message: `Successfully imported ${parsedData.rowCount} rows from ${filename}`
         });
       }
@@ -791,11 +795,14 @@ export async function action({ params, request }: ActionFunctionArgs) {
       // Parse the JSON data
       const parsedData = JSON.parse(parsedDataString);
 
-      // Get existing blocks for position calculation
-      const existingBlocks = await prisma.block.findMany({
-        where: { pageId },
-        select: { id: true, position: true }
+      // Get existing page with blocks for position calculation
+      const pageWithBlocks = await prisma.page.findUnique({
+        where: { id: pageId },
+        select: { blocks: true }
       });
+
+      // Extract existing blocks from page (if any)
+      const existingBlocks = pageWithBlocks?.blocks ? (pageWithBlocks.blocks as any[]) : [];
 
       // Convert to SpreadsheetBlock
       const spreadsheetBlock = await fileToSpreadsheetBlockConverter.convertToSpreadsheetBlock(
@@ -808,15 +815,19 @@ export async function action({ params, request }: ActionFunctionArgs) {
         }
       );
 
-      // Create the block in database
-      const blockService = new BlockService();
-      const createdBlock = await blockService.createBlock(spreadsheetBlock);
+      // Save block to Page.blocks array (blocks are stored as JSON, not in separate table)
+      const updatedBlocks = [...existingBlocks, spreadsheetBlock];
 
-      console.log('[File Upload] Pre-parsed data converted to SpreadsheetBlock:', createdBlock.id);
+      await prisma.page.update({
+        where: { id: pageId },
+        data: { blocks: updatedBlocks as any }
+      });
+
+      console.log('[File Upload] Pre-parsed data converted to SpreadsheetBlock:', spreadsheetBlock.id);
 
       return json({
         success: true,
-        block: createdBlock,
+        block: spreadsheetBlock,
         message: `Successfully imported ${parsedData.rowCount} rows from ${filename}`
       });
     } catch (error) {
