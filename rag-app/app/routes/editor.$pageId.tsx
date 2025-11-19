@@ -312,11 +312,14 @@ export async function action({ params, request }: ActionFunctionArgs) {
           columnCount: parsedData.columnCount
         });
 
-        // Get existing blocks for position calculation
-        const existingBlocks = await prisma.block.findMany({
-          where: { pageId },
-          select: { id: true, position: true }
+        // Get existing page with blocks for position calculation
+        const pageWithBlocks = await prisma.page.findUnique({
+          where: { id: pageId },
+          select: { blocks: true }
         });
+
+        // Extract existing blocks from page (if any)
+        const existingBlocks = pageWithBlocks?.blocks ? (pageWithBlocks.blocks as any[]) : [];
 
         // Convert to SpreadsheetBlock
         const spreadsheetBlock = await fileToSpreadsheetBlockConverter.convertToSpreadsheetBlock(

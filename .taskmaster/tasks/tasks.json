@@ -978,7 +978,7 @@
         "id": 86,
         "title": "Enable Direct File Upload to Editor with Automatic SpreadsheetBlock Creation",
         "description": "Implement direct CSV/Excel file upload functionality on the editor page that automatically creates editable SpreadsheetBlocks through toolbar button, drag-and-drop, or slash command.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           65,
           66
@@ -991,7 +991,7 @@
             "id": 1,
             "title": "Add File Upload UI to Editor Toolbar",
             "description": "Add FileUploadButton component to editor.$pageId.tsx with toolbar positioning, loading states, and progress indicators",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "- Add FileUploadButton component to editor.$pageId.tsx\n- Position in toolbar above EnhancedBlockEditor\n- Use useFetcher for non-navigating form submission\n- Add loading states and progress text\n- Files: app/routes/editor.$pageId.tsx\n- Time estimate: 30 minutes",
             "testStrategy": ""
@@ -1000,7 +1000,7 @@
             "id": 2,
             "title": "Create File Parser Service",
             "description": "Build centralized file parsing service with CSV and Excel support",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "- Create app/services/file-parser.server.ts\n- Implement parseFile(file) returning data and schema\n- Support CSV parsing with PapaParse\n- Support Excel parsing with SheetJS\n- Implement inferSchema() for type detection\n- Files: app/services/file-parser.server.ts (NEW)\n- Time estimate: 1 hour",
             "testStrategy": ""
@@ -1009,7 +1009,7 @@
             "id": 3,
             "title": "Implement Upload Action Handler",
             "description": "Add server-side action to handle file upload and block creation",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "- Modify editor.$pageId.tsx action function\n- Add intent='upload-file' handler\n- Use unstable_parseMultipartFormData\n- Upload to Supabase Storage\n- Parse file and create DataFile record\n- Transform to SpreadsheetBlock and update Page.blocks\n- Files: app/routes/editor.$pageId.tsx\n- Time estimate: 1 hour",
             "testStrategy": ""
@@ -1018,7 +1018,7 @@
             "id": 4,
             "title": "Create File-to-SpreadsheetBlock Converter Service",
             "description": "Build service to transform parsed file data into SpreadsheetBlock format",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "- Create app/services/blocks/file-to-spreadsheet-block.server.ts\n- Implement FileToSpreadsheetBlockConverter class\n- Methods: convertToSpreadsheetBlock(), calculateNextPosition(), mapDataTypeToColumnType()\n- Transform schema columns and rows to SpreadsheetBlockContent format\n- Files: app/services/blocks/file-to-spreadsheet-block.server.ts (NEW)\n- Time estimate: 45 minutes",
             "testStrategy": ""
@@ -1027,7 +1027,7 @@
             "id": 5,
             "title": "Add Optimistic UI with Skeleton Blocks",
             "description": "Implement immediate visual feedback with skeleton loading states",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "- Add skeleton block immediately on upload\n- Use useFetcher state for loading indication\n- Replace skeleton with real block on success\n- Handle errors with toast messages\n- Files: app/routes/editor.$pageId.tsx\n- Time estimate: 30 minutes",
             "testStrategy": ""
@@ -1036,7 +1036,7 @@
             "id": 6,
             "title": "Add Drag-and-Drop File Upload Zone",
             "description": "Implement drag-and-drop functionality for file uploads",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "- Add drag event handlers to editor wrapper\n- Handle onDragOver, onDragLeave, onDrop\n- Add visual feedback (border highlight, overlay)\n- Filter to CSV/Excel files only\n- Files: app/routes/editor.$pageId.tsx\n- Time estimate: 30 minutes",
             "testStrategy": ""
@@ -1045,7 +1045,7 @@
             "id": 7,
             "title": "Add Slash Command for File Upload",
             "description": "Integrate file upload into SlashMenu for keyboard-driven workflow",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "- Modify app/components/editor/SlashMenu.tsx\n- Add 'uploadFile' command with Upload icon\n- Add keywords for search\n- Trigger hidden file input on select\n- Files: app/components/editor/SlashMenu.tsx\n- Time estimate: 20 minutes",
             "testStrategy": ""
@@ -1054,7 +1054,7 @@
             "id": 8,
             "title": "Add Web Worker Parsing for Large Files",
             "description": "Implement client-side parsing for large files to prevent UI freezing",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "- Create app/services/file-parser.client.ts\n- Implement parseFileInWorker() using PapaParse worker mode\n- Use for files >5MB\n- Add chunk callback for progress\n- Fallback to server parsing if needed\n- Files: app/services/file-parser.client.ts (NEW)\n- Time estimate: 45 minutes",
             "testStrategy": ""
@@ -1063,7 +1063,7 @@
             "id": 9,
             "title": "Add Progress Indicators and Error Handling",
             "description": "Implement comprehensive progress tracking and error management",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "- Add progress bar component\n- Show upload/processing status\n- Display descriptive error messages\n- Add validation for file size and type\n- Add error toast with retry button\n- Files: app/routes/editor.$pageId.tsx\n- Time estimate: 45 minutes",
             "testStrategy": ""
@@ -1072,7 +1072,7 @@
             "id": 10,
             "title": "Testing and Edge Cases",
             "description": "Comprehensive testing of all file upload functionality",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "- Test CSV files with various formats\n- Test Excel files (single/multiple sheets)\n- Test large files (1MB, 5MB, 10MB, 50MB)\n- Test error cases (corrupted, wrong type, empty)\n- Test concurrent uploads\n- Test position calculation\n- Test column sanitization\n- Document test checklist\n- Time estimate: 1.5 hours",
             "testStrategy": ""
@@ -1082,7 +1082,7 @@
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-11-17T14:43:09.741Z",
+      "updated": "2025-11-19T11:25:04.237Z",
       "description": "Tasks for master context"
     }
   }
