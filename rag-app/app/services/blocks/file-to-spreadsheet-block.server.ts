@@ -7,9 +7,7 @@
 
 import type { ParsedFileData, ColumnType } from '../file-parser.server';
 import type { SpreadsheetBlockContent } from '~/types/blocks';
-import type { CreateBlockInput } from '../block.server';
 import type { Block, BlockType } from '~/types/supabase';
-import { BlockService } from '../block.server';
 
 export interface FileToSpreadsheetBlockOptions {
   pageId: string;
@@ -19,14 +17,13 @@ export interface FileToSpreadsheetBlockOptions {
 }
 
 export class FileToSpreadsheetBlockConverter {
-  private blockService: BlockService;
-
   constructor() {
-    this.blockService = new BlockService();
+    // No initialization needed
   }
 
   /**
    * Convert parsed file data to a SpreadsheetBlock
+   * Returns block data structure without saving to database
    */
   async convertToSpreadsheetBlock(
     parsedData: ParsedFileData,
@@ -56,10 +53,11 @@ export class FileToSpreadsheetBlockConverter {
     // Calculate next position
     const position = this.calculateNextPosition(existingBlocks);
 
-    // Create block input
-    const blockInput: CreateBlockInput = {
+    // Return block data structure (caller will save to Page.blocks)
+    const block: Block = {
+      id: this.generateBlockId(),
       pageId,
-      type: 'spreadsheet',
+      type: 'spreadsheet' as BlockType,
       content,
       position,
       parentId: null,
@@ -72,10 +70,11 @@ export class FileToSpreadsheetBlockConverter {
       },
       properties: {},
       createdBy: userId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
-    // Create the block
-    return await this.blockService.createBlock(blockInput);
+    return block;
   }
 
   /**
@@ -153,6 +152,18 @@ export class FileToSpreadsheetBlockConverter {
       width: 12, // Full width for spreadsheet
       height: 4, // Default spreadsheet height
     };
+  }
+
+  /**
+   * Generate a unique block ID
+   */
+  private generateBlockId(): string {
+    // Generate a UUID-like string
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
   }
 
   /**
