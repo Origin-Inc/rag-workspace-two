@@ -71,6 +71,12 @@ export function FileUploadButton({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Prevent multiple simultaneous uploads
+    if (isUploading) {
+      console.log('[FileUpload] Upload already in progress, ignoring');
+      return;
+    }
+
     setSelectedFile(file);
 
     // Validate file type
@@ -80,6 +86,10 @@ export function FileUploadButton({
     if (!validExtensions.includes(fileExtension)) {
       onUploadError?.(`Invalid file type. Please upload a CSV or Excel file.`);
       setSelectedFile(null);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
@@ -88,6 +98,10 @@ export function FileUploadButton({
     if (file.size > maxSize) {
       onUploadError?.(`File too large. Maximum size is 50MB.`);
       setSelectedFile(null);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
@@ -99,12 +113,18 @@ export function FileUploadButton({
     const threshold = getWorkerThreshold();
     const useClientParsing = file.size > threshold && isWorkerSupported();
 
-    if (useClientParsing) {
-      console.log(`[FileUpload] Using web worker for large file: ${formatFileSize(file.size)}`);
+    try {
+      if (useClientParsing) {
+        console.log(`[FileUpload] Using web worker for large file: ${formatFileSize(file.size)}`);
 
-      try {
+        // Read file once into ArrayBuffer to avoid stream locking issues
+        const arrayBuffer = await file.arrayBuffer();
+
+        // Create a new File object from the buffer for parsing
+        const fileForParsing = new File([arrayBuffer], file.name, { type: file.type });
+
         // Parse file on client side with web worker
-        const parsedData = await parseFileInWorker(file, {
+        const parsedData = await parseFileInWorker(fileForParsing, {
           onProgress: (progress) => {
             // Update progress based on parsing status
             if (progress.status === 'parsing') {
@@ -132,26 +152,30 @@ export function FileUploadButton({
           method: 'post',
           action: `/editor/${pageId}`,
         });
-      } catch (error) {
-        console.error('[FileUpload] Client parsing failed:', error);
-        onUploadError?.(`Failed to parse file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        setSelectedFile(null);
+      } else {
+        // For smaller files or when workers unavailable, use server-side parsing
+        console.log(`[FileUpload] Using server parsing for file: ${formatFileSize(file.size)}`);
+
+        // Create form data
+        const formData = new FormData();
+        formData.append('intent', 'upload-file');
+        formData.append('file', file);
+
+        // Submit upload
+        fetcher.submit(formData, {
+          method: 'post',
+          action: `/editor/${pageId}`,
+          encType: 'multipart/form-data',
+        });
       }
-    } else {
-      // For smaller files or when workers unavailable, use server-side parsing
-      console.log(`[FileUpload] Using server parsing for file: ${formatFileSize(file.size)}`);
-
-      // Create form data
-      const formData = new FormData();
-      formData.append('intent', 'upload-file');
-      formData.append('file', file);
-
-      // Submit upload
-      fetcher.submit(formData, {
-        method: 'post',
-        action: `/editor/${pageId}`,
-        encType: 'multipart/form-data',
-      });
+    } catch (error) {
+      console.error('[FileUpload] Upload failed:', error);
+      onUploadError?.(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setSelectedFile(null);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 

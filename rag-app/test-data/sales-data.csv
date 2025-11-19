@@ -1,0 +1,11 @@
+Product,Category,Price,Quantity,InStock,DateAdded,Discount
+Widget A,Electronics,29.99,150,true,2024-01-15,0.10
+Widget B,Home & Garden,49.99,75,false,2024-01-16,0.15
+Widget C,Electronics,199.99,25,true,2024-01-17,0
+Gadget X,Electronics,89.99,200,true,2024-01-18,0.20
+Tool Y,Hardware,35.50,100,true,2024-01-19,0.05
+Item Z,Office,12.99,500,false,2024-01-20,0.25
+Product 123,Electronics,449.99,10,true,2024-01-21,0
+Service Pack,Software,99.99,unlimited,true,2024-01-22,0.30
+Bundle Deal,Mixed,299.99,50,true,2024-01-23,0.40
+Special Item,Clearance,9.99,1000,false,2024-01-24,0.50

@@ -10,8 +10,9 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import type { ParsedFileData, FileColumn } from './file-parser.server';
 
-// Threshold for using web worker (5MB)
-const WORKER_THRESHOLD = 5 * 1024 * 1024;
+// Threshold for using web worker (10MB)
+// Increased to reduce stream locking issues with smaller files
+const WORKER_THRESHOLD = 10 * 1024 * 1024;
 
 interface ParseProgress {
   loaded: number;
