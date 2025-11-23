@@ -47,19 +47,33 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
           path: ['$[*].id'],
           array_contains: blockId,
         },
-        // Security: User must own the page
-        createdBy: user.id,
       },
       select: {
         id: true,
         blocks: true,
+        workspaceId: true,
       },
     });
 
     if (!page) {
       return json(
-        { error: 'Block not found or access denied' },
+        { error: 'Block not found' },
         { status: 404 }
+      );
+    }
+
+    // Security: Verify user has access to the page's workspace
+    const hasAccess = await prisma.userWorkspace.findFirst({
+      where: {
+        userId: user.id,
+        workspaceId: page.workspaceId,
+      },
+    });
+
+    if (!hasAccess) {
+      return json(
+        { error: 'Access denied - user does not have permission to access this workspace' },
+        { status: 403 }
       );
     }
 
