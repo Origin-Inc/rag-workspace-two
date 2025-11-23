@@ -9,8 +9,10 @@ import { memo, useCallback, useState, useEffect } from 'react';
 import { SimplifiedSpreadsheetView } from '~/components/spreadsheet';
 import type { SpreadsheetColumn } from '~/components/spreadsheet';
 import type { Block } from '~/types/blocks';
-import { Plus } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 import { getColumnLetter } from '~/utils/spreadsheet-notation';
+import { getDuckDB } from '~/services/duckdb/duckdb-service.client';
+import { duckDBService } from '~/services/duckdb/duckdb-service.client';
 
 export interface SpreadsheetBlockProps {
   block: Block;
@@ -74,6 +76,61 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState('');
   const [newColumnType, setNewColumnType] = useState<'text' | 'number' | 'boolean' | 'date'>('text');
+
+  // TASK 87: DuckDB loading state for large spreadsheets
+  const [isLoadingDuckDB, setIsLoadingDuckDB] = useState(false);
+  const [duckDBLoaded, setDuckDBLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Detect if this is a large spreadsheet requiring DuckDB loading
+  const isLargeSpreadsheet = (content as any).hasFullData === true && initialRows.length === 0;
+
+  // TASK 87: Load data into DuckDB WASM for large spreadsheets
+  useEffect(() => {
+    if (!isLargeSpreadsheet || duckDBLoaded) return;
+
+    async function loadIntoDuckDB() {
+      setIsLoadingDuckDB(true);
+      setLoadError(null);
+
+      try {
+        console.log(`[SpreadsheetBlock] Loading large spreadsheet (${(content as any).rowCount?.toLocaleString()} rows) into DuckDB...`);
+
+        // Fetch full data from API route
+        const response = await fetch(`/api/blocks/${block.id}/data`);
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch data: ${response.statusText}`);
+        }
+
+        const fullData = await response.json();
+
+        console.log(`[SpreadsheetBlock] Fetched ${fullData.rowCount?.toLocaleString()} rows, loading into DuckDB...`);
+
+        // Initialize DuckDB service
+        const db = await getDuckDB();
+
+        // Create table from data using DuckDB service
+        await duckDBService.createTableFromData(
+          tableName,
+          fullData.rows,
+          fullData.columns || initialColumns,
+          block.pageId || 'unknown'
+        );
+
+        console.log(`[SpreadsheetBlock] Successfully loaded data into DuckDB table: ${tableName}`);
+
+        setDuckDBLoaded(true);
+      } catch (error) {
+        console.error('[SpreadsheetBlock] Failed to load data into DuckDB:', error);
+        setLoadError(error instanceof Error ? error.message : 'Failed to load spreadsheet data');
+      } finally {
+        setIsLoadingDuckDB(false);
+      }
+    }
+
+    loadIntoDuckDB();
+  }, [block.id, tableName, isLargeSpreadsheet, duckDBLoaded, initialColumns, block.pageId, content]);
 
   // Update content when data changes
   const handleDataChange = useCallback(
@@ -277,9 +334,56 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
 
       {/* Spreadsheet */}
       <div
-        className="flex-1"
+        className="flex-1 relative"
         data-testid="spreadsheet-container"
       >
+        {/* TASK 87: Loading overlay for DuckDB data loading */}
+        {isLoadingDuckDB && (
+          <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3 p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+              <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Loading {(content as any).rowCount?.toLocaleString()} rows...
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  This may take a moment for large datasets
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TASK 87: Error state for DuckDB loading failure */}
+        {loadError && !isLoadingDuckDB && (
+          <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 z-10 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3 p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-red-200 dark:border-red-800 max-w-md">
+              <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+                  Failed to load spreadsheet data
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {loadError}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setDuckDBLoaded(false);
+                  setLoadError(null);
+                }}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+
         <SimplifiedSpreadsheetView
           initialColumns={initialColumns}
           initialRows={initialRows}
@@ -292,6 +396,9 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
           onAddRow={handleAddRow}
           onAddColumn={handleAddColumn}
           height={block.position?.height ? block.position.height * 100 : 600}
+          // TASK 87: Pass DuckDB info to SimplifiedSpreadsheetView
+          useDuckDB={isLargeSpreadsheet && duckDBLoaded}
+          tableName={tableName}
         />
       </div>
     </div>

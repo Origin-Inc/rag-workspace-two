@@ -4,14 +4,17 @@
  * Lightweight React state-based spreadsheet using Glide Data Grid.
  * Fast formula evaluation with built-in JavaScript evaluator.
  *
+ * TASK 87: Supports DuckDB WASM for large datasets (metadata-only pattern)
+ *
  * Performance: <50ms initialization, <10ms cell edits, instant formula evaluation
  */
 
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { SpreadsheetGrid } from './SpreadsheetGrid';
 import { FormulaBar } from './FormulaBar';
 import { getColumnLetter } from '~/utils/spreadsheet-notation';
 import { evaluateFormula } from '~/utils/simple-formula-evaluator';
+import { duckDBQueryService } from '~/services/duckdb/duckdb-query.client';
 import type { SpreadsheetColumn, SpreadsheetRow } from './SpreadsheetGrid';
 
 export interface SimplifiedSpreadsheetViewProps {
@@ -21,6 +24,9 @@ export interface SimplifiedSpreadsheetViewProps {
   onAddRow?: () => void;
   onAddColumn?: (column: SpreadsheetColumn) => void;
   height?: number;
+  // TASK 87: DuckDB props for large spreadsheets
+  useDuckDB?: boolean;
+  tableName?: string;
 }
 
 export function SimplifiedSpreadsheetView({
@@ -30,6 +36,8 @@ export function SimplifiedSpreadsheetView({
   onAddRow: externalOnAddRow,
   onAddColumn: externalOnAddColumn,
   height = 500,
+  useDuckDB = false,
+  tableName,
 }: SimplifiedSpreadsheetViewProps) {
   // React state - enhanced to support formulas
   const [columns, setColumns] = useState<SpreadsheetColumn[]>(
@@ -43,6 +51,39 @@ export function SimplifiedSpreadsheetView({
   );
 
   const [rows, setRows] = useState<SpreadsheetRow[]>(initialRows);
+
+  // TASK 87: Row cache for DuckDB windowed loading
+  const rowCacheRef = useRef<Map<number, SpreadsheetRow>>(new Map());
+  const [totalDuckDBRows, setTotalDuckDBRows] = useState<number | null>(null);
+
+  // TASK 87: Load initial page from DuckDB when useDuckDB is enabled
+  useEffect(() => {
+    if (!useDuckDB || !tableName) return;
+
+    async function loadInitialPage() {
+      try {
+        console.log(`[SimplifiedSpreadsheetView] Loading initial page from DuckDB table: ${tableName}`);
+
+        // Load first page (rows 0-99)
+        const pageData = await duckDBQueryService.loadPage(tableName, 0, 100);
+
+        console.log(`[SimplifiedSpreadsheetView] Loaded ${pageData.data.length} rows from DuckDB (total: ${pageData.totalRows})`);
+
+        // Store in cache
+        pageData.data.forEach((row, index) => {
+          rowCacheRef.current.set(index, row);
+        });
+
+        // Set React state for initial render
+        setRows(pageData.data);
+        setTotalDuckDBRows(pageData.totalRows);
+      } catch (error) {
+        console.error('[SimplifiedSpreadsheetView] Failed to load initial page from DuckDB:', error);
+      }
+    }
+
+    loadInitialPage();
+  }, [useDuckDB, tableName]);
 
   // Selected cell for formula bar
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
@@ -193,11 +234,40 @@ export function SimplifiedSpreadsheetView({
     externalOnAddColumn?.(column);
   }, [notifyParent, externalOnAddColumn]);
 
+  // TASK 87: onLoadPage callback for DuckDB windowed loading
+  const handleLoadPage = useCallback(async (page: number, pageSize: number) => {
+    if (!useDuckDB || !tableName) return [];
+
+    try {
+      console.log(`[SimplifiedSpreadsheetView] Loading page ${page} (size: ${pageSize}) from DuckDB`);
+
+      const pageData = await duckDBQueryService.loadPage(tableName, page, pageSize);
+
+      // Store in cache
+      const startRow = page * pageSize;
+      pageData.data.forEach((row, index) => {
+        rowCacheRef.current.set(startRow + index, row);
+      });
+
+      console.log(`[SimplifiedSpreadsheetView] Loaded ${pageData.data.length} rows, cache size: ${rowCacheRef.current.size}`);
+
+      return pageData.data;
+    } catch (error) {
+      console.error('[SimplifiedSpreadsheetView] Failed to load page from DuckDB:', error);
+      return [];
+    }
+  }, [useDuckDB, tableName]);
+
   // Total rows for virtual scrolling
   const totalRows = useMemo(() => {
-    // Always allow at least 100 empty rows for data entry
+    // TASK 87: Use DuckDB row count for large spreadsheets
+    if (useDuckDB && totalDuckDBRows !== null) {
+      return totalDuckDBRows;
+    }
+
+    // Default: Always allow at least 100 empty rows for data entry
     return Math.max(rows.length, 100);
-  }, [rows.length]);
+  }, [useDuckDB, totalDuckDBRows, rows.length]);
 
   // Expose handlers for external use
   // Store them in a ref that parent can access
@@ -283,6 +353,7 @@ export function SimplifiedSpreadsheetView({
         onCellEdit={handleCellEdit}
         onCellSelected={setSelectedCell}
         onColumnResize={handleColumnResize}
+        onLoadPage={useDuckDB ? handleLoadPage : undefined}
         height={height}
         pageSize={100}
         className="flex-1"

@@ -200,6 +200,41 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
         block.content = '';
       }
 
+      // TASK 87: Metadata-only pattern for large spreadsheet blocks (>1000 rows)
+      // This dramatically improves FCP by sending only metadata instead of full data
+      if (block.type === 'spreadsheet') {
+        // Parse spreadsheet content if it's a string
+        let content = typeof block.content === 'string'
+          ? (block.content.startsWith('{') ? JSON.parse(block.content) : block.content)
+          : block.content;
+
+        // If spreadsheet has >1000 rows, strip rows and send metadata only
+        if (content && content.rows && Array.isArray(content.rows) && content.rows.length > 1000) {
+          const rowCount = content.rows.length;
+          console.log(`[Loader] Stripping ${rowCount.toLocaleString()} rows from spreadsheet block ${block.id}, sending metadata only`);
+
+          return {
+            ...block,
+            content: {
+              tableName: content.tableName,
+              title: content.title,
+              columns: content.columns,
+              // Store metadata for client-side DuckDB loading
+              rowCount, // NEW: Total row count
+              hasFullData: true, // NEW: Flag indicating data needs to be fetched
+              // rows array is EMPTY - will be fetched on-demand by client
+              rows: []
+            }
+          };
+        } else if (content && typeof content === 'object') {
+          // Small spreadsheets (<1000 rows) load normally
+          return {
+            ...block,
+            content
+          };
+        }
+      }
+
       // If content is a JSON string of an object, parse it
       // TASK 56 FIX: Include 'chart' and 'table' blocks for proper JSON parsing
       if (typeof block.content === 'string' &&
