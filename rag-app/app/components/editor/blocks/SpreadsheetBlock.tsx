@@ -12,7 +12,6 @@ import type { Block } from '~/types/blocks';
 import { Plus, Loader2 } from 'lucide-react';
 import { getColumnLetter } from '~/utils/spreadsheet-notation';
 import { getDuckDB } from '~/services/duckdb/duckdb-service.client';
-import { duckDBService } from '~/services/duckdb/duckdb-service.client';
 
 export interface SpreadsheetBlockProps {
   block: Block;
@@ -111,7 +110,7 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
         const db = await getDuckDB();
 
         // Create table from data using DuckDB service
-        await duckDBService.createTableFromData(
+        await db.createTableFromData(
           tableName,
           fullData.rows,
           fullData.columns || initialColumns,
