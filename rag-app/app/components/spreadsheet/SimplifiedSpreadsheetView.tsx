@@ -249,6 +249,16 @@ export function SimplifiedSpreadsheetView({
         rowCacheRef.current.set(startRow + index, row);
       });
 
+      // Update rows state with newly loaded page data
+      // CRITICAL: Merge new page data into existing rows array
+      setRows((prevRows) => {
+        const newRows = [...prevRows];
+        pageData.data.forEach((row, index) => {
+          newRows[startRow + index] = row;
+        });
+        return newRows;
+      });
+
       console.log(`[SimplifiedSpreadsheetView] Loaded ${pageData.data.length} rows, cache size: ${rowCacheRef.current.size}`);
 
       return pageData.data;
