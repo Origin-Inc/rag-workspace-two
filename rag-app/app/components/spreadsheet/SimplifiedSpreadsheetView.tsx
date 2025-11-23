@@ -14,7 +14,7 @@ import { SpreadsheetGrid } from './SpreadsheetGrid';
 import { FormulaBar } from './FormulaBar';
 import { getColumnLetter } from '~/utils/spreadsheet-notation';
 import { evaluateFormula } from '~/utils/simple-formula-evaluator';
-import { duckDBQueryService } from '~/services/duckdb/duckdb-query.client';
+import { duckDBQuery } from '~/services/duckdb/duckdb-query.client';
 import type { SpreadsheetColumn, SpreadsheetRow } from './SpreadsheetGrid';
 
 export interface SimplifiedSpreadsheetViewProps {
@@ -65,7 +65,7 @@ export function SimplifiedSpreadsheetView({
         console.log(`[SimplifiedSpreadsheetView] Loading initial page from DuckDB table: ${tableName}`);
 
         // Load first page (rows 0-99)
-        const pageData = await duckDBQueryService.loadPage(tableName, 0, 100);
+        const pageData = await duckDBQuery.loadPage(tableName, 0, 100);
 
         console.log(`[SimplifiedSpreadsheetView] Loaded ${pageData.data.length} rows from DuckDB (total: ${pageData.totalRows})`);
 
@@ -241,7 +241,7 @@ export function SimplifiedSpreadsheetView({
     try {
       console.log(`[SimplifiedSpreadsheetView] Loading page ${page} (size: ${pageSize}) from DuckDB`);
 
-      const pageData = await duckDBQueryService.loadPage(tableName, page, pageSize);
+      const pageData = await duckDBQuery.loadPage(tableName, page, pageSize);
 
       // Store in cache
       const startRow = page * pageSize;
