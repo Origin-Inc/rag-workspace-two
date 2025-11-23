@@ -53,22 +53,27 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
   onChange,
   isSelected,
 }: SpreadsheetBlockProps) {
-  // Parse content
-  const content: SpreadsheetBlockContent =
-    typeof block.content === 'string'
+  // Parse content - CRITICAL: Use useMemo to prevent infinite re-renders
+  const content: SpreadsheetBlockContent = useMemo(() => {
+    return typeof block.content === 'string'
       ? (block.content ? JSON.parse(block.content) : {})
       : (block.content || {});
+  }, [block.content]);
 
   // Generate table name from block ID
   const tableName = content.tableName || `spreadsheet_${block.id.replace(/-/g, '_')}`;
 
   // Migrate legacy column names to A1 notation
-  const initialColumns = content.columns
-    ? migrateColumnsToA1Notation(content.columns)
-    : [];
+  const initialColumns = useMemo(() => {
+    return content.columns
+      ? migrateColumnsToA1Notation(content.columns)
+      : [];
+  }, [content.columns]);
 
   const initialRows = content.rows || [];
   const title = content.title || 'Spreadsheet';
+  const rowCount = (content as any).rowCount;
+  const hasFullData = (content as any).hasFullData;
 
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [tempTitle, setTempTitle] = useState(title);
@@ -82,9 +87,10 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Detect if this is a large spreadsheet requiring DuckDB loading
-  const isLargeSpreadsheet = (content as any).hasFullData === true && initialRows.length === 0;
+  const isLargeSpreadsheet = hasFullData === true && initialRows.length === 0;
 
   // TASK 87: Load data into DuckDB WASM for large spreadsheets
+  // CRITICAL FIX: Removed unstable dependencies (content, initialColumns) to prevent infinite loop
   useEffect(() => {
     if (!isLargeSpreadsheet || duckDBLoaded) return;
 
@@ -93,7 +99,7 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
       setLoadError(null);
 
       try {
-        console.log(`[SpreadsheetBlock] Loading large spreadsheet (${(content as any).rowCount?.toLocaleString()} rows) into DuckDB...`);
+        console.log(`[SpreadsheetBlock] Loading large spreadsheet (${rowCount?.toLocaleString()} rows) into DuckDB...`);
 
         // Fetch full data from API route
         const response = await fetch(`/api/blocks/${block.id}/data`);
@@ -113,7 +119,7 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
         await db.createTableFromData(
           tableName,
           fullData.rows,
-          fullData.columns || initialColumns,
+          fullData.columns || content.columns || [],
           block.pageId || 'unknown'
         );
 
@@ -129,7 +135,8 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
     }
 
     loadIntoDuckDB();
-  }, [block.id, tableName, isLargeSpreadsheet, duckDBLoaded, initialColumns, block.pageId, content]);
+    // FIXED: Only depend on stable primitive values, not objects
+  }, [block.id, tableName, isLargeSpreadsheet, duckDBLoaded, rowCount, block.pageId, hasFullData]);
 
   // Update content when data changes
   const handleDataChange = useCallback(
