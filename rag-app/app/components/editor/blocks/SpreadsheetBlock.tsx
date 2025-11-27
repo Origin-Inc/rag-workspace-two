@@ -5,7 +5,7 @@
  * Integrates SpreadsheetView into the block-based editor.
  */
 
-import { memo, useCallback, useState, useEffect } from 'react';
+import { memo, useCallback, useState, useEffect, useMemo } from 'react';
 import { SimplifiedSpreadsheetView } from '~/components/spreadsheet';
 import type { SpreadsheetColumn } from '~/components/spreadsheet';
 import type { Block } from '~/types/blocks';
