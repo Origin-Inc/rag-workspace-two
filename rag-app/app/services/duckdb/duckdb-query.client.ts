@@ -152,14 +152,32 @@ export class DuckDBQueryService {
   }
 
   /**
+   * Convert BigInt values to Numbers for JSON serialization
+   * DuckDB returns BigInt for numeric columns, but JavaScript can't serialize BigInt
+   */
+  private convertBigIntToNumber(obj: any): any {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj === 'bigint') return Number(obj);
+    if (Array.isArray(obj)) return obj.map(item => this.convertBigIntToNumber(item));
+    if (typeof obj === 'object') {
+      const converted: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        converted[key] = this.convertBigIntToNumber(value);
+      }
+      return converted;
+    }
+    return obj;
+  }
+
+  /**
    * Execute SQL query against DuckDB
    */
   public async executeQuery(sql: string, trackUsage: boolean = false): Promise<QueryResult> {
     const startTime = performance.now();
-    
+
     try {
       const duckdb = getDuckDB();
-      
+
       // Ensure DuckDB is initialized
       if (!duckdb.isReady()) {
         await duckdb.initialize();
@@ -168,9 +186,10 @@ export class DuckDBQueryService {
       // Execute the query
       const conn = await duckdb.getConnection();
       const result = await conn.query(sql);
-      
-      // Convert result to array
-      const data = result.toArray();
+
+      // Convert result to array and handle BigInt values
+      const rawData = result.toArray();
+      const data = this.convertBigIntToNumber(rawData);
       const executionTime = performance.now() - startTime;
       
       // Get column names
