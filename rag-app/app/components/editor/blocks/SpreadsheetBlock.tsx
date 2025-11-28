@@ -116,10 +116,11 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
         const db = await getDuckDB();
 
         // Create table from data using DuckDB service
+        // CRITICAL: Wrap columns array in object - DuckDB expects { columns: [...] }
         await db.createTableFromData(
           tableName,
           fullData.rows,
-          fullData.columns || content.columns || [],
+          { columns: fullData.columns || content.columns || [] },
           block.pageId || 'unknown'
         );
 
