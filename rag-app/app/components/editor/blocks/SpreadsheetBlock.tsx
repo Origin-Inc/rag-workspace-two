@@ -101,8 +101,8 @@ export const SpreadsheetBlock = memo(function SpreadsheetBlock({
       try {
         console.log(`[SpreadsheetBlock] Loading large spreadsheet (${rowCount?.toLocaleString()} rows) into DuckDB...`);
 
-        // Fetch full data from API route
-        const response = await fetch(`/api/blocks/${block.id}/data`);
+        // Fetch full data from API route (pass pageId as query param for simple lookup)
+        const response = await fetch(`/api/blocks/${block.id}/data?pageId=${block.pageId}`);
 
         if (!response.ok) {
           throw new Error(`Failed to fetch data: ${response.statusText}`);

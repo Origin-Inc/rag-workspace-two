@@ -33,21 +33,21 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const user = await requireUser(request);
 
   const { blockId } = params;
+  const url = new URL(request.url);
+  const pageId = url.searchParams.get('pageId');
 
   if (!blockId) {
     return json({ error: 'Block ID is required' }, { status: 400 });
   }
 
+  if (!pageId) {
+    return json({ error: 'Page ID is required as query parameter' }, { status: 400 });
+  }
+
   try {
-    // Find the page containing this block
-    // Blocks are stored in Page.blocks JSONB field
-    const page = await prisma.page.findFirst({
-      where: {
-        blocks: {
-          path: ['$[*].id'],
-          array_contains: blockId,
-        },
-      },
+    // Find the page by ID (simple query, no complex JSONB search)
+    const page = await prisma.page.findUnique({
+      where: { id: pageId },
       select: {
         id: true,
         blocks: true,
@@ -57,7 +57,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
 
     if (!page) {
       return json(
-        { error: 'Block not found' },
+        { error: 'Page not found' },
         { status: 404 }
       );
     }

@@ -1078,11 +1078,80 @@
             "testStrategy": ""
           }
         ]
+      },
+      {
+        "id": 87,
+        "title": "Fix Poor FCP Performance for Large Spreadsheet Blocks with Remix Defer Streaming",
+        "description": "Implement metadata-only pattern (based on existing chat architecture) to reduce First Contentful Paint from 6.5s to <1.8s for large spreadsheet blocks by loading only metadata initially and storing full datasets in DuckDB WASM on the client.",
+        "status": "pending",
+        "dependencies": [
+          80,
+          65
+        ],
+        "priority": "medium",
+        "details": "**CRITICAL ARCHITECTURE REVISION BASED ON EXISTING CHAT PATTERN**\n\nThe chat AI system already implements the EXACT pattern we need! Analysis of ChatSidebarPerformant and api.chat shows a proven metadata-only client pattern:\n\n## Existing Chat Pattern (METADATA-ONLY CLIENT PATTERN)\n\n### How Chat Works:\n1. **Upload**: File data stored in TWO places:\n   - Database (DataFile table): Metadata only (filename, schema, rowCount, sizeBytes)\n   - DuckDB WASM (client): Full dataset for queries\n\n2. **Client UI**: \n   - Receives ONLY metadata from API (no actual rows)\n   - Queries DuckDB WASM for visible data\n   - Fast loading because no large JSON payload\n\n3. **AI Operations**:\n   - Server queries its own database copy\n   - Client sends NO data with AI commands\n   - AI has access to full dataset via server-side query\n\n## Solution: Apply Chat Pattern to SpreadsheetBlock\n\n### REVISED Implementation (Metadata-Only Pattern):\n\n**Phase 1: Modify Loader to Send Metadata Only**\n```typescript\n// editor.$pageId.tsx loader (lines 178-244)\n// BEFORE: Returns full blocks with all 50k rows\nblocks = page.blocks; // 2MB+ payload\n\n// AFTER: Return blocks with metadata only for spreadsheets\nblocks = blocks.map(block => {\n  if (block.type === 'spreadsheet' && block.content.rows?.length > 1000) {\n    return {\n      ...block,\n      content: {\n        ...block.content,\n        rows: [], // Empty array!\n        metadata: {\n          rowCount: block.content.rows.length,\n          schema: block.content.columns,\n          blockId: block.id,\n          hasFullData: true\n        }\n      }\n    };\n  }\n  return block;\n});\n```\n\n**Phase 2: Load Full Data into DuckDB WASM on Mount**\n```typescript\n// SimplifiedSpreadsheetView.tsx\nuseEffect(() => {\n  async function loadData() {\n    if (content.metadata?.hasFullData) {\n      // Fetch full data and load into DuckDB\n      const response = await fetch(`/api/blocks/${blockId}/data`);\n      const fullData = await response.json();\n      \n      // Load into DuckDB WASM\n      const db = await getDuckDB();\n      await db.insertJSONTable(tableName, fullData.rows);\n      \n      // Query first window for UI\n      const visibleRows = await db.query(\n        `SELECT * FROM ${tableName} LIMIT 1000 OFFSET 0`\n      );\n      setRows(visibleRows);\n    }\n  }\n  loadData();\n}, [blockId, content.metadata]);\n```\n\n**Phase 3: Create API Route for Full Data**\n```typescript\n// app/routes/api.blocks.$blockId.data.ts (NEW)\nexport const loader: LoaderFunction = async ({ params, request }) => {\n  const user = await requireUser(request);\n  const blockId = params.blockId;\n  \n  // Get page with full block data\n  const page = await prisma.page.findFirst({\n    where: {\n      blocks: { path: `$[?(@.id == \"${blockId}\")]` }\n    },\n    select: { blocks: true }\n  });\n  \n  const block = page.blocks.find(b => b.id === blockId);\n  return json({ rows: block.content.rows });\n};\n```\n\n**Phase 4: AI Commands Work Without Changes**\n```typescript\n// editor.$pageId.tsx action (lines 366-480)\nif (intent === \"ai-command\") {\n  // AI STILL queries database directly\n  const page = await prisma.page.findUnique({\n    where: { id: pageId },\n    select: { blocks: true } // Full data from DB\n  });\n  \n  // Process with full dataset\n  const result = await aiService.processCommand(command, page.blocks);\n  \n  // Save updates\n  await prisma.page.update({\n    where: { id: pageId },\n    data: { blocks: result.updatedBlocks }\n  });\n  \n  // Client refreshes DuckDB after update\n  return json({ success: true, needsRefresh: true });\n}\n```\n\n## Performance Impact with This Pattern:\n\n| Metric | Current (All Data) | Metadata-Only Pattern |\n|--------|-------------------|----------------------|\n| **Initial Payload** | 2MB+ JSON | <5KB metadata |\n| **FCP** | 6.5s | <1s ✅ |\n| **DOM Interactive** | 12.8s | <2s ✅ |\n| **Memory (Initial)** | 350k data points | ~200 (metadata) |\n| **Memory (After Load)** | 350k | 350k (in DuckDB) |\n| **AI Accuracy** | Full dataset ✅ | Full dataset ✅ |\n\n## Why This Pattern Solves Everything:\n\n1. ✅ **Fast FCP**: Metadata-only initial load (<5KB vs 2MB)\n2. ✅ **AI Works**: Server queries database, not client state\n3. ✅ **Scalability**: DuckDB handles millions of rows\n4. ✅ **Already Proven**: Chat system uses this exact pattern\n5. ✅ **No Breaking Changes**: Existing virtual scrolling still works\n\n## Key Files to Modify:\n1. app/routes/editor.$pageId.tsx (loader)\n2. app/routes/api.blocks.$blockId.data.ts (NEW)\n3. app/components/spreadsheet/SimplifiedSpreadsheetView.tsx\n4. app/services/duckdb/duckdb-service.client.ts (reuse from chat)",
+        "testStrategy": "1. **Performance Benchmarks:**\n   - Measure FCP, LCP, and TTI with 50k row CSV file\n   - Target: FCP <1s (improved from <1.8s due to metadata-only approach)\n   - Verify domInteractive <2s\n   - Monitor initial payload size (<5KB metadata vs 2MB+ full data)\n   - Verify memory usage during initial load (<10MB vs 100MB)\n\n2. **Metadata-Only Loading Tests:**\n   - Test with files of varying sizes (10K, 50K, 100K, 500K rows)\n   - Verify metadata loads immediately (<200ms)\n   - Test DuckDB WASM data loading in background\n   - Validate smooth transition from skeleton to actual data\n   - Test concurrent loading of multiple large spreadsheet blocks\n\n3. **DuckDB WASM Integration Tests:**\n   - Verify successful data insertion into DuckDB WASM\n   - Test windowed queries for virtual scrolling\n   - Validate query performance with large datasets (1M+ rows)\n   - Test memory cleanup and garbage collection\n   - Verify DuckDB persistence across component re-renders\n\n4. **AI Operations Validation:**\n   - Verify AI commands still work correctly with server-side data access\n   - Test that client metadata doesn't interfere with AI processing\n   - Validate AI responses reflect actual database state, not client cache\n   - Test AI operations on partially loaded client data\n\n5. **Virtual Scrolling Integration:**\n   - Verify Glide Data Grid continues smooth 60fps scrolling\n   - Test onVisibleRegionChanged callback accuracy with DuckDB queries\n   - Validate row height calculations with async data loading\n   - Test rapid scrolling to bottom doesn't break DuckDB queries\n\n6. **Network Condition Testing:**\n   - Test on slow 3G, regular 3G, and WiFi connections\n   - Verify metadata loads fast even on slow connections\n   - Test background data loading behavior under throttling\n   - Test offline behavior and error recovery\n\n7. **Browser Compatibility:**\n   - Test DuckDB WASM support across Chrome, Firefox, Safari, Edge\n   - Verify SharedArrayBuffer and WebAssembly compatibility\n   - Test with browser devtools performance profiling\n   - Validate memory usage patterns across browsers\n\n8. **Error Handling:**\n   - Test failed DuckDB data loading scenarios\n   - Verify graceful fallback when WASM fails\n   - Test timeout handling for slow data loading\n   - Test API route failures for full data fetching\n\n9. **Load Testing:**\n   - Simulate concurrent users loading large spreadsheets\n   - Test server performance with multiple metadata requests\n   - Monitor memory leaks during repeated loading cycles\n   - Test with extremely large files (1M+ rows)\n\n10. **Regression Testing:**\n    - Verify existing chat system still works (uses same DuckDB pattern)\n    - Test smaller spreadsheets (<1000 rows) still load normally\n    - Validate existing spreadsheet editing functionality\n    - Test file upload and conversion processes",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Modify editor loader to return metadata-only for large spreadsheets",
+            "description": "Update app/routes/editor.$pageId.tsx loader (lines 178-244) to send only metadata for spreadsheet blocks with >1000 rows instead of full row data",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Replace full block.content.rows with empty array and add metadata object containing rowCount, schema, blockId, and hasFullData flag. This reduces initial payload from 2MB+ to <5KB for large spreadsheets.",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Create API route for full spreadsheet data fetching",
+            "description": "Create new route app/routes/api.blocks.$blockId.data.ts that returns complete row data for a specific spreadsheet block",
+            "status": "pending",
+            "dependencies": [],
+            "details": "This route will be called by the client to fetch full dataset after initial metadata-only load. Should include proper authentication and return just the rows array for the specified block.",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Update SpreadsheetView to load data into DuckDB WASM",
+            "description": "Modify SimplifiedSpreadsheetView.tsx to detect metadata-only blocks and load full data into DuckDB WASM client-side",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Add useEffect that fetches full data via new API route, loads into DuckDB WASM table, and queries first window of data for initial display. Reuse existing DuckDB service from chat system.",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement windowed queries from DuckDB to React state",
+            "description": "Update virtual scrolling integration to query DuckDB WASM for visible data windows instead of using in-memory arrays",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Modify onVisibleRegionChanged callback to execute SQL queries against DuckDB WASM table for the currently visible row range. This maintains smooth scrolling while working with massive datasets.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Test performance with large datasets",
+            "description": "Validate the metadata-only pattern achieves target performance metrics with 50k, 100k, and 1M row spreadsheets",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Measure FCP (<1s), initial payload size (<5KB), memory usage, and scrolling performance. Compare against current 6.5s FCP baseline.",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Verify AI commands work correctly with server-side data access",
+            "description": "Test that existing AI operations continue to function properly when client has metadata-only and server has full dataset",
+            "status": "pending",
+            "dependencies": [],
+            "details": "Validate AI commands still access complete data from database, not client state. Test various AI operations on large spreadsheets to ensure accuracy is maintained.",
+            "testStrategy": ""
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-08-10T00:15:37.852Z",
-      "updated": "2025-11-19T11:25:04.237Z",
+      "updated": "2025-11-19T21:33:00.974Z",
       "description": "Tasks for master context"
     }
   }
