@@ -68,6 +68,8 @@ export function SimplifiedSpreadsheetView({
         const pageData = await duckDBQuery.loadPage(tableName, 0, 100);
 
         console.log(`[SimplifiedSpreadsheetView] Loaded ${pageData.data.length} rows from DuckDB (total: ${pageData.totalRows})`);
+        console.log(`[SimplifiedSpreadsheetView] First row sample:`, pageData.data[0]);
+        console.log(`[SimplifiedSpreadsheetView] Current columns:`, columns);
 
         // Store in cache
         pageData.data.forEach((row, index) => {
@@ -77,6 +79,7 @@ export function SimplifiedSpreadsheetView({
         // Set React state for initial render
         setRows(pageData.data);
         setTotalDuckDBRows(pageData.totalRows);
+        console.log(`[SimplifiedSpreadsheetView] State updated - rows.length: ${pageData.data.length}, totalRows: ${pageData.totalRows}`);
       } catch (error) {
         console.error('[SimplifiedSpreadsheetView] Failed to load initial page from DuckDB:', error);
       }
