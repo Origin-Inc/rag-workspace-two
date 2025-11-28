@@ -305,14 +305,30 @@ export class DuckDBService {
         }).join(', ');
         
         await conn.query(`CREATE TABLE ${tableName} (${columnDefs})`);
-        
+
+        // DIAGNOSTIC: Log schema vs actual row keys to debug NULL values
+        console.log('[DuckDB] Schema columns:', processedColumns.map(c => ({
+          id: c.id,
+          name: c.name,
+          originalName: c.originalName,
+          type: c.type
+        })));
+        console.log('[DuckDB] Sample row keys:', Object.keys(data[0] || {}));
+        console.log('[DuckDB] Sample row data:', data[0]);
+
         // Prepare data for insertion using processed columns
         const values = data.map(row => {
           const vals = processedColumns.map((col) => {
             // Use original column name for data access (before normalization)
             const val = row[col.originalName];
-            
-            if (val === null || val === undefined) return 'NULL';
+
+            if (val === null || val === undefined) {
+              // DIAGNOSTIC: Warn about missing values
+              if (val === undefined) {
+                console.warn(`[DuckDB] Value undefined for column "${col.originalName}" (normalized: "${col.name}") - available keys:`, Object.keys(row).slice(0, 5));
+              }
+              return 'NULL';
+            }
             
             // Handle different data types
             if (typeof val === 'string' || col.type === 'string' || col.type === 'VARCHAR') {
